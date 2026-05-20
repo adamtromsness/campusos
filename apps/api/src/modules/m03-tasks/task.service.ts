@@ -105,10 +105,11 @@ export class TaskService {
    * surface; pass includeCompleted=true to get the completed history.
    */
   async list(query: ListTasksQueryDto, actor: ResolvedActor): Promise<TaskResponseDto[]> {
+    const tenant = getCurrentTenant();
     const limit = Math.min(query.limit ?? 100, 200);
-    const sql: string[] = [SELECT_TASK_BASE, 'WHERE 1=1 '];
-    const params: any[] = [];
-    let idx = 1;
+    const sql: string[] = [SELECT_TASK_BASE, 'WHERE t.school_id = $1::uuid '];
+    const params: any[] = [tenant.schoolId];
+    let idx = 2;
 
     if (!actor.isSchoolAdmin) {
       sql.push('AND (t.owner_id = $' + idx + '::uuid OR t.created_for_id = $' + idx + '::uuid) ');
@@ -175,8 +176,13 @@ export class TaskService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<TaskResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<TaskRow[]>(SELECT_TASK_BASE + 'WHERE t.id = $1::uuid', id);
+      return client.$queryRawUnsafe<TaskRow[]>(
+        SELECT_TASK_BASE + 'WHERE t.id = $1::uuid AND t.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Task ' + id);
     const row = rows[0]!;

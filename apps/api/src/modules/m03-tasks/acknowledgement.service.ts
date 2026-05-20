@@ -90,8 +90,13 @@ export class AcknowledgementService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<AcknowledgementResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<AckRow[]>(SELECT_ACK_BASE + 'WHERE a.id = $1::uuid', id);
+      return client.$queryRawUnsafe<AckRow[]>(
+        SELECT_ACK_BASE + 'WHERE a.id = $1::uuid AND a.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Acknowledgement ' + id);
     const row = rows[0]!;
@@ -151,8 +156,9 @@ export class AcknowledgementService {
         }>
       >(
         'SELECT id::text AS id, subject_id::text AS subject_id, status, source_type, source_ref_id::text AS source_ref_id ' +
-          'FROM tsk_acknowledgements WHERE id = $1::uuid FOR UPDATE',
+          'FROM tsk_acknowledgements WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Acknowledgement ' + id);
       const row = rows[0]!;
@@ -216,9 +222,12 @@ export class AcknowledgementService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can list every acknowledgement');
     }
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AckRow[]>(
-        SELECT_ACK_BASE + 'ORDER BY a.created_at DESC LIMIT 200',
+        SELECT_ACK_BASE +
+          'WHERE a.school_id = $1::uuid ORDER BY a.created_at DESC LIMIT 200',
+        tenant.schoolId,
       );
     });
     return rows.map(rowToDto);
