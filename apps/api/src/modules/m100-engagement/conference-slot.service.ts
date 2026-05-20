@@ -203,7 +203,7 @@ export class ConferenceSlotService {
                 max_bookings, current_bookings)
              VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::date,
                      $6::time, $7::time, $8, $9, 'AVAILABLE', 1, 0)
-             ON CONFLICT ON CONSTRAINT eng_conference_slots_event_teacher_slot_uq DO NOTHING`,
+             ON CONFLICT (conference_event_id, teacher_id, slot_date, start_time) DO NOTHING`,
             id,
             eventId,
             tenant.schoolId,
