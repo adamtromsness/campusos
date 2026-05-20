@@ -269,9 +269,14 @@ export class FieldTripService {
     const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // Wave 7 fix: explicit ::time casts for departure_time / return_time
+      // and ::date for consent_deadline — Prisma sends raw params as TEXT
+      // and Postgres will not auto-coerce TEXT → TIME (42804) or
+      // TEXT → DATE for nullable columns. Mirrors the trip_date cast
+      // already in place a few columns earlier.
       await client.$executeRawUnsafe(
         'INSERT INTO ext_field_trips (id, school_id, title, description, destination, trip_date, departure_time, return_time, grade_levels, max_participants, cost_per_student, organiser_id, consent_deadline) ' +
-          'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7, $8, $9::text[], $10, $11, $12::uuid, $13)',
+          'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7::time, $8::time, $9::text[], $10, $11, $12::uuid, $13::date)',
         id,
         tenant.schoolId,
         input.title,
