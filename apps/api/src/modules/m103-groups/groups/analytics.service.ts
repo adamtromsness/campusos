@@ -141,7 +141,7 @@ export class GroupAnalyticsService {
           'INSERT INTO grp_group_analytics (id, group_id, period, total_members, active_members, ' +
             'posts_count, comments_count, polls_created, events_held, resources_shared, ' +
             'engagement_rate, computed_at) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, 0, $7, $8, $9, $10, now())',
+            'VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, 0, $7, $8, $9, $10::numeric, now())',
           id,
           groupId,
           period,
@@ -158,7 +158,7 @@ export class GroupAnalyticsService {
         await tx.$executeRawUnsafe(
           'UPDATE grp_group_analytics SET total_members = $1, active_members = $2, ' +
             'posts_count = $3, polls_created = $4, events_held = $5, resources_shared = $6, ' +
-            'engagement_rate = $7, computed_at = now() WHERE id = $8::uuid',
+            'engagement_rate = $7::numeric, computed_at = now() WHERE id = $8::uuid',
           totalMembers,
           activeMembers,
           postAgg[0]!.n,

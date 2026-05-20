@@ -171,6 +171,9 @@ export class PollService {
   }
 
   async listForGroup(groupId: string, actor: ResolvedActor): Promise<PollResponseDto[]> {
+    // Cross-school isolation — assertGroupMember short-circuits for
+    // admins, so we must validate school scope explicitly.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     await this.assertGroupMember(groupId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -233,6 +236,10 @@ export class PollService {
       }>;
       if (pollRows.length === 0) throw new NotFoundException('Poll not found');
       const poll = pollRows[0]!;
+      // Cross-school isolation — even school admins must validate the
+      // poll's parent group belongs to the current school. The
+      // assertGroupMember short-circuit for admins skips this.
+      await assertGroupInCurrentSchool(this.tenantPrisma, poll.group_id);
 
       if (poll.status !== 'OPEN') {
         throw new BadRequestException('Poll is not open for voting');

@@ -9,6 +9,7 @@ import { TenantPrismaService } from '@shared/tenant';
 import { KafkaProducerService } from '@shared/kafka';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { GroupService } from '../groups/group.service';
+import { assertGroupInCurrentSchool } from '../groups/access';
 import {
   CreateEventDto,
   EventResponseDto,
@@ -97,7 +98,14 @@ export class GroupEventService {
     eventIsPublic: boolean,
     actor: ResolvedActor,
   ): Promise<void> {
-    if (actor.isSchoolAdmin) return;
+    // Cross-school isolation — admins must still validate the group
+    // belongs to the current school. getById is now school-scoped via
+    // loadGroup, so threading admin reads through it keeps the school
+    // gate tight.
+    if (actor.isSchoolAdmin) {
+      await this.groups.getById(groupId, actor);
+      return;
+    }
     if (eventIsPublic) {
       // Anyone in the school can see a public event provided they can
       // see the group (handles INVITE_ONLY hiding).
@@ -156,6 +164,10 @@ export class GroupEventService {
     if (!actor.personId) {
       throw new ForbiddenException('Cannot create events without a person record');
     }
+    // Cross-school isolation — even school admins must validate the
+    // target group belongs to the current school before inserting an
+    // event. Mirrors PollService / ResourceLibraryService / InvitationService.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }

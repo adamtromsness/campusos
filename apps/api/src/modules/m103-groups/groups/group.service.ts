@@ -108,9 +108,16 @@ export class GroupService {
   }
 
   async loadGroup(groupId: string, actor: ResolvedActor): Promise<GroupResponseDto> {
-    const sql = buildSelectGroup(1, 2) + 'WHERE g.id = $3::uuid LIMIT 1';
+    // Cross-school isolation — loadGroup is reached via getById from
+    // every reader surface (memberships, announcements, events). Scoping
+    // by tenant.schoolId here is the single source of truth that closes
+    // the cross-school leak. School admins inherit through the platform
+    // scope chain so isSchoolAdmin alone is not sufficient — the school
+    // filter must still apply.
+    const tenant = getCurrentTenant();
+    const sql = buildSelectGroup(1, 2) + 'WHERE g.id = $3::uuid AND g.school_id = $4::uuid LIMIT 1';
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(sql, actor.accountId, 'LEFT', groupId);
+      return client.$queryRawUnsafe(sql, actor.accountId, 'LEFT', groupId, tenant.schoolId);
     })) as GroupRow[];
     if (rows.length === 0) throw new NotFoundException('Group not found');
     return rowToDto(rows[0]!);

@@ -100,6 +100,9 @@ export class ResourceLibraryService {
   }
 
   async listForGroup(groupId: string, actor: ResolvedActor): Promise<ResourceResponseDto[]> {
+    // Cross-school isolation — assertGroupMember short-circuits for
+    // admins, so we must validate school scope explicitly.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     await this.assertGroupMember(groupId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
