@@ -265,9 +265,85 @@ describe('integration:m61-transport/transport-controller', () => {
     expect(r).toBeTruthy();
   });
 
-  it('delays — list', async () => {
+  it('runs — startRun + completeRun', async () => {
+    // Wire driver + credentials + inspection so startRun can succeed
+    await rawClient.$executeRawUnsafe(
+      `UPDATE tenant_test.trn_routes SET driver_id = $1::uuid WHERE id = $2::uuid`,
+      TEST_ADMIN_EMPLOYEE_ID,
+      TEST_ROUTE_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `INSERT INTO tenant_test.trn_driver_credentials
+         (id, driver_id, credential_type, credential_number, issued_date, expiry_date, status)
+       VALUES
+         (gen_random_uuid(), $1::uuid, 'CDL', 'CDL-CTL', '2024-01-01', '2028-01-01', 'VALID'),
+         (gen_random_uuid(), $1::uuid, 'MEDICAL_CERTIFICATE', 'MED-CTL', '2024-01-01', '2028-01-01', 'VALID')
+       ON CONFLICT DO NOTHING`,
+      TEST_ADMIN_EMPLOYEE_ID,
+    );
+    const RUN_DATE = '2026-06-30';
+    await withTestTenant(async () =>
+      ctl.createInspection(
+        TEST_VEHICLE_ID,
+        {
+          inspectionDate: RUN_DATE,
+          items: [{ itemName: 'Brakes', status: 'PASS' }],
+        } as any,
+        req,
+      ),
+    );
+
+    const run = await withTestTenant(async () =>
+      ctl.startRun({ routeId: TEST_ROUTE_ID, runDate: RUN_DATE } as any, req),
+    );
+    expect(run.status).toBe('IN_PROGRESS');
+
+    const completed = await withTestTenant(async () =>
+      ctl.completeRun(run.id, { odometerEnd: 200 } as any, req),
+    );
+    expect(completed.status).toBe('COMPLETED');
+  });
+
+  it('delays — list + create', async () => {
     const list = await withTestTenant(async () => ctl.listDelays(req));
     expect(Array.isArray(list)).toBe(true);
+
+    const created = await withTestTenant(async () =>
+      ctl.reportDelay(
+        {
+          routeId: TEST_ROUTE_ID,
+          runDate: '2026-09-15',
+          delayMinutes: 15,
+          reason: 'Traffic congestion on Main St',
+        } as any,
+        req,
+      ),
+    );
+    expect(created.delayMinutes).toBe(15);
+  });
+
+  it('no-show — resolve a manually-inserted alert', async () => {
+    // Insert a no-show alert directly so we can exercise resolve
+    const alertId = '019e0cf8-aaaa-7777-8888-000000061700';
+    await rawClient.$executeRawUnsafe(
+      `INSERT INTO tenant_test.trn_no_show_alerts
+        (id, student_id, route_id, expected_date, expected_stop_id, alert_time)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, CURRENT_DATE, $4::uuid, now())
+       ON CONFLICT DO NOTHING`,
+      alertId,
+      '019e0cf8-aaaa-7777-8888-000000061701', // a fake student id (soft FK)
+      TEST_ROUTE_ID,
+      TEST_STOP_ID,
+    );
+
+    const resolved = await withTestTenant(async () =>
+      ctl.resolveNoShow(
+        alertId,
+        { resolution: 'FALSE_ALARM', resolutionNotes: 'OK' } as any,
+        req,
+      ),
+    );
+    expect(resolved.resolution).toBe('FALSE_ALARM');
   });
 
   it('change-log + change-requests — list', async () => {

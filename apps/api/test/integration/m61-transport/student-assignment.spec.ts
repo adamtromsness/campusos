@@ -436,6 +436,41 @@ describe('integration:m61-transport/student-assignment', () => {
       expect(rejected.status).toBe('REJECTED');
     });
 
+    it('admin approves DIFFERENT_STOP request → creates override assignment', async () => {
+      await setupAssignment();
+      const newStop = await withTestTenant(async () =>
+        stops.create(
+          TEST_ROUTE_ID,
+          {
+            name: 'Override Stop',
+            address: '900 Alt St',
+            latitude: 33.7,
+            longitude: -84.7,
+            sequenceOrder: 20,
+            scheduledTime: '07:55:00',
+          } as any,
+          adminActor(),
+        ),
+      );
+      const r = await withTestTenant(async () =>
+        changeReq.submit(
+          {
+            studentId,
+            changeDate: '2027-09-20',
+            changeType: 'DIFFERENT_STOP',
+            requestedStopId: newStop.id,
+            reason: 'Different pickup',
+          } as any,
+          parentActor(),
+        ),
+      );
+      const approved = await withTestTenant(async () =>
+        changeReq.approve(r.id, { reviewNotes: 'OK' } as any, adminActor()),
+      );
+      expect(approved.status).toBe('APPROVED');
+      expect(approved.overrideAssignmentId).not.toBeNull();
+    });
+
     it('parent list filtered by status returns own submissions', async () => {
       await setupAssignment();
       await withTestTenant(async () =>

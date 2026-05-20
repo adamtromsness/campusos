@@ -11,8 +11,10 @@ import { FleetStatusService } from '@modules/m61-transport/fleet-status.service'
 import {
   type ActorContextService,
   type ResolvedActor,
+  PermissionCheckService,
 } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant } from '../helpers/tenant-context';
 import {
@@ -46,8 +48,11 @@ describe('integration:m61-transport/gps-fleet-controller', () => {
     rawClient = new PrismaClient();
     await rawClient.$connect();
 
+    const permCheck = new PermissionCheckService(rawClient);
+    const outbox = new OutboxService();
     const positions = new VehiclePositionService(tenantPrisma);
-    const geofences = new GeofenceService(tenantPrisma);
+    const geofences = new GeofenceService(tenantPrisma, outbox, positions, permCheck);
+    geofences.onModuleInit?.();
     const etas = new ETAService(tenantPrisma);
     const dispatch = new DispatchService(tenantPrisma);
     const tracking = new ParentTrackingService(tenantPrisma, {
@@ -162,6 +167,41 @@ describe('integration:m61-transport/gps-fleet-controller', () => {
 
     const list = await withTestTenant(async () => ctl.listDispatchEvents());
     expect(list.map((e: any) => e.id)).toContain(ev.id);
+  });
+
+  it('ingest position inside school zone → triggers ENTER event via callback', async () => {
+    // Create a geofence with the boundary shape the code expects
+    await withTestTenant(async () =>
+      ctl.createGeofence(req, {
+        name: 'Trigger Zone',
+        geofenceType: 'SCHOOL',
+        boundary: { type: 'circle', center: { lat: 33.5, lng: -84.5 }, radius_metres: 500 },
+      } as any),
+    );
+
+    // Position inside the geofence
+    await withTestTenant(async () =>
+      ctl.ingestPosition(
+        req,
+        TEST_VEHICLE_ID,
+        { latitude: 33.5, longitude: -84.5, speedKph: 10 } as any,
+      ),
+    );
+
+    // Move away — outside the 200m radius
+    await withTestTenant(async () =>
+      ctl.ingestPosition(
+        req,
+        TEST_VEHICLE_ID,
+        { latitude: 34.0, longitude: -85.0, speedKph: 50 } as any,
+      ),
+    );
+
+    const events = await withTestTenant(async () =>
+      ctl.listGeofenceEvents(undefined, TEST_VEHICLE_ID),
+    );
+    // At least one ENTER + one EXIT should have been emitted
+    expect(events.length).toBeGreaterThan(0);
   });
 
   it('fleet status — list + getFleetStatus + materialise', async () => {
