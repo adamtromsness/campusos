@@ -307,30 +307,48 @@ export class ClassroomReadModelWorker {
       const termId = yearRows[0]!.term_id;
       const yearId = yearRows[0]!.year_id;
 
+      // Wave 8 bug-fix: the previous query LEFT JOINed sis_enrollments alongside
+      // cls_submissions inside the same GROUP BY, producing a cross-product that
+      // double-counted both the GRADED submissions and grade_distribution buckets
+      // (a class with 1 graded submission + 2 enrolled students produced
+      // completion_rate=2.0, tripping the rpt_class_perf_completion_chk constraint).
+      // Compute assignment aggregates and student count separately, then JOIN.
       const classRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
-          `SELECT c.id::text AS class_id,
-                  AVG(g.grade_value)::numeric AS avg_grade,
-                  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY g.grade_value)::numeric AS median_grade,
-                  count(DISTINCT s.student_id)::int AS student_count,
-                  COALESCE(
-                    (SUM(CASE WHEN sub.status = 'GRADED' THEN 1 ELSE 0 END)::numeric)
-                    / NULLIF(COUNT(DISTINCT sub.id), 0),
-                    NULL
-                  ) AS completion_rate,
-                  jsonb_build_object(
-                    'A', SUM(CASE WHEN g.grade_value >= 90 THEN 1 ELSE 0 END),
-                    'B', SUM(CASE WHEN g.grade_value >= 80 AND g.grade_value < 90 THEN 1 ELSE 0 END),
-                    'C', SUM(CASE WHEN g.grade_value >= 70 AND g.grade_value < 80 THEN 1 ELSE 0 END),
-                    'D', SUM(CASE WHEN g.grade_value >= 60 AND g.grade_value < 70 THEN 1 ELSE 0 END),
-                    'F', SUM(CASE WHEN g.grade_value < 60 THEN 1 ELSE 0 END)
-                  ) AS grade_distribution
-           FROM sis_classes c
-           LEFT JOIN cls_assignments a ON a.class_id = c.id
-           LEFT JOIN cls_submissions sub ON sub.assignment_id = a.id
-           LEFT JOIN cls_grades g ON g.submission_id = sub.id AND g.is_published = true
-           LEFT JOIN sis_enrollments s ON s.class_id = c.id AND s.status = 'ACTIVE'
-           GROUP BY c.id`,
+          `WITH submission_agg AS (
+             SELECT c.id::text AS class_id,
+                    AVG(g.grade_value)::numeric AS avg_grade,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY g.grade_value)::numeric AS median_grade,
+                    COALESCE(
+                      (SUM(CASE WHEN sub.status = 'GRADED' THEN 1 ELSE 0 END)::numeric)
+                      / NULLIF(COUNT(DISTINCT sub.id), 0),
+                      NULL
+                    ) AS completion_rate,
+                    jsonb_build_object(
+                      'A', SUM(CASE WHEN g.grade_value >= 90 THEN 1 ELSE 0 END),
+                      'B', SUM(CASE WHEN g.grade_value >= 80 AND g.grade_value < 90 THEN 1 ELSE 0 END),
+                      'C', SUM(CASE WHEN g.grade_value >= 70 AND g.grade_value < 80 THEN 1 ELSE 0 END),
+                      'D', SUM(CASE WHEN g.grade_value >= 60 AND g.grade_value < 70 THEN 1 ELSE 0 END),
+                      'F', SUM(CASE WHEN g.grade_value < 60 THEN 1 ELSE 0 END)
+                    ) AS grade_distribution
+             FROM sis_classes c
+             LEFT JOIN cls_assignments a ON a.class_id = c.id
+             LEFT JOIN cls_submissions sub ON sub.assignment_id = a.id
+             LEFT JOIN cls_grades g ON g.submission_id = sub.id AND g.is_published = true
+             GROUP BY c.id
+           ),
+           enrolment_agg AS (
+             SELECT c.id::text AS class_id,
+                    count(DISTINCT s.student_id)::int AS student_count
+             FROM sis_classes c
+             LEFT JOIN sis_enrollments s ON s.class_id = c.id AND s.status = 'ACTIVE'
+             GROUP BY c.id
+           )
+           SELECT sa.class_id, sa.avg_grade, sa.median_grade,
+                  COALESCE(ea.student_count, 0)::int AS student_count,
+                  sa.completion_rate, sa.grade_distribution
+           FROM submission_agg sa
+           LEFT JOIN enrolment_agg ea ON ea.class_id = sa.class_id`,
         );
       })) as Array<{
         class_id: string;
@@ -367,18 +385,33 @@ export class ClassroomReadModelWorker {
         rowsWritten++;
       }
 
-      // Staff summary
+      // Staff summary — Wave 8 bug-fix: the previous query joined
+      // sis_class_teachers + sis_enrollments + hr_leave_requests all in one
+      // FROM clause, so SUM(lr.days_requested) was inflated by the cross-
+      // product of (classes_taught × enrollments_per_class). Compute the
+      // teaching aggregate and the leave aggregate independently.
       const staffRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
-          `SELECT e.id::text AS employee_id,
-                  COUNT(DISTINCT ct.class_id)::int AS classes_taught,
-                  COUNT(DISTINCT en.student_id)::int AS total_students,
-                  COALESCE(SUM(lr.days_requested), 0)::numeric AS leave_days_taken
-           FROM hr_employees e
-           LEFT JOIN sis_class_teachers ct ON ct.teacher_employee_id = e.id
-           LEFT JOIN sis_enrollments en ON en.class_id = ct.class_id AND en.status = 'ACTIVE'
-           LEFT JOIN hr_leave_requests lr ON lr.employee_id = e.id AND lr.status = 'APPROVED'
-           GROUP BY e.id`,
+          `WITH teaching_agg AS (
+             SELECT e.id::text AS employee_id,
+                    COUNT(DISTINCT ct.class_id)::int AS classes_taught,
+                    COUNT(DISTINCT en.student_id)::int AS total_students
+             FROM hr_employees e
+             LEFT JOIN sis_class_teachers ct ON ct.teacher_employee_id = e.id
+             LEFT JOIN sis_enrollments en ON en.class_id = ct.class_id AND en.status = 'ACTIVE'
+             GROUP BY e.id
+           ),
+           leave_agg AS (
+             SELECT employee_id::text AS employee_id,
+                    SUM(days_requested)::numeric AS leave_days_taken
+             FROM hr_leave_requests
+             WHERE status = 'APPROVED'
+             GROUP BY employee_id
+           )
+           SELECT t.employee_id, t.classes_taught, t.total_students,
+                  COALESCE(l.leave_days_taken, 0)::numeric AS leave_days_taken
+           FROM teaching_agg t
+           LEFT JOIN leave_agg l ON l.employee_id = t.employee_id`,
         );
       })) as Array<{
         employee_id: string;
