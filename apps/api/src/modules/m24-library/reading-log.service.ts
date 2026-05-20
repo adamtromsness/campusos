@@ -216,13 +216,13 @@ export class ReadingLogService {
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
-      const set = (col: string, val: unknown) => {
-        updates.push(col + ' = $' + idx);
+      const set = (col: string, val: unknown, cast?: string) => {
+        updates.push(col + ' = $' + idx + (cast ? '::' + cast : ''));
         params.push(val);
         idx++;
       };
-      if (input.startedDate !== undefined) set('started_date', input.startedDate);
-      if (input.completedDate !== undefined) set('completed_date', input.completedDate);
+      if (input.startedDate !== undefined) set('started_date', input.startedDate, 'date');
+      if (input.completedDate !== undefined) set('completed_date', input.completedDate, 'date');
       if (input.pagesRead !== undefined) set('pages_read', input.pagesRead);
       if (input.rating !== undefined) set('rating', input.rating);
       if (input.reviewText !== undefined) set('review_text', input.reviewText);

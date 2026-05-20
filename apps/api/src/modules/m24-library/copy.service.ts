@@ -215,13 +215,13 @@ export class CopyService {
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
-      const set = (col: string, val: unknown) => {
-        updates.push(col + ' = $' + idx);
+      const set = (col: string, val: unknown, cast?: string) => {
+        updates.push(col + ' = $' + idx + (cast ? '::' + cast : ''));
         params.push(val);
         idx++;
       };
       if (input.condition !== undefined) set('condition', input.condition);
-      if (input.locationId !== undefined) set('location_id', input.locationId);
+      if (input.locationId !== undefined) set('location_id', input.locationId, 'uuid');
       if (input.locationStatus !== undefined) set('location_status', input.locationStatus);
       if (input.isAvailable !== undefined) set('is_available', input.isAvailable);
       if (input.replacementValue !== undefined) set('replacement_value', input.replacementValue);

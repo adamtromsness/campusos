@@ -265,8 +265,8 @@ export class ReadingProgrammeService {
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
-      const set = (col: string, val: unknown) => {
-        updates.push(col + ' = $' + idx);
+      const set = (col: string, val: unknown, cast?: string) => {
+        updates.push(col + ' = $' + idx + (cast ? '::' + cast : ''));
         params.push(val);
         idx++;
       };
@@ -274,8 +274,8 @@ export class ReadingProgrammeService {
       if (input.description !== undefined) set('description', input.description);
       if (input.targetBooks !== undefined) set('target_books', input.targetBooks);
       if (input.targetPages !== undefined) set('target_pages', input.targetPages);
-      if (input.startDate !== undefined) set('start_date', input.startDate);
-      if (input.endDate !== undefined) set('end_date', input.endDate);
+      if (input.startDate !== undefined) set('start_date', input.startDate, 'date');
+      if (input.endDate !== undefined) set('end_date', input.endDate, 'date');
       if (input.isActive !== undefined) set('is_active', input.isActive);
       if (updates.length === 0) return;
       updates.push('updated_at = now()');

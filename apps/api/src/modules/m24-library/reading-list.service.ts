@@ -287,17 +287,18 @@ export class ReadingListService {
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
-      const set = (col: string, val: unknown) => {
-        updates.push(col + ' = $' + idx);
+      const set = (col: string, val: unknown, cast?: string) => {
+        updates.push(col + ' = $' + idx + (cast ? '::' + cast : ''));
         params.push(val);
         idx++;
       };
       if (input.name !== undefined) set('name', input.name);
       if (input.description !== undefined) set('description', input.description);
       if (input.listType !== undefined) set('list_type', input.listType);
-      if (input.targetClassId !== undefined) set('target_class_id', input.targetClassId);
+      if (input.targetClassId !== undefined) set('target_class_id', input.targetClassId, 'uuid');
       if (input.targetGradeLevel !== undefined) set('target_grade_level', input.targetGradeLevel);
-      if (input.curriculumUnitId !== undefined) set('curriculum_unit_id', input.curriculumUnitId);
+      if (input.curriculumUnitId !== undefined)
+        set('curriculum_unit_id', input.curriculumUnitId, 'uuid');
 
       // Multi-column published_chk keystone — when is_published flips,
       // stamp published_at in lockstep (set on publish, clear on unpublish).
