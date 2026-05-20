@@ -252,7 +252,7 @@ describe('integration:m61-transport/routes-fleet', () => {
   // ────────────────────────────────────────────────────────
   // PartsService
   // ────────────────────────────────────────────────────────
-  describe.skip('PartsService', () => {
+  describe('PartsService', () => {
     it('create + list + getById + patch + restock', async () => {
       const p = await withTestTenant(async () =>
         parts.create(
@@ -274,7 +274,7 @@ describe('integration:m61-transport/routes-fleet', () => {
       expect(patched.partName).toBe('Renamed Pad');
 
       const restocked = await withTestTenant(async () =>
-        parts.restock(p.id, { quantity: 5 } as any, adminActor()),
+        parts.restock(p.id, { quantityDelta: 5 } as any, adminActor()),
       );
       expect(restocked.quantityOnHand).toBe(15);
     });
@@ -305,65 +305,90 @@ describe('integration:m61-transport/routes-fleet', () => {
   // ────────────────────────────────────────────────────────
   // RepairService
   // ────────────────────────────────────────────────────────
-  describe.skip('RepairService', () => {
-    async function makeRepair() {
+  describe('RepairService', () => {
+    async function makeRepair(status: string = 'SCHEDULED') {
       return withTestTenant(async () =>
-        repairs.log(
+        repairs.create(
+          TEST_VEHICLE_ID,
           {
-            vehicleId: TEST_VEHICLE_ID,
             repairDate: '2026-06-01',
             problemDescription: 'Squeaky brake',
+            workPerformed: 'Inspected and ordered new pads',
             mileageAtRepair: 50000,
             performedByType: 'INTERNAL',
+            totalCost: 100,
+            status,
           } as any,
           adminActor(),
         ),
       );
     }
 
-    it('log + listOutstanding + getById + start + complete', async () => {
-      const r = await makeRepair();
-      const list = await withTestTenant(async () => repairs.listOutstanding());
-      expect(list.map((x) => x.id)).toContain(r.id);
-
+    it('create + getById + patch through status lifecycle', async () => {
+      const r = await makeRepair('SCHEDULED');
       const fetched = await withTestTenant(async () => repairs.getById(r.id));
       expect(fetched.id).toBe(r.id);
 
-      const started = await withTestTenant(async () => repairs.start(r.id, adminActor()));
+      const started = await withTestTenant(async () =>
+        repairs.patch(r.id, { status: 'IN_PROGRESS' } as any, adminActor()),
+      );
       expect(started.status).toBe('IN_PROGRESS');
 
       const completed = await withTestTenant(async () =>
-        repairs.complete(
+        repairs.patch(
           r.id,
-          { workPerformed: 'Replaced pad', totalCost: 100, labourHours: 2 } as any,
+          { status: 'COMPLETED', workPerformed: 'Replaced pad', labourHours: 2 } as any,
           adminActor(),
         ),
       );
       expect(completed.status).toBe('COMPLETED');
     });
 
-    it('cancel a repair', async () => {
-      const r = await makeRepair();
-      const cancelled = await withTestTenant(async () => repairs.cancel(r.id, adminActor()));
+    it('patch to CANCELLED', async () => {
+      const r = await makeRepair('SCHEDULED');
+      const cancelled = await withTestTenant(async () =>
+        repairs.patch(r.id, { status: 'CANCELLED' } as any, adminActor()),
+      );
       expect(cancelled.status).toBe('CANCELLED');
     });
 
     it('listForVehicle returns repairs', async () => {
-      await makeRepair();
+      await makeRepair('SCHEDULED');
       const list = await withTestTenant(async () => repairs.listForVehicle(TEST_VEHICLE_ID));
       expect(list.length).toBeGreaterThan(0);
+    });
+
+    it('listOutstandingSafetyCritical returns array', async () => {
+      const list = await withTestTenant(async () => repairs.listOutstandingSafetyCritical());
+      expect(Array.isArray(list)).toBe(true);
+    });
+
+    it('repair category create + list + patch', async () => {
+      const cat = await withTestTenant(async () =>
+        repairs.createCategory(
+          { name: 'Brakes', isSafetyCritical: true } as any,
+          adminActor(),
+        ),
+      );
+      expect(cat.isSafetyCritical).toBe(true);
+      const list = await withTestTenant(async () => repairs.listCategories());
+      expect(list.map((c) => c.id)).toContain(cat.id);
+      const patched = await withTestTenant(async () =>
+        repairs.patchCategory(cat.id, { name: 'Renamed Brakes' } as any, adminActor()),
+      );
+      expect(patched.name).toBe('Renamed Brakes');
     });
   });
 
   // ────────────────────────────────────────────────────────
   // FuelLogService
   // ────────────────────────────────────────────────────────
-  describe.skip('FuelLogService', () => {
+  describe('FuelLogService', () => {
     async function makeFuelLog() {
       return withTestTenant(async () =>
         fuelLogs.create(
+          TEST_VEHICLE_ID,
           {
-            vehicleId: TEST_VEHICLE_ID,
             loggedBy: TEST_ADMIN_EMPLOYEE_ID,
             logDate: '2026-06-01',
             odometerReading: 50000,
@@ -376,33 +401,28 @@ describe('integration:m61-transport/routes-fleet', () => {
       );
     }
 
-    it('create + listForVehicle + getById', async () => {
+    it('create + listForVehicle', async () => {
       const f = await makeFuelLog();
       const list = await withTestTenant(async () =>
-        fuelLogs.listForVehicle(TEST_VEHICLE_ID, {}),
+        fuelLogs.listForVehicle(TEST_VEHICLE_ID),
       );
       expect(list.map((x) => x.id)).toContain(f.id);
-
-      const fetched = await withTestTenant(async () => fuelLogs.getById(f.id));
-      expect(fetched.id).toBe(f.id);
     });
 
-    it('computeEfficiency returns efficiency report', async () => {
+    it('fleetSummary returns summary rows', async () => {
       await makeFuelLog();
-      const r = await withTestTenant(async () =>
-        fuelLogs.computeEfficiency(TEST_VEHICLE_ID),
-      );
-      expect(r).toBeTruthy();
+      const r = await withTestTenant(async () => fuelLogs.fleetSummary());
+      expect(Array.isArray(r)).toBe(true);
     });
   });
 
   // ────────────────────────────────────────────────────────
   // ComponentService
   // ────────────────────────────────────────────────────────
-  describe.skip('ComponentService', () => {
+  describe('ComponentService', () => {
     async function installComp() {
       return withTestTenant(async () =>
-        components.install(
+        components.create(
           TEST_VEHICLE_ID,
           {
             componentType: 'TYRE',
@@ -415,48 +435,40 @@ describe('integration:m61-transport/routes-fleet', () => {
       );
     }
 
-    it('install + listForVehicle + getById + replace + markFailed', async () => {
+    it('create + listForVehicle + getById', async () => {
       const c = await installComp();
       const list = await withTestTenant(async () => components.listForVehicle(TEST_VEHICLE_ID));
       expect(list.map((x) => x.id)).toContain(c.id);
 
       const fetched = await withTestTenant(async () => components.getById(c.id));
       expect(fetched.id).toBe(c.id);
-
-      const replaced = await withTestTenant(async () =>
-        components.replace(
-          c.id,
-          {
-            componentType: 'TYRE',
-            description: 'Replacement tyre',
-            installedDate: '2027-01-01',
-            installedMileage: 60000,
-          } as any,
-          adminActor(),
-        ),
-      );
-      expect(replaced.status).toBe('ACTIVE');
     });
 
-    it('markFailed flips status', async () => {
+    it('patch flips status to FAILED', async () => {
       const c = await installComp();
-      const failed = await withTestTenant(async () => components.markFailed(c.id, adminActor()));
+      const failed = await withTestTenant(async () =>
+        components.patch(c.id, { status: 'FAILED' } as any, adminActor()),
+      );
       expect(failed.status).toBe('FAILED');
+    });
+
+    it('listApproachingEndOfLife returns array', async () => {
+      await installComp();
+      const list = await withTestTenant(async () => components.listApproachingEndOfLife());
+      expect(Array.isArray(list)).toBe(true);
     });
   });
 
   // ────────────────────────────────────────────────────────
   // InspectionService (pre-trip)
   // ────────────────────────────────────────────────────────
-  describe.skip('InspectionService (pre-trip)', () => {
+  describe('InspectionService (pre-trip)', () => {
     it('admin creates pre-trip inspection + listForVehicle + getById', async () => {
       const i = await withTestTenant(async () =>
         inspections.create(
+          TEST_VEHICLE_ID,
           {
-            vehicleId: TEST_VEHICLE_ID,
             inspectionDate: '2026-06-01',
-            overallStatus: 'PASS',
-            driverId: TEST_ADMIN_EMPLOYEE_ID,
             items: [
               { itemName: 'Tyres', status: 'PASS' },
               { itemName: 'Lights', status: 'PASS' },
@@ -472,6 +484,23 @@ describe('integration:m61-transport/routes-fleet', () => {
 
       const fetched = await withTestTenant(async () => inspections.getById(i.id));
       expect(fetched.id).toBe(i.id);
+    });
+
+    it('FAIL item → overallStatus FAIL', async () => {
+      const i = await withTestTenant(async () =>
+        inspections.create(
+          TEST_VEHICLE_ID,
+          {
+            inspectionDate: '2026-06-02',
+            items: [
+              { itemName: 'Tyres', status: 'PASS' },
+              { itemName: 'Brakes', status: 'FAIL', notes: 'Worn brake pads' },
+            ],
+          } as any,
+          adminActor(),
+        ),
+      );
+      expect(i.overallStatus).toBe('FAIL');
     });
   });
 

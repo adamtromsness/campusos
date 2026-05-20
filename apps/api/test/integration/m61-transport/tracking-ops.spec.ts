@@ -207,7 +207,7 @@ describe('integration:m61-transport/tracking-ops', () => {
       expect(Array.isArray(planning)).toBe(true);
     });
 
-    it.skip('recordDisposal flips vehicle to RETIRED', async () => {
+    it('recordDisposal flips vehicle to RETIRED', async () => {
       await withTestTenant(async () =>
         lifecycle.upsert(
           TEST_VEHICLE_ID,
@@ -226,7 +226,7 @@ describe('integration:m61-transport/tracking-ops', () => {
           {
             disposalDate: '2026-09-15',
             disposalValue: 5000,
-            disposalMethod: 'AUCTION',
+            disposalMethod: 'SOLD',
             disposalNotes: 'sold at auction',
           } as any,
           adminActor(),
