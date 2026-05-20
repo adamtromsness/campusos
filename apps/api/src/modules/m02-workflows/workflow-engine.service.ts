@@ -348,8 +348,9 @@ export class WorkflowEngineService {
       }
 
       const reqRows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
-        'SELECT status FROM wsk_approval_requests WHERE id = $1::uuid FOR UPDATE',
+        'SELECT status FROM wsk_approval_requests WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         requestId,
+        tenant.schoolId,
       );
       if (reqRows.length === 0) throw new NotFoundException('Approval request ' + requestId);
       if (reqRows[0]!.status !== 'PENDING') {
@@ -498,8 +499,9 @@ export class WorkflowEngineService {
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<Array<{ requester_id: string; status: string }>>(
         'SELECT requester_id::text AS requester_id, status FROM wsk_approval_requests ' +
-          'WHERE id = $1::uuid FOR UPDATE',
+          'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         requestId,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Approval request ' + requestId);
       const row = rows[0]!;
@@ -592,9 +594,10 @@ export class WorkflowEngineService {
     query: ListApprovalsQueryDto,
     actor: ResolvedActor,
   ): Promise<ApprovalRequestResponseDto[]> {
-    const params: any[] = [];
-    let idx = 1;
-    let where = 'WHERE 1=1 ';
+    const tenant = getCurrentTenant();
+    const params: any[] = [tenant.schoolId];
+    let idx = 2;
+    let where = 'WHERE r.school_id = $1::uuid ';
     if (actor.isSchoolAdmin) {
       if (query.mine === true) {
         where += 'AND r.requester_id = $' + idx + '::uuid ';
@@ -641,10 +644,12 @@ export class WorkflowEngineService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<ApprovalRequestResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<RequestRow[]>(
-        SELECT_REQUEST_BASE + 'WHERE r.id = $1::uuid',
+        SELECT_REQUEST_BASE + 'WHERE r.id = $1::uuid AND r.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Approval request ' + id);

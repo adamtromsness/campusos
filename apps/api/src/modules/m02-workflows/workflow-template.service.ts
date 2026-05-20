@@ -85,13 +85,15 @@ export class WorkflowTemplateService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can view workflow templates');
     }
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<TemplateRow[]>(
         'SELECT id::text AS id, school_id::text AS school_id, name, request_type, description, is_active, ' +
           'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
           'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
-          'FROM wsk_workflow_templates WHERE id = $1::uuid',
+          'FROM wsk_workflow_templates WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Workflow template ' + id);
