@@ -207,4 +207,155 @@ describe('integration:m61-transport/route-generation-controller', () => {
     );
     expect(cancelled.status).toBe('CANCELLED');
   });
+
+  it('generation requests — add manual candidate + complete', async () => {
+    const c = await withTestTenant(async () =>
+      ctl.createConstraint(
+        { constraintName: 'Manual-Gen', maxRideTimeMinutes: 40 } as any,
+        req,
+      ),
+    );
+    const queued = await withTestTenant(async () =>
+      ctl.queueGenerationRequest(
+        {
+          requestType: 'FULL_YEAR',
+          constraintId: c.id,
+          academicYearId: TEST_SIS_ACADEMIC_YEAR_ID,
+        } as any,
+        req,
+      ),
+    );
+
+    const cand = await withTestTenant(async () =>
+      ctl.addManualCandidate(
+        queued.id,
+        {
+          candidateName: 'Route A AM',
+          direction: 'AM',
+          vehicleTypeRequired: 'BUS',
+          estimatedRouteMileage: 12,
+          estimatedDurationMinutes: 35,
+          maxStudentRideTimeMinutes: 35,
+          allConstraintsSatisfied: true,
+          stops: [
+            {
+              stopName: 'Stop 1',
+              latitude: 33.5,
+              longitude: -84.5,
+              sequenceOrder: 1,
+              scheduledTime: '07:30:00',
+              studentIds: [],
+            },
+            {
+              stopName: 'Stop 2',
+              latitude: 33.6,
+              longitude: -84.6,
+              sequenceOrder: 2,
+              scheduledTime: '07:35:00',
+              studentIds: [],
+            },
+          ],
+        } as any,
+        req,
+      ),
+    );
+    expect(cand.candidateName).toBe('Route A AM');
+
+    const cFetched = await withTestTenant(async () => ctl.getCandidate(cand.id));
+    expect(cFetched.id).toBe(cand.id);
+
+    // The request is now RUNNING — mark completed
+    const completed = await withTestTenant(async () =>
+      ctl.completeGenerationRequest(queued.id, req),
+    );
+    expect(completed.status).toBe('COMPLETED');
+  });
+
+  it('generation requests — approve + reject candidates', async () => {
+    const c = await withTestTenant(async () =>
+      ctl.createConstraint(
+        { constraintName: 'Approve-Gen', maxRideTimeMinutes: 40 } as any,
+        req,
+      ),
+    );
+    const queued = await withTestTenant(async () =>
+      ctl.queueGenerationRequest(
+        {
+          requestType: 'FULL_YEAR',
+          constraintId: c.id,
+          academicYearId: TEST_SIS_ACADEMIC_YEAR_ID,
+        } as any,
+        req,
+      ),
+    );
+
+    const cand1 = await withTestTenant(async () =>
+      ctl.addManualCandidate(
+        queued.id,
+        {
+          candidateName: 'Approve-Route',
+          direction: 'AM',
+          vehicleTypeRequired: 'BUS',
+          estimatedRouteMileage: 10,
+          estimatedDurationMinutes: 30,
+          maxStudentRideTimeMinutes: 30,
+          allConstraintsSatisfied: true,
+          stops: [
+            {
+              stopName: 'Approve Stop 1',
+              latitude: 33.5,
+              longitude: -84.5,
+              sequenceOrder: 1,
+              scheduledTime: '07:30:00',
+              studentIds: [],
+            },
+          ],
+        } as any,
+        req,
+      ),
+    );
+
+    const approved = await withTestTenant(async () =>
+      ctl.approveCandidate(
+        cand1.id,
+        {
+          routeName: 'Generated Route Alpha',
+          reviewNotes: 'Looks good',
+        } as any,
+        req,
+      ),
+    );
+    expect(approved.reviewStatus).toBe('APPROVED');
+
+    // Now reject a second candidate
+    const cand2 = await withTestTenant(async () =>
+      ctl.addManualCandidate(
+        queued.id,
+        {
+          candidateName: 'Reject-Route',
+          direction: 'PM',
+          vehicleTypeRequired: 'BUS',
+          estimatedRouteMileage: 11,
+          estimatedDurationMinutes: 32,
+          maxStudentRideTimeMinutes: 32,
+          allConstraintsSatisfied: true,
+          stops: [
+            {
+              stopName: 'Reject Stop 1',
+              latitude: 33.6,
+              longitude: -84.6,
+              sequenceOrder: 1,
+              scheduledTime: '14:30:00',
+              studentIds: [],
+            },
+          ],
+        } as any,
+        req,
+      ),
+    );
+    const rejected = await withTestTenant(async () =>
+      ctl.rejectCandidate(cand2.id, { reviewNotes: 'Not optimal' } as any, req),
+    );
+    expect(rejected.reviewStatus).toBe('REJECTED');
+  });
 });

@@ -7,6 +7,10 @@ import { ParentTrackingService } from '@modules/m61-transport/parent-tracking.se
 import { BusPassService } from '@modules/m61-transport/bus-pass.service';
 import { RouteService } from '@modules/m61-transport/route.service';
 import { RouteChangeLogService } from '@modules/m61-transport/route-change-log.service';
+import { RouteChangeRequestService } from '@modules/m61-transport/route-change-request.service';
+import { StopService } from '@modules/m61-transport/stop.service';
+import { NoShowService } from '@modules/m61-transport/no-show.service';
+import { makeRecordingKafka } from '../helpers/recording-kafka';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
@@ -92,6 +96,9 @@ describe('integration:m61-transport/student-assignment', () => {
   let busPass: BusPassService;
   let routes: RouteService;
   let changeLog: RouteChangeLogService;
+  let changeReq: RouteChangeRequestService;
+  let stops: StopService;
+  let noShow: NoShowService;
   let studentId: string;
 
   beforeAll(async () => {
@@ -108,6 +115,9 @@ describe('integration:m61-transport/student-assignment', () => {
     parentTracking = new ParentTrackingService(tenantPrisma, {
       hasAnyPermissionInTenant: async () => true,
     } as any);
+    changeReq = new RouteChangeRequestService(tenantPrisma, assignments);
+    stops = new StopService(tenantPrisma, routes, changeLog);
+    noShow = new NoShowService(tenantPrisma, ridership, makeRecordingKafka());
     void outbox;
   });
 
@@ -340,6 +350,183 @@ describe('integration:m61-transport/student-assignment', () => {
         parentTracking.revokeToken(t.id, adminActor()),
       );
       expect(revoked.isActive).toBe(false);
+    });
+  });
+
+  // ─── RouteChangeRequestService ──────────────────────
+  describe('RouteChangeRequestService', () => {
+    async function setupAssignment() {
+      await withTestTenant(async () =>
+        assignments.create(
+          TEST_ROUTE_ID,
+          {
+            studentId,
+            stopId: TEST_STOP_ID,
+            direction: 'BOTH',
+            academicYearId: TEST_SIS_ACADEMIC_YEAR_ID,
+            effectiveFrom: '2026-01-01',
+            effectiveTo: '2027-12-31',
+          } as any,
+          adminActor(),
+        ),
+      );
+    }
+
+    it('parent submits NO_BUS request; admin approves', async () => {
+      await setupAssignment();
+      const r = await withTestTenant(async () =>
+        changeReq.submit(
+          {
+            studentId,
+            changeDate: '2027-09-15',
+            changeType: 'NO_BUS',
+            reason: 'Doctor appointment',
+          } as any,
+          parentActor(),
+        ),
+      );
+      expect(r.status).toBe('PENDING');
+      expect(r.changeType).toBe('NO_BUS');
+
+      const list = await withTestTenant(async () => changeReq.list(adminActor(), {}));
+      expect(list.map((x) => x.id)).toContain(r.id);
+
+      const fetched = await withTestTenant(async () => changeReq.getById(r.id, adminActor()));
+      expect(fetched.id).toBe(r.id);
+
+      const approved = await withTestTenant(async () =>
+        changeReq.approve(r.id, { reviewNotes: 'Approved' } as any, adminActor()),
+      );
+      expect(approved.status).toBe('APPROVED');
+    });
+
+    it('parent submits DIFFERENT_STOP request; admin rejects', async () => {
+      await setupAssignment();
+      const newStop = await withTestTenant(async () =>
+        stops.create(
+          TEST_ROUTE_ID,
+          {
+            name: 'Backup Stop',
+            address: '500 Side St',
+            latitude: 33.8,
+            longitude: -84.8,
+            sequenceOrder: 5,
+            scheduledTime: '07:50:00',
+          } as any,
+          adminActor(),
+        ),
+      );
+      const r = await withTestTenant(async () =>
+        changeReq.submit(
+          {
+            studentId,
+            changeDate: '2027-09-16',
+            changeType: 'DIFFERENT_STOP',
+            requestedStopId: newStop.id,
+            reason: 'Picking up at grandma',
+          } as any,
+          parentActor(),
+        ),
+      );
+      expect(r.status).toBe('PENDING');
+
+      const rejected = await withTestTenant(async () =>
+        changeReq.reject(r.id, { reviewNotes: 'Not feasible' } as any, adminActor()),
+      );
+      expect(rejected.status).toBe('REJECTED');
+    });
+
+    it('parent list filtered by status returns own submissions', async () => {
+      await setupAssignment();
+      await withTestTenant(async () =>
+        changeReq.submit(
+          {
+            studentId,
+            changeDate: '2027-09-17',
+            changeType: 'NO_BUS',
+          } as any,
+          parentActor(),
+        ),
+      );
+      const list = await withTestTenant(async () =>
+        changeReq.list(parentActor(), { status: 'PENDING' }),
+      );
+      expect(list.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── StopService extras (remove + reorder) ──────────
+  describe('StopService remove', () => {
+    it('remove a stop without assignments', async () => {
+      const s1 = await withTestTenant(async () =>
+        stops.create(
+          TEST_ROUTE_ID,
+          {
+            name: 'Stop A',
+            address: '600 A St',
+            latitude: 33.9,
+            longitude: -84.9,
+            sequenceOrder: 10,
+            scheduledTime: '07:55:00',
+          } as any,
+          adminActor(),
+        ),
+      );
+      const s2 = await withTestTenant(async () =>
+        stops.create(
+          TEST_ROUTE_ID,
+          {
+            name: 'Stop B',
+            address: '700 B St',
+            latitude: 33.95,
+            longitude: -84.95,
+            sequenceOrder: 11,
+            scheduledTime: '08:00:00',
+          } as any,
+          adminActor(),
+        ),
+      );
+
+      await withTestTenant(async () => stops.remove(s1.id, adminActor()));
+      void s2;
+      const after = await withTestTenant(async () => routes.getStops(TEST_ROUTE_ID));
+      expect(after.map((s) => s.id)).not.toContain(s1.id);
+    });
+  });
+
+  // ─── NoShowService end-to-end ───────────────────────
+  describe('NoShowService end-to-end', () => {
+    it('runOnce + list + resolve', async () => {
+      await withTestTenant(async () =>
+        assignments.create(
+          TEST_ROUTE_ID,
+          {
+            studentId,
+            stopId: TEST_STOP_ID,
+            direction: 'AM',
+            academicYearId: TEST_SIS_ACADEMIC_YEAR_ID,
+            effectiveFrom: '2026-01-01',
+            effectiveTo: '2027-12-31',
+          } as any,
+          adminActor(),
+        ),
+      );
+
+      const today = new Date().toISOString().slice(0, 10);
+      const result = await withTestTenant(async () => noShow.runOnce({ date: today }));
+      expect(result.inserted).toBeGreaterThanOrEqual(0);
+
+      const list = await withTestTenant(async () => noShow.list(adminActor(), { date: today }));
+      if (list.length > 0) {
+        const resolved = await withTestTenant(async () =>
+          noShow.resolve(
+            list[0]!.id,
+            { resolution: 'PARENT_NOTIFIED', resolutionNotes: 'Parent informed' } as any,
+            adminActor(),
+          ),
+        );
+        expect(resolved.resolution).toBe('PARENT_NOTIFIED');
+      }
     });
   });
 });

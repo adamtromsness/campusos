@@ -242,6 +242,21 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
     const approaching = await withTestTenant(async () => ctl.approachingLimit());
     expect(Array.isArray(approaching)).toBe(true);
+
+    // Close out the duty
+    const completed = await withTestTenant(async () =>
+      ctl.completeDuty(
+        req,
+        log.id,
+        {
+          dutyEndAt: '2026-06-01T14:00:00Z',
+          drivingMinutes: 360,
+          breakMinutes: 60,
+          notes: 'Done',
+        } as any,
+      ),
+    );
+    expect(completed.dutyEndAt).not.toBeNull();
   });
 
   it('vehicle lifecycle — patch + getForVehicle + replacementPlanning', async () => {

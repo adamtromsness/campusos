@@ -15,6 +15,7 @@ import { RouteService } from '@modules/m61-transport/route.service';
 import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
+import { makeRecordingKafka } from '../helpers/recording-kafka';
 
 import {
   withTestTenant,
@@ -66,7 +67,11 @@ describe('integration:m61-transport/services-coverage', () => {
     constraints = new RouteConstraintService(tenantPrisma);
     driverHours = new DriverHoursService(tenantPrisma, outbox, permCheck);
     adhoc = new AdhocTripService(tenantPrisma, new StubWorkflows() as any);
-    noShow = new NoShowService(tenantPrisma, outbox);
+    noShow = new NoShowService(
+      tenantPrisma,
+      busPass as any, // RidershipService not needed for these tests
+      makeRecordingKafka(),
+    );
     busPass = new BusPassService(tenantPrisma);
     fleetStatus = new FleetStatusService(tenantPrisma);
     const assignments = new (await import('@modules/m61-transport/assignment.service')).AssignmentService(

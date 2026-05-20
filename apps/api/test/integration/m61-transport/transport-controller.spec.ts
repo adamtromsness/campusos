@@ -72,7 +72,7 @@ describe('integration:m61-transport/transport-controller', () => {
     const busPasses = new BusPassService(tenantPrisma);
     const ridership = new RidershipService(tenantPrisma, busPasses as any);
     const runLogs = new RunLogService(tenantPrisma, inspections);
-    const noShows = new NoShowService(tenantPrisma, outbox);
+    const noShows = new NoShowService(tenantPrisma, ridership as any, kafka);
     const delays = new DelayReportService(tenantPrisma, kafka);
 
     ctl = new TransportController(
@@ -152,6 +152,27 @@ describe('integration:m61-transport/transport-controller', () => {
       ctl.patchStop(created.id, { name: 'Renamed' } as any, req),
     );
     expect(patched.name).toBe('Renamed');
+  });
+
+  it('vehicle documents — list + add', async () => {
+    const docs = await withTestTenant(async () => ctl.listVehicleDocs(TEST_VEHICLE_ID));
+    expect(Array.isArray(docs)).toBe(true);
+
+    const created = await withTestTenant(async () =>
+      ctl.addVehicleDoc(
+        TEST_VEHICLE_ID,
+        {
+          documentType: 'REGISTRATION',
+          documentNumber: 'REG-001',
+          expiryDate: '2027-09-01',
+        } as any,
+        req,
+      ),
+    );
+    expect(created.documentType).toBe('REGISTRATION');
+
+    const after = await withTestTenant(async () => ctl.listVehicleDocs(TEST_VEHICLE_ID));
+    expect(after.map((d: any) => d.id)).toContain(created.id);
   });
 
   it('vehicles — list + get + create + patch + documents + inspections', async () => {
