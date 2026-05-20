@@ -478,7 +478,7 @@ export class AlumniEventService {
       await client.$executeRawUnsafe(
         `INSERT INTO alm_events
            (id, school_id, title, description, event_date, venue, rsvp_url, evt_event_id)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8)`,
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8::uuid)`,
         id,
         tenant.schoolId,
         input.title,
@@ -515,7 +515,7 @@ export class AlumniEventService {
     if (input.eventDate !== undefined) add('event_date', input.eventDate, '::date');
     if (input.venue !== undefined) add('venue', input.venue);
     if (input.rsvpUrl !== undefined) add('rsvp_url', input.rsvpUrl);
-    if (input.evtEventId !== undefined) add('evt_event_id', input.evtEventId);
+    if (input.evtEventId !== undefined) add('evt_event_id', input.evtEventId, '::uuid');
     args.push(id);
     args.push(tenant.schoolId);
     // REVIEW-P2C22 BLOCKING 4 — every UPDATE carries the school
