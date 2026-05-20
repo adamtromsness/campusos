@@ -411,8 +411,17 @@ export class PositiveBehaviourService {
         );
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('sis_beh_reward_name_uq')) {
+      // SQLSTATE 23505 surfaces via Prisma's $executeRawUnsafe as code='P2010'
+      // with meta.code='23505'. The driver does NOT include the constraint
+      // name in the message, so we detect via code rather than substring on
+      // the constraint name. Surfaces a clean ConflictException to the
+      // caller instead of a raw Prisma error.
+      const errObj = err as { code?: string; meta?: { code?: string }; message?: string };
+      const isUniqueViolation =
+        errObj?.code === 'P2010' ||
+        errObj?.meta?.code === '23505' ||
+        (typeof errObj?.message === 'string' && errObj.message.includes('23505'));
+      if (isUniqueViolation) {
         throw new ConflictException('A reward with this name already exists for this school');
       }
       throw err;
