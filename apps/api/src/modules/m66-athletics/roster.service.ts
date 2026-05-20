@@ -206,13 +206,14 @@ export class RosterService {
         );
       });
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23505') {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const code = err.code === 'P2010' ? err.meta?.code : err.code;
+      if (code === '23505' || /23505/.test(err.message ?? '')) {
         throw new BadRequestException(
           'A roster for level "' + input.level + '" already exists in this season.',
         );
       }
-      if (code === '23503') {
+      if (code === '23503' || /23503/.test(err.message ?? '')) {
         throw new BadRequestException('headCoachId does not match an employee in this school.');
       }
       throw e;
@@ -249,8 +250,9 @@ export class RosterService {
         );
       });
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23505') {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const code = err.code === 'P2010' ? err.meta?.code : err.code;
+      if (code === '23505' || /23505/.test(err.message ?? '')) {
         throw new BadRequestException('A roster for that level already exists in this season.');
       }
       throw e;
@@ -387,8 +389,9 @@ export class RosterService {
           input.eligibilityNotes ?? null,
         );
       } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code === '23505') {
+        const err = e as { code?: string; meta?: { code?: string }; message?: string };
+        const code = err.code === 'P2010' ? err.meta?.code : err.code;
+        if (code === '23505' || /23505/.test(err.message ?? '')) {
           throw new BadRequestException('Student is already on this roster.');
         }
         throw e;
@@ -454,8 +457,9 @@ export class RosterService {
         );
       });
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23514') {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const code = err.code === 'P2010' ? err.meta?.code : err.code;
+      if (code === '23514' || /23514/.test(err.message ?? '')) {
         throw new BadRequestException(
           'Member dates inconsistent. removed_at must be on or after joined_at.',
         );

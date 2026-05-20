@@ -163,13 +163,14 @@ export class ConcussionProtocolService {
           input.notes ?? null,
         );
       } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code === '23505') {
+        const err = e as { code?: string; meta?: { code?: string }; message?: string };
+        const code = err.code === 'P2010' ? err.meta?.code : err.code;
+        if (code === '23505' || /23505/.test(err.message ?? '')) {
           throw new BadRequestException(
             'Step ' + input.stepNumber + ' already exists for this injury.',
           );
         }
-        if (code === '23514') {
+        if (code === '23514' || /23514/.test(err.message ?? '')) {
           throw new BadRequestException('step_number must be between 1 and 6.');
         }
         throw e;

@@ -101,8 +101,9 @@ export class CoachingService {
         );
       });
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23514') {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const code = err.code === 'P2010' ? err.meta?.code : err.code;
+      if (code === '23514' || /23514/.test(err.message ?? '')) {
         throw new BadRequestException(
           'Coaching dates inconsistent. end_date must be on or after start_date.',
         );

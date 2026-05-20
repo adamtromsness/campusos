@@ -118,15 +118,16 @@ export class SeasonService {
         );
       });
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23505') {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const code = err.code === 'P2010' ? err.meta?.code : err.code;
+      if (code === '23505' || /23505/.test(err.message ?? '')) {
         throw new BadRequestException(
           'A season for academic year "' +
             input.academicYear +
             '" already exists for this programme.',
         );
       }
-      if (code === '23514') {
+      if (code === '23514' || /23514/.test(err.message ?? '')) {
         throw new BadRequestException(
           'Season dates are inconsistent. last_game_date must be on or after first_game_date and first_game_date on or after first_practice_date.',
         );
@@ -195,8 +196,9 @@ export class SeasonService {
           ...params,
         );
       } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code === '23514') {
+        const err = e as { code?: string; meta?: { code?: string }; message?: string };
+        const code = err.code === 'P2010' ? err.meta?.code : err.code;
+        if (code === '23514' || /23514/.test(err.message ?? '')) {
           throw new BadRequestException(
             'Season dates are inconsistent. last_game_date must be on or after first_game_date.',
           );

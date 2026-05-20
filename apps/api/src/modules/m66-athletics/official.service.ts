@@ -287,7 +287,8 @@ export class OfficialService {
     }
     if (filters.isAvailable !== undefined) {
       params.push(filters.isAvailable);
-      sql.push('AND op.is_available = $' + params.length + ' ');
+      // Cast to boolean — Prisma raw param binding sends as TEXT.
+      sql.push('AND op.is_available = $' + params.length + '::boolean ');
     }
     if (filters.availableDate) {
       params.push(filters.availableDate);

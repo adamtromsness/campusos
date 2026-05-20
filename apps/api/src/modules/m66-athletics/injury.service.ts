@@ -243,8 +243,9 @@ export class InjuryService {
           actor.employeeId,
         );
       } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code === '23503') {
+        const err = e as { code?: string; meta?: { code?: string }; message?: string };
+        const code = err.code === 'P2010' ? err.meta?.code : err.code;
+        if (code === '23503' || /23503/.test(err.message ?? '')) {
           throw new BadRequestException('studentId or gameId does not match a row in this tenant.');
         }
         throw e;

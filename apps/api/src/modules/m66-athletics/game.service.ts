@@ -121,6 +121,12 @@ export class GameService {
    * (canonical AD signal) OR holds ath-002:write (game-write
    * grant). Rewritten per REVIEW-CYCLE13 MAJOR 7 to avoid the
    * brittle mixed-promise short-circuit.
+   *
+   * Wave 7 FIX: previously joined `platform.iam_effective_access_cache`
+   * directly via `scope_ids = ANY(...)` but the schema column is
+   * `scope_id` (singular). Walk the scope chain by ANY-checking
+   * permission_codes across rows for this account scoped to the
+   * current school or platform.
    */
   async hasResultScope(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
@@ -128,10 +134,13 @@ export class GameService {
     const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT 1 FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid AND $2::uuid = ANY(scope_ids) AND $3::text = ANY(permission_codes)',
+        'SELECT 1 FROM platform.iam_effective_access_cache c ' +
+          'JOIN platform.iam_scope s ON s.id = c.scope_id ' +
+          'WHERE c.account_id = $1::uuid AND $2::text = ANY(c.permission_codes) ' +
+          "AND ((s.entity_id = $3::uuid) OR (s.scope_type_id IN (SELECT id FROM platform.iam_scope_type WHERE code = 'PLATFORM')))",
         actor.accountId,
-        tenant.schoolId,
         'ath-002:write',
+        tenant.schoolId,
       )) as unknown[];
       return rows.length > 0;
     });

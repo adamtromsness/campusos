@@ -438,14 +438,22 @@ export class RecruitingService {
         sets.push('is_published = $' + params.length);
         if (input.isPublished) {
           sets.push('published_at = now()');
-          // Snapshot the GPA from the rpt_student_academic_summary read model if present.
+          // Wave 7 FIX: the rpt_student_academic_summary column is
+          // `current_gpa` (Cycle 29 read model), not `gpa`. The original
+          // implementation queried `gpa` and silently swallowed the
+          // 42703 in production — but inside a tx the failure aborts
+          // the whole publish. Resolve via the correct column name.
           const gpaRow = await t.$queryRawUnsafe<Array<{ gpa: string | null }>>(
-            'SELECT gpa::text AS gpa FROM rpt_student_academic_summary WHERE student_id = $1::uuid LIMIT 1',
+            'SELECT current_gpa::text AS gpa FROM rpt_student_academic_summary WHERE student_id = $1::uuid LIMIT 1',
             lock[0]!.student_id,
           );
           if (gpaRow.length > 0 && gpaRow[0]!.gpa !== null) {
             params.push(gpaRow[0]!.gpa);
-            sets.push('gpa = $' + params.length);
+            // Cast TEXT → NUMERIC explicitly. Prisma raw param binding
+            // sends the value as TEXT; without the cast Postgres raises
+            // 42804 (column "gpa" is of type numeric but expression
+            // is of type text).
+            sets.push('gpa = $' + params.length + '::numeric');
             sets.push('gpa_snapshot_at = now()');
           }
         } else {
