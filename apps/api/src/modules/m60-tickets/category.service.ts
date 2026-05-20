@@ -37,6 +37,7 @@ const SELECT_SUBCATEGORY_BASE =
   'p.first_name AS default_assignee_first, p.last_name AS default_assignee_last, ' +
   's.auto_assign_to_role, s.is_active ' +
   'FROM tkt_subcategories s ' +
+  'JOIN tkt_categories c ON c.id = s.category_id ' +
   'LEFT JOIN hr_employees e ON e.id = s.default_assignee_id ' +
   'LEFT JOIN platform.iam_person p ON p.id = e.person_id ';
 
@@ -66,19 +67,23 @@ export class CategoryService {
    * pass includeInactive to surface deactivated rows for admin maintenance.
    */
   async list(includeInactive: boolean): Promise<CategoryResponseDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const cats = (await client.$queryRawUnsafe(
         'SELECT id::text AS id, school_id::text AS school_id, ' +
           'parent_category_id::text AS parent_category_id, name, icon, is_active ' +
-          'FROM tkt_categories ' +
-          (includeInactive ? '' : 'WHERE is_active = true ') +
+          'FROM tkt_categories WHERE school_id = $1::uuid ' +
+          (includeInactive ? '' : 'AND is_active = true ') +
           'ORDER BY parent_category_id NULLS FIRST, name',
+        tenant.schoolId,
       )) as CategoryRow[];
 
       const subs = (await client.$queryRawUnsafe(
         SELECT_SUBCATEGORY_BASE +
-          (includeInactive ? '' : 'WHERE s.is_active = true ') +
+          'WHERE c.school_id = $1::uuid ' +
+          (includeInactive ? '' : 'AND s.is_active = true ') +
           'ORDER BY s.name',
+        tenant.schoolId,
       )) as SubcategoryRow[];
 
       const subsByCategory = new Map<string, SubcategoryResponseDto[]>();

@@ -155,10 +155,11 @@ export class TicketService {
    * for the to-do queue surface; pass includeTerminal=true to see them.
    */
   async list(query: ListTicketsQueryDto, actor: ResolvedActor): Promise<TicketResponseDto[]> {
+    const tenant = getCurrentTenant();
     const limit = Math.min(query.limit ?? 100, 200);
-    const sql: string[] = [SELECT_TICKET_BASE, 'WHERE 1=1 '];
-    const params: any[] = [];
-    let idx = 1;
+    const sql: string[] = [SELECT_TICKET_BASE, 'WHERE t.school_id = $1::uuid '];
+    const params: any[] = [tenant.schoolId];
+    let idx = 2;
 
     if (!actor.isSchoolAdmin) {
       // Row scope: requester OR assignee. The assignee is hr_employees.id;
@@ -225,8 +226,13 @@ export class TicketService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<TicketResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<TicketRow[]>(SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid', id);
+      return client.$queryRawUnsafe<TicketRow[]>(
+        SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid AND t.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Ticket ' + id);
     const row = rows[0]!;
