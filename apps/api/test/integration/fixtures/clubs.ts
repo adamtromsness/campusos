@@ -205,6 +205,14 @@ export async function resetClubsAndStudents(
             `DELETE FROM ${TEST_SCHEMA}.sis_student_guardians WHERE guardian_id = ANY($1::uuid[])`,
             gdIds,
           );
+          // m84-payments specs leave pay_financial_aid_applications rows
+          // that FK-reference sis_guardians without CASCADE. The sis_guardians
+          // DELETE below trips constraint 23503 unless we wipe the
+          // payment-side rows first. Mirrors the sis-helpers.ts cleanup.
+          await tx.$executeRawUnsafe(
+            `DELETE FROM ${TEST_SCHEMA}.pay_financial_aid_applications WHERE guardian_id = ANY($1::uuid[])`,
+            gdIds,
+          );
           await tx.$executeRawUnsafe(
             `DELETE FROM ${TEST_SCHEMA}.sis_guardians WHERE id = ANY($1::uuid[])`,
             gdIds,

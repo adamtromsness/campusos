@@ -193,8 +193,9 @@ describe('integration:m64-clubs/controllers', () => {
       platformStudentIds.push(psId);
     }
     const existing = (await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id = $1::uuid LIMIT 1`,
+      `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
       psId,
+      TEST_SCHOOL_ID,
     )) as Array<{ id: string }>;
     if (existing.length > 0) return existing[0]!.id;
     const stu = (await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
