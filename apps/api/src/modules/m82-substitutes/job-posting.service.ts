@@ -301,6 +301,43 @@ export class JobPostingService {
     if (!profile) throw new ForbiddenException('No substitute profile for this account.');
 
     const assignmentId = generateId();
+
+    // Pre-flight: check expiry outside the main tx so an EXPIRED soft-flip
+    // can commit independently of the ConflictException rollback. Without
+    // this split, the EXPIRED UPDATE rolls back with the thrown exception
+    // and the notification stays PENDING — defeating the
+    // AcceptanceExpiryWorker fast-path contract this branch is meant to
+    // honour.
+    const expiredNotifId = await this.tenantPrisma.executeInTenantContext(
+      async (client) => {
+        const notif = (await client.$queryRawUnsafe(
+          `SELECT id, response, acceptance_window_expires_at
+           FROM sub_job_notifications
+           WHERE job_id = $1::uuid AND substitute_id = $2::uuid`,
+          jobId,
+          profile.id,
+        )) as Array<{
+          id: string;
+          response: string;
+          acceptance_window_expires_at: string;
+        }>;
+        if (notif.length === 0) return null;
+        if (notif[0]!.response !== 'PENDING') return null;
+        const expiresAt = new Date(notif[0]!.acceptance_window_expires_at);
+        return Date.now() > expiresAt.getTime() ? notif[0]!.id : null;
+      },
+    );
+    if (expiredNotifId) {
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `UPDATE sub_job_notifications SET response = 'EXPIRED', responded_at = now()
+           WHERE id = $1::uuid`,
+          expiredNotifId,
+        );
+      });
+      throw new ConflictException('Acceptance window has expired for this notification.');
+    }
+
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Lock the job row
       const job = (await tx.$queryRawUnsafe(
@@ -316,15 +353,16 @@ export class JobPostingService {
         );
       }
 
-      // Find this substitute's notification — must exist + be PENDING + not expired
+      // Find this substitute's notification — must exist + be PENDING.
+      // Window expiry was already filtered out in the pre-flight above.
       const notif = (await tx.$queryRawUnsafe(
-        `SELECT id, response, acceptance_window_expires_at
+        `SELECT id, response
          FROM sub_job_notifications
          WHERE job_id = $1::uuid AND substitute_id = $2::uuid
          FOR UPDATE`,
         jobId,
         profile.id,
-      )) as Array<{ id: string; response: string; acceptance_window_expires_at: string }>;
+      )) as Array<{ id: string; response: string }>;
       if (notif.length === 0) {
         throw new ForbiddenException('You were not notified for this job.');
       }
@@ -332,16 +370,6 @@ export class JobPostingService {
         throw new ConflictException(
           `Your notification is in status ${notif[0]!.response} and cannot be accepted.`,
         );
-      }
-      const expiresAt = new Date(notif[0]!.acceptance_window_expires_at);
-      if (Date.now() > expiresAt.getTime()) {
-        // Soft-flip to EXPIRED for the AcceptanceExpiryWorker contract.
-        await tx.$executeRawUnsafe(
-          `UPDATE sub_job_notifications SET response = 'EXPIRED', responded_at = now()
-           WHERE id = $1::uuid`,
-          notif[0]!.id,
-        );
-        throw new ConflictException('Acceptance window has expired for this notification.');
       }
 
       // Flip notification to ACCEPTED
@@ -414,7 +442,7 @@ export class JobPostingService {
 
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const notif = (await tx.$queryRawUnsafe(
-        `SELECT id, response FROM sub_job_notifications n
+        `SELECT n.id, n.response FROM sub_job_notifications n
          JOIN sub_job_postings j ON j.id = n.job_id AND j.school_id = $1::uuid
          WHERE n.job_id = $2::uuid AND n.substitute_id = $3::uuid FOR UPDATE OF n`,
         tenant.schoolId,

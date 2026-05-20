@@ -169,7 +169,20 @@ export class SessionNoteService {
           input.isVisibleToTeacher ?? true,
         );
       } catch (e) {
-        if (String(e).includes('sub_session_notes_assignment_id_key')) {
+        const code = (e as { code?: string }).code;
+        const metaCode = (e as { meta?: { code?: string } }).meta?.code;
+        const msg = String(e);
+        // P2002 (Prisma unique-violation) + P2010 wrapping a raw 23505
+        // (Postgres) on $executeRawUnsafe + any string match against the
+        // auto-generated constraint name. Past versions of this catch
+        // only handled the named-constraint case, letting the raw P2010
+        // / 23505 escape as a 500.
+        if (
+          code === 'P2002' ||
+          metaCode === '23505' ||
+          msg.includes('sub_session_notes_assignment_id_key') ||
+          msg.includes('duplicate key value violates unique')
+        ) {
           throw new ConflictException(
             'A session note already exists for this assignment. PATCH the existing row instead.',
           );

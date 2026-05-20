@@ -203,7 +203,9 @@ export class AssignmentService {
       // Lock the assignment + read parent job start time + school policy in same tx
       const rows = (await tx.$queryRawUnsafe(
         `SELECT a.id, a.status, a.substitute_id::text AS substitute_id, a.is_late_cancellation,
-                j.job_date, j.start_time, j.school_id::text AS school_id,
+                j.job_date::text AS job_date,
+                j.start_time::text AS start_time,
+                j.school_id::text AS school_id,
                 p.late_window_hours
          FROM sub_assignments a
          JOIN sub_job_postings j ON j.id = a.job_id
