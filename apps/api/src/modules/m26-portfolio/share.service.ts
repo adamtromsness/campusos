@@ -160,37 +160,46 @@ export class ShareService {
     if (!token || token.length < 16) {
       throw new BadRequestException('Invalid share token');
     }
-    return this.tenantPrisma.executeInTenantTransaction(async (client) => {
-      const rows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id, portfolio_id::text AS portfolio_id, expires_at::text AS expires_at, status FROM pfl_portfolio_shares WHERE share_token = $1 LIMIT 1 FOR UPDATE',
+    // Pre-flight: peek at status + expires_at in a SHORT tx, flip
+    // ACTIVE → EXPIRED if past expiry (separate committed tx so the
+    // flip persists), THEN throw GoneException. Doing the flip inside
+    // the same tx that throws would roll the UPDATE back.
+    const preflight = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT id::text AS id, portfolio_id::text AS portfolio_id, expires_at::text AS expires_at, status FROM pfl_portfolio_shares WHERE share_token = $1 LIMIT 1',
         token,
-      )) as Array<{
-        id: string;
-        portfolio_id: string;
-        expires_at: string | null;
-        status: ShareStatus;
-      }>;
-      if (rows.length === 0) {
-        throw new NotFoundException('Share link not found');
-      }
-      const r = rows[0]!;
-      if (r.status === 'REVOKED') {
-        throw new GoneException('This share link has been revoked.');
-      }
-      if (r.expires_at && new Date(r.expires_at) < new Date()) {
-        // Auto-flip ACTIVE -> EXPIRED if past expiry
-        if (r.status === 'ACTIVE') {
+      );
+    })) as Array<{
+      id: string;
+      portfolio_id: string;
+      expires_at: string | null;
+      status: ShareStatus;
+    }>;
+    if (preflight.length === 0) {
+      throw new NotFoundException('Share link not found');
+    }
+    const pre = preflight[0]!;
+    if (pre.status === 'REVOKED') {
+      throw new GoneException('This share link has been revoked.');
+    }
+    if (pre.expires_at && new Date(pre.expires_at) < new Date()) {
+      if (pre.status === 'ACTIVE') {
+        // Persist the EXPIRED flip in its own tx so it survives the
+        // subsequent GoneException throw.
+        await this.tenantPrisma.executeInTenantContext(async (client) => {
           await client.$executeRawUnsafe(
-            "UPDATE pfl_portfolio_shares SET status = 'EXPIRED' WHERE id = $1::uuid",
-            r.id,
+            "UPDATE pfl_portfolio_shares SET status = 'EXPIRED' WHERE id = $1::uuid AND status = 'ACTIVE'",
+            pre.id,
           );
-        }
-        throw new GoneException('This share link has expired.');
+        });
       }
-      if (r.status === 'EXPIRED') {
-        throw new GoneException('This share link has expired.');
-      }
-
+      throw new GoneException('This share link has expired.');
+    }
+    if (pre.status === 'EXPIRED') {
+      throw new GoneException('This share link has expired.');
+    }
+    return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      const r = pre;
       // Stamp viewed_at on first view (idempotent — only sets if currently NULL).
       await client.$executeRawUnsafe(
         'UPDATE pfl_portfolio_shares SET viewed_at = COALESCE(viewed_at, now()) WHERE id = $1::uuid',

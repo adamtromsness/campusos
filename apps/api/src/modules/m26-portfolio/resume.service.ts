@@ -297,10 +297,13 @@ export class ResumeService {
       // sis_students.school_id so cross-school service hour entries cannot
       // contaminate the total. Defensive try/catch preserves the manually
       // edited value when the cross-cycle table is absent in this tenant.
+      // Column is `hours` per sis_service_learning_hours schema (migration
+      // 143_sis_graduation_gpa.sql) — fixed from the erroneous `hours_logged`
+      // reference in the comment of 170_pfl_college_resume.sql.
       let serviceHours = resume.service_hours_total;
       try {
         const rows = (await client.$queryRawUnsafe(
-          `SELECT COALESCE(SUM(slh.hours_logged), 0)::numeric(5,1) AS total
+          `SELECT COALESCE(SUM(slh.hours), 0)::numeric(5,1) AS total
            FROM sis_service_learning_hours slh
            JOIN sis_students s ON s.id = slh.student_id
            WHERE slh.student_id = $1::uuid
@@ -341,8 +344,9 @@ export class ResumeService {
 
       // REVIEW-P2C27 BLOCKING 6 — extracurriculars aggregation joins through
       // sis_students.school_id so cross-school activity memberships cannot
-      // leak. The inner subquery already binds to the current school via
-      // the JOIN on sis_students.
+      // leak. ext_activity_members.student_id is the sis_students soft FK
+      // (per migration 058_ext_activities.sql) — fixed from the erroneous
+      // person_id reference that always returned an empty result.
       let mergedExtracurriculars = Array.isArray(resume.extracurriculars)
         ? resume.extracurriculars
         : [];
@@ -351,12 +355,9 @@ export class ResumeService {
           `SELECT a.name AS activity, em.role, em.joined_at::text AS joined_at
            FROM ext_activity_members em
            JOIN ext_activities a ON a.id = em.activity_id
-           WHERE em.person_id IN (
-             SELECT ps.person_id
-             FROM sis_students s
-             JOIN platform.platform_students ps ON ps.id = s.platform_student_id
-             WHERE s.id = $1::uuid AND s.school_id = $2::uuid
-           )`,
+           JOIN sis_students s ON s.id = em.student_id
+           WHERE em.student_id = $1::uuid
+             AND s.school_id = $2::uuid`,
           studentId,
           tenant.schoolId,
         )) as Array<{ activity: string; role: string | null; joined_at: string }>;

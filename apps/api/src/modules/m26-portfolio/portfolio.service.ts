@@ -291,8 +291,13 @@ export class PortfolioService {
       if (input.visibility !== undefined) push('visibility', input.visibility);
       if (input.shareLinkEnabled !== undefined) push('share_link_enabled', input.shareLinkEnabled);
       if (sets.length === 0) {
-        const cur = await this.loadOwnedRow(studentId);
-        return this.rowToDto(cur!);
+        // Read inside the same tx so the FOR UPDATE-locked row is visible.
+        const cur = (await client.$queryRawUnsafe(
+          SELECT_PORTFOLIO_BASE + ' WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
+          studentId,
+          tenant.schoolId,
+        )) as PortfolioRow[];
+        return this.rowToDto(cur[0]!);
       }
       sets.push('updated_at = now()');
       params.push(id);
@@ -300,8 +305,13 @@ export class PortfolioService {
         `UPDATE pfl_portfolios SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
         ...params,
       );
-      const cur = await this.loadOwnedRow(studentId);
-      return this.rowToDto(cur!);
+      // Read inside the same tx so the just-committed UPDATE is reflected.
+      const cur = (await client.$queryRawUnsafe(
+        SELECT_PORTFOLIO_BASE + ' WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
+        studentId,
+        tenant.schoolId,
+      )) as PortfolioRow[];
+      return this.rowToDto(cur[0]!);
     });
   }
 
