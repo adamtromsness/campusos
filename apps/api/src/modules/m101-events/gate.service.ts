@@ -606,15 +606,18 @@ export class CompListService {
     }
     // MEDIA / VIP / OTHER — require ANY current-tenant footprint so
     // an external guest still has to be reachable through this school.
+    // Keep the inner UNION ALL columns typed as UUID so the outer WHERE
+    // can compare with $1::uuid / $2::uuid directly (the prior
+    // text-typed projection broke the equality with a 42883).
     rows = (await client.$queryRawUnsafe(
       `SELECT 1 AS ok FROM (
-         SELECT person_id::text AS person_id, school_id::text AS school_id FROM hr_employees
+         SELECT person_id, school_id FROM hr_employees
          UNION ALL
-         SELECT ps.person_id::text AS person_id, s.school_id::text AS school_id
+         SELECT ps.person_id, s.school_id
            FROM sis_students s
            JOIN platform.platform_students ps ON ps.id = s.platform_student_id
          UNION ALL
-         SELECT person_id::text AS person_id, school_id::text AS school_id FROM sis_guardians
+         SELECT person_id, school_id FROM sis_guardians
        ) p
        WHERE p.person_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1`,
       personId,
@@ -664,8 +667,14 @@ export class CompListService {
         );
       });
     } catch (e: unknown) {
-      const msg = String((e as Error).message ?? e);
-      if (msg.includes('evt_comp_uq')) {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const msg = String(err.message ?? e);
+      const isUnique =
+        msg.includes('evt_comp_uq') ||
+        err.code === 'P2002' ||
+        err.code === '23505' ||
+        err.meta?.code === '23505';
+      if (isUnique) {
         throw new ConflictException(
           'This person is already on the comp list under the same comp type.',
         );
@@ -807,8 +816,14 @@ export class VolunteerService {
         );
       });
     } catch (e: unknown) {
-      const msg = String((e as Error).message ?? e);
-      if (msg.includes('evt_vol_uq')) {
+      const err = e as { code?: string; meta?: { code?: string }; message?: string };
+      const msg = String(err.message ?? e);
+      const isUnique =
+        msg.includes('evt_vol_uq') ||
+        err.code === 'P2002' ||
+        err.code === '23505' ||
+        err.meta?.code === '23505';
+      if (isUnique) {
         throw new ConflictException('This person is already signed up for this event.');
       }
       throw e;

@@ -297,7 +297,7 @@ export class EventService {
           // and sis_students.school_id (sis_students carries
           // school_id directly) so the comp row can never reference a
           // foreign-school student.
-          const athleteRes = (await tx.$queryRawUnsafe(
+          const athleteRes = await tx.$executeRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'ATHLETE', ps.person_id, $2::uuid,
                     'Auto-populated from ath_roster_members'
@@ -315,14 +315,14 @@ export class EventService {
             actor.personId,
             rosterId,
             tenant.schoolId,
-          )) as number;
+          );
           compAddedCount += Number(athleteRes ?? 0);
 
           // COACH — active coaching assignments. JOIN through the
           // roster → season → programme chain so the school_id
           // predicate filters the rows even though
           // ath_coaching_assignments has no direct school_id column.
-          const coachRes = (await tx.$queryRawUnsafe(
+          const coachRes = await tx.$executeRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'COACH', ca.coach_person_id, $2::uuid,
                     'Auto-populated from ath_coaching_assignments'
@@ -337,14 +337,14 @@ export class EventService {
             actor.personId,
             rosterId,
             tenant.schoolId,
-          )) as number;
+          );
           compAddedCount += Number(coachRes ?? 0);
 
           // OFFICIAL — assigned officials for the linked game. JOIN
           // through ath_games + the roster → season → programme chain
           // so the OFFICIAL comp row can never seed from a
           // foreign-school official assignment.
-          const officialRes = (await tx.$queryRawUnsafe(
+          const officialRes = await tx.$executeRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'OFFICIAL', op.person_id, $2::uuid,
                     'Auto-populated from ath_official_assignments'
@@ -362,7 +362,7 @@ export class EventService {
             actor.personId,
             input.linkedGameId,
             tenant.schoolId,
-          )) as number;
+          );
           compAddedCount += Number(officialRes ?? 0);
         } else {
           this.logger.warn(
