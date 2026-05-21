@@ -367,11 +367,13 @@ async function seedTransportAdvancedC(): Promise<void> {
     await client.$executeRawUnsafe(
       'INSERT INTO ' +
         TENANT_SCHEMA +
-        '.trn_parent_tracking_tokens (id, student_id, route_id, token, expires_at, is_active) ' +
-        'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::timestamptz, true)',
+        '.trn_parent_tracking_tokens (id, student_id, route_id, school_id, token, expires_at, is_active) ' +
+        'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::timestamptz, true) ' +
+        'ON CONFLICT DO NOTHING',
       generateId(),
       mayaId,
       route7Id,
+      schoolId,
       generateToken(),
       expiresAt30d.toISOString(),
     );
@@ -381,11 +383,13 @@ async function seedTransportAdvancedC(): Promise<void> {
     await client.$executeRawUnsafe(
       'INSERT INTO ' +
         TENANT_SCHEMA +
-        '.trn_parent_tracking_tokens (id, student_id, route_id, token, expires_at, is_active, revoked_at, revoked_by) ' +
-        'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::timestamptz, false, now(), $6::uuid)',
+        '.trn_parent_tracking_tokens (id, student_id, route_id, school_id, token, expires_at, is_active, revoked_at, revoked_by) ' +
+        'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::timestamptz, false, now(), $7::uuid) ' +
+        'ON CONFLICT DO NOTHING',
       generateId(),
       ethanId,
       route7Id,
+      schoolId,
       generateToken(),
       expiresAt30d.toISOString(),
       mitchell.accountId,

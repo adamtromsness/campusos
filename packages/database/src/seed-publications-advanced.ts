@@ -261,7 +261,8 @@ async function main() {
   await client.$executeRawUnsafe(
     `INSERT INTO ${TENANT_SCHEMA}.pub_templates
        (id, school_id, name, description, publication_type, template_content, is_system, is_active, created_by)
-     VALUES ($1::uuid, NULL, $2, $3, 'NEWSLETTER', $4::jsonb, true, true, NULL)`,
+     VALUES ($1::uuid, NULL, $2, $3, 'NEWSLETTER', $4::jsonb, true, true, NULL)
+     ON CONFLICT (COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid), name) DO NOTHING`,
     generateId(),
     'Monthly School Newsletter',
     'Standard monthly newsletter with 5 sections covering principal, news, students, events, and sports.',
@@ -271,7 +272,8 @@ async function main() {
   await client.$executeRawUnsafe(
     `INSERT INTO ${TENANT_SCHEMA}.pub_templates
        (id, school_id, name, description, publication_type, template_content, is_system, is_active, created_by)
-     VALUES ($1::uuid, NULL, $2, $3, 'BULLETIN', $4::jsonb, true, true, NULL)`,
+     VALUES ($1::uuid, NULL, $2, $3, 'BULLETIN', $4::jsonb, true, true, NULL)
+     ON CONFLICT (COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid), name) DO NOTHING`,
     generateId(),
     'Weekly Bulletin',
     'Quick weekly bulletin focused on action items and reminders.',
@@ -281,7 +283,8 @@ async function main() {
   await client.$executeRawUnsafe(
     `INSERT INTO ${TENANT_SCHEMA}.pub_templates
        (id, school_id, name, description, publication_type, template_content, is_system, is_active, created_by)
-     VALUES ($1::uuid, $2::uuid, $3, $4, 'NEWSLETTER', $5::jsonb, false, true, $6::uuid)`,
+     VALUES ($1::uuid, $2::uuid, $3, $4, 'NEWSLETTER', $5::jsonb, false, true, $6::uuid)
+     ON CONFLICT (COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid), name) DO NOTHING`,
     generateId(),
     schoolId,
     'Lincoln Custom Newsletter',
