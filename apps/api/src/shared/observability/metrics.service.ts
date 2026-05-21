@@ -42,9 +42,15 @@ export class MetricsService {
   constructor() {
     // Prevent double-registration when NestJS hot-reloads in dev /
     // a module is imported twice in tests. prom-client throws on
-    // duplicate metric names so we guard with a static flag.
-    if (!MetricsService.initialised) {
+    // duplicate metric names so we guard both with a class-level flag
+    // (handles two `new MetricsService()` calls inside the same module
+    // load) AND with a check on the global registry (handles vitest
+    // module isolation, where the static flag resets per file load
+    // but `register` from prom-client is process-global).
+    if (!MetricsService.initialised && !register.getSingleMetric('process_cpu_user_seconds_total')) {
       collectDefaultMetrics({ register });
+      MetricsService.initialised = true;
+    } else {
       MetricsService.initialised = true;
     }
 

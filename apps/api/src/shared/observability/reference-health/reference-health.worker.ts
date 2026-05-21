@@ -84,27 +84,36 @@ export class ReferenceHealthScannerWorker implements OnModuleInit, OnApplication
    */
   async runScanCycle(): Promise<void> {
     const platform = this.tenantPrisma.getPlatformClient();
-    // Active tenants — `is_frozen=false` is the canonical "this
-    // school is operational" filter.
+    // Active tenants — `is_frozen=false` (on platform_tenant_routing) is
+    // the canonical "this school is operational" filter. Subdomain lives
+    // on schools; the routing row joins via tenant_id = schools.id.
     const tenantRows = (await platform.$queryRawUnsafe(
-      `SELECT s.id::text AS school_id, r.subdomain
+      `SELECT s.id::text AS school_id, s.subdomain
          FROM platform.schools s
-         JOIN platform.platform_tenant_routing r ON r.school_id = s.id
-        WHERE s.is_frozen = false`,
+         JOIN platform.platform_tenant_routing r ON r.tenant_id = s.id
+        WHERE r.is_frozen = false`,
     )) as Array<{ school_id: string; subdomain: string }>;
 
     for (const entry of SOFT_FK_REGISTRY) {
-      try {
-        if (entry.scope === 'PLATFORM') {
+      if (entry.scope === 'PLATFORM') {
+        try {
           await this.scanOnce(entry, 'platform');
-        } else {
-          for (const t of tenantRows) {
-            const schemaName = 'tenant_' + t.subdomain;
+        } catch (e: any) {
+          this.logger.error(`Scan failed for ${entry.name}: ${e?.stack || e?.message || e}`);
+        }
+      } else {
+        for (const t of tenantRows) {
+          const schemaName = 'tenant_' + t.subdomain;
+          try {
+            // Per-tenant try/catch so a missing / drifted tenant schema
+            // doesn't take down the scan for other tenants.
             await this.scanOnce(entry, schemaName);
+          } catch (e: any) {
+            this.logger.error(
+              `Scan failed for ${entry.name} (${schemaName}): ${e?.stack || e?.message || e}`,
+            );
           }
         }
-      } catch (e: any) {
-        this.logger.error(`Scan failed for ${entry.name}: ${e?.stack || e?.message || e}`);
       }
     }
   }
@@ -159,17 +168,22 @@ export class ReferenceHealthScannerWorker implements OnModuleInit, OnApplication
 
     const durationMs = Date.now() - startedAt;
     // P2-H2 Step 5 — registry-shape UPSERT (one row per registered
-    // reference) rather than event-log-per-scan. The UNIQUE constraint
-    // on (source_schema, source_table, source_column) from the
-    // accompanying Prisma migration backs the ON CONFLICT clause.
-    // scanned_at is refreshed on every scan via the EXCLUDED row.
+    // reference) rather than event-log-per-scan. The UNIQUE INDEX
+    // platform_reference_health_source_uq on (source_schema,
+    // source_table, source_column) from the accompanying Prisma
+    // migration backs the ON CONFLICT clause. The migration creates
+    // it as a UNIQUE INDEX (not a named constraint), so ON CONFLICT
+    // must target the index by column tuple rather than constraint
+    // name — `ON CONFLICT ON CONSTRAINT <name>` only matches named
+    // table constraints. scanned_at is refreshed on every scan via
+    // the EXCLUDED row.
     await platform.$executeRawUnsafe(
       `INSERT INTO platform.platform_reference_health
          (id, source_schema, source_table, source_column, target_schema, target_table,
           target_column, target_module, severity, total_rows, orphan_count,
           sample_orphan_ids, scan_duration_ms, scanned_at)
        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, now())
-       ON CONFLICT ON CONSTRAINT platform_reference_health_source_uq DO UPDATE SET
+       ON CONFLICT (source_schema, source_table, source_column) DO UPDATE SET
          target_schema = EXCLUDED.target_schema,
          target_table = EXCLUDED.target_table,
          target_column = EXCLUDED.target_column,

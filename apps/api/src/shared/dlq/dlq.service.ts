@@ -119,7 +119,7 @@ export class DlqService {
     // (REVIEW-FINAL-2026-05-07 MAJ-3.1 fix.)
     const claimed = await this.platform.$executeRawUnsafe(
       `UPDATE platform.platform_dlq_messages
-          SET resolved_by = $1,
+          SET resolved_by = $1::uuid,
               resolution = 'REPLAYING'
         WHERE id = $2::uuid
           AND resolved_at IS NULL
@@ -193,7 +193,7 @@ export class DlqService {
     const updated = await this.platform.$executeRawUnsafe(
       `UPDATE platform.platform_dlq_messages
           SET resolved_at = now(),
-              resolved_by = $1,
+              resolved_by = $1::uuid,
               resolution = $2
         WHERE id = $3::uuid AND resolved_at IS NULL`,
       actorAccountId,
