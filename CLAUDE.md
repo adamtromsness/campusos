@@ -6,60 +6,44 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Current State
 
-**Phase 2 complete, hardening done, test coverage in progress (Tier 0 harness built, Tiers 1–7 pending).** The codebase has shipped through every planned cycle of Phase 1 (Cycles 0–32) and Phase 2 (P2-1..P2-29 .1 cycles + the four hardening cycles P2-H1..P2-H4). All cycles closed with a `cycleN-approved` tag after the post-cycle architectural review verdict; the final adversarial review against the post-Cycle-32 state landed as **PILOT-READY WITH CONDITIONS** and the conditions have all been addressed in commits since. The platform is repo-ready for pilot deployment.
+**Phase 2 complete. Hardening done. Test strategy complete. Ready for Phase 3.**
 
-**Codebase restructure complete.** `apps/api/src/` reorganised from 80+ cycle-by-cycle folders into 38 canonical modules under `apps/api/src/modules/m{XX}-{name}/` + cross-cutting infrastructure under `apps/api/src/shared/`. Documentation reorganised into `docs/{architecture,plans,reviews,policies,operations,design-hub}/`. Path aliases `@modules/*` and `@shared/*` are live in `tsconfig.json` and both vitest configs.
+- 37 runtime modules under `apps/api/src/modules/m{XX}-{name}/`
+- ~840 tables across 38 logical ERD modules (M3 Calendar absorbed into M22 Scheduling)
+- 7543 DB-backed integration tests passing, 2 justified skips
+- 87.99% global statement coverage (all modules at target: financial ≥95%, safety ≥90%, all others ≥80%)
+- 21 production bugs found and fixed by DB-backed tests
+- 3 CodeQL findings resolved
+- 0 unjustified test skips
 
-**Test coverage in progress — Waves 1-7 COMPLETE.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. **Cumulative IMMUTABLE coverage: 9 tables verified DB-side**.
+**Build health:**
+- `pnpm --filter @campusos/api build` — 0 errors
+- `pnpm --filter @campusos/api test:integration` — 7543 passing, 0 failures
+- `tsc --noEmit` — 0 production errors
 
-**Wave 1-3 done (safety-critical, ≥90% target):** 96.5% m84-payments, 86.5% m83-finance, 97.3% m00-platform/iam, 100% m00-platform/auth; wave3-immutable-contracts + iep-plans (`iep.accommodation.updated` outbox-in-tx KEYSTONE) + referral-lifecycle (CrisisEscalationService.escalate outbox-in-tx KEYSTONE) + health-records (`hlth.allergy_alert.changed` outbox-in-tx KEYSTONE + VIEW_RECORD audit-in-tx contract) + incident-lifecycle (declare KEYSTONE atomic + Kafka emit AFTER commit + TimelineService append-only contract) + counselling-sessions (SessionService row-locked transitions + FERPA gate + IRREVERSIBLE lock with multi-column locked_chk) + wellbeing (CheckinService KEYSTONE response + alert + `svc.wellbeing.alert.created` outbox in same tx + SHI>FEELS_UNSAFE>WANTS_TO_TALK precedence) + mtss (MtssTierService partial UNIQUE keystone + caseload-ownership rule). See `docs/reviews/handoffs/WAVE1-3-REVIEW.md`.
+**Accepted pre-pilot carry-forward:**
+Switch runtime `DATABASE_URL` to `campusos_app` role (non-owner DML).
+REVOKE DDL + LOGIN role exist in `provision-tenant.ts`. Ops config change.
 
-**Wave 4 done (≥80% target):** m20-sis 89.64% + m21-classroom 90.69% + m22-scheduling 89.75% + m25-curriculum 92.13% + m81-enrolment 91.73%. See `docs/reviews/WAVE4-FINAL-VERIFICATION.md`.
+**References:**
+- Wave review docs: `docs/reviews/WAVE{N}-FINAL-VERIFICATION.md`
+- Test strategy: `docs/campusos-test-strategy-v3.html`
+- Phase 2 completion report: `docs/reviews/campusos-phase2-completion-report.html`
+- Phase 3 roadmap: `docs/campusos-phase3-roadmap.html`
 
-**Wave 5 done (≥80% target):** m40-communications 80.01% + m41-meetings 95.67% + m42-publications 94.63%. See `docs/reviews/WAVE5-FINAL-VERIFICATION.md`.
-
-**Wave 6 done (≥80% target):** m67-store 90.75% + m62-it 82.75% + m65-facilities 81.7% + m63-food-service 80.22% + m61-transport 80.63%. Highlights: m63 covers POS keystone fds.meal.served emit + AllergyAlertConsumer ADR-030 read model + dietary update review flow; m61 covers GPS+geofence ENTER/EXIT event emission via position-ingest callback + parent tracking tokens + route-change requests (NO_BUS + DIFFERENT_STOP override flows) + no-show worker end-to-end with resolution + route generation with manual candidate approve/reject + run-log with CDL+medical credential gate + pre-trip inspection precondition.
-
-**Wave 7 done (≥80% target, community modules):** m64-clubs 97.94% + m66-athletics 93.83% + m103-groups 97.49% + m100-engagement 92.12% + m101-events 97.98% + m102-alumni 97.69% + m85-accreditation 96.78%. 1,250 new integration tests across the 7 modules. Highlights: m64 covers election STRUCTURAL ANONYMITY (information_schema proof that ext_votes has no voter identity column) + PARENT CONSENT KEYSTONE via guardian-linked sis_student_guardians + advisor row-scope + service-hour STUDENT-INPUT keystone with approval state machine; m66 covers result enter KEYSTONE (game + season_records UPSERT + dual Kafka emits) + concussion-protocol 6-step gates + recruiting @StudentOwned (student/parent/teacher/coach paths) + equipment damage/loss replacement-charge emit + official transition + COMPLETED→AP billing emit; m103 covers GroupAnnouncement + Poll anonymous-vote keystone via grp_poll_voter_checks + ownership-transfer atomic role swap (and patches 5 cross-school leaks where admin short-circuit bypassed school filter); m100 covers conference ATOMIC booking (single UPDATE WHERE clause, concurrent overbook → 409) + survey anonymity keystone + 5-source engagement score with school-scoped predicates + P2-H1 component-visibility admin gate; m101 covers ATOMIC ticket sales + sold-out 409 + atomic gate scan VALID→USED + OrderExpiryWorker sweep + ATHLETIC_GAME auto-comp + STRIPE_DEV_AUTO_CONFIRM path; m102 covers donation tx with FX conversion + recipient→DONATED flip + outbox alm.donation.received + anonymous donor stripping + outreach FSM; m85 covers framework adoption + evidence FSM + SOFT INTEGRITY against unadopted frameworks + ActionPlanOverdueWorker IN_PROGRESS→OVERDUE flip + outbox + readiness score recompute. Real cross-school leak fixes across m103 (GroupService/EventService/PollService/ResourceLibraryService admin-bypass) and several SQL-type-cast fixes (m64 field-trip, m103 analytics, m101 events comp populate, m100 conference-slot constraint name, m102 alumni events).
-
-**Build state:**
-
-- `pnpm --filter @campusos/api build` — 0 errors (`nest build`)
-- `pnpm --filter @campusos/api test` — 595 / 595 passing (+ 54 skipped pre-existing). Mock-based unit specs across the Wave 1-3 modules (m83, m84, m86, m00, m23, m87, m27) and Wave 7 modules (m100, m101, m102, m85, m66) were deleted — the surface they covered now lives in DB-backed integration tests.
-- `pnpm --filter @campusos/api test:integration` — 7543 passing / 2 justified skips (payment-discount). Wave 7 added ~1,250 tests across m64-clubs, m66-athletics, m103-groups, m100-engagement, m101-events, m102-alumni, m85-accreditation, each backed by per-test seeding through `apps/api/test/integration/fixtures/{clubs,athletics,groups,engagement,events,alumni,accreditation}.ts` and the shared sis-helpers. Post-Wave-7 cleanup unskipped 15 tests (MTSS recordDiscussion 7 + m65-facilities 7 + m63 dietary), patched the `svc_mtss_tiers.tier_level → t.tier` SELECT bug in `MtssTeamMeetingService.SELECT_DISCUSSION`, mapped Prisma's `P2010 / meta.code=23505` to `BadRequestException` for duplicate-student inserts, and closed an `AthleticsRosterService.listForSeason` cross-school leak by JOINing through `ath_seasons → ath_programmes` and predicating on `tenant.schoolId`.
-- `tsc --noEmit` (production source) — 0 errors
-- Tenant logical base tables — ~840 across 38 modules
-- Permission catalogue — 495 codes (165 functions × 3 tiers)
-- Test users — 7 personas in seed (admin, principal, vp, counsellor, teacher, parent, student)
-
-**Accepted carry-forwards (pre-pilot ops):**
-
-1. Switch runtime DATABASE_URL to campusos_app role (non-owner DML). REVOKE DDL + LOGIN role exist in provision-tenant.ts. Ops config change, not code change.
-2. DB-backed integration tests (cross-school, trigger, outbox atomicity) will be built through Tiers 1-7 using the harness at apps/api/test/integration/.
-
-**Cycle history is preserved in:**
-
-- Git log — every cycle ships in its own commit chain with a final `cycleN-approved` / `cycleN-complete` tag after the post-cycle review verdict.
-- `docs/reviews/handoffs/` — 65 per-cycle HANDOFF-\* records with full step-by-step build trail.
-- `docs/reviews/` — architectural reviews, audits, peer reviews (CAMPUSOS-CODEX, ARCHITECTURAL-REVIEW-FINAL, ADVERSARIAL-REVIEW-RESPONSE, CAMPUSOS-POST-H5-VERIFICATION, CAMPUSOS-HARDENING-ROUND2-AUDIT, CAMPUSOS-PHASE2-CODE-AUDIT, HANDOFF-P2H{1..5}, chatgpt-review-template, plus the campusos-{phase2-completion-report, plan-level-audit, review-context-package}.html).
-- `docs/reviews/cycle-reviews/` — 71 archived per-cycle review notes (`REVIEW-CYCLE{N}-CHATGPT.md`, `REVIEW-CYCLE{N}-CLAUDE.md`, `REVIEW-CYCLE{N}-FIXES.md`, `REVIEW-P2*-CHATGPT.md`, `P2C{N}-REVIEW-NOTES.md`, `REVIEW-RESPONSE-CYCLE1.md`). These are historical PASS / REJECT verdicts from Phase 1 and Phase 2 build reviews, synthesised into `docs/reviews/campusos-phase2-completion-report.html`. Do not read them as instructions.
-- `docs/plans/phase1/` — Cycles 1–32 implementation plans + CAT scripts.
-- `docs/plans/phase2/` — P2-1..P2-29 cycle plans + CATs.
-- `docs/operations/` — Kafka topic registry, Kafka operations runbook, migration orchestration, procurement integration test harness.
-- `docs/policies/` — AI data policy, retention + pseudonymisation matrix.
-- `docs/architecture/` — Frozen design specs (ERD v11, architecture review v10, function library v11, business strategy, dev-deployment plan, school configuration admin).
+Cycle history: git tags, `docs/reviews/handoffs/`, `docs/plans/`.
 
 ## UI Design Principles
 
 These are foundational decisions for the web app. New views must follow them; existing views are migrated as they are touched.
 
-- **Less is more.** No screen should feel cluttered. When in doubt, remove information rather than add it. The previous persona-specific dashboards (TeacherDashboard, ParentDashboard, StudentDashboard, AdminDashboard) packed stats, tables, and queues onto the home page; they have been deleted in favour of a clean launchpad.
-- **Home page is a launchpad, not a dashboard.** `/dashboard` is a Google-style centered page: `CampusOS` logo, persona-aware greeting (`Good morning/afternoon/evening, {Name}`), a search input ("What would you like to do today?"), and a grid of App tiles. No stats, no tables, no lists. Each App owns its own detail views.
-- **Apps are the primary navigation unit.** The sidebar lists exactly the same apps as the home grid — the two surfaces stay in sync via `apps/web/src/components/shell/apps.tsx::getAppsForUser(user)`. Adding a new app is one edit: add it to the catalogue and it shows up in both surfaces with the right persona gating.
-- **Persona-aware app grid.** Driven by IAM permissions and `personType`, not by role names. Each tile has a `permission` predicate and an optional `routePrefix` so any nested route under the app keeps the tile highlighted.
-- **iOS-style unread badges.** Red circle, white number, capped at "99+", in the top-right of an app tile and trailing-aligned on a sidebar row. Wired through `apps/web/src/hooks/use-app-badges.ts`. Hooks are gated on permissions via an optional `enabled` argument so a STUDENT without `com-001:read` doesn't 403 on `/threads`. The top-bar `NotificationBell` is the unified cross-app notifier and is independent of these per-app badges.
-- **Logo is sans-serif.** The "CampusOS" wordmark uses the Tailwind `font-sans` stack (DM Sans / Inter / system) with `font-semibold` and `tracking-tight`. Never `font-display` (DM Serif Display) for the wordmark. `font-display` is still allowed for in-page article titles like an announcement detail headline; it must not be used for the brand mark.
-- **App pages are minimal lists, not dashboards.** `/classes` and `/children` are flat grids of cards (one card per class / child) with one or two primary actions per row. Recent activity, queues, and aggregate stats belong in their own apps, not bolted onto a launchpad or a list page.
+- **Less is more.** Remove information rather than add it. Persona-specific dashboards were deleted in favour of a clean launchpad.
+- **Home is a launchpad, not a dashboard.** `/dashboard` is a centered page: logo, persona-aware greeting, search input, App tile grid. No stats, tables, or lists. Each App owns its detail views.
+- **Apps are the primary navigation unit.** Sidebar mirrors the home grid — keep them in sync via `apps/web/src/components/shell/apps.tsx::getAppsForUser(user)`.
+- **Persona-aware app grid.** Driven by IAM permissions + `personType`, not role names. Each tile has a `permission` predicate and optional `routePrefix`.
+- **iOS-style unread badges.** Red circle, white number, capped "99+", via `apps/web/src/hooks/use-app-badges.ts`. Hooks accept an `enabled` arg so a STUDENT without `com-001:read` doesn't 403. Top-bar `NotificationBell` is the cross-app notifier, independent of per-app badges.
+- **Logo is sans-serif.** Tailwind `font-sans` stack with `font-semibold tracking-tight`. Never `font-display` for the wordmark (article titles may use it).
+- **App pages are minimal lists.** `/classes` and `/children` are flat card grids with one or two primary actions per row. Aggregates belong in their own apps.
 
 ## Architecture
 
@@ -88,69 +72,24 @@ apps/api/                                    → NestJS backend (modular monolit
 apps/api/src/main.ts                         → Entry point (OpenTelemetry bootstrap → NestFactory)
 apps/api/src/app.module.ts                   → Root module wiring all 38 domain modules
 apps/api/src/guard-test.controller.ts        → Guard chain integration test surface
-apps/api/src/modules/                        → 38 canonical domain modules
-  ├── m00-platform/                          → Core platform: auth (service/controller/module) + iam + tenant (module/guard) + configuration + region + governance + profile + households + community + crm + ops + platform-admin + platform
-  ├── m60-tickets/                           → Service tickets / helpdesk (M60)
-  ├── m02-workflows/                         → Approval workflows (M2)
-  ├── m03-tasks/                             → Task management + auto-task rule engine (M3)
-  ├── m09-behaviour/                         → discipline/ + intervention-plans/ + positive/
-  ├── m20-sis/                               → students/ + guardians/ + family/ + attendance/ + custom-fields/ + notes/ + graduation/ + transcripts/ + lockers/ + transfers/
-  ├── m21-classroom/                         → classes/ + lessons/ + assignments/ + grading/ + ai-tutoring/ + hall-passes/ + peer-review/ + progress-notes/ + report-cards/
-  ├── m22-scheduling/                        → Bell schedules + timetable (btree_gist EXCLUSIONs) + rooms + bookings + calendar + coverage
-  ├── m23-health/                            → records/ + iep/ + immunisation/ + dietary/ + screenings/
-  ├── m24-library/                           → Catalogue + circulation + holds + fines + reading programmes + reviews
-  ├── m25-curriculum/                        → Curriculum maps + standards + delivery gap worker
-  ├── m26-portfolio/                         → Portfolio + readiness pathways + college apps + resume
-  ├── m27-student-services/                  → counselling/ + wellbeing/ + referrals/ + mtss/ + caseload/
-  ├── m40-communications/                    → messaging/ + announcements/ + notifications/ + broadcasts/ + moderation/ + push/ + emergency-alerts/
-  ├── m41-meetings/                          → meetings/ + recordings/ + templates/
-  ├── m42-publications/                      → Publications (M42)
-  ├── m61-transport/                         → Transportation (M61)
-  ├── m62-it/                                → IT infrastructure (M62)
-  ├── m63-food-service/                      → Food service (M63)
-  ├── m64-clubs/                             → clubs/ + elections/ + field-trips/ + activities/
-  ├── m65-facilities/                        → Facilities (M65)
-  ├── m66-athletics/                         → Athletics (M66)
-  ├── m67-store/                             → orders/ + products/ + promotions/ + loyalty/ + gift-cards/ + wishlists/ + inventory/ + categories/
-  ├── m80-hr/                                → employees/ + leave/ + payroll/ + recruitment/ + training/ + certifications/ + appraisals/
-  ├── m81-enrolment/                         → applications/ + offers/ + waitlist/ + tours/ + withdrawals/ + capacity/
-  ├── m82-substitutes/                       → Substitute marketplace (M82)
-  ├── m83-finance/                           → Finance & accounting (M83) — core + finance-advanced (departmental budgets, atomic budget transfers, manual journal entry batches)
-  ├── m84-payments/                          → Payments & billing (M84)
-  ├── m85-accreditation/                     → Accreditation (M85)
-  ├── m86-procurement/                       → Procurement (M86) — core + procurement-advanced (vendor catalogues, contracts with amendments + expiry alerting, spending analytics)
-  ├── m87-safety/                            → incidents/ + emergency/ + drills/ + reunification/
-  ├── m90-visitors/                          → Visitor management (M90)
-  ├── m100-engagement/                       → Parent engagement (M100)
-  ├── m101-events/                           → Events & ticketing (M101)
-  ├── m102-alumni/                           → Alumni (M102)
-  ├── m103-groups/                           → groups/ + events/ + polls/ + resources/
-  └── m110-analytics/                        → Analytics & reporting (M110)
+apps/api/src/modules/m{XX}-{name}/           → 37 canonical domain modules. Sub-folders inside the larger modules (m00-platform, m09-behaviour, m20-sis, m21-classroom, m23-health, m27-student-services, m40-communications, m41-meetings, m64-clubs, m67-store, m80-hr, m81-enrolment, m87-safety, m103-groups) contain leaf NestJS modules; others are flat. m83-finance and m86-procurement each fold a `*-advanced.module.ts` sibling into the root module.
 apps/api/src/shared/                         → Cross-cutting infrastructure
-  ├── auth/                                  → Guards (Auth, Permission, StudentOwned) + decorators (Public, RequirePermission, StudentOwned, PlatformScoped) + their *.spec files
-  ├── tenant/                                → Tenant context (AsyncLocalStorage), middleware, Prisma wrappers (`executeInTenantContext`, `executeInTenantTransaction`), index re-exports
-  ├── kafka/                                 → KafkaProducerService (ADR-057 envelope) + KafkaConsumerService + IdempotencyService + OutboxService + `envelope-consumer` (unwrapEnvelope + processWithIdempotency — ADR-057 helpers used by every Kafka consumer) + `prefixedTopic`
-  ├── cache/                                 → RedisModule + RedisService (best-effort ioredis wrapper used by IAM cache, notification pipeline, ledger balance, AI quota, unread counts, ledger / publication / loyalty caches)
-  ├── dlq/                                   → Dead letter queue admin (DlqController, DlqService, replay/discard atomic claim flow)
-  ├── observability/                         → OpenTelemetry bootstrap, structured logger, Prometheus metrics, circuit breaker, reference-health scanner, worker jitter, trace context, request-log middleware
-  ├── common/                                → Shared utilities (reserved)
-  └── __tests__/                             → Cross-cutting regression suites (P2-H4 IMMUTABLE contracts, atomic operations, school-scope leak regression, P2-H5 role contract + immutable-role-contract)
+  ├── auth/                                  → AuthGuard / PermissionGuard / StudentOwned + decorators (Public, RequirePermission, StudentOwned, PlatformScoped)
+  ├── tenant/                                → Tenant context (AsyncLocalStorage), middleware, Prisma wrappers (`executeInTenantContext`, `executeInTenantTransaction`)
+  ├── kafka/                                 → KafkaProducerService (ADR-057 envelope), KafkaConsumerService, IdempotencyService, OutboxService, `envelope-consumer` helpers, `prefixedTopic`
+  ├── cache/                                 → RedisModule + RedisService (ioredis wrapper used by IAM cache, notifications, ledger balance, AI quota, unread counts)
+  ├── dlq/                                   → DLQ admin (DlqController/Service, atomic replay/discard)
+  ├── observability/                         → OpenTelemetry bootstrap, structured logger, Prometheus metrics, circuit breaker, reference-health scanner, worker jitter, request-log middleware
+  └── common/                                → Shared utilities (reserved)
+apps/api/test/                               → integration/ (DB-backed) + unit/ (mocks) — see Conventions
 apps/web/                                    → Next.js 14 frontend (App Router, Tailwind, React Query, Zustand)
-apps/web/src/app/                            → Routes (App Router groups: /(app)/* for authed; /login, /apply/tours/public, /shop/[storeId], /portfolio-share/[token], /enrolment/tours/public, /find-schools for unauthed)
-apps/web/src/components/                     → ui/ (DataTable, Modal, Toast, PageHeader, EmptyState, etc.), shell/ (AppLayout, Sidebar, TopBar, apps.tsx launchpad catalogue, NotificationBell, icons), classroom/, scheduling/, profile/
-apps/web/src/hooks/                          → React Query hooks per domain (use-classroom, use-hr, use-scheduling, use-billing, use-enrollment, use-discipline, etc.)
-apps/web/src/lib/                            → api-client (Bearer + X-Tenant-Subdomain + single-flight 401→refresh), auth-store (Zustand), auth-context, query-client, shared TS types, *-format helpers per domain
-packages/database/                           → Prisma schema (platform/schema.prisma), tenant SQL migrations (prisma/tenant/migrations/*.sql), provisioning, seed scripts
-packages/shared/                             → Shared TypeScript types and constants
-docs/                                        → Documentation (see "Design Documents" below)
-  ├── architecture/                          → Frozen design specs (ERD v11, architecture review v10, function library v11, business strategy, dev-deployment plan, school configuration admin)
-  ├── plans/{phase1,phase2,hardening}/       → Cycle implementation plans + CAT scripts
-  ├── reviews/                               → Architectural reviews, audits, peer reviews
-  ├── reviews/handoffs/                      → 65 per-cycle HANDOFF-* records
-  ├── operations/                            → Runbooks (Kafka, migration orchestration, procurement integration)
-  ├── policies/                              → Compliance docs (AI data policy, retention + pseudonymisation matrix)
-  ├── design-hub/index.html                  → Design hub home page
-  └── (root)                                 → restructure-plan, test-coverage-plan, phase3-roadmap, hardening-cycles
+  src/app/                                   → Routes ((app)/* authed; /login, /apply/tours/public, /shop/[storeId], /portfolio-share/[token], /enrolment/tours/public, /find-schools unauthed)
+  src/components/                            → ui/, shell/ (AppLayout, Sidebar, TopBar, apps.tsx launchpad, NotificationBell), classroom/, scheduling/, profile/
+  src/hooks/                                 → React Query hooks per domain
+  src/lib/                                   → api-client (Bearer + X-Tenant-Subdomain + single-flight 401→refresh), auth-store (Zustand), query-client, shared TS types
+packages/database/                           → Prisma platform schema, tenant SQL migrations (prisma/tenant/migrations/*.sql), provisioning, seed scripts
+packages/shared/                             → Shared TS types + constants
+docs/                                        → architecture/ (frozen specs), plans/ (cycle plans), reviews/ (audits + handoffs/), operations/ (runbooks), policies/ (compliance), design-hub/
 ```
 
 Path aliases (set in `apps/api/tsconfig.json` and both vitest configs):
@@ -161,9 +100,9 @@ Path aliases (set in `apps/api/tsconfig.json` and both vitest configs):
 
 Nest CLI's webpack-loader resolves aliases at compile time, so `dist/` ships pure relative require paths — no runtime tsconfig-paths needed.
 
-**Canonical-aggregator pattern.** `app.module.ts` imports exactly **one module per canonical M-numbered directory** (37 total). Directories that contain multiple leaf NestJS modules (m00-platform, m09-behaviour, m20-sis, m21-classroom, m23-health, m27-student-services, m40-communications, m41-meetings, m64-clubs, m67-store, m80-hr, m81-enrolment, m87-safety, m103-groups) expose a top-level `m{XX}-{name}.module.ts` aggregator (class `M{XX}{Name}Module`) that imports + re-exports every leaf module under that directory. App.module.ts never imports leaf modules directly. The M-prefixed class name avoids TypeScript collisions with same-named leaf classes (e.g. `M20SisModule` aggregator vs `SisModule` leaf at `m20-sis/students/sis.module.ts`). Modules that were already flat at root (m02, m03, m22, m24-26, m42, m60-66 except m64, m82-86, m90, m100-102, m110) keep their existing single root module file. m83-finance and m86-procurement fold their `*-advanced.module.ts` siblings into their existing root module (FinanceModule imports FinanceAdvancedModule internally; same pattern for ProcurementModule) so they still register as one canonical module each.
+**Canonical-aggregator pattern.** `app.module.ts` imports exactly one module per canonical M-numbered directory (37 total). Directories with multiple leaf NestJS modules expose a top-level `m{XX}-{name}.module.ts` aggregator (class `M{XX}{Name}Module`) that imports + re-exports its leaves; the M-prefix avoids name collisions with same-named leaf classes. `app.module.ts` never imports leaf modules directly.
 
-**Barrel exports.** Every canonical module exposes an `index.ts` at its root that re-exports the module's public API — the aggregator class + the few services / types other modules consume. The shared subsystems (`shared/auth`, `shared/tenant`, `shared/kafka`, `shared/cache`) likewise expose `index.ts` barrels. Cross-module imports go through the barrel (`import { ActorContextService, ResolvedActor } from '@modules/m00-platform'`); within-module imports stay relative (`from './student.service'`). The convention is enforced informally — most-imported boundaries (m00-platform IAM, @shared/tenant, @shared/auth, @shared/kafka) drive the bulk of cross-module references and account for >2,400 import lines that all go through barrels. A handful of edge cases — within-module `@modules/m00-platform/iam/*` references inside m00-platform itself, two `@shared/kafka/*` references inside shared/kafka — stay direct because routing through the barrel would create a self-import.
+**Barrel exports.** Every canonical module and the shared subsystems (`shared/auth`, `shared/tenant`, `shared/kafka`, `shared/cache`) expose an `index.ts` re-exporting the public API. Cross-module imports go through the barrel (`import { ResolvedActor } from '@modules/m00-platform'`); within-module imports stay relative (`from './student.service'`).
 
 ## Key Design Contracts
 
@@ -206,48 +145,34 @@ pnpm dev:web           # Next.js frontend on :3000
 
 If you've never seeded the DB, run `pnpm db:reset` once before `pnpm dev:api` — that drops + recreates + migrates + seeds the full demo state in ~30 seconds.
 
-### Convenience scripts (root `package.json`)
+### Root scripts
 
 ```bash
-pnpm dev               # both api + web concurrently via Turborepo
-pnpm dev:api           # NestJS api, watch mode (port 4000)
-pnpm dev:web           # Next.js web, dev mode (port 3000)
-
-pnpm db:migrate        # apply platform migrations + provision tenant_demo (idempotent — migrate:deploy non-interactive)
-pnpm db:seed           # full demo data — runs the multi-step seed:all chain (each step idempotent; ~26 seconds end-to-end)
-pnpm db:reset          # drop platform + every tenant_* schema, then migrate + seed in one command. Refuses to run against any DATABASE_URL that isn't localhost with a _dev/_test suffix.
-pnpm db:studio         # Prisma Studio (visual platform-schema browser)
-
+pnpm dev               # api + web concurrently
+pnpm dev:api           # NestJS, watch, :4000
+pnpm dev:web           # Next.js, :3000
+pnpm db:migrate        # platform migrations + provision tenant_demo (idempotent)
+pnpm db:seed           # full demo data (seed:all chain, ~26s)
+pnpm db:reset          # drop + migrate + seed (refuses non-localhost _dev/_test DBs)
+pnpm db:studio         # Prisma Studio
 pnpm format            # Prettier auto-fix
-pnpm format:check      # Prettier verify (CI gate)
-pnpm lint:logs         # log-schema lint (CI gate — no console.log, no email PII in logs)
-pnpm test              # turbo test (vitest under the hood)
-pnpm build             # turbo build across all packages
+pnpm format:check      # Prettier CI gate
+pnpm lint:logs         # log-schema lint (no console.log, no email PII)
+pnpm test              # turbo test
+pnpm build             # turbo build
 ```
 
-### Per-package scripts
+### Per-package
 
 ```bash
-# API (apps/api)
-pnpm --filter @campusos/api dev          # nest start --watch
-pnpm --filter @campusos/api build        # nest build
-pnpm --filter @campusos/api test         # vitest run
-pnpm --filter @campusos/api test:integration   # DB-backed integration tests (requires Postgres)
-pnpm --filter @campusos/api test:all           # unit + integration combined
-pnpm --filter @campusos/api exec tsc --noEmit   # strict typecheck
-
-# Database (packages/database)
-pnpm --filter @campusos/database migrate:deploy        # platform only
-pnpm --filter @campusos/database provision --subdomain=demo
-pnpm --filter @campusos/database seed:all              # full seed chain (~36 steps)
-pnpm --filter @campusos/database seed                  # platform only
-pnpm --filter @campusos/database seed:iam              # IAM only (permissions, roles, role-permission mappings)
-pnpm --filter @campusos/database cache:build           # rebuild iam_effective_access_cache
+pnpm --filter @campusos/api {dev,build,test,test:integration,test:all}
+pnpm --filter @campusos/api exec tsc --noEmit
+pnpm --filter @campusos/database {migrate:deploy,provision --subdomain=demo,seed:all,seed,seed:iam,cache:build}
 ```
 
 ### Tenant schema migrations
 
-Add an SQL file to `packages/database/prisma/tenant/migrations/` (numbered `NNN_*.sql`), then re-provision:
+Add an SQL file to `packages/database/prisma/tenant/migrations/` (numbered `NNN_*.sql`), then:
 
 ```bash
 pnpm --filter @campusos/database provision --subdomain=demo
@@ -260,10 +185,7 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 
 ```bash
 docker exec campusos-postgres psql -U campusos -d campusos_dev -c "DROP SCHEMA IF EXISTS tenant_demo CASCADE; DROP SCHEMA IF EXISTS tenant_test CASCADE;"
-pnpm --filter @campusos/database provision --subdomain=demo
-pnpm --filter @campusos/database provision --subdomain=test
-pnpm --filter @campusos/database seed:all
-pnpm --filter @campusos/database exec tsx src/build-cache.ts
+# then run the tenant-schema-migrations block above
 ```
 
 ## Database
@@ -292,51 +214,29 @@ Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Su
 
 ## Design Documents (authoritative references)
 
-**Frozen design specs** (`docs/architecture/`):
+**Frozen specs** (`docs/architecture/`):
+- `campusos-erd-v11.html` — ~840 tables with columns, constraints, indexes, partitioning, Kafka events, ADR refs
+- `campusos-architecture-review-v10.html` — system architecture, multi-tenancy, IAM, events, scalability, security
+- `campusos-function-library-v11.html` — 165 functions × 3 tiers = 495 permission codes
+- `campusos-business-strategy.html`, `campusos-dev-deployment-plan.html`, `campusos-school-configuration-admin.html`
 
-- `campusos-erd-v11.html` — Complete schema: ~840 tables with full column definitions, constraints, indexes, partitioning, Kafka events, ADR cross-references
-- `campusos-architecture-review-v10.html` — 30 sections covering system architecture, multi-tenancy, IAM, events, scalability, security
-- `campusos-function-library-v11.html` — 165 functions × 3 tiers (read / write / admin) = 495 permission codes
-- `campusos-business-strategy.html` — Pricing, team, GTM, community exchange
-- `campusos-dev-deployment-plan.html` — Build pipeline, environments, infrastructure
-- `campusos-school-configuration-admin.html` — Three organisational structures (Facility, Academic, Position) + 8-step setup wizard
+**Cycle plans** (`docs/plans/phase1/`, `docs/plans/phase2/`): per-cycle implementation plans + CAT scripts.
 
-**Cycle plans** (`docs/plans/phase1/` and `docs/plans/phase2/`):
-
-- `phase1/campusos-cycle{N}-implementation-plan.html` — Per-cycle implementation plan (N = 1..32, incl. 6.1 and 11.1)
-- `phase1/cycle{N}-cat-script.md` — Per-cycle Customer Acceptance Test script
-- `phase2/campusos-p2c{N}-*.html` — P2 cycle plans
-- `phase2/p2c{1,2,3,6}-cat-script.md` — P2 CATs
-- `phase2/campusos-phase2-{backlog,build-plan,testing-checklist}.html` — Phase 2 supporting plans
-
-**Reviews** (`docs/reviews/` and `docs/reviews/handoffs/`):
-
-- `handoffs/HANDOFF-CYCLE{N}.md` — Per-cycle handoff: step-by-step build trail, deviations, decisions
-- `handoffs/HANDOFF-P2C{N}.md` — P2 cycle handoffs
-- `handoffs/HANDOFF-P2H{1..5}.md` — Hardening cycle handoffs
-- `ARCHITECTURAL-REVIEW-FINAL{,-V2}.md`, `ADVERSARIAL-REVIEW-RESPONSE.md` — Final pre-pilot reviews
-- `CAMPUSOS-CODEX-PEER-REVIEW.md`, `CAMPUSOS-CODEX-ROUND2-REVIEW.md`, `CAMPUSOS-POST-H5-VERIFICATION.md`, `CAMPUSOS-HARDENING-ROUND2-AUDIT.md`, `CAMPUSOS-PHASE2-CODE-AUDIT.md`
-- `campusos-phase2-completion-report.html`, `campusos-plan-level-audit.html`, `campusos-review-context-package.html`, `chatgpt-review-template.md`
+**Reviews** (`docs/reviews/`): handoffs/, architectural reviews, codex/adversarial/peer reviews, phase2-completion-report.
 
 **Operations** (`docs/operations/`):
-
-- `kafka-operations-runbook.md` — Consumer retry policy, DLQ shape, replay procedure, financial/safety event escalation SLAs
-- `kafka-topic-registry.md` — Canonical inventory of every Kafka topic (~110 topics across 38 modules)
-- `migration-orchestration.md` — Tenant migration authoring rules (splitter caveats, idempotency, expand/contract pattern, rollout sequencing, T-72h / T-24h / T-0 / T+1h communication template)
-- `procurement-integration-test-harness.md` — Integration test harness setup for the M86 procurement module
+- `kafka-operations-runbook.md` — consumer retry policy, DLQ shape, replay, escalation SLAs
+- `kafka-topic-registry.md` — every Kafka topic (~110 across 38 modules)
+- `migration-orchestration.md` — tenant migration authoring (splitter, idempotency, expand/contract, rollout sequencing)
+- `procurement-integration-test-harness.md`
 
 **Policies** (`docs/policies/`):
-
-- `ai-data-policy.md` — Hard categorical exclusions (health, behaviour, counselling, wellbeing, mandatory reports, banned persons, HR, financial, DPO data, verification docs are NEVER sent to AI providers even with consent); PII minimisation pseudonym-map pipeline; zero-retention + training opt-out + EU/US region pinning; opt-out effect (hard-delete + provider-side deletion request); 90-day pseudonymisation of inference logs
-- `retention-pseudonymisation-matrix.md` — Per-record-class retention durations + lawful basis + pseudonymisation actions across 36 record classes (operational / academic / health-safety / financial / counselling-safeguarding / HR-workforce / audit-logs / identity-governance)
+- `ai-data-policy.md` — categorical exclusions (health, behaviour, counselling, wellbeing, mandatory reports, banned persons, HR, financial, DPO, verification docs never sent to AI even with consent); PII pseudonym-map; zero-retention + training opt-out + EU/US region pinning; 90-day pseudonymisation of inference logs
+- `retention-pseudonymisation-matrix.md` — per-record-class retention + lawful basis + pseudonymisation across 36 record classes
 
 **Other** (`docs/`):
-
-- `campusos-test-coverage-plan.html` — Test strategy across all 38 modules; per-tier coverage targets (Tier 1 Financial ≥95%, Tier 2 Auth+IAM ≥95%, Tier 5 Core Domain ≥80%, Tier 6 Operational ≥80%)
-- `campusos-phase3-roadmap.html` — Phase 3 themes (chart of accounts management, AP three-way matching, grant accounting, financial statements, AI-driven analytics, full Stripe wiring)
-- `campusos-hardening-cycles.html` — Hardening sprint plan (P2-H1 through P2-H6)
-- `campusos-restructure-plan.html` — This restructure's source-of-truth plan
-- `design-hub/index.html` — Design hub home page
+- `campusos-test-coverage-plan.html` — per-tier targets (Financial ≥95%, Auth+IAM ≥95%, Core ≥80%, Operational ≥80%)
+- `campusos-phase3-roadmap.html`, `campusos-hardening-cycles.html`, `campusos-restructure-plan.html`, `design-hub/index.html`
 
 ## Conventions
 
