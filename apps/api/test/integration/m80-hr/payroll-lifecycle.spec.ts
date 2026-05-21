@@ -34,6 +34,7 @@ import {
   TEST_TEACHER_EMPLOYEE_ID,
   TEST_OFFICER_EMPLOYEE_ID,
 } from '../helpers/actor';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedHr,
   ensureHrFixtures,
@@ -59,6 +60,11 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     tenantPrisma = new TenantPrismaService();
     rawClient = new PrismaClient();
     await rawClient.$connect();
+    // Restore canonical admin iam_effective_access_cache row. Sibling
+    // specs that ran earlier may have wiped it to seed narrow per-test
+    // permissions. PayrollController + PayGradeService + SalaryReviewService
+    // gate on isSchoolAdmin which needs sch-001:admin in the cache.
+    await ensureWorkflowsPlatformFixtures(rawClient);
 
     const permissions = new PermissionCheckService(rawClient);
     actors = new ActorContextService(rawClient, permissions, tenantPrisma);

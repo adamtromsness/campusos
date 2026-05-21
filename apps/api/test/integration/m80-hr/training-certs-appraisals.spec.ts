@@ -50,6 +50,7 @@ import {
   TEST_OFFICER_EMPLOYEE_ID,
 } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedHr,
   ensureHrFixtures,
@@ -98,6 +99,10 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
     tenantPrisma = new TenantPrismaService();
     rawClient = new PrismaClient();
     await rawClient.$connect();
+    // Restore canonical admin iam_effective_access_cache — earlier specs
+    // wipe it. Training / Certification / Appraisal admin gates need
+    // sch-001:admin.
+    await ensureWorkflowsPlatformFixtures(rawClient);
 
     kafka = makeRecordingKafka() as any;
     outbox = new OutboxService();

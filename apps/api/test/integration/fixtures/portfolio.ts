@@ -64,10 +64,22 @@ import { TEST_SIS_CLASS_ID, TEST_SIS_CLASS_B_ID } from './sis';
 
 // Students (school A primary STUDENT actor + a second school A student +
 // a school B student for cross-school isolation)
-export const TEST_PORTFOLIO_STU_A_PLATFORM_ID =
+//
+// These are `let` rather than `const` because sibling fixtures
+// (library.ts, substitutes.ts) may have already seeded a
+// platform_students + sis_students row for TEST_STUDENT_PERSON_ID
+// under their own ids. Both `platform_students.person_id` and
+// `sis_students.platform_student_id` are UNIQUE, so we cannot create
+// a second row with the same person. ensurePortfolioSeed below uses
+// lookup-or-insert and updates these bindings to point at whichever
+// canonical row already exists (or its newly-inserted hint id).
+const TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT =
   '019e0cf8-aaaa-7777-8888-000000026101';
-export const TEST_PORTFOLIO_STU_A_ID =
+const TEST_PORTFOLIO_STU_A_ID_HINT =
   '019e0cf8-aaaa-7777-8888-000000026102';
+export let TEST_PORTFOLIO_STU_A_PLATFORM_ID =
+  TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT;
+export let TEST_PORTFOLIO_STU_A_ID = TEST_PORTFOLIO_STU_A_ID_HINT;
 
 export const TEST_PORTFOLIO_STU_A2_PERSON_ID =
   '019e0cf8-aaaa-7777-8888-000000026111';
@@ -236,22 +248,51 @@ export async function ensurePortfolioSeed(client: PrismaClient): Promise<void> {
   // The TEST_STUDENT_PERSON_ID already exists in platform.iam_person + .platform_users
   // from ensureEmployeeFixtures. We need to land the platform_students +
   // sis_students rows so resolveStudentIdForActor returns a real id.
-  await client.$executeRawUnsafe(
-    `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
-     VALUES ($1::uuid, $2::uuid, 'Integration', 'Student', true)
-     ON CONFLICT (id) DO NOTHING`,
-    TEST_PORTFOLIO_STU_A_PLATFORM_ID,
+  //
+  // Sibling fixtures (library.ts, behaviour.ts, substitutes.ts) may have
+  // already inserted a platform_students row for TEST_STUDENT_PERSON_ID
+  // under their own platform_student_id — and platform_students.person_id
+  // is UNIQUE. Look up the existing row first and reuse its id; otherwise
+  // INSERT with our canonical PFL id. This makes the portfolio fixture
+  // resilient to suite-discovery order.
+  const existingPlatformStudent = (await client.$queryRawUnsafe(
+    `SELECT id::text AS id FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
     TEST_STUDENT_PERSON_ID,
-  );
-  await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.sis_students
-       (id, platform_student_id, school_id, student_number, grade_level, enrollment_status)
-     VALUES ($1::uuid, $2::uuid, $3::uuid, 'PFL-STU-A', '11', 'ENROLLED')
-     ON CONFLICT (id) DO NOTHING`,
-    TEST_PORTFOLIO_STU_A_ID,
+  )) as Array<{ id: string }>;
+  if (existingPlatformStudent[0]?.id) {
+    TEST_PORTFOLIO_STU_A_PLATFORM_ID = existingPlatformStudent[0].id;
+  } else {
+    await client.$executeRawUnsafe(
+      `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
+       VALUES ($1::uuid, $2::uuid, 'Integration', 'Student', true)
+       ON CONFLICT (id) DO NOTHING`,
+      TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT,
+      TEST_STUDENT_PERSON_ID,
+    );
+    TEST_PORTFOLIO_STU_A_PLATFORM_ID = TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT;
+  }
+  // sis_students has UNIQUE on platform_student_id. Look up or insert,
+  // and update the exported binding so downstream INSERTs reference the
+  // canonical row.
+  const existingSisStudent = (await client.$queryRawUnsafe(
+    `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_students
+       WHERE platform_student_id = $1::uuid LIMIT 1`,
     TEST_PORTFOLIO_STU_A_PLATFORM_ID,
-    TEST_SCHOOL_ID,
-  );
+  )) as Array<{ id: string }>;
+  if (existingSisStudent[0]?.id) {
+    TEST_PORTFOLIO_STU_A_ID = existingSisStudent[0].id;
+  } else {
+    await client.$executeRawUnsafe(
+      `INSERT INTO ${TEST_SCHEMA}.sis_students
+         (id, platform_student_id, school_id, student_number, grade_level, enrollment_status)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'PFL-STU-A', '11', 'ENROLLED')
+       ON CONFLICT (id) DO NOTHING`,
+      TEST_PORTFOLIO_STU_A_ID_HINT,
+      TEST_PORTFOLIO_STU_A_PLATFORM_ID,
+      TEST_SCHOOL_ID,
+    );
+    TEST_PORTFOLIO_STU_A_ID = TEST_PORTFOLIO_STU_A_ID_HINT;
+  }
 
   // Second student in school A (a different STUDENT used to verify the
   // STUDENT-OWNED contract — actor for student A2 cannot read student A's

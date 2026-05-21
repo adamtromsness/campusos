@@ -15,6 +15,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { runWithTenantContext, type TenantInfo } from '@shared/tenant/tenant.context';
 import { TEST_SCHOOL_ID, TEST_SCHEMA, TEST_SUBDOMAIN, TEST_ORG_ID, withTestTenant } from '../helpers/tenant-context';
 import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID, adminActor, studentActor, teacherActor, parentActor } from '../helpers/actor';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 
 /**
  * Wave 8 — auth guards end-to-end.
@@ -78,6 +79,16 @@ describe('integration:shared/auth-guards', () => {
   });
 
   afterAll(async () => {
+    // Restore the canonical admin iam_effective_access_cache rows that
+    // this spec deletes between every test. Without this restore, any
+    // subsequent integration spec that resolves the admin's school-scope
+    // sees an empty cache → isSchoolAdmin=false → cascading auth
+    // failures across m82-substitutes, m83-finance, etc.
+    await raw.$executeRawUnsafe(
+      `DELETE FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid`,
+      TEST_ADMIN_ACCOUNT_ID,
+    );
+    await ensureWorkflowsPlatformFixtures(raw);
     await raw.$disconnect();
     await tenantPrisma.onModuleDestroy();
   });

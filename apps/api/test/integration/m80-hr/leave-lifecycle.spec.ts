@@ -35,6 +35,7 @@ import {
   TEST_ADMIN_EMPLOYEE_ID,
 } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedHr,
   ensureHrFixtures,
@@ -66,6 +67,10 @@ describe('integration:m80-hr/leave-lifecycle', () => {
     tenantPrisma = new TenantPrismaService();
     rawClient = new PrismaClient();
     await rawClient.$connect();
+    // Restore canonical admin iam_effective_access_cache — earlier specs
+    // wipe it for narrow-permission tests and never restore. LeaveController
+    // approve/reject endpoints gate on isSchoolAdmin.
+    await ensureWorkflowsPlatformFixtures(rawClient);
 
     kafka = makeRecordingKafka() as any;
     workflowEngine = new WorkflowEngineService(tenantPrisma, kafka as any);

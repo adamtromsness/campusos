@@ -56,6 +56,7 @@ import {
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedSubstitutes,
   resetSubstitutesTables,
@@ -118,6 +119,13 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     tenantPrisma = new TenantPrismaService();
     rawClient = new PrismaClient();
     await rawClient.$connect();
+    // Restore the canonical admin iam_effective_access_cache row. Other
+    // specs that ran earlier in the suite (e.g. m23-health, m25-curriculum,
+    // m86-procurement) wipe this row to seed their own narrow permissions
+    // and never restore it. This spec's controller passthrough tests
+    // depend on actor.isSchoolAdmin=true, which requires sch-001:admin in
+    // the cache. Idempotent — ON CONFLICT DO UPDATE.
+    await ensureWorkflowsPlatformFixtures(rawClient);
     kafka = makeRecordingKafka() as unknown as RecordingKafkaProducer;
     outbox = new OutboxService();
     idempotency = new IdempotencyService(tenantPrisma);

@@ -73,6 +73,7 @@ import {
   TEST_TEACHER_ACCOUNT_ID,
 } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedAnalytics,
   TEST_ANA_ACADEMIC_YEAR_ID,
@@ -165,6 +166,11 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
     tenantPrisma = new TenantPrismaService();
     rawClient = new PrismaClient();
     await rawClient.$connect();
+    // Restore the canonical admin iam_effective_access_cache row that
+    // sibling specs (m23-health/m25-curriculum/m86-procurement) wipe to
+    // seed their own narrow permissions and never restore. AnalyticsController
+    // tests + DashboardService manager gates depend on isSchoolAdmin=true.
+    await ensureWorkflowsPlatformFixtures(rawClient);
     kafka = makeRecordingKafka() as any;
 
     subscribeCalls = [];

@@ -18,6 +18,7 @@ import { ensureCommunicationsFixtures } from './fixtures/communications';
 import { ensureMeetingsFixtures } from './fixtures/meetings';
 import { ensurePublicationsFixtures } from './fixtures/publications';
 import { ensureAccreditationPlatformFixtures } from './fixtures/accreditation';
+import { ensureWorkflowsPlatformFixtures } from './fixtures/workflows';
 import { TEST_SCHEMA } from './helpers/tenant-context';
 
 /**
@@ -115,6 +116,16 @@ export default async function setup(): Promise<() => Promise<void>> {
     await ensureMeetingsFixtures(prisma);
     await ensurePublicationsFixtures(prisma);
     await ensureAccreditationPlatformFixtures(prisma);
+    // Seed the admin's iam_effective_access_cache rows at School A + B
+    // SCHOOL-tier scope. Historically only m02-workflows + m60-tickets
+    // seeded these in their own beforeAll, which left specs that ran
+    // BEFORE them (in vitest's non-alphabetical discovery order) with
+    // an empty admin cache → ActorContextService.resolveActor returns
+    // isSchoolAdmin=false → cascading ForbiddenException across every
+    // controller test that drives through ActorContextService. Doing
+    // it once in globalSetup makes the admin cache part of the suite's
+    // stable baseline, independent of per-spec ordering.
+    await ensureWorkflowsPlatformFixtures(prisma);
     await assertPlatformFixtures(prisma);
     await assertEmployeeFixtures(prisma);
     await assertFinanceFixtures(prisma);

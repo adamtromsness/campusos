@@ -24,6 +24,11 @@ import {
   TEST_SIS_ACADEMIC_YEAR_ID,
   TEST_SIS_ACADEMIC_YEAR_B_ID,
 } from '../fixtures/sis';
+import {
+  TEST_HR_ACADEMIC_YEAR_ID,
+  TEST_HR_ACADEMIC_YEAR_B_ID,
+} from '../fixtures/hr';
+import { TEST_ANA_ACADEMIC_YEAR_ID } from '../fixtures/analytics';
 
 /**
  * Procurement tables in dependency order — children first, then parents.
@@ -102,6 +107,15 @@ const FIXTURE_ACADEMIC_YEAR_IDS = [
   TEST_ACADEMIC_YEAR_ID,
   TEST_SIS_ACADEMIC_YEAR_ID,
   TEST_SIS_ACADEMIC_YEAR_B_ID,
+  // Wave 8 — m80-hr seeds its own current academic year for leave +
+  // appraisal flows; m110-analytics seeds one to anchor cls_/sis_
+  // upstream rows for read-model materialisation. Both leak into
+  // platform state after their last spec runs (their per-test reset
+  // re-seeds them); without these in the allowlist resetFinanceTables
+  // tries to DELETE them and the sis_classes FK rejects it.
+  TEST_HR_ACADEMIC_YEAR_ID,
+  TEST_HR_ACADEMIC_YEAR_B_ID,
+  TEST_ANA_ACADEMIC_YEAR_ID,
 ];
 
 function uuidList(ids: string[]): string {

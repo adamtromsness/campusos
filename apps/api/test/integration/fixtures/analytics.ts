@@ -11,6 +11,8 @@ import {
   TEST_ADMIN_EMPLOYEE_ID,
   TEST_TEACHER_EMPLOYEE_ID,
 } from '../helpers/actor';
+import { ensureSisFixtures } from './sis';
+import { ensureFinanceFixtures } from './finance';
 
 /**
  * Wave 8 — m110-analytics fixtures.
@@ -183,6 +185,18 @@ export async function resetAnalyticsTables(client: PrismaClient): Promise<void> 
     `DELETE FROM platform.iam_person WHERE id = ANY($1::uuid[])`,
     [TEST_ANA_STUDENT_PERSON_ID, TEST_ANA_STUDENT2_PERSON_ID],
   );
+
+  // The TRUNCATE above wipes sis_academic_years / sis_terms / sis_courses /
+  // sis_classes including the canonical TEST_SIS_* fixture rows that
+  // m83-finance, m20-sis, m84-payments and many other specs depend on
+  // for cross-school setup. Re-seed the canonical baseline so the
+  // global state survives this module's resets. Both fixture functions
+  // use ON CONFLICT DO NOTHING so it's safe to call repeatedly.
+  //   - ensureSisFixtures restores TEST_SIS_ACADEMIC_YEAR_ID + sis_classes
+  //   - ensureFinanceFixtures restores TEST_ACADEMIC_YEAR_ID (used by
+  //     m84-payments FinancialAidService.createApplication validation)
+  await ensureSisFixtures(client);
+  await ensureFinanceFixtures(client);
 }
 
 /**
