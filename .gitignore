@@ -45,3 +45,4 @@ infrastructure/**/*.tfvars
 *.log
 npm-debug.log*
 pnpm-debug.log*
+.claude/scheduled_tasks.lock
