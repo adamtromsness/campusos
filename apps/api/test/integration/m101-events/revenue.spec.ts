@@ -17,11 +17,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  parentActor,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, parentActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { resetEventsTables } from '../fixtures/events';
 
 describe('integration:m101-events/revenue', () => {
@@ -64,14 +60,16 @@ describe('integration:m101-events/revenue', () => {
     return new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
   }
 
-  async function seedEventWithTiers(opts: {
-    schoolId?: string;
-    eventType?: string;
-    eventDate?: string;
-    status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
-    tiers?: Array<{ name: string; price: number; quantity: number }>;
-    title?: string;
-  } = {}): Promise<{ eventId: string; tierIds: string[] }> {
+  async function seedEventWithTiers(
+    opts: {
+      schoolId?: string;
+      eventType?: string;
+      eventDate?: string;
+      status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+      tiers?: Array<{ name: string; price: number; quantity: number }>;
+      title?: string;
+    } = {},
+  ): Promise<{ eventId: string; tierIds: string[] }> {
     const eventId = generateId();
     const tierSpec = opts.tiers ?? [
       { name: 'GA', price: 10, quantity: 100 },
@@ -189,11 +187,7 @@ describe('integration:m101-events/revenue', () => {
         ),
       );
       await withTestTenant(async () =>
-        refunds.issue(
-          order.id,
-          { refundAmount: 5, reason: 'partial' } as any,
-          adminActor(),
-        ),
+        refunds.issue(order.id, { refundAmount: 5, reason: 'partial' } as any, adminActor()),
       );
       const report = await withTestTenant(async () => revenue.forEvent(eventId, adminActor()));
       expect(report.grossTicketSales).toBe(20);
@@ -293,9 +287,7 @@ describe('integration:m101-events/revenue', () => {
         ),
       );
 
-      const summary = await withTestTenant(async () =>
-        revenue.summary({}, adminActor()),
-      );
+      const summary = await withTestTenant(async () => revenue.summary({}, adminActor()));
       expect(summary.byEventType.length).toBe(2);
       const perfRow = summary.byEventType.find((r) => r.eventType === 'PERFORMANCE');
       const gameRow = summary.byEventType.find((r) => r.eventType === 'ATHLETIC_GAME');
@@ -312,10 +304,7 @@ describe('integration:m101-events/revenue', () => {
         tiers: [{ name: 'GA', price: 10, quantity: 10 }],
       });
       const summary = await withTestTenant(async () =>
-        revenue.summary(
-          { from: datePast(30), to: dateFuture(0) },
-          adminActor(),
-        ),
+        revenue.summary({ from: datePast(30), to: dateFuture(0) }, adminActor()),
       );
       expect(summary.byEventType.length).toBe(0);
     });
@@ -326,9 +315,7 @@ describe('integration:m101-events/revenue', () => {
         eventDate: datePast(10),
         tiers: [{ name: 'GA', price: 10, quantity: 10 }],
       });
-      const summary = await withTestTenant(async () =>
-        revenue.summary({}, adminActor()),
-      );
+      const summary = await withTestTenant(async () => revenue.summary({}, adminActor()));
       expect(summary.byEventType.length).toBe(1);
     });
 
@@ -343,13 +330,9 @@ describe('integration:m101-events/revenue', () => {
         schoolId: TEST_SCHOOL_B_ID,
         eventDate: datePast(2),
       });
-      const summaryA = await withTestTenant(async () =>
-        revenue.summary({}, adminActor()),
-      );
+      const summaryA = await withTestTenant(async () => revenue.summary({}, adminActor()));
       expect(summaryA.byEventType.length).toBe(0);
-      const summaryB = await withTestTenantB(async () =>
-        revenue.summary({}, adminActor()),
-      );
+      const summaryB = await withTestTenantB(async () => revenue.summary({}, adminActor()));
       expect(summaryB.byEventType.length).toBeGreaterThanOrEqual(1);
     });
   });

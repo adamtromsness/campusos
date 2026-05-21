@@ -24,16 +24,9 @@ import {
   TEST_SCHOOL_ID,
   TEST_SUBDOMAIN,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_TEACHER_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_TEACHER_EMPLOYEE_ID } from '../helpers/actor';
 import { TEST_SIS_CLASS_ID } from '../fixtures/sis';
-import {
-  seedStudent,
-  enrollStudent,
-  cleanupSeededIds,
-} from '../m20-sis/sis-helpers';
+import { seedStudent, enrollStudent, cleanupSeededIds } from '../m20-sis/sis-helpers';
 
 /**
  * Wave 4 — m21-classroom consumer DB-backed integration tests.
@@ -98,17 +91,8 @@ describe('integration:m21-classroom/consumers', () => {
     idempotency = new IdempotencyService(tenantPrisma);
     consumer = new KafkaConsumerService(tenantPrisma);
     kafka = makeRecordingKafka();
-    hallPassService = new HallPassService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
-    videoConsumer = new VideoTranscriptConsumer(
-      consumer,
-      idempotency,
-      recordings,
-      gateway,
-      usage,
-    );
+    hallPassService = new HallPassService(tenantPrisma, kafka as unknown as KafkaProducerService);
+    videoConsumer = new VideoTranscriptConsumer(consumer, idempotency, recordings, gateway, usage);
     summaryConsumer = new LessonSummaryConsumer(consumer, idempotency, recordings);
     hallPassWorker = new HallPassOverdueWorker(tenantPrisma, hallPassService);
   });
@@ -281,10 +265,7 @@ describe('integration:m21-classroom/consumers', () => {
       expect(usageRows[0]!.job_type).toBe('SUMMARISATION');
 
       // Idempotency claim recorded
-      const claimed = await idempotency.isClaimed(
-        'classroom-video-transcript-consumer',
-        eventId,
-      );
+      const claimed = await idempotency.isClaimed('classroom-video-transcript-consumer', eventId);
       expect(claimed).toBe(true);
     });
 
@@ -324,10 +305,7 @@ describe('integration:m21-classroom/consumers', () => {
       expect(trans[0]!.count).toBe(0);
       // Idempotency was claimed since the consumer treated this as
       // successful no-op (process returns without throwing).
-      const claimed = await idempotency.isClaimed(
-        'classroom-video-transcript-consumer',
-        eventId,
-      );
+      const claimed = await idempotency.isClaimed('classroom-video-transcript-consumer', eventId);
       expect(claimed).toBe(true);
     });
 
@@ -351,10 +329,7 @@ describe('integration:m21-classroom/consumers', () => {
       );
       expect(trans[0]!.count).toBe(0);
       // No idempotency claim was recorded (process threw).
-      const claimed = await idempotency.isClaimed(
-        'classroom-video-transcript-consumer',
-        eventId,
-      );
+      const claimed = await idempotency.isClaimed('classroom-video-transcript-consumer', eventId);
       expect(claimed).toBe(false);
     });
 
@@ -420,10 +395,7 @@ describe('integration:m21-classroom/consumers', () => {
       );
       expect(rec[0]!.processing_status).toBe('COMPLETE');
 
-      const claimed = await idempotency.isClaimed(
-        'classroom-lesson-summary-consumer',
-        eventId,
-      );
+      const claimed = await idempotency.isClaimed('classroom-lesson-summary-consumer', eventId);
       expect(claimed).toBe(true);
     });
 
@@ -445,10 +417,7 @@ describe('integration:m21-classroom/consumers', () => {
         recId,
       );
       expect(summary[0]!.count).toBe(0);
-      const claimed = await idempotency.isClaimed(
-        'classroom-lesson-summary-consumer',
-        eventId,
-      );
+      const claimed = await idempotency.isClaimed('classroom-lesson-summary-consumer', eventId);
       expect(claimed).toBe(true);
     });
 

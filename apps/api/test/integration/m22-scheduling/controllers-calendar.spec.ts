@@ -24,10 +24,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
 
@@ -93,10 +90,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       actorContext,
       studentService,
     );
-    subjectChoiceController = new SubjectChoiceController(
-      subjectChoiceService,
-      actorContext,
-    );
+    subjectChoiceController = new SubjectChoiceController(subjectChoiceService, actorContext);
     subjectChoiceWindowController = new SubjectChoiceWindowController(
       subjectChoiceService,
       actorContext,
@@ -127,9 +121,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -159,9 +151,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -199,9 +189,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -243,11 +231,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
         ),
       );
       const updated = await withTestTenant(async () =>
-        bellController.update(
-          created.id,
-          { name: 'Ctrl Bell U Renamed' } as any,
-          fakeAdminReq(),
-        ),
+        bellController.update(created.id, { name: 'Ctrl Bell U Renamed' } as any, fakeAdminReq()),
       );
       expect(updated.name).toBe('Ctrl Bell U Renamed');
 
@@ -324,7 +308,10 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       expect(created.title).toBe('Ctrl Event');
 
       const list = await withTestTenant(async () =>
-        calendarController.list({ fromDate: '2027-09-01', toDate: '2027-12-01' } as any, fakeAdminReq()),
+        calendarController.list(
+          { fromDate: '2027-09-01', toDate: '2027-12-01' } as any,
+          fakeAdminReq(),
+        ),
       );
       expect(list.map((e) => e.id)).toContain(created.id);
 
@@ -334,11 +321,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       expect(detail.id).toBe(created.id);
 
       const updated = await withTestTenant(async () =>
-        calendarController.update(
-          created.id,
-          { title: 'Renamed' } as any,
-          fakeAdminReq(),
-        ),
+        calendarController.update(created.id, { title: 'Renamed' } as any, fakeAdminReq()),
       );
       expect(updated.title).toBe('Renamed');
 
@@ -382,9 +365,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
     });
 
     it('resolveDay returns CalendarDayResolutionDto', async () => {
-      const day = await withTestTenant(async () =>
-        calendarController.resolveDay('2027-10-15'),
-      );
+      const day = await withTestTenant(async () => calendarController.resolveDay('2027-10-15'));
       // The default bell schedule should resolve.
       expect(day).toBeTruthy();
     });
@@ -440,9 +421,7 @@ describe('integration:m22-scheduling/controllers-calendar', () => {
       );
       expect(created.academicYearId).toBe(TEST_SIS_ACADEMIC_YEAR_ID);
 
-      const list = await withTestTenant(async () =>
-        subjectChoiceWindowController.list(),
-      );
+      const list = await withTestTenant(async () => subjectChoiceWindowController.list());
       expect(list.map((w) => w.id)).toContain(created.id);
     });
 

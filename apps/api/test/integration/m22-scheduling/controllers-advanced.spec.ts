@@ -159,9 +159,7 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_exam_sessions WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -296,9 +294,7 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_exam_sessions WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -380,9 +376,7 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_exam_sessions WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -475,14 +469,10 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       const dirtyCandidate = req.candidates!.find((c) => c.totalClashes > 0)!;
 
       // Candidate read methods
-      const got = await withTestTenant(async () =>
-        candidateController.get(cleanCandidate.id),
-      );
+      const got = await withTestTenant(async () => candidateController.get(cleanCandidate.id));
       expect(got.id).toBe(cleanCandidate.id);
 
-      const slots = await withTestTenant(async () =>
-        candidateController.slots(cleanCandidate.id),
-      );
+      const slots = await withTestTenant(async () => candidateController.slots(cleanCandidate.id));
       expect(Array.isArray(slots)).toBe(true);
 
       // Reject the dirty
@@ -536,17 +526,11 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
         ),
       );
       const dirty = req.candidates!.find((c) => c.totalClashes > 0)!;
-      const slots = await withTestTenant(async () =>
-        candidateController.slots(dirty.id),
-      );
+      const slots = await withTestTenant(async () => candidateController.slots(dirty.id));
       const flagged = slots.find((s) => s.hasClash === true)!;
 
       const resolved = await withTestTenant(async () =>
-        candidateController.resolveClash(
-          dirty.id,
-          { slotId: flagged.id } as any,
-          fakeAdminReq(),
-        ),
+        candidateController.resolveClash(dirty.id, { slotId: flagged.id } as any, fakeAdminReq()),
       );
       expect(resolved.hasClash).toBe(false);
     });
@@ -623,14 +607,10 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       );
       expect(arr.primaryTeacherId).toBe(TEST_TEACHER_EMPLOYEE_ID);
 
-      const list = await withTestTenant(async () =>
-        coTeachingController.list(slotId),
-      );
+      const list = await withTestTenant(async () => coTeachingController.list(slotId));
       expect(list.map((c) => c.id)).toContain(arr.id);
 
-      const detail = await withTestTenant(async () =>
-        coTeachingController.getOne(arr.id),
-      );
+      const detail = await withTestTenant(async () => coTeachingController.getOne(arr.id));
       expect(detail.id).toBe(arr.id);
 
       const patched = await withTestTenant(async () =>
@@ -672,17 +652,11 @@ describe('integration:m22-scheduling/controllers-advanced', () => {
       const list = await withTestTenant(async () => crossSchoolController.list());
       expect(list.map((c) => c.id)).toContain(created.id);
 
-      const detail = await withTestTenant(async () =>
-        crossSchoolController.getOne(created.id),
-      );
+      const detail = await withTestTenant(async () => crossSchoolController.getOne(created.id));
       expect(detail.id).toBe(created.id);
 
       const patched = await withTestTenant(async () =>
-        crossSchoolController.patch(
-          created.id,
-          { notes: 'updated note' } as any,
-          fakeAdminReq(),
-        ),
+        crossSchoolController.patch(created.id, { notes: 'updated note' } as any, fakeAdminReq()),
       );
       expect(patched.notes).toBe('updated note');
     });

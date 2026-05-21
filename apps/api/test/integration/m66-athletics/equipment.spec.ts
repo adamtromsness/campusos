@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -20,12 +16,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  studentActor,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, teacherActor, studentActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { seedStudent } from '../m20-sis/sis-helpers';
 import {
   resetAthleticsTables,
@@ -245,11 +236,7 @@ describe('integration:m66-athletics/equipment', () => {
     const stu = await trackedSeedStudent();
     await expect(
       withTestTenant(() =>
-        equipment.checkout(
-          e.id,
-          { assignedToPersonId: stu.personId } as any,
-          studentActor(),
-        ),
+        equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, studentActor()),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -257,11 +244,7 @@ describe('integration:m66-athletics/equipment', () => {
   it('checkout: staff person is also a valid assignee', async () => {
     const e = await createEquipment();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: TEST_ADMIN_PERSON_ID } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: TEST_ADMIN_PERSON_ID } as any, adminActor()),
     );
     expect(c.assignedToPersonId).toBe(TEST_ADMIN_PERSON_ID);
   });
@@ -270,18 +253,10 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     const stu = await trackedSeedStudent();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: stu.personId } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, adminActor()),
     );
     const returned = await withTestTenant(() =>
-      equipment.returnCheckout(
-        c.id,
-        { conditionAtReturn: 'GOOD' } as any,
-        adminActor(),
-      ),
+      equipment.returnCheckout(c.id, { conditionAtReturn: 'GOOD' } as any, adminActor()),
     );
     expect(returned.returnedAt).not.toBeNull();
     expect(returned.conditionAtReturn).toBe('GOOD');
@@ -299,11 +274,7 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     const stu = await trackedSeedStudent();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: stu.personId } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, adminActor()),
     );
     const returned = await withTestTenant(() =>
       equipment.returnCheckout(
@@ -326,11 +297,7 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     const stu = await trackedSeedStudent();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: stu.personId } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, adminActor()),
     );
     const returned = await withTestTenant(() =>
       equipment.returnCheckout(
@@ -346,26 +313,14 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     const stu = await trackedSeedStudent();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: stu.personId } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, adminActor()),
     );
     await withTestTenant(() =>
-      equipment.returnCheckout(
-        c.id,
-        { conditionAtReturn: 'GOOD' } as any,
-        adminActor(),
-      ),
+      equipment.returnCheckout(c.id, { conditionAtReturn: 'GOOD' } as any, adminActor()),
     );
     await expect(
       withTestTenant(() =>
-        equipment.returnCheckout(
-          c.id,
-          { conditionAtReturn: 'GOOD' } as any,
-          adminActor(),
-        ),
+        equipment.returnCheckout(c.id, { conditionAtReturn: 'GOOD' } as any, adminActor()),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -417,11 +372,7 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     const stu = await trackedSeedStudent();
     const c = await withTestTenant(() =>
-      equipment.checkout(
-        e.id,
-        { assignedToPersonId: stu.personId } as any,
-        adminActor(),
-      ),
+      equipment.checkout(e.id, { assignedToPersonId: stu.personId } as any, adminActor()),
     );
     const byEq = await withTestTenant(() =>
       equipment.listCheckouts({ equipmentId: e.id, assignedToPersonId: stu.personId }),
@@ -474,11 +425,7 @@ describe('integration:m66-athletics/equipment', () => {
     const e = await createEquipment();
     await expect(
       withTestTenant(() =>
-        equipment.addMaintenance(
-          e.id,
-          { maintenanceType: 'CLEANING' } as any,
-          studentActor(),
-        ),
+        equipment.addMaintenance(e.id, { maintenanceType: 'CLEANING' } as any, studentActor()),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -617,17 +564,11 @@ describe('integration:m66-athletics/equipment', () => {
     it('create: duplicate → BadRequestException', async () => {
       const memberId = await addRosterMember();
       await withTestTenant(() =>
-        safety.create(
-          { rosterMemberId: memberId, equipmentType: 'HELMET' } as any,
-          adminActor(),
-        ),
+        safety.create({ rosterMemberId: memberId, equipmentType: 'HELMET' } as any, adminActor()),
       );
       await expect(
         withTestTenant(() =>
-          safety.create(
-            { rosterMemberId: memberId, equipmentType: 'HELMET' } as any,
-            adminActor(),
-          ),
+          safety.create({ rosterMemberId: memberId, equipmentType: 'HELMET' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -679,10 +620,7 @@ describe('integration:m66-athletics/equipment', () => {
     it('patch: student → ForbiddenException', async () => {
       const memberId = await addRosterMember();
       const created = await withTestTenant(() =>
-        safety.create(
-          { rosterMemberId: memberId, equipmentType: 'HELMET' } as any,
-          adminActor(),
-        ),
+        safety.create({ rosterMemberId: memberId, equipmentType: 'HELMET' } as any, adminActor()),
       );
       await expect(
         withTestTenant(() => safety.patch(created.id, { notes: 'X' } as any, studentActor())),
@@ -723,9 +661,9 @@ describe('integration:m66-athletics/equipment', () => {
         TEST_SCHOOL_B_ID,
         TEST_ATH_PROGRAMME_B_ID,
       );
-      await expect(
-        withTestTenant(() => equipment.getById(bId)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(() => equipment.getById(bId))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

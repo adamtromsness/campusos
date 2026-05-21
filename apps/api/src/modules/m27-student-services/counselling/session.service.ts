@@ -479,7 +479,10 @@ export class SessionService {
     // sessions for admin id-probes (admin's buildVisibility is empty).
     const tenant = getCurrentTenant();
     const visibility = this.buildVisibility(actor, 3);
-    const sql = SELECT_SESSION_BASE + 'WHERE s.id = $1::uuid AND s.school_id = $2::uuid ' + visibility.fragment;
+    const sql =
+      SELECT_SESSION_BASE +
+      'WHERE s.id = $1::uuid AND s.school_id = $2::uuid ' +
+      visibility.fragment;
     const params: unknown[] = [id, tenant.schoolId, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SessionRow[]>(sql, ...params);

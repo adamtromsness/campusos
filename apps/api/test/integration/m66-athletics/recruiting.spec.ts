@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -28,10 +24,7 @@ import {
   TEST_PARENT_ACCOUNT_ID,
 } from '../helpers/actor';
 import { seedStudent, ensureGuardianForPerson, linkStudentGuardian } from '../m20-sis/sis-helpers';
-import {
-  resetAthleticsTables,
-  ensureAthleticsSeed,
-} from '../fixtures/athletics';
+import { resetAthleticsTables, ensureAthleticsSeed } from '../fixtures/athletics';
 
 describe('integration:m66-athletics/recruiting', () => {
   let tenantPrisma: TenantPrismaService;
@@ -263,7 +256,10 @@ describe('integration:m66-athletics/recruiting', () => {
 
     // With filters
     const filtered = await withTestTenant(() =>
-      recruiting.listProfiles({ sport: 'Soccer', graduationYear: 2027, isPublished: false }, adminActor()),
+      recruiting.listProfiles(
+        { sport: 'Soccer', graduationYear: 2027, isPublished: false },
+        adminActor(),
+      ),
     );
     expect(filtered.length).toBe(1);
   });
@@ -326,9 +322,7 @@ describe('integration:m66-athletics/recruiting', () => {
       ),
     );
     // Unpublished — teacher sees nothing
-    const teacherList = await withTestTenant(() =>
-      recruiting.listProfiles({}, teacherActor()),
-    );
+    const teacherList = await withTestTenant(() => recruiting.listProfiles({}, teacherActor()));
     expect(teacherList.length).toBe(0);
 
     // Now publish
@@ -496,11 +490,7 @@ describe('integration:m66-athletics/recruiting', () => {
       ),
     );
     const coachPatched = await withTestTenant(() =>
-      recruiting.updateProfile(
-        p.id,
-        { coachRecommendation: 'Outstanding' } as any,
-        adminActor(),
-      ),
+      recruiting.updateProfile(p.id, { coachRecommendation: 'Outstanding' } as any, adminActor()),
     );
     expect(coachPatched.coachRecommendation).toBe('Outstanding');
 
@@ -630,11 +620,7 @@ describe('integration:m66-athletics/recruiting', () => {
     );
     await expect(
       withTestTenant(() =>
-        recruiting.createInterest(
-          p.id,
-          { collegeName: 'Other' } as any,
-          studentActor(),
-        ),
+        recruiting.createInterest(p.id, { collegeName: 'Other' } as any, studentActor()),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -741,9 +727,7 @@ describe('integration:m66-athletics/recruiting', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // School B sees it
-      const bDto = await withTestTenantB(() =>
-        recruiting.getProfileById(bProfileId, adminActor()),
-      );
+      const bDto = await withTestTenantB(() => recruiting.getProfileById(bProfileId, adminActor()));
       expect(bDto.id).toBe(bProfileId);
     });
   });

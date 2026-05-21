@@ -119,15 +119,17 @@ describe('integration:m100-engagement/conferences', () => {
    * the patch state machine. Inserts directly to avoid the DRAFT-only
    * create + transition dance.
    */
-  async function seedEventDirect(opts: {
-    schoolId?: string;
-    status?: 'DRAFT' | 'BOOKING_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
-    bookingOpensAt?: string;
-    bookingClosesAt?: string;
-    startDate?: string;
-    endDate?: string;
-    title?: string;
-  } = {}): Promise<string> {
+  async function seedEventDirect(
+    opts: {
+      schoolId?: string;
+      status?: 'DRAFT' | 'BOOKING_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
+      bookingOpensAt?: string;
+      bookingClosesAt?: string;
+      startDate?: string;
+      endDate?: string;
+      title?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.eng_conference_events
@@ -148,16 +150,19 @@ describe('integration:m100-engagement/conferences', () => {
     return id;
   }
 
-  async function seedSlotDirect(eventId: string, opts: {
-    teacherId?: string;
-    schoolId?: string;
-    slotDate?: string;
-    startTime?: string;
-    endTime?: string;
-    status?: 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
-    maxBookings?: number;
-    currentBookings?: number;
-  } = {}): Promise<string> {
+  async function seedSlotDirect(
+    eventId: string,
+    opts: {
+      teacherId?: string;
+      schoolId?: string;
+      slotDate?: string;
+      startTime?: string;
+      endTime?: string;
+      status?: 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
+      maxBookings?: number;
+      currentBookings?: number;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.eng_conference_slots
@@ -179,7 +184,10 @@ describe('integration:m100-engagement/conferences', () => {
     return id;
   }
 
-  async function seedFamilyAccount(opts?: { schoolId?: string; holderId?: string }): Promise<string> {
+  async function seedFamilyAccount(opts?: {
+    schoolId?: string;
+    holderId?: string;
+  }): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.pay_family_accounts (id, school_id, account_holder_id, account_number, status)
@@ -333,9 +341,7 @@ describe('integration:m100-engagement/conferences', () => {
 
       // Cannot go backwards
       await expect(
-        withTestTenant(async () =>
-          events.patch(adminActor(), id, { status: 'DRAFT' } as any),
-        ),
+        withTestTenant(async () => events.patch(adminActor(), id, { status: 'DRAFT' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -364,9 +370,7 @@ describe('integration:m100-engagement/conferences', () => {
 
     it('patch: empty body is a no-op DTO read', async () => {
       const id = await seedEventDirect({ status: 'DRAFT' });
-      const dto = await withTestTenant(async () =>
-        events.patch(adminActor(), id, {} as any),
-      );
+      const dto = await withTestTenant(async () => events.patch(adminActor(), id, {} as any));
       expect(dto.id).toBe(id);
     });
 
@@ -656,9 +660,7 @@ describe('integration:m100-engagement/conferences', () => {
     it('patch: empty body — no-op', async () => {
       const eventId = await seedEventDirect({ status: 'BOOKING_OPEN' });
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
-      const dto = await withTestTenant(async () =>
-        slots.patch(adminActor(), slotId, {} as any),
-      );
+      const dto = await withTestTenant(async () => slots.patch(adminActor(), slotId, {} as any));
       expect(dto.id).toBe(slotId);
     });
 
@@ -704,15 +706,11 @@ describe('integration:m100-engagement/conferences', () => {
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
 
-      await withTestTenant(async () =>
-        bookings.book(parentActor(), slotId, { studentId } as any),
-      );
+      await withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any));
 
       // Different parent (admin actor as conference admin) tries to book the same slot
       await expect(
-        withTestTenant(async () =>
-          bookings.book(adminActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(adminActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -724,16 +722,12 @@ describe('integration:m100-engagement/conferences', () => {
       });
       const studentId = await seedStudentForParent();
 
-      await withTestTenant(async () =>
-        bookings.book(parentActor(), slotId, { studentId } as any),
-      );
+      await withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any));
 
       // Second booking by same parent for same student against the same slot
       // — the partial UNIQUE catches the duplicate; surfaces as 409.
       await expect(
-        withTestTenant(async () =>
-          bookings.book(parentActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -746,9 +740,7 @@ describe('integration:m100-engagement/conferences', () => {
       });
       const studentId = await seedStudentForParent();
 
-      await withTestTenant(async () =>
-        bookings.book(parentActor(), slotId, { studentId } as any),
-      );
+      await withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any));
 
       // After 1/2 — still AVAILABLE
       let rows = await rawClient.$queryRawUnsafe<
@@ -828,9 +820,7 @@ describe('integration:m100-engagement/conferences', () => {
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
       await expect(
-        withTestTenant(async () =>
-          bookings.book(parentActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -843,9 +833,7 @@ describe('integration:m100-engagement/conferences', () => {
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
       await expect(
-        withTestTenant(async () =>
-          bookings.book(parentActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -868,9 +856,7 @@ describe('integration:m100-engagement/conferences', () => {
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
       await expect(
-        withTestTenant(async () =>
-          bookings.book(adminActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(adminActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -883,9 +869,7 @@ describe('integration:m100-engagement/conferences', () => {
       });
       const studentId = await seedStudentForParent();
       await expect(
-        withTestTenant(async () =>
-          bookings.book(parentActor(), slotId, { studentId } as any),
-        ),
+        withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any)),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -930,13 +914,9 @@ describe('integration:m100-engagement/conferences', () => {
       const dto = await withTestTenant(async () =>
         bookings.book(parentActor(), slotId, { studentId } as any),
       );
-      await withTestTenant(async () =>
-        bookings.cancel(parentActor(), dto.id, {} as any),
-      );
+      await withTestTenant(async () => bookings.cancel(parentActor(), dto.id, {} as any));
       await expect(
-        withTestTenant(async () =>
-          bookings.cancel(parentActor(), dto.id, {} as any),
-        ),
+        withTestTenant(async () => bookings.cancel(parentActor(), dto.id, {} as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -950,9 +930,7 @@ describe('integration:m100-engagement/conferences', () => {
 
       // student persona attempting to cancel another's booking
       await expect(
-        withTestTenant(async () =>
-          bookings.cancel(studentActor(), dto.id, {} as any),
-        ),
+        withTestTenant(async () => bookings.cancel(studentActor(), dto.id, {} as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -972,11 +950,7 @@ describe('integration:m100-engagement/conferences', () => {
     it('cancel: missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          bookings.cancel(
-            adminActor(),
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-          ),
+          bookings.cancel(adminActor(), '00000000-0000-0000-0000-000000000000', {} as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -985,9 +959,7 @@ describe('integration:m100-engagement/conferences', () => {
       const eventId = await seedEventDirect({ status: 'BOOKING_OPEN' });
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
-      await withTestTenant(async () =>
-        bookings.book(parentActor(), slotId, { studentId } as any),
-      );
+      await withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any));
       const mine = await withTestTenant(async () => bookings.listMine(parentActor()));
       expect(mine.length).toBe(1);
     });
@@ -996,9 +968,7 @@ describe('integration:m100-engagement/conferences', () => {
       const eventId = await seedEventDirect({ status: 'BOOKING_OPEN' });
       const slotId = await seedSlotDirect(eventId, { status: 'AVAILABLE' });
       const studentId = await seedStudentForParent();
-      await withTestTenant(async () =>
-        bookings.book(parentActor(), slotId, { studentId } as any),
-      );
+      await withTestTenant(async () => bookings.book(parentActor(), slotId, { studentId } as any));
       const list = await withTestTenant(async () =>
         bookings.list(adminActor(), { slotId, parentId: TEST_PARENT_ACCOUNT_ID, studentId }),
       );
@@ -1130,20 +1100,16 @@ describe('integration:m100-engagement/conferences', () => {
       const dto = await withTestTenant(async () =>
         bookings.book(parentActor(), slotId, { studentId } as any),
       );
-      const ret = await withTestTenant(async () =>
-        bookings.patch(adminActor(), dto.id, {} as any),
-      );
+      const ret = await withTestTenant(async () => bookings.patch(adminActor(), dto.id, {} as any));
       expect(ret.id).toBe(dto.id);
     });
 
     it('patch: missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          bookings.patch(
-            adminActor(),
-            '00000000-0000-0000-0000-000000000000',
-            { attended: true } as any,
-          ),
+          bookings.patch(adminActor(), '00000000-0000-0000-0000-000000000000', {
+            attended: true,
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1167,11 +1133,7 @@ describe('integration:m100-engagement/conferences', () => {
   describe('ConferenceStatusWorker', () => {
     it('tickForSchool: flips DRAFT→BOOKING_OPEN when booking_opens_at ≤ now()', async () => {
       const id = await seedEventDirect({ status: 'DRAFT', bookingOpensAt: isoPast(1) });
-      const flipped = await statusWorker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      const flipped = await statusWorker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flipped).toBe(1);
 
       const rows = await rawClient.$queryRawUnsafe<Array<{ status: string }>>(
@@ -1211,11 +1173,7 @@ describe('integration:m100-engagement/conferences', () => {
 
     it('tickForSchool: ignores events with bookingOpensAt in the future', async () => {
       await seedEventDirect({ status: 'DRAFT', bookingOpensAt: isoFuture(24) });
-      const flipped = await statusWorker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      const flipped = await statusWorker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flipped).toBe(0);
     });
 

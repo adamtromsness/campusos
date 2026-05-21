@@ -15,11 +15,7 @@ import {
 } from '@modules/m83-finance/chart.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  withTestTenantB,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, withTestTenantB, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -117,9 +113,9 @@ describe('integration:m83-finance/chart-of-accounts', () => {
     });
 
     it('getById for a School B fund as a School A actor → NotFoundException', async () => {
-      await expect(withTestTenant(async () => funds.getById(TEST_FUND_B_ID))).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        withTestTenant(async () => funds.getById(TEST_FUND_B_ID)),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('getById for a non-existent id → NotFoundException', async () => {
@@ -242,9 +238,7 @@ describe('integration:m83-finance/chart-of-accounts', () => {
           normalBalance: 'DEBIT',
         }),
       );
-      await withTestTenant(async () =>
-        chart.patch(adminActor(), created.id, { isActive: false }),
-      );
+      await withTestTenant(async () => chart.patch(adminActor(), created.id, { isActive: false }));
 
       const visible = await withTestTenant(async () => chart.list());
       expect(visible.find((a) => a.id === created.id)).toBeUndefined();
@@ -365,9 +359,7 @@ describe('integration:m83-finance/chart-of-accounts', () => {
       ['teacher', teacherActor],
     ])('patch as %s → ForbiddenException', async (_label, actor) => {
       await expect(
-        withTestTenant(async () =>
-          chart.patch(actor(), TEST_COA_REVENUE_ID, { description: 'X' }),
-        ),
+        withTestTenant(async () => chart.patch(actor(), TEST_COA_REVENUE_ID, { description: 'X' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -409,7 +401,9 @@ describe('integration:m83-finance/chart-of-accounts', () => {
       // Helper: insert a balanced POSTED batch of (account, amount) pairs.
       // Must be called inside a withTestTenant block so the tenant context
       // is available to executeInTenantTransaction.
-      async function seedPostedBatch(entries: Array<{ accountId: string; debit?: number; credit?: number }>) {
+      async function seedPostedBatch(
+        entries: Array<{ accountId: string; debit?: number; credit?: number }>,
+      ) {
         const batchId = generateId();
         await tenantPrisma.executeInTenantTransaction(async (tx) => {
           await tx.$executeRawUnsafe(

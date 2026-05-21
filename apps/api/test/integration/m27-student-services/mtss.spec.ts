@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -12,11 +8,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -29,10 +21,7 @@ import {
 } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_ACADEMIC_YEAR_ID } from '../fixtures/finance';
-import {
-  RecordingKafkaProducer,
-  makeRecordingKafka,
-} from '../helpers/recording-kafka';
+import { RecordingKafkaProducer, makeRecordingKafka } from '../helpers/recording-kafka';
 
 /**
  * Wave 3 — DB-backed integration tests for MtssTierService.
@@ -225,7 +214,9 @@ describe('integration:m27-student-services/mtss', () => {
   describe('create (partial UNIQUE keystone)', () => {
     it('admin creates TIER_2 ACADEMIC → row written + svc.tier.changed emit (reason=CREATED)', async () => {
       const studentId = await seedStudent('Create1');
-      const dto = await withTestTenant(async () => service.create(tierInput(studentId), adminActor()));
+      const dto = await withTestTenant(async () =>
+        service.create(tierInput(studentId), adminActor()),
+      );
       expect(dto.tier).toBe('TIER_2');
       expect(dto.domain).toBe('ACADEMIC');
       expect(dto.status).toBe('ACTIVE');
@@ -245,7 +236,10 @@ describe('integration:m27-student-services/mtss', () => {
         service.create(tierInput(studentId, { tier: 'TIER_2', domain: 'ACADEMIC' }), adminActor()),
       );
       const second = await withTestTenant(async () =>
-        service.create(tierInput(studentId, { tier: 'TIER_1', domain: 'BEHAVIORAL' }), adminActor()),
+        service.create(
+          tierInput(studentId, { tier: 'TIER_1', domain: 'BEHAVIORAL' }),
+          adminActor(),
+        ),
       );
       expect(second.domain).toBe('BEHAVIORAL');
       const all = await rawClient.$queryRawUnsafe<Array<{ n: number }>>(
@@ -415,7 +409,9 @@ describe('integration:m27-student-services/mtss', () => {
       );
       await flushEmits();
       recordingKafka.reset();
-      const updated = await withTestTenant(async () => service.patch(first.id, {} as any, adminActor()));
+      const updated = await withTestTenant(async () =>
+        service.patch(first.id, {} as any, adminActor()),
+      );
       await flushEmits();
       expect(updated.id).toBe(first.id);
       expect(recordingKafka.calls).toHaveLength(0);
@@ -508,13 +504,9 @@ describe('integration:m27-student-services/mtss', () => {
       );
       const dash = await withTestTenant(async () => service.dashboard(adminActor()));
       expect(dash.totalActive).toBeGreaterThanOrEqual(3);
-      const academicT2 = dash.cells.find(
-        (c) => c.tier === 'TIER_2' && c.domain === 'ACADEMIC',
-      );
+      const academicT2 = dash.cells.find((c) => c.tier === 'TIER_2' && c.domain === 'ACADEMIC');
       expect(academicT2!.count).toBeGreaterThanOrEqual(2);
-      const behavioralT3 = dash.cells.find(
-        (c) => c.tier === 'TIER_3' && c.domain === 'BEHAVIORAL',
-      );
+      const behavioralT3 = dash.cells.find((c) => c.tier === 'TIER_3' && c.domain === 'BEHAVIORAL');
       expect(behavioralT3!.count).toBeGreaterThanOrEqual(1);
     });
 
@@ -522,11 +514,7 @@ describe('integration:m27-student-services/mtss', () => {
       const a = await seedStudent('DashExit');
       const t = await withTestTenant(async () => service.create(tierInput(a), adminActor()));
       await withTestTenant(async () =>
-        service.patch(
-          t.id,
-          { status: 'EXITED', exitDate: '2025-12-01' } as any,
-          adminActor(),
-        ),
+        service.patch(t.id, { status: 'EXITED', exitDate: '2025-12-01' } as any, adminActor()),
       );
       const dash = await withTestTenant(async () => service.dashboard(adminActor()));
       // Verify the cell for this exact (TIER_2, ACADEMIC) doesn't include the exited row
@@ -553,9 +541,9 @@ describe('integration:m27-student-services/mtss', () => {
       ['student', studentActor],
       ['parent', parentActor],
     ])('dashboard as %s → Forbidden (admin-only)', async (_label, actor) => {
-      await expect(
-        withTestTenant(async () => service.dashboard(actor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.dashboard(actor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 
@@ -620,10 +608,7 @@ describe('integration:m27-student-services/mtss', () => {
         ),
       );
       const rows = await withTestTenant(async () =>
-        service.listMeetings(
-          { academicYearId: TEST_ACADEMIC_YEAR_ID } as any,
-          adminActor(),
-        ),
+        service.listMeetings({ academicYearId: TEST_ACADEMIC_YEAR_ID } as any, adminActor()),
       );
       expect(rows.length).toBeGreaterThanOrEqual(1);
     });

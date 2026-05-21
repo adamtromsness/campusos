@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { RouteService } from '@modules/m61-transport/route.service';
@@ -20,11 +16,7 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import {
   resetTransportTables,
@@ -93,9 +85,7 @@ describe('integration:m61-transport/routes-fleet', () => {
     });
 
     it('getById returns the route', async () => {
-      const dto = await withTestTenant(async () =>
-        routes.getById(TEST_ROUTE_ID, adminActor()),
-      );
+      const dto = await withTestTenant(async () => routes.getById(TEST_ROUTE_ID, adminActor()));
       expect(dto.name).toBe('Route 1');
     });
 
@@ -236,7 +226,10 @@ describe('integration:m61-transport/routes-fleet', () => {
     it('non-admin create → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          vehicles.create({ registration: 'X', vehicleType: 'BUS', capacity: 1 } as any, studentActor()),
+          vehicles.create(
+            { registration: 'X', vehicleType: 'BUS', capacity: 1 } as any,
+            studentActor(),
+          ),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -256,7 +249,12 @@ describe('integration:m61-transport/routes-fleet', () => {
     it('create + list + getById + patch + restock', async () => {
       const p = await withTestTenant(async () =>
         parts.create(
-          { partName: 'Brake Pad', partNumber: 'BP-001', quantityOnHand: 10, minStockLevel: 3 } as any,
+          {
+            partName: 'Brake Pad',
+            partNumber: 'BP-001',
+            quantityOnHand: 10,
+            minStockLevel: 3,
+          } as any,
           adminActor(),
         ),
       );
@@ -365,10 +363,7 @@ describe('integration:m61-transport/routes-fleet', () => {
 
     it('repair category create + list + patch', async () => {
       const cat = await withTestTenant(async () =>
-        repairs.createCategory(
-          { name: 'Brakes', isSafetyCritical: true } as any,
-          adminActor(),
-        ),
+        repairs.createCategory({ name: 'Brakes', isSafetyCritical: true } as any, adminActor()),
       );
       expect(cat.isSafetyCritical).toBe(true);
       const list = await withTestTenant(async () => repairs.listCategories());
@@ -403,9 +398,7 @@ describe('integration:m61-transport/routes-fleet', () => {
 
     it('create + listForVehicle', async () => {
       const f = await makeFuelLog();
-      const list = await withTestTenant(async () =>
-        fuelLogs.listForVehicle(TEST_VEHICLE_ID),
-      );
+      const list = await withTestTenant(async () => fuelLogs.listForVehicle(TEST_VEHICLE_ID));
       expect(list.map((x) => x.id)).toContain(f.id);
     });
 

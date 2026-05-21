@@ -10,11 +10,7 @@ import { ActorContextService } from '@modules/m00-platform/iam/actor-context.ser
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_ADMIN_PERSON_ID,
@@ -199,10 +195,7 @@ describe('integration:m00-platform/iam-services', () => {
     });
 
     it('findByEntity returns null for unknown scope type', async () => {
-      const got = await scopes.findByEntity(
-        'NONEXISTENT-' + generateId().slice(-4),
-        generateId(),
-      );
+      const got = await scopes.findByEntity('NONEXISTENT-' + generateId().slice(-4), generateId());
       expect(got).toBeNull();
     });
 

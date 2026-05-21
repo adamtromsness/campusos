@@ -8,15 +8,8 @@ import {
   processWithIdempotency,
   type UnwrappedEvent,
 } from '@shared/kafka/envelope-consumer';
-import {
-  assertValidEnvelope,
-  EnvelopeValidationError,
-} from '@shared/kafka/envelope-validator';
-import {
-  envelopeFromOptions,
-  prefixedTopic,
-  unprefixTopic,
-} from '@shared/kafka/event-envelope';
+import { assertValidEnvelope, EnvelopeValidationError } from '@shared/kafka/envelope-validator';
+import { envelopeFromOptions, prefixedTopic, unprefixTopic } from '@shared/kafka/event-envelope';
 import type { ConsumedMessage } from '@shared/kafka/kafka-consumer.service';
 import { TEST_SCHOOL_ID, TEST_SUBDOMAIN, withTestTenant } from '../helpers/tenant-context';
 import { generateId } from '@campusos/database';
@@ -110,9 +103,9 @@ describe('integration:shared/kafka-envelope', () => {
     });
 
     it('throws when expectedEventType mismatches', () => {
-      expect(() =>
-        assertValidEnvelope(baseEnvelope(), 'pay.payment.received'),
-      ).toThrow(/event_type mismatch/);
+      expect(() => assertValidEnvelope(baseEnvelope(), 'pay.payment.received')).toThrow(
+        /event_type mismatch/,
+      );
     });
 
     it('throws on missing event_version', () => {
@@ -214,9 +207,7 @@ describe('integration:shared/kafka-envelope', () => {
         expect(prefixedTopic('pay.invoice.created')).toBe('dev.pay.invoice.created');
         expect(unprefixTopic('dev.pay.invoice.created')).toBe('pay.invoice.created');
         // Mismatching prefix is left alone.
-        expect(unprefixTopic('staging.pay.invoice.created')).toBe(
-          'staging.pay.invoice.created',
-        );
+        expect(unprefixTopic('staging.pay.invoice.created')).toBe('staging.pay.invoice.created');
       } finally {
         if (prev === undefined) delete process.env.KAFKA_TOPIC_ENV;
         else process.env.KAFKA_TOPIC_ENV = prev;
@@ -263,7 +254,10 @@ describe('integration:shared/kafka-envelope', () => {
 
     it('reads event_id + tenant_id from the envelope body', () => {
       const env = baseEnvelope();
-      const result = unwrapEnvelope(makeMsg(env, { 'tenant-subdomain': TEST_SUBDOMAIN }), silentLogger);
+      const result = unwrapEnvelope(
+        makeMsg(env, { 'tenant-subdomain': TEST_SUBDOMAIN }),
+        silentLogger,
+      );
       expect(result).not.toBeNull();
       expect(result!.eventId).toBe(env.event_id);
       expect(result!.tenant.schoolId).toBe(TEST_SCHOOL_ID);
@@ -293,11 +287,17 @@ describe('integration:shared/kafka-envelope', () => {
 
     it('drops messages with no eventId / tenantId / subdomain', () => {
       expect(
-        unwrapEnvelope(makeMsg({ payload: {} }, { 'tenant-subdomain': TEST_SUBDOMAIN }), silentLogger),
+        unwrapEnvelope(
+          makeMsg({ payload: {} }, { 'tenant-subdomain': TEST_SUBDOMAIN }),
+          silentLogger,
+        ),
       ).toBeNull();
       expect(
         unwrapEnvelope(
-          makeMsg({ payload: {} }, { 'event-id': generateId(), 'tenant-subdomain': TEST_SUBDOMAIN }),
+          makeMsg(
+            { payload: {} },
+            { 'event-id': generateId(), 'tenant-subdomain': TEST_SUBDOMAIN },
+          ),
           silentLogger,
         ),
       ).toBeNull();
@@ -312,7 +312,10 @@ describe('integration:shared/kafka-envelope', () => {
     it('drops messages whose payload is not an object', () => {
       const env = baseEnvelope();
       (env as any).payload = 'not-an-object';
-      const result = unwrapEnvelope(makeMsg(env, { 'tenant-subdomain': TEST_SUBDOMAIN }), silentLogger);
+      const result = unwrapEnvelope(
+        makeMsg(env, { 'tenant-subdomain': TEST_SUBDOMAIN }),
+        silentLogger,
+      );
       expect(result).toBeNull();
     });
   });
@@ -376,9 +379,15 @@ describe('integration:shared/kafka-envelope', () => {
       const group = 'wave8-shared-paid-' + Math.random().toString(36).slice(2);
       const eventId = generateId();
       let ran = 0;
-      await processWithIdempotency(group, makeEvent(eventId), idempotency, silentLogger, async () => {
-        ran++;
-      });
+      await processWithIdempotency(
+        group,
+        makeEvent(eventId),
+        idempotency,
+        silentLogger,
+        async () => {
+          ran++;
+        },
+      );
       expect(ran).toBe(1);
       expect(await idempotency.isClaimed(group, eventId)).toBe(true);
     });
@@ -388,9 +397,15 @@ describe('integration:shared/kafka-envelope', () => {
       const eventId = generateId();
       await idempotency.claim(group, eventId, 'dev.test');
       let ran = 0;
-      await processWithIdempotency(group, makeEvent(eventId), idempotency, silentLogger, async () => {
-        ran++;
-      });
+      await processWithIdempotency(
+        group,
+        makeEvent(eventId),
+        idempotency,
+        silentLogger,
+        async () => {
+          ran++;
+        },
+      );
       expect(ran).toBe(0);
     });
 

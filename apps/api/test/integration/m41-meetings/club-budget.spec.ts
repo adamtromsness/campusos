@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -17,11 +13,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, studentActor, parentActor } from '../helpers/actor';
 import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
@@ -118,12 +110,8 @@ describe('integration:m41-meetings/club-budget', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.ext_budget_transactions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.ext_club_budgets`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.ext_budget_transactions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.ext_club_budgets`);
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -243,9 +231,7 @@ describe('integration:m41-meetings/club-budget', () => {
           adminActor(),
         ),
       );
-      const after = await withTestTenant(async () =>
-        service.patch(b.id, {} as any, adminActor()),
-      );
+      const after = await withTestTenant(async () => service.patch(b.id, {} as any, adminActor()));
       expect(after.id).toBe(b.id);
     });
 
@@ -276,9 +262,7 @@ describe('integration:m41-meetings/club-budget', () => {
       const all = await withTestTenant(async () => service.list(adminActor()));
       expect(all.map((r) => r.id)).toContain(b.id);
 
-      const filtered = await withTestTenant(async () =>
-        service.list(adminActor(), activityId),
-      );
+      const filtered = await withTestTenant(async () => service.list(adminActor(), activityId));
       expect(filtered.map((r) => r.id)).toContain(b.id);
 
       const empty = await withTestTenant(async () =>
@@ -294,9 +278,7 @@ describe('integration:m41-meetings/club-budget', () => {
           adminActor(),
         ),
       );
-      const fetched = await withTestTenant(async () =>
-        service.getById(b.id, adminActor()),
-      );
+      const fetched = await withTestTenant(async () => service.getById(b.id, adminActor()));
       expect(fetched.id).toBe(b.id);
       await expect(
         withTestTenant(async () =>
@@ -306,9 +288,9 @@ describe('integration:m41-meetings/club-budget', () => {
     });
 
     it('STUDENT cannot list → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => service.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 
@@ -458,9 +440,7 @@ describe('integration:m41-meetings/club-budget', () => {
           adminActor(),
         ),
       );
-      const txList = await withTestTenant(async () =>
-        service.listTransactions(id, adminActor()),
-      );
+      const txList = await withTestTenant(async () => service.listTransactions(id, adminActor()));
       expect(txList).toHaveLength(2);
       // newest first
       expect(txList[0]!.description).toBe('second');
@@ -480,16 +460,18 @@ describe('integration:m41-meetings/club-budget', () => {
   // ────────────────────────────────────────────────────────────────────
   describe('cross-school isolation', () => {
     it('School A admin cannot see a School B budget via getById', async () => {
-      const bId = (await withTestTenantB(async () =>
-        service.create(
-          {
-            activityId: activityBId,
-            academicYearId: TEST_SIS_ACADEMIC_YEAR_B_ID,
-            allocatedAmount: 100,
-          } as any,
-          adminActor(),
-        ),
-      )).id;
+      const bId = (
+        await withTestTenantB(async () =>
+          service.create(
+            {
+              activityId: activityBId,
+              academicYearId: TEST_SIS_ACADEMIC_YEAR_B_ID,
+              allocatedAmount: 100,
+            } as any,
+            adminActor(),
+          ),
+        )
+      ).id;
       await expect(
         withTestTenant(async () => service.getById(bId, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);

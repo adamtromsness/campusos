@@ -386,11 +386,7 @@ describe('integration:m22-scheduling/controllers-rooms', () => {
         ),
       );
       const rejected = await withTestTenant(async () =>
-        changeReqController.reject(
-          created.id,
-          { reviewNotes: 'No' } as any,
-          fakeAdminReq(),
-        ),
+        changeReqController.reject(created.id, { reviewNotes: 'No' } as any, fakeAdminReq()),
       );
       expect(rejected.status).toBe('REJECTED');
     });
@@ -432,17 +428,11 @@ describe('integration:m22-scheduling/controllers-rooms', () => {
       );
       expect(Array.isArray(forClass)).toBe(true);
 
-      const forRoom = await withTestTenant(async () =>
-        timetableController.forRoom(roomAId),
-      );
+      const forRoom = await withTestTenant(async () => timetableController.forRoom(roomAId));
       expect(Array.isArray(forRoom)).toBe(true);
 
       const updated = await withTestTenant(async () =>
-        timetableController.update(
-          created.id,
-          { notes: 'updated note' } as any,
-          fakeAdminReq(),
-        ),
+        timetableController.update(created.id, { notes: 'updated note' } as any, fakeAdminReq()),
       );
       expect(updated.notes).toBe('updated note');
 

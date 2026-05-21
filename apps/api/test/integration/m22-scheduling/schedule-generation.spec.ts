@@ -22,11 +22,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  TEST_TEACHER_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { adminActor, teacherActor, TEST_TEACHER_EMPLOYEE_ID } from '../helpers/actor';
 import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_CLASS_ID } from '../fixtures/sis';
 
 /**
@@ -350,10 +346,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
     it('admin submits → request COMPLETED, 2 candidates emitted', async () => {
       const constraintId = await createConstraints();
       const dto = await withTestTenant(async () =>
-        service.submitRequest(
-          { constraintId, sectionCount: 50 } as any,
-          adminActor(),
-        ),
+        service.submitRequest({ constraintId, sectionCount: 50 } as any, adminActor()),
       );
       expect(dto.status).toBe('COMPLETED');
       expect(dto.candidatesGenerated).toBe(2);
@@ -372,10 +365,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
       const constraintId = await createConstraints();
       await expect(
         withTestTenant(async () =>
-          service.submitRequest(
-            { constraintId, sectionCount: 50 } as any,
-            teacherActor(),
-          ),
+          service.submitRequest({ constraintId, sectionCount: 50 } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -399,14 +389,9 @@ describe('integration:m22-scheduling/schedule-generation', () => {
     it('listRequests + getRequest return the queued request', async () => {
       const constraintId = await createConstraints();
       const dto = await withTestTenant(async () =>
-        service.submitRequest(
-          { constraintId, sectionCount: 50 } as any,
-          adminActor(),
-        ),
+        service.submitRequest({ constraintId, sectionCount: 50 } as any, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        service.listRequests({} as any),
-      );
+      const list = await withTestTenant(async () => service.listRequests({} as any));
       expect(list.map((r) => r.id)).toContain(dto.id);
 
       const got = await withTestTenant(async () => service.getRequest(dto.id));
@@ -416,9 +401,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
 
     it('getRequest unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getRequest('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getRequest('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -434,10 +417,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
     }> {
       const constraintId = await createConstraints();
       const req = await withTestTenant(async () =>
-        service.submitRequest(
-          { constraintId, sectionCount: 50 } as any,
-          adminActor(),
-        ),
+        service.submitRequest({ constraintId, sectionCount: 50 } as any, adminActor()),
       );
       // Candidate A is the clean one (totalClashes=0), B has 2 clashes.
       const clean = req.candidates!.find((c) => c.totalClashes === 0)!;
@@ -477,11 +457,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
     it('approve unknown candidate → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.approveCandidate(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          service.approveCandidate('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -516,24 +492,16 @@ describe('integration:m22-scheduling/schedule-generation', () => {
 
     it('listCandidateSlots returns slots for the candidate', async () => {
       const { cleanCandidateId } = await submitAndGetCandidates();
-      const slots = await withTestTenant(async () =>
-        service.listCandidateSlots(cleanCandidateId),
-      );
+      const slots = await withTestTenant(async () => service.listCandidateSlots(cleanCandidateId));
       expect(slots.length).toBeGreaterThan(0);
     });
 
     it('resolveClash clears a clash flag', async () => {
       const { dirtyCandidateId } = await submitAndGetCandidates();
-      const slots = await withTestTenant(async () =>
-        service.listCandidateSlots(dirtyCandidateId),
-      );
+      const slots = await withTestTenant(async () => service.listCandidateSlots(dirtyCandidateId));
       const flagged = slots.find((s) => s.hasClash === true)!;
       const updated = await withTestTenant(async () =>
-        service.resolveClash(
-          dirtyCandidateId,
-          { slotId: flagged.id } as any,
-          adminActor(),
-        ),
+        service.resolveClash(dirtyCandidateId, { slotId: flagged.id } as any, adminActor()),
       );
       expect(updated.hasClash).toBe(false);
       expect(updated.clashDescription).toBeNull();
@@ -541,9 +509,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
 
     it('resolveClash sets new description', async () => {
       const { dirtyCandidateId } = await submitAndGetCandidates();
-      const slots = await withTestTenant(async () =>
-        service.listCandidateSlots(dirtyCandidateId),
-      );
+      const slots = await withTestTenant(async () => service.listCandidateSlots(dirtyCandidateId));
       const flagged = slots.find((s) => s.hasClash === true)!;
       const updated = await withTestTenant(async () =>
         service.resolveClash(
@@ -571,17 +537,11 @@ describe('integration:m22-scheduling/schedule-generation', () => {
 
     it('non-admin resolveClash → ForbiddenException', async () => {
       const { dirtyCandidateId } = await submitAndGetCandidates();
-      const slots = await withTestTenant(async () =>
-        service.listCandidateSlots(dirtyCandidateId),
-      );
+      const slots = await withTestTenant(async () => service.listCandidateSlots(dirtyCandidateId));
       const flagged = slots.find((s) => s.hasClash === true)!;
       await expect(
         withTestTenant(async () =>
-          service.resolveClash(
-            dirtyCandidateId,
-            { slotId: flagged.id } as any,
-            teacherActor(),
-          ),
+          service.resolveClash(dirtyCandidateId, { slotId: flagged.id } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -606,9 +566,7 @@ describe('integration:m22-scheduling/schedule-generation', () => {
     it('activate non-APPROVED → ConflictException', async () => {
       const { cleanCandidateId } = await submitAndGetCandidates();
       await expect(
-        withTestTenant(async () =>
-          service.activateCandidate(cleanCandidateId, adminActor()),
-        ),
+        withTestTenant(async () => service.activateCandidate(cleanCandidateId, adminActor())),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -620,28 +578,21 @@ describe('integration:m22-scheduling/schedule-generation', () => {
         service.approveCandidate(dirtyCandidateId, {} as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          service.activateCandidate(dirtyCandidateId, adminActor()),
-        ),
+        withTestTenant(async () => service.activateCandidate(dirtyCandidateId, adminActor())),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('non-admin activate → ForbiddenException', async () => {
       const { cleanCandidateId } = await submitAndGetCandidates();
       await expect(
-        withTestTenant(async () =>
-          service.activateCandidate(cleanCandidateId, teacherActor()),
-        ),
+        withTestTenant(async () => service.activateCandidate(cleanCandidateId, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('activate unknown → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.activateCandidate(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          service.activateCandidate('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -651,12 +602,8 @@ describe('integration:m22-scheduling/schedule-generation', () => {
       await withTestTenant(async () =>
         service.approveCandidate(cleanCandidateId, {} as any, adminActor()),
       );
-      await withTestTenant(async () =>
-        service.activateCandidate(cleanCandidateId, adminActor()),
-      );
-      const logs = await withTestTenant(async () =>
-        service.listActivationLogs(cleanCandidateId),
-      );
+      await withTestTenant(async () => service.activateCandidate(cleanCandidateId, adminActor()));
+      const logs = await withTestTenant(async () => service.listActivationLogs(cleanCandidateId));
       expect(logs.length).toBe(1);
       expect(logs[0]!.candidateId).toBe(cleanCandidateId);
     });

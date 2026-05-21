@@ -9,10 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { CurriculumMapService, UnitService } from '@modules/m25-curriculum/maps.service';
-import {
-  FrameworkService,
-  StandardService,
-} from '@modules/m25-curriculum/frameworks.service';
+import { FrameworkService, StandardService } from '@modules/m25-curriculum/frameworks.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
@@ -361,11 +358,7 @@ describe('integration:m25-curriculum/standards-alignment', () => {
       );
       await expect(
         withTestTenant(async () =>
-          unitService.alignStandard(
-            foreignUnit,
-            { standardId: PLATFORM_STD_ID },
-            adminActor(),
-          ),
+          unitService.alignStandard(foreignUnit, { standardId: PLATFORM_STD_ID }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -413,11 +406,7 @@ describe('integration:m25-curriculum/standards-alignment', () => {
       const { unitId } = await seedMapAndUnit(TEST_SCHOOL_ID, TEST_SIS_ACADEMIC_YEAR_ID);
       await expect(
         withTestTenant(async () =>
-          unitService.alignStandard(
-            unitId,
-            { standardId: PLATFORM_STD_ID },
-            teacherActor(),
-          ),
+          unitService.alignStandard(unitId, { standardId: PLATFORM_STD_ID }, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });

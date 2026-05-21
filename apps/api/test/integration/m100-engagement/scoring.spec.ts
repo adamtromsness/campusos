@@ -152,10 +152,22 @@ describe('integration:m100-engagement/scoring', () => {
     schoolId?: string;
     composite?: number;
     level?: 'HIGHLY_ENGAGED' | 'ENGAGED' | 'MINIMAL' | 'AT_RISK';
-    components?: { attendance: number; communication: number; conference: number; volunteer: number; payment: number };
+    components?: {
+      attendance: number;
+      communication: number;
+      conference: number;
+      volunteer: number;
+      payment: number;
+    };
   }): Promise<string> {
     const id = generateId();
-    const c = opts.components ?? { attendance: 90, communication: 80, conference: 50, volunteer: 60, payment: 100 };
+    const c = opts.components ?? {
+      attendance: 90,
+      communication: 80,
+      conference: 50,
+      volunteer: 60,
+      payment: 100,
+    };
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.eng_family_engagement_scores
          (id, school_id, family_account_id, score_date, composite_score,
@@ -184,13 +196,25 @@ describe('integration:m100-engagement/scoring', () => {
   // ────────────────────────────────────────────────────────────────────
   describe('pure helpers', () => {
     it('computeCompositeScore — weighted average with default weights', async () => {
-      const c = { attendance: 100, communication: 100, conference: 100, volunteer: 100, payment: 100 };
+      const c = {
+        attendance: 100,
+        communication: 100,
+        conference: 100,
+        volunteer: 100,
+        payment: 100,
+      };
       const sc = computeCompositeScore(c, DEFAULT_WEIGHTS);
       expect(sc).toBe(100);
     });
 
     it('computeCompositeScore — clamps out-of-range values', async () => {
-      const c = { attendance: -10, communication: 200, conference: 50, volunteer: NaN, payment: 50 };
+      const c = {
+        attendance: -10,
+        communication: 200,
+        conference: 50,
+        volunteer: NaN,
+        payment: 50,
+      };
       const sc = computeCompositeScore(c, DEFAULT_WEIGHTS);
       expect(sc).toBeGreaterThan(0);
       expect(sc).toBeLessThanOrEqual(100);
@@ -229,7 +253,13 @@ describe('integration:m100-engagement/scoring', () => {
           schoolId: TEST_SCHOOL_ID,
           familyAccountId: fa,
           scoreDate: today,
-          components: { attendance: 70, communication: 70, conference: 50, volunteer: 40, payment: 80 },
+          components: {
+            attendance: 70,
+            communication: 70,
+            conference: 50,
+            volunteer: 40,
+            payment: 80,
+          },
           weights: DEFAULT_WEIGHTS,
           thresholds: DEFAULT_THRESHOLDS,
         }),
@@ -241,7 +271,13 @@ describe('integration:m100-engagement/scoring', () => {
           schoolId: TEST_SCHOOL_ID,
           familyAccountId: fa,
           scoreDate: today,
-          components: { attendance: 100, communication: 100, conference: 100, volunteer: 100, payment: 100 },
+          components: {
+            attendance: 100,
+            communication: 100,
+            conference: 100,
+            volunteer: 100,
+            payment: 100,
+          },
           weights: DEFAULT_WEIGHTS,
           thresholds: DEFAULT_THRESHOLDS,
         }),
@@ -288,20 +324,25 @@ describe('integration:m100-engagement/scoring', () => {
     });
 
     it('list: parent → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => scores.list(parentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => scores.list(parentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('list: student → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => scores.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => scores.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('list: filter by level + scoreDate', async () => {
       const fa = await seedFamilyAccount();
-      await seedScore({ familyAccountId: fa, scoreDate: '2026-04-01', level: 'ENGAGED', composite: 60 });
+      await seedScore({
+        familyAccountId: fa,
+        scoreDate: '2026-04-01',
+        level: 'ENGAGED',
+        composite: 60,
+      });
       await seedScore({ familyAccountId: fa, scoreDate: '2026-05-01', level: 'HIGHLY_ENGAGED' });
 
       const lvl = await withTestTenant(async () =>
@@ -313,8 +354,18 @@ describe('integration:m100-engagement/scoring', () => {
 
     it('list: default returns latest score per family across school', async () => {
       const fa = await seedFamilyAccount();
-      await seedScore({ familyAccountId: fa, scoreDate: '2026-04-01', composite: 60, level: 'ENGAGED' });
-      await seedScore({ familyAccountId: fa, scoreDate: '2026-05-01', composite: 80, level: 'HIGHLY_ENGAGED' });
+      await seedScore({
+        familyAccountId: fa,
+        scoreDate: '2026-04-01',
+        composite: 60,
+        level: 'ENGAGED',
+      });
+      await seedScore({
+        familyAccountId: fa,
+        scoreDate: '2026-05-01',
+        composite: 80,
+        level: 'HIGHLY_ENGAGED',
+      });
       const list = await withTestTenant(async () => scores.list(syntheticAdmin()));
       // Default: latest score_date only
       expect(list.length).toBe(1);
@@ -323,11 +374,19 @@ describe('integration:m100-engagement/scoring', () => {
 
     it('getForFamily: returns score history descending by date', async () => {
       const fa = await seedFamilyAccount();
-      await seedScore({ familyAccountId: fa, scoreDate: '2026-04-01', composite: 60, level: 'ENGAGED' });
-      await seedScore({ familyAccountId: fa, scoreDate: '2026-05-01', composite: 80, level: 'HIGHLY_ENGAGED' });
-      const history = await withTestTenant(async () =>
-        scores.getForFamily(syntheticAdmin(), fa),
-      );
+      await seedScore({
+        familyAccountId: fa,
+        scoreDate: '2026-04-01',
+        composite: 60,
+        level: 'ENGAGED',
+      });
+      await seedScore({
+        familyAccountId: fa,
+        scoreDate: '2026-05-01',
+        composite: 80,
+        level: 'HIGHLY_ENGAGED',
+      });
+      const history = await withTestTenant(async () => scores.getForFamily(syntheticAdmin(), fa));
       expect(history.length).toBe(2);
       expect(history[0]!.scoreDate.startsWith('2026-05-01')).toBe(true);
     });
@@ -349,8 +408,18 @@ describe('integration:m100-engagement/scoring', () => {
     it('summary: counts per level + average + most-recent date', async () => {
       const fa1 = await seedFamilyAccount();
       const fa2 = await seedFamilyAccount();
-      await seedScore({ familyAccountId: fa1, scoreDate: '2026-05-01', composite: 90, level: 'HIGHLY_ENGAGED' });
-      await seedScore({ familyAccountId: fa2, scoreDate: '2026-05-01', composite: 60, level: 'ENGAGED' });
+      await seedScore({
+        familyAccountId: fa1,
+        scoreDate: '2026-05-01',
+        composite: 90,
+        level: 'HIGHLY_ENGAGED',
+      });
+      await seedScore({
+        familyAccountId: fa2,
+        scoreDate: '2026-05-01',
+        composite: 60,
+        level: 'ENGAGED',
+      });
 
       const summary = await withTestTenant(async () => scores.summary(syntheticAdmin()));
       expect(summary.totalFamilies).toBe(2);
@@ -369,7 +438,11 @@ describe('integration:m100-engagement/scoring', () => {
 
     it('cross-school: School A admin does not see School B score', async () => {
       const faB = await seedFamilyAccount({ schoolId: TEST_SCHOOL_B_ID });
-      await seedScore({ familyAccountId: faB, schoolId: TEST_SCHOOL_B_ID, scoreDate: '2026-05-01' });
+      await seedScore({
+        familyAccountId: faB,
+        schoolId: TEST_SCHOOL_B_ID,
+        scoreDate: '2026-05-01',
+      });
 
       const listA = await withTestTenant(async () => scores.list(syntheticAdmin()));
       expect(listA.length).toBe(0);
@@ -392,7 +465,13 @@ describe('integration:m100-engagement/scoring', () => {
     it('admin updates weights summing to 100', async () => {
       const cfg = await withTestTenant(async () =>
         scores.updateConfig(syntheticAdmin(), {
-          weights: { attendance: 30, communication: 20, conference: 20, volunteer: 15, payment: 15 },
+          weights: {
+            attendance: 30,
+            communication: 20,
+            conference: 20,
+            volunteer: 15,
+            payment: 15,
+          },
         } as any),
       );
       expect(cfg.weights.attendance).toBe(30);
@@ -402,7 +481,13 @@ describe('integration:m100-engagement/scoring', () => {
       await expect(
         withTestTenant(async () =>
           scores.updateConfig(syntheticAdmin(), {
-            weights: { attendance: 10, communication: 10, conference: 10, volunteer: 10, payment: 10 },
+            weights: {
+              attendance: 10,
+              communication: 10,
+              conference: 10,
+              volunteer: 10,
+              payment: 10,
+            },
           } as any),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -452,7 +537,13 @@ describe('integration:m100-engagement/scoring', () => {
       await expect(
         withTestTenant(async () =>
           scores.updateConfig(parentActor(), {
-            weights: { attendance: 20, communication: 25, conference: 25, volunteer: 15, payment: 15 },
+            weights: {
+              attendance: 20,
+              communication: 25,
+              conference: 25,
+              volunteer: 15,
+              payment: 15,
+            },
           } as any),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -462,7 +553,13 @@ describe('integration:m100-engagement/scoring', () => {
       await expect(
         withTestTenant(async () =>
           scores.updateConfig(syntheticNonAdmin(), {
-            weights: { attendance: 20, communication: 25, conference: 25, volunteer: 15, payment: 15 },
+            weights: {
+              attendance: 20,
+              communication: 25,
+              conference: 25,
+              volunteer: 15,
+              payment: 15,
+            },
           } as any),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);

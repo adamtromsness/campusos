@@ -265,18 +265,14 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('getById returns one row', async () => {
-      const dto = await withTestTenant(async () =>
-        categories.getById(TEST_BEH_CAT_MINOR_A_ID),
-      );
+      const dto = await withTestTenant(async () => categories.getById(TEST_BEH_CAT_MINOR_A_ID));
       expect(dto.severity).toBe('LOW');
       expect(dto.name).toBe('Minor Disruption');
     });
 
     it('getById missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          categories.getById('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => categories.getById('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -291,9 +287,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(dto.severity).toBe('MEDIUM');
       // re-create same name → unique violation translated to BadRequest
       await expect(
-        withTestTenant(async () =>
-          categories.create({ name: 'UniqCat', severity: 'LOW' } as any),
-        ),
+        withTestTenant(async () => categories.create({ name: 'UniqCat', severity: 'LOW' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -334,9 +328,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       expect(dto.isActive).toBe(true);
       await expect(
-        withTestTenant(async () =>
-          categories.assertActive(TEST_BEH_CAT_INACTIVE_A_ID),
-        ),
+        withTestTenant(async () => categories.assertActive(TEST_BEH_CAT_INACTIVE_A_ID)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -356,9 +348,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
 
     it('getById missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          actionTypes.getById('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => actionTypes.getById('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -372,9 +362,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       expect(dto.requiresParentNotification).toBe(true);
       await expect(
-        withTestTenant(async () =>
-          actionTypes.create({ name: 'Saturday School' } as any),
-        ),
+        withTestTenant(async () => actionTypes.create({ name: 'Saturday School' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
       const upd = await withTestTenant(async () =>
         actionTypes.update(dto.id, {
@@ -389,9 +377,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(same.id).toBe(dto.id);
       // dup name
       await expect(
-        withTestTenant(async () =>
-          actionTypes.update(dto.id, { name: 'Detention' } as any),
-        ),
+        withTestTenant(async () => actionTypes.update(dto.id, { name: 'Detention' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
       // missing
       await expect(
@@ -407,9 +393,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       expect(active.isActive).toBe(true);
       await expect(
-        withTestTenant(async () =>
-          actionTypes.assertActive(TEST_BEH_ACT_TYPE_INACTIVE_A_ID),
-        ),
+        withTestTenant(async () => actionTypes.assertActive(TEST_BEH_ACT_TYPE_INACTIVE_A_ID)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -534,9 +518,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        incidents.list({} as any, adminActor()),
-      );
+      const list = await withTestTenant(async () => incidents.list({} as any, adminActor()));
       expect(list.length).toBe(2);
       // critical first
       expect(list[0]!.id).toBe(b.id);
@@ -627,9 +609,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        incidents.list({} as any, parentActor()),
-      );
+      const list = await withTestTenant(async () => incidents.list({} as any, parentActor()));
       const ids = list.map((i) => i.id);
       expect(ids).toContain(stuA.id);
       expect(ids).not.toContain(stuA2.id);
@@ -649,9 +629,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        incidents.list({} as any, studentActor()),
-      );
+      const list = await withTestTenant(async () => incidents.list({} as any, studentActor()));
       expect(list).toEqual([]);
     });
 
@@ -680,9 +658,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        incidents.list({} as any, teacherActor()),
-      );
+      const list = await withTestTenant(async () => incidents.list({} as any, teacherActor()));
       const ids = list.map((i) => i.id);
       expect(ids).toContain(own.id);
       expect(ids).not.toContain(other.id);
@@ -702,9 +678,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const got = await withTestTenant(async () =>
-        incidents.getById(dto.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => incidents.getById(dto.id, adminActor()));
       expect(got.id).toBe(dto.id);
       await expect(
         withTestTenant(async () =>
@@ -736,9 +710,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const got = await withTestTenant(async () =>
-        incidents.getById(linked.id, parentActor()),
-      );
+      const got = await withTestTenant(async () => incidents.getById(linked.id, parentActor()));
       expect(got.id).toBe(linked.id);
       await expect(
         withTestTenant(async () => incidents.getById(unlinked.id, parentActor())),
@@ -774,17 +746,11 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // missing → 404
       await expect(
         withTestTenant(async () =>
-          incidents.review(
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-            adminActor(),
-          ),
+          incidents.review('00000000-0000-0000-0000-000000000099', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // resolve then try to review → 400
-      await withTestTenant(async () =>
-        incidents.resolve(dto.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => incidents.resolve(dto.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () => incidents.review(dto.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -846,11 +812,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // missing → 404
       await expect(
         withTestTenant(async () =>
-          incidents.resolve(
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-            adminActor(),
-          ),
+          incidents.resolve('00000000-0000-0000-0000-000000000099', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -915,9 +877,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // call from A because IncidentService does not filter by school_id
       // (the schema is shared). Instead, asserting on parent-of-A still
       // does not see B's student.
-      const fromB = await withTestTenantB(async () =>
-        incidents.list({} as any, bAdminActor),
-      );
+      const fromB = await withTestTenantB(async () => incidents.list({} as any, bAdminActor));
       expect(fromB.map((i) => i.id)).toContain(bDto.id);
       // Parent in school A (linked only to student A) should not see B's row
       const fromAParent = await withTestTenant(async () =>
@@ -1107,9 +1067,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
       // Non-admin → 403
       await expect(
-        withTestTenant(async () =>
-          actionsSvc.update(a.id, { notes: 'x' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => actionsSvc.update(a.id, { notes: 'x' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Missing id → 404 (inside the lock branch)
       await expect(
@@ -1267,9 +1225,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('list + getById — counsellor sees all; parent sees own children with feedback stripped', async () => {
-      const a = await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
+      const a = await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
       const a2 = await withTestTenant(async () =>
         plans.create(
           createInput({ studentId: TEST_BEH_STU_A2_ID, planType: 'BSP' }) as any,
@@ -1286,9 +1242,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
         ),
       );
       // Counsellor sees all
-      const adminList = await withTestTenant(async () =>
-        plans.list({} as any, adminActor()),
-      );
+      const adminList = await withTestTenant(async () => plans.list({} as any, adminActor()));
       expect(adminList.length).toBeGreaterThanOrEqual(2);
       // status filter
       const draftList = await withTestTenant(async () =>
@@ -1307,9 +1261,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       expect(stuList.every((p) => p.studentId === TEST_BEH_STU_A_ID)).toBe(true);
       // Parent sees only their child + feedback stripped
-      const parentList = await withTestTenant(async () =>
-        plans.list({} as any, parentActor()),
-      );
+      const parentList = await withTestTenant(async () => plans.list({} as any, parentActor()));
       const ids = parentList.map((p) => p.id);
       expect(ids).toContain(a.id);
       expect(ids).not.toContain(a2.id);
@@ -1326,21 +1278,15 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
 
     it('list — student / unknown persona returns empty (AND FALSE branch)', async () => {
       await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
-      const list = await withTestTenant(async () =>
-        plans.list({} as any, studentActor()),
-      );
+      const list = await withTestTenant(async () => plans.list({} as any, studentActor()));
       expect(list).toEqual([]);
     });
 
     it('list — teacher row scope sees plans for own-class students only', async () => {
       // The fixture seed doesn't enroll TEST_BEH_STU_A in a class linked to
       // TEST_TEACHER_EMPLOYEE_ID, so the teacher branch returns empty.
-      await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
-      const list = await withTestTenant(async () =>
-        plans.list({} as any, teacherActor()),
-      );
+      await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
+      const list = await withTestTenant(async () => plans.list({} as any, teacherActor()));
       // No enrollment seeded for STU_A in teacher's class → empty
       expect(list).toEqual([]);
     });
@@ -1366,9 +1312,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('update — counsellor only, EXPIRED read-only, ACTIVE rejects non-REVIEW transition, regular field bumps', async () => {
-      const a = await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
+      const a = await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
       // Teacher → 403
       await expect(
         withTestTenant(async () =>
@@ -1402,9 +1346,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(upd.status).toBe('REVIEW');
       expect(upd.targetBehaviors).toContain('on task');
       // Empty update → no-op returns same id
-      const same = await withTestTenant(async () =>
-        plans.update(a.id, {} as any, adminActor()),
-      );
+      const same = await withTestTenant(async () => plans.update(a.id, {} as any, adminActor()));
       expect(same.id).toBe(a.id);
       // Activate then try to update status back to DRAFT via PATCH → 400
       await withTestTenant(async () =>
@@ -1412,9 +1354,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       await withTestTenant(async () => plans.activate(a.id, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          plans.update(a.id, { status: 'DRAFT' } as any, adminActor()),
-        ),
+        withTestTenant(async () => plans.update(a.id, { status: 'DRAFT' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       // ACTIVE → REVIEW is allowed
       const inReview = await withTestTenant(async () =>
@@ -1424,9 +1364,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // Expire then try any update → 400
       await withTestTenant(async () => plans.expire(a.id, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          plans.update(a.id, { status: 'DRAFT' } as any, adminActor()),
-        ),
+        withTestTenant(async () => plans.update(a.id, { status: 'DRAFT' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         withTestTenant(async () =>
@@ -1436,9 +1374,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('activate — DRAFT → ACTIVE; duplicate active per (student,type) 400; EXPIRED 400; duplicate ACTIVE 400', async () => {
-      const a = await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
+      const a = await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
       // Non-counsellor
       await expect(
         withTestTenant(async () => plans.activate(a.id, teacherActor())),
@@ -1473,9 +1409,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('expire — counsellor only, missing 404, already EXPIRED 400', async () => {
-      const a = await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
+      const a = await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
       await expect(
         withTestTenant(async () => plans.expire(a.id, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -1492,9 +1426,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
     });
 
     it('loadForChildWrite — EXPIRED plan 400', async () => {
-      const a = await withTestTenant(async () =>
-        plans.create(createInput() as any, adminActor()),
-      );
+      const a = await withTestTenant(async () => plans.create(createInput() as any, adminActor()));
       await withTestTenant(async () => plans.expire(a.id, adminActor()));
       await expect(
         withTestTenant(async () => plans.loadForChildWrite(a.id, adminActor())),
@@ -1503,9 +1435,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
 
     it('loadOrFailNoAuth — 404 on missing', async () => {
       await expect(
-        withTestTenant(async () =>
-          plans.loadOrFailNoAuth('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => plans.loadOrFailNoAuth('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -1531,9 +1461,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
 
     it('listForPlan + create + update + remove happy path + bumps last_assessed_at', async () => {
       const planId = await seedPlan();
-      const list0 = await withTestTenant(async () =>
-        goals.listForPlan(planId, adminActor()),
-      );
+      const list0 = await withTestTenant(async () => goals.listForPlan(planId, adminActor()));
       expect(list0).toEqual([]);
       const g = await withTestTenant(async () =>
         goals.create(
@@ -1566,9 +1494,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(upd.progress).toBe('IN_PROGRESS');
       expect(upd.lastAssessedAt).not.toBeNull();
       // No-op
-      const same = await withTestTenant(async () =>
-        goals.update(g.id, {} as any, adminActor()),
-      );
+      const same = await withTestTenant(async () => goals.update(g.id, {} as any, adminActor()));
       expect(same.id).toBe(g.id);
       // Reverting to NOT_STARTED does NOT bump last_assessed_at (only the
       // progress column changes)
@@ -1578,26 +1504,20 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(back.progress).toBe('NOT_STARTED');
       // remove
       await withTestTenant(async () => goals.remove(g.id, adminActor()));
-      const list1 = await withTestTenant(async () =>
-        goals.listForPlan(planId, adminActor()),
-      );
+      const list1 = await withTestTenant(async () => goals.listForPlan(planId, adminActor()));
       expect(list1).toEqual([]);
     });
 
     it('create / update / remove non-counsellor → Forbidden', async () => {
       const planId = await seedPlan();
       await expect(
-        withTestTenant(async () =>
-          goals.create(planId, { goalText: 'x' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => goals.create(planId, { goalText: 'x' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       const g = await withTestTenant(async () =>
         goals.create(planId, { goalText: 'y' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          goals.update(g.id, { goalText: 'z' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => goals.update(g.id, { goalText: 'z' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () => goals.remove(g.id, teacherActor())),
@@ -1611,9 +1531,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       await withTestTenant(async () => plans.expire(planId, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          goals.update(g.id, { progress: 'MET' } as any, adminActor()),
-        ),
+        withTestTenant(async () => goals.update(g.id, { progress: 'MET' } as any, adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () => goals.remove(g.id, adminActor())),
@@ -1641,9 +1559,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       const planId = await seedPlan();
       await withTestTenant(async () => plans.expire(planId, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          goals.create(planId, { goalText: 'x' } as any, adminActor()),
-        ),
+        withTestTenant(async () => goals.create(planId, { goalText: 'x' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -1681,11 +1597,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       const phantom = { ...adminActor(), employeeId: null } as any;
       await expect(
         withTestTenant(async () =>
-          feedback.requestFeedback(
-            planId,
-            { teacherId: TEST_TEACHER_EMPLOYEE_ID } as any,
-            phantom,
-          ),
+          feedback.requestFeedback(planId, { teacherId: TEST_TEACHER_EMPLOYEE_ID } as any, phantom),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
@@ -1739,13 +1651,9 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const a = await withTestTenant(async () =>
-        feedback.listForPlan(planId, adminActor()),
-      );
+      const a = await withTestTenant(async () => feedback.listForPlan(planId, adminActor()));
       expect(a.length).toBe(1);
-      const p = await withTestTenant(async () =>
-        feedback.listForPlan(planId, parentActor()),
-      );
+      const p = await withTestTenant(async () => feedback.listForPlan(planId, parentActor()));
       expect(p).toEqual([]);
     });
 
@@ -1801,11 +1709,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // Missing id → 404
       await expect(
         withTestTenant(async () =>
-          feedback.submit(
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-            adminActor(),
-          ),
+          feedback.submit('00000000-0000-0000-0000-000000000099', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1819,20 +1723,14 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           adminActor(),
         ),
       );
-      const teacherPending = await withTestTenant(async () =>
-        feedback.listPending(teacherActor()),
-      );
+      const teacherPending = await withTestTenant(async () => feedback.listPending(teacherActor()));
       expect(teacherPending.length).toBeGreaterThanOrEqual(1);
       expect(teacherPending[0]!.studentName).not.toBeNull();
       expect(teacherPending[0]!.planType).toBe('BIP');
-      const adminPending = await withTestTenant(async () =>
-        feedback.listPending(adminActor()),
-      );
+      const adminPending = await withTestTenant(async () => feedback.listPending(adminActor()));
       expect(adminPending.length).toBeGreaterThanOrEqual(1);
       // Parent (no employeeId, non-counsellor) → returns []
-      const parentPending = await withTestTenant(async () =>
-        feedback.listPending(parentActor()),
-      );
+      const parentPending = await withTestTenant(async () => feedback.listPending(parentActor()));
       expect(parentPending).toEqual([]);
     });
   });
@@ -1971,11 +1869,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       // missing
       await expect(
         withTestTenant(async () =>
-          bipFeedback.submit(
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-            adminActor(),
-          ),
+          bipFeedback.submit('00000000-0000-0000-0000-000000000099', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1994,9 +1888,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       const got = await withTestTenant(async () => bipFeedback.getById(fb.id));
       expect(got.id).toBe(fb.id);
       await expect(
-        withTestTenant(async () =>
-          bipFeedback.getById('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => bipFeedback.getById('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -2117,23 +2009,17 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(parentBal.balance).toBe(5);
       // Guardian on unlinked student (STU_A2) → 403
       await expect(
-        withTestTenant(async () =>
-          positive.getStudentBalance(TEST_BEH_STU_A2_ID, parentActor()),
-        ),
+        withTestTenant(async () => positive.getStudentBalance(TEST_BEH_STU_A2_ID, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Teacher not enrolled with these students → 403
       await expect(
-        withTestTenant(async () =>
-          positive.getStudentBalance(TEST_BEH_STU_A_ID, teacherActor()),
-        ),
+        withTestTenant(async () => positive.getStudentBalance(TEST_BEH_STU_A_ID, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Student fetching own balance — need a STUDENT actor whose person
       // resolves to a student record in this school. The default
       // studentActor has no platform_students row, so this hits 403.
       await expect(
-        withTestTenant(async () =>
-          positive.getStudentBalance(TEST_BEH_STU_A_ID, studentActor()),
-        ),
+        withTestTenant(async () => positive.getStudentBalance(TEST_BEH_STU_A_ID, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Unknown persona → 403
       const stranger = {
@@ -2141,9 +2027,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
         personType: 'UNKNOWN',
       } as any;
       await expect(
-        withTestTenant(async () =>
-          positive.getStudentBalance(TEST_BEH_STU_A_ID, stranger),
-        ),
+        withTestTenant(async () => positive.getStudentBalance(TEST_BEH_STU_A_ID, stranger)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -2216,9 +2100,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       const got = await withTestTenant(async () => positive.getRewardById(r.id));
       expect(got.id).toBe(r.id);
       await expect(
-        withTestTenant(async () =>
-          positive.getRewardById('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => positive.getRewardById('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -2756,18 +2638,12 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
       const phantom = { ...adminActor(), employeeId: null } as any;
       await expect(
-        withTestTenant(async () =>
-          rj.completeAction(a1.id, {} as any, phantom),
-        ),
+        withTestTenant(async () => rj.completeAction(a1.id, {} as any, phantom)),
       ).rejects.toBeInstanceOf(BadRequestException);
       // missing
       await expect(
         withTestTenant(async () =>
-          rj.completeAction(
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-            adminActor(),
-          ),
+          rj.completeAction('00000000-0000-0000-0000-000000000099', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Complete first
@@ -2930,16 +2806,12 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       const got = await withTestTenant(async () => mediation.getById(m.id));
       expect(got.id).toBe(m.id);
       await expect(
-        withTestTenant(async () =>
-          mediation.getById('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => mediation.getById('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
       // list + status filter
       const list = await withTestTenant(async () => mediation.list(adminActor()));
       expect(list.map((x) => x.id)).toContain(m.id);
-      const refOnly = await withTestTenant(async () =>
-        mediation.list(adminActor(), 'REFERRED'),
-      );
+      const refOnly = await withTestTenant(async () => mediation.list(adminActor(), 'REFERRED'));
       expect(refOnly.every((x) => x.status === 'REFERRED')).toBe(true);
     });
 
@@ -3099,9 +2971,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
         categoryCtrl.updateCategory(cat.id, { isActive: false } as any),
       );
       expect(upd.isActive).toBe(false);
-      const atList = await withTestTenant(async () =>
-        categoryCtrl.listActionTypes({} as any),
-      );
+      const atList = await withTestTenant(async () => categoryCtrl.listActionTypes({} as any));
       expect(atList.length).toBeGreaterThan(0);
       const at = await withTestTenant(async () =>
         categoryCtrl.createActionType({ name: 'CtrlAt' } as any),
@@ -3128,9 +2998,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       expect(list.map((i) => i.id)).toContain(c.id);
       const got = await withTestTenant(async () => incidentCtrl.getById(c.id, fakeReq()));
       expect(got.id).toBe(c.id);
-      const rev = await withTestTenant(async () =>
-        incidentCtrl.review(c.id, {} as any, fakeReq()),
-      );
+      const rev = await withTestTenant(async () => incidentCtrl.review(c.id, {} as any, fakeReq()));
       expect(rev.status).toBe('UNDER_REVIEW');
       const res = await withTestTenant(async () =>
         incidentCtrl.resolve(c.id, {} as any, fakeReq()),
@@ -3233,11 +3101,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
         ),
       );
       const fb = await withTestTenant(async () =>
-        feedbackCtrl.request(
-          p.id,
-          { teacherId: TEST_TEACHER_EMPLOYEE_ID } as any,
-          fakeReq(),
-        ),
+        feedbackCtrl.request(p.id, { teacherId: TEST_TEACHER_EMPLOYEE_ID } as any, fakeReq()),
       );
       const list = await withTestTenant(async () => feedbackCtrl.list(p.id, fakeReq()));
       expect(list.map((x) => x.id)).toContain(fb.id);
@@ -3280,20 +3144,14 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           fakeReq(),
         ),
       );
-      const confList = await withTestTenant(async () =>
-        advancedCtrl.listConferences(fakeReq()),
-      );
+      const confList = await withTestTenant(async () => advancedCtrl.listConferences(fakeReq()));
       expect(confList.map((c) => c.id)).toContain(conf.id);
       const confGet = await withTestTenant(async () =>
         advancedCtrl.getConference(conf.id, fakeReq()),
       );
       expect(confGet.id).toBe(conf.id);
       const updConf = await withTestTenant(async () =>
-        advancedCtrl.updateConference(
-          conf.id,
-          { status: 'IN_PROGRESS' } as any,
-          fakeReq(),
-        ),
+        advancedCtrl.updateConference(conf.id, { status: 'IN_PROGRESS' } as any, fakeReq()),
       );
       expect(updConf.status).toBe('IN_PROGRESS');
       const a = await withTestTenant(async () =>
@@ -3307,9 +3165,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           fakeReq(),
         ),
       );
-      const actList = await withTestTenant(async () =>
-        advancedCtrl.listActions(conf.id),
-      );
+      const actList = await withTestTenant(async () => advancedCtrl.listActions(conf.id));
       expect(actList.map((x) => x.id)).toContain(a.id);
       const cmp = await withTestTenant(async () =>
         advancedCtrl.completeAction(a.id, {} as any, fakeReq()),
@@ -3351,9 +3207,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
           fakeReq(),
         ),
       );
-      const medList = await withTestTenant(async () =>
-        advancedCtrl.listMediations(fakeReq()),
-      );
+      const medList = await withTestTenant(async () => advancedCtrl.listMediations(fakeReq()));
       expect(medList.map((x) => x.id)).toContain(m.id);
       const medGot = await withTestTenant(async () => advancedCtrl.getMediation(m.id));
       expect(medGot.id).toBe(m.id);
@@ -3396,11 +3250,7 @@ describe('integration:m09-behaviour/behaviour-lifecycle', () => {
       );
       expect(rewardUpd.description).toBe('d');
       const red = await withTestTenant(async () =>
-        advancedCtrl.redeemReward(
-          reward.id,
-          { studentId: TEST_BEH_STU_A_ID } as any,
-          fakeReq(),
-        ),
+        advancedCtrl.redeemReward(reward.id, { studentId: TEST_BEH_STU_A_ID } as any, fakeReq()),
       );
       expect(red.pointsSpent).toBe(2);
 

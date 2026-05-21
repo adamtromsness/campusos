@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -175,10 +171,7 @@ describe('integration:m21-classroom/hall-passes', () => {
     it('non-admin (teacher) → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.updateSettings(
-            { maxConcurrentPassesPerClass: 2 } as any,
-            teacherActor(),
-          ),
+          service.updateSettings({ maxConcurrentPassesPerClass: 2 } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -397,9 +390,7 @@ describe('integration:m21-classroom/hall-passes', () => {
       );
       // Return the first so it cannot trip the concurrent gate — only the
       // daily count should block the next issue.
-      await withTestTenant(async () =>
-        service.returnPass(first.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => service.returnPass(first.id, {} as any, adminActor()));
 
       await expect(
         withTestTenant(async () =>
@@ -465,9 +456,7 @@ describe('integration:m21-classroom/hall-passes', () => {
 
     it('already-RETURNED pass → BadRequestException', async () => {
       const passId = await seedActivePass();
-      await withTestTenant(async () =>
-        service.returnPass(passId, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => service.returnPass(passId, {} as any, adminActor()));
       await expect(
         withTestTenant(async () => service.returnPass(passId, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -476,11 +465,7 @@ describe('integration:m21-classroom/hall-passes', () => {
     it('unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.returnPass(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          service.returnPass('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -568,9 +553,7 @@ describe('integration:m21-classroom/hall-passes', () => {
           adminActor(),
         ),
       );
-      await withTestTenant(async () =>
-        service.returnPass(issued.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => service.returnPass(issued.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () =>
           service.recall(issued.id, { reason: 'late' } as any, adminActor()),
@@ -748,10 +731,9 @@ describe('integration:m21-classroom/hall-passes', () => {
         ),
       );
 
-      const list = await withTestTenant(
-        async () => service.list(studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => service.list(studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
+      });
       const ids = list.map((r) => r.id);
       expect(ids).toContain(selfPass.id);
       expect(ids).not.toContain(peerPass.id);
@@ -770,10 +752,9 @@ describe('integration:m21-classroom/hall-passes', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(
-        async () => service.list(parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => service.list(parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(list).toEqual([]);
     });
 
@@ -819,9 +800,7 @@ describe('integration:m21-classroom/hall-passes', () => {
   describe('getById', () => {
     it('unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -853,9 +832,7 @@ describe('integration:m21-classroom/hall-passes', () => {
       );
 
       (kafka as unknown as RecordingKafkaProducer).reset();
-      const flipped = await withTestTenant(async () =>
-        service.sweepOverdueForCurrentTenant(),
-      );
+      const flipped = await withTestTenant(async () => service.sweepOverdueForCurrentTenant());
       expect(flipped).toHaveLength(1);
       expect(flipped[0]!.id).toBe(passId);
       expect(flipped[0]!.status).toBe('OVERDUE');
@@ -867,9 +844,7 @@ describe('integration:m21-classroom/hall-passes', () => {
       expect(dbRow[0]!.status).toBe('OVERDUE');
 
       const recorded = kafka as unknown as RecordingKafkaProducer;
-      const overdueEmits = recorded.calls.filter(
-        (c) => c.topic === 'cls.hall_pass.overdue',
-      );
+      const overdueEmits = recorded.calls.filter((c) => c.topic === 'cls.hall_pass.overdue');
       expect(overdueEmits).toHaveLength(1);
       expect(overdueEmits[0]!.key).toBe(passId);
       expect(overdueEmits[0]!.payload).toMatchObject({
@@ -899,9 +874,7 @@ describe('integration:m21-classroom/hall-passes', () => {
       );
 
       (kafka as unknown as RecordingKafkaProducer).reset();
-      const flipped = await withTestTenant(async () =>
-        service.sweepOverdueForCurrentTenant(),
-      );
+      const flipped = await withTestTenant(async () => service.sweepOverdueForCurrentTenant());
       expect(flipped).toEqual([]);
 
       const dbRow = await rawClient.$queryRawUnsafe<Array<{ status: string }>>(
@@ -911,21 +884,15 @@ describe('integration:m21-classroom/hall-passes', () => {
       expect(dbRow[0]!.status).toBe('ACTIVE');
 
       const recorded = kafka as unknown as RecordingKafkaProducer;
-      expect(
-        recorded.calls.filter((c) => c.topic === 'cls.hall_pass.overdue'),
-      ).toHaveLength(0);
+      expect(recorded.calls.filter((c) => c.topic === 'cls.hall_pass.overdue')).toHaveLength(0);
     });
 
     it('sweep with nothing overdue returns empty array (no emits)', async () => {
       (kafka as unknown as RecordingKafkaProducer).reset();
-      const flipped = await withTestTenant(async () =>
-        service.sweepOverdueForCurrentTenant(),
-      );
+      const flipped = await withTestTenant(async () => service.sweepOverdueForCurrentTenant());
       expect(flipped).toEqual([]);
       const recorded = kafka as unknown as RecordingKafkaProducer;
-      expect(
-        recorded.calls.filter((c) => c.topic === 'cls.hall_pass.overdue'),
-      ).toHaveLength(0);
+      expect(recorded.calls.filter((c) => c.topic === 'cls.hall_pass.overdue')).toHaveLength(0);
     });
   });
 

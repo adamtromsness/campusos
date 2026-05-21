@@ -77,16 +77,18 @@ describe('integration:m101-events/ticketing', () => {
     return new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
   }
 
-  async function seedEventWithTier(opts: {
-    schoolId?: string;
-    eventStatus?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
-    tierQty?: number;
-    tierPrice?: number;
-    capacity?: number | null;
-    saleStartsAt?: string | null;
-    saleEndsAt?: string | null;
-    isActive?: boolean;
-  } = {}): Promise<{ eventId: string; tierId: string }> {
+  async function seedEventWithTier(
+    opts: {
+      schoolId?: string;
+      eventStatus?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+      tierQty?: number;
+      tierPrice?: number;
+      capacity?: number | null;
+      saleStartsAt?: string | null;
+      saleEndsAt?: string | null;
+      isActive?: boolean;
+    } = {},
+  ): Promise<{ eventId: string; tierId: string }> {
     const eventId = generateId();
     const tierId = generateId();
     await rawClient.$executeRawUnsafe(
@@ -298,14 +300,10 @@ describe('integration:m101-events/ticketing', () => {
       await withTestTenant(async () =>
         orders.purchase(eventId, { lines: [{ tierId, quantity: 1 }] } as any, adminActor()),
       );
-      const mine = await withTestTenant(async () =>
-        orders.list(adminActor(), { mine: true }),
-      );
+      const mine = await withTestTenant(async () => orders.list(adminActor(), { mine: true }));
       expect(mine.length).toBe(1);
 
-      const byEvent = await withTestTenant(async () =>
-        orders.list(adminActor(), { eventId }),
-      );
+      const byEvent = await withTestTenant(async () => orders.list(adminActor(), { eventId }));
       expect(byEvent.length).toBe(1);
 
       const byStatus = await withTestTenant(async () =>
@@ -404,11 +402,7 @@ describe('integration:m101-events/ticketing', () => {
     it('confirm missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          orders.confirm(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          orders.confirm('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -493,20 +487,14 @@ describe('integration:m101-events/ticketing', () => {
       const order = await withTestTenant(async () =>
         orders.purchase(eventId, { lines: [{ tierId, quantity: 1 }] } as any, adminActor()),
       );
-      const ret = await withTestTenant(async () =>
-        orders.cancel(order.id, {} as any, null),
-      );
+      const ret = await withTestTenant(async () => orders.cancel(order.id, {} as any, null));
       expect(ret).toBeNull();
     });
 
     it('cancel missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          orders.cancel(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          orders.cancel('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -573,11 +561,7 @@ describe('integration:m101-events/ticketing', () => {
       );
       await withTestTenant(async () => orders.confirm(order.id, {} as any, adminActor()));
       const refund = await withTestTenant(async () =>
-        refunds.issue(
-          order.id,
-          { refundAmount: 5, reason: 'partial' } as any,
-          adminActor(),
-        ),
+        refunds.issue(order.id, { refundAmount: 5, reason: 'partial' } as any, adminActor()),
       );
       expect(refund.refundAmount).toBe(5);
 
@@ -602,11 +586,7 @@ describe('integration:m101-events/ticketing', () => {
       await withTestTenant(async () => orders.confirm(order.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () =>
-          refunds.issue(
-            order.id,
-            { refundAmount: 999, reason: 'too much' } as any,
-            adminActor(),
-          ),
+          refunds.issue(order.id, { refundAmount: 999, reason: 'too much' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -618,11 +598,7 @@ describe('integration:m101-events/ticketing', () => {
       );
       await expect(
         withTestTenant(async () =>
-          refunds.issue(
-            order.id,
-            { refundAmount: 5, reason: 'oops' } as any,
-            adminActor(),
-          ),
+          refunds.issue(order.id, { refundAmount: 5, reason: 'oops' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -637,11 +613,7 @@ describe('integration:m101-events/ticketing', () => {
       await withTestTenant(async () => orders.cancel(order.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () =>
-          refunds.issue(
-            order.id,
-            { refundAmount: 5, reason: 'after cancel' } as any,
-            adminActor(),
-          ),
+          refunds.issue(order.id, { refundAmount: 5, reason: 'after cancel' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -666,11 +638,7 @@ describe('integration:m101-events/ticketing', () => {
       await withTestTenant(async () => orders.confirm(order.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () =>
-          refunds.issue(
-            order.id,
-            { refundAmount: 5, reason: 'x' } as any,
-            studentActor(),
-          ),
+          refunds.issue(order.id, { refundAmount: 5, reason: 'x' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -712,9 +680,7 @@ describe('integration:m101-events/ticketing', () => {
       await withTestTenant(async () =>
         refunds.issue(order.id, { refundAmount: 5, reason: 'r' } as any, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        refunds.listForOrder(order.id, parentActor()),
-      );
+      const list = await withTestTenant(async () => refunds.listForOrder(order.id, parentActor()));
       expect(list.length).toBe(1);
     });
   });
@@ -896,9 +862,7 @@ describe('integration:m101-events/ticketing', () => {
 
     it('double-scan → ALREADY_SCANNED + new audit row', async () => {
       const { qrToken, ticketId } = await setupTicketAndOrder();
-      await withTestTenant(async () =>
-        gate.scan({ qrCodeToken: qrToken } as any, adminActor()),
-      );
+      await withTestTenant(async () => gate.scan({ qrCodeToken: qrToken } as any, adminActor()));
       const result = await withTestTenant(async () =>
         gate.scan({ qrCodeToken: qrToken } as any, adminActor()),
       );
@@ -914,10 +878,7 @@ describe('integration:m101-events/ticketing', () => {
     it('INVALID token → INVALID + audit row with ticket_id NULL', async () => {
       const { eventId } = await setupTicketAndOrder();
       const result = await withTestTenant(async () =>
-        gate.scan(
-          { qrCodeToken: 'no_such_token_' + Date.now(), eventId } as any,
-          adminActor(),
-        ),
+        gate.scan({ qrCodeToken: 'no_such_token_' + Date.now(), eventId } as any, adminActor()),
       );
       expect(result.scanResult).toBe('INVALID');
       expect(result.ticketId).toBeNull();
@@ -955,11 +916,7 @@ describe('integration:m101-events/ticketing', () => {
     it('REFUNDED ticket → EXPIRED branch', async () => {
       const { qrToken, orderId } = await setupTicketAndOrder();
       await withTestTenant(async () =>
-        refunds.issue(
-          orderId,
-          { refundAmount: 10, reason: 'r' } as any,
-          adminActor(),
-        ),
+        refunds.issue(orderId, { refundAmount: 10, reason: 'r' } as any, adminActor()),
       );
       const result = await withTestTenant(async () =>
         gate.scan({ qrCodeToken: qrToken } as any, adminActor()),
@@ -970,9 +927,7 @@ describe('integration:m101-events/ticketing', () => {
     it('non-writer → ForbiddenException', async () => {
       const { qrToken } = await setupTicketAndOrder();
       await expect(
-        withTestTenant(async () =>
-          gate.scan({ qrCodeToken: qrToken } as any, studentActor()),
-        ),
+        withTestTenant(async () => gate.scan({ qrCodeToken: qrToken } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

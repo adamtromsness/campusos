@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import {
@@ -20,11 +16,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import {
   resetFacilitiesTables,
@@ -143,9 +135,7 @@ describe('integration:m65-facilities/work-orders-assets', () => {
 
     it('getById missing → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          workOrders.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => workOrders.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -417,7 +407,10 @@ describe('integration:m65-facilities/work-orders-assets', () => {
 
     it('replaceStops + listStops', async () => {
       const route = await withTestTenant(async () =>
-        cleaning.createRoute({ name: 'R1', shift: 'MORNING', estimatedDurationMinutes: 60 } as any, adminActor()),
+        cleaning.createRoute(
+          { name: 'R1', shift: 'MORNING', estimatedDurationMinutes: 60 } as any,
+          adminActor(),
+        ),
       );
       await withTestTenant(async () =>
         cleaning.replaceStops(
@@ -442,7 +435,10 @@ describe('integration:m65-facilities/work-orders-assets', () => {
 
     it('createAssignment + listAssignments', async () => {
       const route = await withTestTenant(async () =>
-        cleaning.createRoute({ name: 'R2', shift: 'MORNING', estimatedDurationMinutes: 60 } as any, adminActor()),
+        cleaning.createRoute(
+          { name: 'R2', shift: 'MORNING', estimatedDurationMinutes: 60 } as any,
+          adminActor(),
+        ),
       );
       const a = await withTestTenant(async () =>
         cleaning.createAssignment(

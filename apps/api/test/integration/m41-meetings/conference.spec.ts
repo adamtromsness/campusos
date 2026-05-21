@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -63,9 +59,7 @@ describe('integration:m41-meetings/conference', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_meeting_slots`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_meeting_slots`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.mtg_meetings WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -298,9 +292,7 @@ describe('integration:m41-meetings/conference', () => {
           slotService.createBulk(
             meetingId,
             {
-              slots: [
-                { startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T14:00:00Z' },
-              ],
+              slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T14:00:00Z' }],
             } as any,
             adminActor(),
           ),
@@ -314,7 +306,9 @@ describe('integration:m41-meetings/conference', () => {
         withTestTenant(async () =>
           slotService.createBulk(
             meetingId,
-            { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+            {
+              slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+            } as any,
             teacherActor(),
           ),
         ),
@@ -326,7 +320,9 @@ describe('integration:m41-meetings/conference', () => {
       const slots = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -352,7 +348,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -368,7 +366,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -390,7 +390,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -416,7 +418,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -430,7 +434,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -446,7 +452,9 @@ describe('integration:m41-meetings/conference', () => {
       const [slot] = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -470,7 +478,9 @@ describe('integration:m41-meetings/conference', () => {
       const slots = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -495,7 +505,9 @@ describe('integration:m41-meetings/conference', () => {
       const slots = await withTestTenant(async () =>
         slotService.createBulk(
           meetingId,
-          { slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }] } as any,
+          {
+            slots: [{ startTime: '2026-10-02T15:00:00Z', endTime: '2026-10-02T15:15:00Z' }],
+          } as any,
           adminActor(),
         ),
       );
@@ -518,15 +530,11 @@ describe('integration:m41-meetings/conference', () => {
     });
 
     it('getById returns the type; missing → NotFoundException', async () => {
-      const type = await withTestTenant(async () =>
-        typeService.getById(TEST_MEETING_TYPE_ID),
-      );
+      const type = await withTestTenant(async () => typeService.getById(TEST_MEETING_TYPE_ID));
       expect(type.name).toBe('Default Meeting');
 
       await expect(
-        withTestTenant(async () =>
-          typeService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => typeService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 

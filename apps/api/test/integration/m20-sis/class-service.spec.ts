@@ -22,12 +22,7 @@ import {
   TEST_SIS_ACADEMIC_YEAR_ID,
   TEST_SIS_DEPARTMENT_ID,
 } from '../fixtures/sis';
-import {
-  seedStudent,
-  assignTeacherToClass,
-  enrollStudent,
-  cleanupSeededIds,
-} from './sis-helpers';
+import { seedStudent, assignTeacherToClass, enrollStudent, cleanupSeededIds } from './sis-helpers';
 
 /**
  * Wave 4 — m20-sis ClassService DB-backed integration.
@@ -68,9 +63,7 @@ describe('integration:m20-sis/class-service', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
     // Remove any extra classes seeded by the previous test
     if (extraClassIds.length > 0) {
@@ -128,9 +121,7 @@ describe('integration:m20-sis/class-service', () => {
     });
 
     it('filter by courseId narrows results', async () => {
-      const list = await withTestTenant(async () =>
-        service.list({ courseId: TEST_SIS_COURSE_ID }),
-      );
+      const list = await withTestTenant(async () => service.list({ courseId: TEST_SIS_COURSE_ID }));
       expect(list.map((c) => c.id)).toContain(TEST_SIS_CLASS_ID);
     });
 
@@ -248,9 +239,7 @@ describe('integration:m20-sis/class-service', () => {
 
     it('unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -348,9 +337,7 @@ describe('integration:m20-sis/class-service', () => {
 
     it('unknown class id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getRoster('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getRoster('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -395,9 +382,9 @@ describe('integration:m20-sis/class-service', () => {
       const listA = await withTestTenant(async () => service.list({}));
       expect(listA.map((c) => c.id)).not.toContain(newClassId);
       // Direct getById from school A also fails
-      await expect(
-        withTestTenant(async () => service.getById(newClassId)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => service.getById(newClassId))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

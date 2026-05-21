@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-} from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -11,11 +9,7 @@ import { LedgerService } from '@modules/m84-payments/ledger.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { RedisService } from '@shared/cache';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   parentActor,
@@ -190,7 +184,11 @@ describe('integration:m84-payments/remaining-branches', () => {
   // ─── FinancialAid review branches ────────────────────────────
 
   describe('FinancialAidService.reviewApplication branches', () => {
-    async function seedSubmitted(): Promise<{ appId: string; programId: string; studentId: string }> {
+    async function seedSubmitted(): Promise<{
+      appId: string;
+      programId: string;
+      studentId: string;
+    }> {
       const studentId = await seedStudent();
       await seedGuardian(studentId);
       const programId = await seedProgram({ totalFund: 5000 });
@@ -316,9 +314,7 @@ describe('integration:m84-payments/remaining-branches', () => {
             studentId,
             programId,
             academicYearId: TEST_ACADEMIC_YEAR_ID,
-            supportingDocuments: [
-              { s3Key: 'docs/x.pdf', label: 'tax_return.pdf' } as any,
-            ],
+            supportingDocuments: [{ s3Key: 'docs/x.pdf', label: 'tax_return.pdf' } as any],
           },
           parentActor(),
         ),

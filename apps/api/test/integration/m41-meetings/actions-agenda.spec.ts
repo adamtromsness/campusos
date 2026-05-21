@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { MeetingService } from '@modules/m41-meetings/meetings/meeting.service';
@@ -130,9 +127,7 @@ describe('integration:m41-meetings/actions-agenda', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          actionService.listForMeeting(meetingId, parentActor()),
-        ),
+        withTestTenant(async () => actionService.listForMeeting(meetingId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -160,16 +155,12 @@ describe('integration:m41-meetings/actions-agenda', () => {
           adminActor(),
         ),
       );
-      const mine = await withTestTenant(async () =>
-        actionService.listMine(teacherActor()),
-      );
+      const mine = await withTestTenant(async () => actionService.listMine(teacherActor()));
       expect(mine).toHaveLength(1);
       expect(mine[0]!.description).toBe('teacher item');
 
       // Admin has no items assigned to them on this meeting
-      const adminMine = await withTestTenant(async () =>
-        actionService.listMine(adminActor()),
-      );
+      const adminMine = await withTestTenant(async () => actionService.listMine(adminActor()));
       expect(adminMine.map((i) => i.description)).not.toContain('teacher item');
     });
 
@@ -357,25 +348,13 @@ describe('integration:m41-meetings/actions-agenda', () => {
     it('listForMeeting orders by sort_order', async () => {
       const meetingId = await createMeeting();
       await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'C', sortOrder: 2 } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'C', sortOrder: 2 } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'A', sortOrder: 0 } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'A', sortOrder: 0 } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'B', sortOrder: 1 } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'B', sortOrder: 1 } as any, adminActor()),
       );
       const list = await withTestTenant(async () =>
         agendaService.listForMeeting(meetingId, adminActor()),
@@ -386,20 +365,14 @@ describe('integration:m41-meetings/actions-agenda', () => {
     it('non-participant cannot list → NotFoundException', async () => {
       const meetingId = await createMeeting();
       await expect(
-        withTestTenant(async () =>
-          agendaService.listForMeeting(meetingId, parentActor()),
-        ),
+        withTestTenant(async () => agendaService.listForMeeting(meetingId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('patch updates title, description, presenter, duration, sortOrder, notes', async () => {
       const meetingId = await createMeeting();
       const item = await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'orig', sortOrder: 0 } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'orig', sortOrder: 0 } as any, adminActor()),
       );
       const updated = await withTestTenant(async () =>
         agendaService.patch(
@@ -426,11 +399,7 @@ describe('integration:m41-meetings/actions-agenda', () => {
     it('empty patch returns current row', async () => {
       const meetingId = await createMeeting();
       const item = await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'stable' } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'stable' } as any, adminActor()),
       );
       const after = await withTestTenant(async () =>
         agendaService.patch(item.id, {} as any, adminActor()),
@@ -454,11 +423,7 @@ describe('integration:m41-meetings/actions-agenda', () => {
       const meetingId = await createMeeting();
       await expect(
         withTestTenant(async () =>
-          agendaService.create(
-            meetingId,
-            { title: 'unauthorised' } as any,
-            teacherActor(),
-          ),
+          agendaService.create(meetingId, { title: 'unauthorised' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -466,11 +431,7 @@ describe('integration:m41-meetings/actions-agenda', () => {
     it('non-organiser non-admin cannot patch → ForbiddenException', async () => {
       const meetingId = await createMeeting();
       const item = await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'walled' } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'walled' } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -482,11 +443,7 @@ describe('integration:m41-meetings/actions-agenda', () => {
     it('remove deletes the item', async () => {
       const meetingId = await createMeeting();
       const item = await withTestTenant(async () =>
-        agendaService.create(
-          meetingId,
-          { title: 'delete me' } as any,
-          adminActor(),
-        ),
+        agendaService.create(meetingId, { title: 'delete me' } as any, adminActor()),
       );
       await withTestTenant(async () => agendaService.remove(item.id, adminActor()));
       const rows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(

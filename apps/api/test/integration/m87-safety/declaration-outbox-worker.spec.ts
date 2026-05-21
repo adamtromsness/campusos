@@ -16,10 +16,7 @@ import {
   TEST_SCHEMA,
   TEST_SUBDOMAIN,
 } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 
 /**
  * DB-backed integration tests for DeclarationOutboxWorker — the P2C2
@@ -114,9 +111,7 @@ describe('integration:m87-safety/declaration-outbox-worker', () => {
       throw new Error('primaryContactId required');
     }
     const today = new Date().toISOString().slice(0, 10);
-    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.inc_emergency_procedures
          (id, school_id, procedure_type, title, procedure_steps, primary_contact_id,
@@ -135,16 +130,18 @@ describe('integration:m87-safety/declaration-outbox-worker', () => {
     return id;
   }
 
-  async function seedIncidentAndOutbox(opts: {
-    typeCode?: string;
-    procedureType?: string;
-    primaryContact?: string | null;
-    secondaryContact?: string | null;
-    declaredAtMinutesAgo?: number;
-    omitProcedure?: boolean;
-    notificationTemplate?: string | null;
-    school?: string;
-  } = {}): Promise<{ incidentId: string; outboxId: string; typeId: string }> {
+  async function seedIncidentAndOutbox(
+    opts: {
+      typeCode?: string;
+      procedureType?: string;
+      primaryContact?: string | null;
+      secondaryContact?: string | null;
+      declaredAtMinutesAgo?: number;
+      omitProcedure?: boolean;
+      notificationTemplate?: string | null;
+      school?: string;
+    } = {},
+  ): Promise<{ incidentId: string; outboxId: string; typeId: string }> {
     const typeCode = opts.typeCode ?? 'FIRE_EVACUATION';
     const procedureType = opts.procedureType ?? typeCode;
     const typeId = await seedIncidentType({
@@ -256,7 +253,9 @@ describe('integration:m87-safety/declaration-outbox-worker', () => {
 
       const emits = kafka.calls.filter((e) => e.topic === 'inc.emergency.task.requested');
       expect(emits.length).toBe(2);
-      const recipients = emits.map((e) => (e.payload as { recipientAccountId: string }).recipientAccountId);
+      const recipients = emits.map(
+        (e) => (e.payload as { recipientAccountId: string }).recipientAccountId,
+      );
       expect(recipients).toContain(TEST_ADMIN_EMPLOYEE_ID);
       expect(recipients).toContain(otherEmployeeId);
 
@@ -521,7 +520,9 @@ describe('integration:m87-safety/declaration-outbox-worker', () => {
   // Helper — build the OutboxRow shape with JOINs the way the worker
   // queries it. Exposed because the runStepX methods take an OutboxRow
   // not an id.
-  async function loadOutboxRowJoined(outboxId: string): Promise<Parameters<DeclarationOutboxWorker['runStepTasks']>[0]> {
+  async function loadOutboxRowJoined(
+    outboxId: string,
+  ): Promise<Parameters<DeclarationOutboxWorker['runStepTasks']>[0]> {
     const rows = (await rawClient.$queryRawUnsafe(
       `SELECT o.id::text AS id, o.incident_id::text AS incident_id,
               o.school_id::text AS school_id, o.declared_at::text AS declared_at,

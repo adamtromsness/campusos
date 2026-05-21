@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { GroupService } from '@modules/m103-groups/groups/group.service';
@@ -17,11 +13,7 @@ import {
   TEST_SCHEMA,
   TEST_SCHOOL_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, studentActor, parentActor } from '../helpers/actor';
 import {
   resetGroupsAndStudents,
   ensureGroupsSeed,
@@ -221,9 +213,7 @@ describe('integration:m103-groups/resources', () => {
         adminActor(),
       ),
     );
-    const noop = await withTestTenant(async () =>
-      resources.patch(dto.id, {} as any, adminActor()),
-    );
+    const noop = await withTestTenant(async () => resources.patch(dto.id, {} as any, adminActor()));
     expect(noop.id).toBe(dto.id);
   });
 
@@ -240,9 +230,7 @@ describe('integration:m103-groups/resources', () => {
       memberships.joinGroup(TEST_GROUP_OPEN_A_ID, {} as any, studentActor()),
     );
     await expect(
-      withTestTenant(async () =>
-        resources.patch(dto.id, { title: 'Mine' } as any, studentActor()),
-      ),
+      withTestTenant(async () => resources.patch(dto.id, { title: 'Mine' } as any, studentActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -442,9 +430,7 @@ describe('integration:m103-groups/resources', () => {
       ),
     );
     await expect(
-      withTestTenant(async () =>
-        resources.patch(dto.id, { title: 'Hijack' } as any, adminActor()),
-      ),
+      withTestTenant(async () => resources.patch(dto.id, { title: 'Hijack' } as any, adminActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

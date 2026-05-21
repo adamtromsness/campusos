@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_TEACHER_PERSON_ID,
@@ -65,9 +61,7 @@ export async function resetWorkflowsTables(client: PrismaClient): Promise<void> 
  * synchronously inside the transaction. Idempotent (ON CONFLICT
  * DO NOTHING) so safe to call in beforeAll for every spec.
  */
-export async function ensureWorkflowsPlatformFixtures(
-  client: PrismaClient,
-): Promise<void> {
+export async function ensureWorkflowsPlatformFixtures(client: PrismaClient): Promise<void> {
   // Teacher persona platform_users row — used as a non-admin requester.
   await client.$executeRawUnsafe(
     `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)

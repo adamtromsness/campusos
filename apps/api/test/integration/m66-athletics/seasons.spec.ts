@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { ProgrammeService } from '@modules/m66-athletics/programme.service';
@@ -12,17 +8,8 @@ import { RosterService } from '@modules/m66-athletics/roster.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  withTestTenantB,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  teacherActor,
-  parentActor,
-} from '../helpers/actor';
+import { withTestTenant, withTestTenantB, TEST_SCHEMA } from '../helpers/tenant-context';
+import { adminActor, studentActor, teacherActor, parentActor } from '../helpers/actor';
 import { seedStudent } from '../m20-sis/sis-helpers';
 import {
   resetAthleticsTables,
@@ -207,11 +194,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('patch: student → ForbiddenException', async () => {
       await expect(
         withTestTenant(() =>
-          programmes.patch(
-            TEST_ATH_PROGRAMME_A_ID,
-            { sportName: 'X' } as any,
-            studentActor(),
-          ),
+          programmes.patch(TEST_ATH_PROGRAMME_A_ID, { sportName: 'X' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -401,11 +384,7 @@ describe('integration:m66-athletics/seasons', () => {
 
     it('create: admin creates JV roster', async () => {
       const dto = await withTestTenant(() =>
-        rosters.create(
-          TEST_ATH_SEASON_A_ID,
-          { level: 'JV' } as any,
-          adminActor(),
-        ),
+        rosters.create(TEST_ATH_SEASON_A_ID, { level: 'JV' } as any, adminActor()),
       );
       expect(dto.level).toBe('JV');
       expect(dto.isCertified).toBe(false);
@@ -414,11 +393,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('create: bad level (FRESHMAN not in levels_offered) → BadRequestException', async () => {
       await expect(
         withTestTenant(() =>
-          rosters.create(
-            TEST_ATH_SEASON_A_ID,
-            { level: 'FRESHMAN' } as any,
-            adminActor(),
-          ),
+          rosters.create(TEST_ATH_SEASON_A_ID, { level: 'FRESHMAN' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -531,11 +506,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('addMember: duplicate → BadRequestException', async () => {
       const stu = await trackedSeedStudent();
       await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       await expect(
         withTestTenant(() =>
@@ -577,11 +548,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('patchMember: updates fields', async () => {
       const stu = await trackedSeedStudent();
       const added = await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       const patched = await withTestTenant(() =>
         rosters.patchMember(
@@ -602,11 +569,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('patchMember: removedAt set + reset', async () => {
       const stu = await trackedSeedStudent();
       const added = await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       const removed = await withTestTenant(() =>
         rosters.patchMember(
@@ -625,11 +588,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('patchMember: no-op + missing', async () => {
       const stu = await trackedSeedStudent();
       const added = await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       const noop = await withTestTenant(() =>
         rosters.patchMember(added.id, {} as any, adminActor()),
@@ -650,11 +609,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('patchMember: student → ForbiddenException', async () => {
       const stu = await trackedSeedStudent();
       const added = await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       await expect(
         withTestTenant(() =>
@@ -667,11 +622,7 @@ describe('integration:m66-athletics/seasons', () => {
       // Ensure no INELIGIBLE members.
       const stu = await trackedSeedStudent();
       await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       const dto = await withTestTenant(() => rosters.certify(TEST_ATH_ROSTER_A_ID, adminActor()));
       expect(dto.isCertified).toBe(true);
@@ -689,11 +640,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('certify: INELIGIBLE member blocks → BadRequestException', async () => {
       const stu = await trackedSeedStudent();
       await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       await rawClient.$executeRawUnsafe(
         `UPDATE ${TEST_SCHEMA}.ath_roster_members SET eligibility_status = 'INELIGIBLE'`,
@@ -705,9 +652,7 @@ describe('integration:m66-athletics/seasons', () => {
 
     it('certify: missing roster → NotFoundException', async () => {
       await expect(
-        withTestTenant(() =>
-          rosters.certify('00000000-0000-0000-0000-000000000000', adminActor()),
-        ),
+        withTestTenant(() => rosters.certify('00000000-0000-0000-0000-000000000000', adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -744,11 +689,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('checkEligibility: with min_gpa + no cls_grades returns members PENDING_PHYSICAL', async () => {
       const stu = await trackedSeedStudent();
       await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       const out = await withTestTenant(() =>
         rosters.checkEligibility(TEST_ATH_ROSTER_A_ID, adminActor()),
@@ -767,11 +708,7 @@ describe('integration:m66-athletics/seasons', () => {
     it('checkEligibility: INJURED_NOT_CLEARED members skip status flip', async () => {
       const stu = await trackedSeedStudent();
       await withTestTenant(() =>
-        rosters.addMember(
-          TEST_ATH_ROSTER_A_ID,
-          { studentId: stu.studentId } as any,
-          adminActor(),
-        ),
+        rosters.addMember(TEST_ATH_ROSTER_A_ID, { studentId: stu.studentId } as any, adminActor()),
       );
       await rawClient.$executeRawUnsafe(
         `UPDATE ${TEST_SCHEMA}.ath_roster_members SET eligibility_status = 'INJURED_NOT_CLEARED'`,
@@ -807,9 +744,7 @@ describe('integration:m66-athletics/seasons', () => {
       // ath_seasons → ath_programmes and predicates on the calling
       // tenant's school_id. Pairs with "School A admin cannot get
       // School B season" above.
-      const list = await withTestTenant(() =>
-        rosters.listForSeason(TEST_ATH_SEASON_B_ID),
-      );
+      const list = await withTestTenant(() => rosters.listForSeason(TEST_ATH_SEASON_B_ID));
       expect(list.map((r) => r.id)).not.toContain(TEST_ATH_ROSTER_B_ID);
       expect(list.length).toBe(0);
     });

@@ -60,10 +60,7 @@ describe('integration:shared/outbox-publisher', () => {
     await raw.$connect();
     outbox = new OutboxService();
     producer = new RecordingRawProducer();
-    worker = new OutboxPublisherWorker(
-      tenantPrisma,
-      producer as unknown as KafkaProducerService,
-    );
+    worker = new OutboxPublisherWorker(tenantPrisma, producer as unknown as KafkaProducerService);
   });
 
   afterAll(async () => {
@@ -77,9 +74,7 @@ describe('integration:shared/outbox-publisher', () => {
     // Other integration tests may leave pending rows behind because
     // they don't run the publisher worker; those rows would pollute
     // our assertion counts.
-    await raw.$executeRawUnsafe(
-      `DELETE FROM platform.platform_outbox WHERE published_at IS NULL`,
-    );
+    await raw.$executeRawUnsafe(`DELETE FROM platform.platform_outbox WHERE published_at IS NULL`);
     producer.emits = [];
     producer.rejectWith = null;
   });
@@ -163,10 +158,9 @@ describe('integration:shared/outbox-publisher', () => {
     it('supports worker-originated emits with explicit tenantId + tenantSubdomain', async () => {
       // No outer AsyncLocalStorage tenant context — the explicit args
       // populate tenant_id + tenant_subdomain.
-      const id = await tenantPrisma.executeInTenantTransaction.call(
-        Object.create(tenantPrisma) as TenantPrismaService,
-        async () => 'noop' as never,
-      ).catch(() => null);
+      const id = await tenantPrisma.executeInTenantTransaction
+        .call(Object.create(tenantPrisma) as TenantPrismaService, async () => 'noop' as never)
+        .catch(() => null);
       // The above proves executeInTenantTransaction requires a tenant
       // context (so we can't call it outside one). For a real worker
       // path, the caller passes its own tx — exercise via a transient
@@ -186,9 +180,7 @@ describe('integration:shared/outbox-publisher', () => {
           tenantSubdomain: TEST_SUBDOMAIN,
         });
       });
-      const rows = await raw.$queryRawUnsafe<
-        Array<{ envelope: any; tenant_id: string }>
-      >(
+      const rows = await raw.$queryRawUnsafe<Array<{ envelope: any; tenant_id: string }>>(
         `SELECT envelope, tenant_id::text AS tenant_id
            FROM platform.platform_outbox WHERE id = $1::uuid`,
         enqueuedId,

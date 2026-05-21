@@ -319,17 +319,19 @@ describe('integration:wave3-immutable-contracts', () => {
       expect(before[0]!.n).toBe(1);
       // TRUNCATE inside a rolled-back tx so the seed survives for the
       // next assertion in this beforeEach scope.
-      await rawClient.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
-        const empty = (await tx.$queryRawUnsafe(
-          `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.hlth_health_access_log WHERE id = $1::uuid`,
-          id,
-        )) as Array<{ n: number }>;
-        expect(empty[0]!.n).toBe(0);
-        throw new Error('rollback');
-      }).catch((e) => {
-        if ((e as Error).message !== 'rollback') throw e;
-      });
+      await rawClient
+        .$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
+          const empty = (await tx.$queryRawUnsafe(
+            `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.hlth_health_access_log WHERE id = $1::uuid`,
+            id,
+          )) as Array<{ n: number }>;
+          expect(empty[0]!.n).toBe(0);
+          throw new Error('rollback');
+        })
+        .catch((e) => {
+          if ((e as Error).message !== 'rollback') throw e;
+        });
       const after = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.hlth_health_access_log WHERE id = $1::uuid`,
         id,
@@ -400,17 +402,19 @@ describe('integration:wave3-immutable-contracts', () => {
 
     it('TRUNCATE succeeds — table-level operation bypasses BEFORE ROW triggers', async () => {
       const id = await seedReferralActivityEntry();
-      await rawClient.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`);
-        const empty = (await tx.$queryRawUnsafe(
-          `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.svc_referral_activity WHERE id = $1::uuid`,
-          id,
-        )) as Array<{ n: number }>;
-        expect(empty[0]!.n).toBe(0);
-        throw new Error('rollback');
-      }).catch((e) => {
-        if ((e as Error).message !== 'rollback') throw e;
-      });
+      await rawClient
+        .$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`);
+          const empty = (await tx.$queryRawUnsafe(
+            `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.svc_referral_activity WHERE id = $1::uuid`,
+            id,
+          )) as Array<{ n: number }>;
+          expect(empty[0]!.n).toBe(0);
+          throw new Error('rollback');
+        })
+        .catch((e) => {
+          if ((e as Error).message !== 'rollback') throw e;
+        });
     });
 
     it('INSERT followed by 6 different activity_type enum values lands without trigger interference', async () => {
@@ -532,17 +536,19 @@ describe('integration:wave3-immutable-contracts', () => {
 
     it('TRUNCATE succeeds — table-level operation bypasses BEFORE ROW triggers', async () => {
       const id = await seedPseudonymisationLogEntry();
-      await rawClient.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.dpo_pseudonymisation_log`);
-        const empty = (await tx.$queryRawUnsafe(
-          `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.dpo_pseudonymisation_log WHERE id = $1::uuid`,
-          id,
-        )) as Array<{ n: number }>;
-        expect(empty[0]!.n).toBe(0);
-        throw new Error('rollback');
-      }).catch((e) => {
-        if ((e as Error).message !== 'rollback') throw e;
-      });
+      await rawClient
+        .$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.dpo_pseudonymisation_log`);
+          const empty = (await tx.$queryRawUnsafe(
+            `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.dpo_pseudonymisation_log WHERE id = $1::uuid`,
+            id,
+          )) as Array<{ n: number }>;
+          expect(empty[0]!.n).toBe(0);
+          throw new Error('rollback');
+        })
+        .catch((e) => {
+          if ((e as Error).message !== 'rollback') throw e;
+        });
     });
   });
 });

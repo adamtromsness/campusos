@@ -12,11 +12,7 @@ import { MembershipService } from '@modules/m103-groups/groups/membership.servic
 import { PollService } from '@modules/m103-groups/polls/poll.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  withTestTenantB,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, withTestTenantB, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -306,9 +302,7 @@ describe('integration:m103-groups/polls', () => {
     );
     const tooMany = Array.from({ length: 51 }, () => dto.options[0]!.id);
     await expect(
-      withTestTenant(async () =>
-        polls.vote(dto.id, { optionIds: tooMany } as any, adminActor()),
-      ),
+      withTestTenant(async () => polls.vote(dto.id, { optionIds: tooMany } as any, adminActor())),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

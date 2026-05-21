@@ -8,7 +8,10 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
-import { TemplateService, interpolate } from '@modules/m40-communications/messaging/template.service';
+import {
+  TemplateService,
+  interpolate,
+} from '@modules/m40-communications/messaging/template.service';
 import { TranslationService } from '@modules/m40-communications/messaging/translation.service';
 import { LanguagePreferenceService } from '@modules/m40-communications/messaging/language-preference.service';
 import { AiInferenceService } from '@modules/m40-communications/messaging/ai-inference.service';
@@ -115,9 +118,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
     });
 
     it('ignores non-word patterns', () => {
-      expect(interpolate('text {1invalid} text', { '1invalid': 'x' })).toBe(
-        'text {1invalid} text',
-      );
+      expect(interpolate('text {1invalid} text', { '1invalid': 'x' })).toBe('text {1invalid} text');
     });
   });
 
@@ -242,13 +243,9 @@ describe('integration:m40-communications/messaging-advanced', () => {
           adminActor(),
         ),
       );
-      const teacherView = await withTestTenant(async () =>
-        templates.list(teacherActor(), {}),
-      );
+      const teacherView = await withTestTenant(async () => templates.list(teacherActor(), {}));
       expect(teacherView.map((t) => t.id)).not.toContain(onlyParent.id);
-      const parentView = await withTestTenant(async () =>
-        templates.list(parentActor(), {}),
-      );
+      const parentView = await withTestTenant(async () => templates.list(parentActor(), {}));
       expect(parentView.map((t) => t.id)).toContain(onlyParent.id);
     });
 
@@ -295,9 +292,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
 
       // Missing required → 400
       await expect(
-        withTestTenant(async () =>
-          templates.render(t.id, { values: {} } as any, adminActor()),
-        ),
+        withTestTenant(async () => templates.render(t.id, { values: {} } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -342,11 +337,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
         ),
       );
       const upd = await withTestTenant(async () =>
-        templates.patch(
-          t.id,
-          { name: 'IT-patch-renamed', isActive: false } as any,
-          adminActor(),
-        ),
+        templates.patch(t.id, { name: 'IT-patch-renamed', isActive: false } as any, adminActor()),
       );
       expect(upd.name).toBe('IT-patch-renamed');
       expect(upd.isActive).toBe(false);
@@ -527,16 +518,10 @@ describe('integration:m40-communications/messaging-advanced', () => {
     it('listForMessage returns all cached translations sorted by language', async () => {
       const { messageId } = await seedMessage();
       await withTestTenant(async () =>
-        translations.translate(
-          { messageId, targetLanguage: 'es' } as any,
-          null,
-        ),
+        translations.translate({ messageId, targetLanguage: 'es' } as any, null),
       );
       await withTestTenant(async () =>
-        translations.translate(
-          { messageId, targetLanguage: 'fr' } as any,
-          null,
-        ),
+        translations.translate({ messageId, targetLanguage: 'fr' } as any, null),
       );
       const list = await withTestTenant(async () =>
         translations.listForMessage(messageId, adminActor()),
@@ -601,9 +586,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
 
     it('analyze on unknown message → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          aiMod.analyze('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => aiMod.analyze('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -621,10 +604,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
   describe('PushCampaignService', () => {
     it('admin creates DRAFT campaign without scheduled_at; SCHEDULED when set', async () => {
       const draft = await withTestTenant(async () =>
-        push.create(
-          { title: 'IT-draft', body: 'b' } as any,
-          adminActor(),
-        ),
+        push.create({ title: 'IT-draft', body: 'b' } as any, adminActor()),
       );
       expect(draft.status).toBe('DRAFT');
 
@@ -676,9 +656,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
       const list = await withTestTenant(async () => push.list({}));
       expect(list.map((c) => c.id)).toContain(draft.id);
       await expect(
-        withTestTenant(async () =>
-          push.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => push.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -731,11 +709,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
     it('patch on unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          push.patch(
-            '00000000-0000-0000-0000-000000000000',
-            { title: 'x' } as any,
-            adminActor(),
-          ),
+          push.patch('00000000-0000-0000-0000-000000000000', { title: 'x' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -745,9 +719,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
         push.create({ title: 'IT-no-patch', body: 'b' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          push.patch(draft.id, { title: 'x' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => push.patch(draft.id, { title: 'x' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -880,10 +852,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
 
     it('deregisterDevice removes own token; non-owner non-admin → ForbiddenException', async () => {
       const dto = await withTestTenant(async () =>
-        push.registerDevice(
-          { deviceToken: 'token-B', platform: 'WEB' } as any,
-          teacherActor(),
-        ),
+        push.registerDevice({ deviceToken: 'token-B', platform: 'WEB' } as any, teacherActor()),
       );
       // teacher (owner) can deregister
       await withTestTenant(async () => push.deregisterDevice(dto.id, teacherActor()));
@@ -901,10 +870,7 @@ describe('integration:m40-communications/messaging-advanced', () => {
 
     it('deregisterDevice of other user as non-admin → ForbiddenException', async () => {
       const dto = await withTestTenant(async () =>
-        push.registerDevice(
-          { deviceToken: 'token-C', platform: 'IOS' } as any,
-          adminActor(),
-        ),
+        push.registerDevice({ deviceToken: 'token-C', platform: 'IOS' } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => push.deregisterDevice(dto.id, teacherActor())),

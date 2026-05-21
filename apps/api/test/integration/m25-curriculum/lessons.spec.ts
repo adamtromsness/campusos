@@ -247,11 +247,7 @@ describe('integration:m25-curriculum/lessons', () => {
       });
       await expect(
         withTestTenant(async () =>
-          unitService.linkLesson(
-            foreignUnit,
-            { clsLessonId: foreignLesson },
-            adminActor(),
-          ),
+          unitService.linkLesson(foreignUnit, { clsLessonId: foreignLesson }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });

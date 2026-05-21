@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -16,17 +12,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import type { RedisService } from '@shared/cache';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  parentActor,
-  TEST_PARENT_PERSON_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
+import { adminActor, teacherActor, parentActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
 import { resetFinanceAdvancedTables } from '../helpers/reset';
 import { TEST_ACADEMIC_YEAR_ID } from '../fixtures/finance';
 
@@ -129,7 +116,12 @@ describe('integration:m84-payments/final-gaps', () => {
     return id;
   }
 
-  async function seedFeeSchedule(opts: { categoryId: string; amount?: number; gradeLevel?: string | null; isActive?: boolean }): Promise<string> {
+  async function seedFeeSchedule(opts: {
+    categoryId: string;
+    amount?: number;
+    gradeLevel?: string | null;
+    isActive?: boolean;
+  }): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.pay_fee_schedules
@@ -286,9 +278,7 @@ describe('integration:m84-payments/final-gaps', () => {
 
     it('listEntries limit clamp at 200', async () => {
       const fa = await seedFamily();
-      const r = await withTestTenant(async () =>
-        ledger.listEntries(fa, { limit: 9999 }),
-      );
+      const r = await withTestTenant(async () => ledger.listEntries(fa, { limit: 9999 }));
       expect(r.length).toBeLessThanOrEqual(200);
     });
 
@@ -310,9 +300,7 @@ describe('integration:m84-payments/final-gaps', () => {
       await seedInvoiceAndPay(fa);
       const all = await withTestTenant(async () => ledger.listEntries(fa, {}));
       const cursor = all[0]!.createdAt;
-      const older = await withTestTenant(async () =>
-        ledger.listEntries(fa, { before: cursor }),
-      );
+      const older = await withTestTenant(async () => ledger.listEntries(fa, { before: cursor }));
       expect(older.every((e) => e.createdAt < cursor)).toBe(true);
     });
   });
@@ -349,17 +337,13 @@ describe('integration:m84-payments/final-gaps', () => {
 
     it('admin lists every credit note in tenant', async () => {
       const { creditId } = await seedCreditNote();
-      const list = await withTestTenant(async () =>
-        creditNotes.list({}, adminActor()),
-      );
+      const list = await withTestTenant(async () => creditNotes.list({}, adminActor()));
       expect(list.find((c) => c.id === creditId)).toBeDefined();
     });
 
     it('list filters by invoiceId', async () => {
       const { creditId, invoiceId } = await seedCreditNote();
-      const list = await withTestTenant(async () =>
-        creditNotes.list({ invoiceId }, adminActor()),
-      );
+      const list = await withTestTenant(async () => creditNotes.list({ invoiceId }, adminActor()));
       expect(list.every((c) => c.invoiceId === invoiceId)).toBe(true);
       expect(list.find((c) => c.id === creditId)).toBeDefined();
     });
@@ -400,7 +384,9 @@ describe('integration:m84-payments/final-gaps', () => {
   // ─── LateFeeService.runScan ─────────────────────────────────
 
   describe('LateFeeService.runScan branches', () => {
-    async function seedOverdueInvoice(opts?: { amount?: number }): Promise<{ fa: string; invoiceId: string }> {
+    async function seedOverdueInvoice(opts?: {
+      amount?: number;
+    }): Promise<{ fa: string; invoiceId: string }> {
       const fa = await seedFamily();
       const inv = await withTestTenant(async () =>
         invoices.create(

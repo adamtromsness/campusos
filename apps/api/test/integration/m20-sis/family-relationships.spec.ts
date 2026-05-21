@@ -92,8 +92,16 @@ describe('integration:m20-sis/family-relationships', () => {
 
   describe('create', () => {
     it('admin can create a family relationship', async () => {
-      const ga = await trackedGuardian({ familyId: TEST_SIS_FAMILY_ID, firstName: 'Fam', lastName: 'A' });
-      const gb = await trackedGuardian({ familyId: TEST_SIS_FAMILY_ID, firstName: 'Fam', lastName: 'B' });
+      const ga = await trackedGuardian({
+        familyId: TEST_SIS_FAMILY_ID,
+        firstName: 'Fam',
+        lastName: 'A',
+      });
+      const gb = await trackedGuardian({
+        familyId: TEST_SIS_FAMILY_ID,
+        firstName: 'Fam',
+        lastName: 'B',
+      });
 
       const rel = await withTestTenant(async () =>
         service.create(
@@ -269,9 +277,9 @@ describe('integration:m20-sis/family-relationships', () => {
       );
 
       // School A admin probes School B's relationship id → 404
-      await expect(
-        withTestTenant(async () => service.getByIdOrFail(relId)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => service.getByIdOrFail(relId))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
 
       // School B context — visible
       const found = await withTestTenantB(async () => service.getByIdOrFail(relId));
@@ -412,7 +420,11 @@ describe('integration:m20-sis/family-relationships', () => {
   describe('FamilyService', () => {
     it('getStudentGuardians returns linked guardian + per-link flags', async () => {
       const s = await trackedStudent({ firstName: 'Fam', lastName: 'Stu' });
-      const g = await trackedGuardian({ firstName: 'Fam', lastName: 'Grd', email: 'fam-gd@test.local' });
+      const g = await trackedGuardian({
+        firstName: 'Fam',
+        lastName: 'Grd',
+        email: 'fam-gd@test.local',
+      });
       await linkStudentGuardian(rawClient, s.studentId, g.guardianId, {
         hasCustody: true,
         isEmergencyContact: true,

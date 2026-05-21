@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -197,9 +193,9 @@ describe('integration:m83-finance/journal-batches', () => {
     });
 
     it('list as student → Forbidden', async () => {
-      await expect(
-        withTestTenant(async () => service.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('officer with fin-005:read can list', async () => {
@@ -331,7 +327,11 @@ describe('integration:m83-finance/journal-batches', () => {
         service.addLine(adminActor(), id, { accountId: TEST_COA_CASH_ID, debit: 100, credit: 0 }),
       );
       await withTestTenant(async () =>
-        service.addLine(adminActor(), id, { accountId: TEST_COA_REVENUE_ID, debit: 0, credit: 100 }),
+        service.addLine(adminActor(), id, {
+          accountId: TEST_COA_REVENUE_ID,
+          debit: 0,
+          credit: 100,
+        }),
       );
       await withTestTenant(async () => service.post(adminActor(), id));
       await expect(
@@ -357,7 +357,11 @@ describe('integration:m83-finance/journal-batches', () => {
       const id = await seed();
       await expect(
         withTestTenant(async () =>
-          service.addLine(officerActor(), id, { accountId: TEST_COA_CASH_ID, debit: 10, credit: 0 }),
+          service.addLine(officerActor(), id, {
+            accountId: TEST_COA_CASH_ID,
+            debit: 10,
+            credit: 0,
+          }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -484,7 +488,9 @@ describe('integration:m83-finance/journal-batches', () => {
       expect(payload.totalCredits).toBe(100);
       expect(payload.entryCount).toBe(2);
       expect(payload.lines).toHaveLength(2);
-      const cashLine = payload.lines.find((l: { accountId: string }) => l.accountId === TEST_COA_CASH_ID);
+      const cashLine = payload.lines.find(
+        (l: { accountId: string }) => l.accountId === TEST_COA_CASH_ID,
+      );
       expect(cashLine.debit).toBe(100);
       expect(cashLine.credit).toBe(0);
     });

@@ -152,11 +152,13 @@ describe('integration:m42-publications/sections', () => {
     }
   }
 
-  async function seedPublication(opts: {
-    schoolId?: string;
-    status?: string;
-    createdBy?: string;
-  } = {}): Promise<string> {
+  async function seedPublication(
+    opts: {
+      schoolId?: string;
+      status?: string;
+      createdBy?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     seededPubIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -171,12 +173,15 @@ describe('integration:m42-publications/sections', () => {
     return id;
   }
 
-  async function seedSection(publicationId: string, opts: {
-    isApproved?: boolean;
-    title?: string;
-    sortOrder?: number;
-    ownerEmployeeId?: string | null;
-  } = {}): Promise<string> {
+  async function seedSection(
+    publicationId: string,
+    opts: {
+      isApproved?: boolean;
+      title?: string;
+      sortOrder?: number;
+      ownerEmployeeId?: string | null;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.pub_sections
@@ -324,9 +329,7 @@ describe('integration:m42-publications/sections', () => {
       const pubId = await seedPublication({ status: 'DRAFT' });
       await seedSection(pubId, { isApproved: true });
       await expect(
-        withTestTenant(async () =>
-          sectionService.listForPublication(pubId, parentActor()),
-        ),
+        withTestTenant(async () => sectionService.listForPublication(pubId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -348,9 +351,7 @@ describe('integration:m42-publications/sections', () => {
 
     it('list on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          sectionService.listForPublication(generateId(), adminActor()),
-        ),
+        withTestTenant(async () => sectionService.listForPublication(generateId(), adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -361,9 +362,7 @@ describe('integration:m42-publications/sections', () => {
       });
       await seedSection(pubBId, { isApproved: true });
       await expect(
-        withTestTenant(async () =>
-          sectionService.listForPublication(pubBId, adminActor()),
-        ),
+        withTestTenant(async () => sectionService.listForPublication(pubBId, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -460,17 +459,13 @@ describe('integration:m42-publications/sections', () => {
       const pubId = await seedPublication({ status: 'DRAFT' });
       const sectId = await seedSection(pubId, { isApproved: false });
       await expect(
-        withTestTenant(async () =>
-          sectionService.approve(studentActor(), sectId),
-        ),
+        withTestTenant(async () => sectionService.approve(studentActor(), sectId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('approve on phantom section → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          sectionService.approve(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => sectionService.approve(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -486,9 +481,7 @@ describe('integration:m42-publications/sections', () => {
       const pubId = await seedPublication({ status: 'DRAFT' });
       const sectId = await seedSection(pubId, { isApproved: false });
       await expect(
-        withTestTenant(async () =>
-          sectionService.approve(teacherActor(), sectId),
-        ),
+        withTestTenant(async () => sectionService.approve(teacherActor(), sectId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -575,9 +568,7 @@ describe('integration:m42-publications/sections', () => {
           contributorId: TEST_STUDENT_ACCOUNT_ID,
         } as any),
       );
-      await withTestTenant(async () =>
-        contributorService.remove(adminActor(), dto.id),
-      );
+      await withTestTenant(async () => contributorService.remove(adminActor(), dto.id));
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.pub_section_contributors WHERE id = $1::uuid`,
         dto.id,
@@ -599,9 +590,7 @@ describe('integration:m42-publications/sections', () => {
         TEST_STUDENT_ACCOUNT_ID,
       );
       await expect(
-        withTestTenant(async () =>
-          contributorService.remove(adminActor(), contribId),
-        ),
+        withTestTenant(async () => contributorService.remove(adminActor(), contribId)),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Row should still exist
       const rows = (await rawClient.$queryRawUnsafe(
@@ -613,9 +602,7 @@ describe('integration:m42-publications/sections', () => {
 
     it('remove phantom contributor row → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          contributorService.remove(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => contributorService.remove(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -689,9 +676,7 @@ describe('integration:m42-publications/sections', () => {
 
     it('list on phantom section → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          commentService.listForSection(generateId(), adminActor()),
-        ),
+        withTestTenant(async () => commentService.listForSection(generateId(), adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -699,9 +684,7 @@ describe('integration:m42-publications/sections', () => {
       const pubId = await seedPublication({ status: 'DRAFT' });
       const sectId = await seedSection(pubId);
       await expect(
-        withTestTenant(async () =>
-          commentService.listForSection(sectId, parentActor()),
-        ),
+        withTestTenant(async () => commentService.listForSection(sectId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -754,9 +737,7 @@ describe('integration:m42-publications/sections', () => {
 
     it('resolve on phantom comment → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          commentService.resolve(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => commentService.resolve(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

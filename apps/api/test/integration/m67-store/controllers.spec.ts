@@ -8,10 +8,7 @@ import {
   ProductService,
   InventoryService,
 } from '@modules/m67-store/products/products.service';
-import {
-  OrderService,
-  ApprovalService,
-} from '@modules/m67-store/orders/orders.service';
+import { OrderService, ApprovalService } from '@modules/m67-store/orders/orders.service';
 import {
   ExternalCustomerService,
   ShippingService,
@@ -34,11 +31,7 @@ import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 import { withTestTenant } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import {
   ensureStoreSeed,
   resetStoreTables,
@@ -59,7 +52,16 @@ describe('integration:m67-store/controllers', () => {
   let rawClient: PrismaClient;
   let storeCtl: StoreController;
   let advCtl: StoreAdvancedController;
-  let req: { user: { sub: string; personId: string; accountId: string; email: string; displayName: string; sessionId: string } };
+  let req: {
+    user: {
+      sub: string;
+      personId: string;
+      accountId: string;
+      email: string;
+      displayName: string;
+      sessionId: string;
+    };
+  };
 
   beforeAll(async () => {
     tenantPrisma = new TenantPrismaService();
@@ -144,9 +146,7 @@ describe('integration:m67-store/controllers', () => {
     });
 
     it('lists + reads + patches products', async () => {
-      const list = await withTestTenant(async () =>
-        storeCtl.listProducts(TEST_STORE_STUDENT_ID),
-      );
+      const list = await withTestTenant(async () => storeCtl.listProducts(TEST_STORE_STUDENT_ID));
       expect(list.length).toBeGreaterThan(0);
       const p = await withTestTenant(async () => storeCtl.getProduct(TEST_PRODUCT_A_ID));
       expect(p.id).toBe(TEST_PRODUCT_A_ID);
@@ -160,11 +160,7 @@ describe('integration:m67-store/controllers', () => {
       const dash = await withTestTenant(async () => storeCtl.inventoryDashboard());
       expect(dash.length).toBeGreaterThan(0);
       await withTestTenant(async () =>
-        storeCtl.adjustInventory(
-          TEST_INVENTORY_A_ID,
-          { quantityOnHand: 50 } as any,
-          req as any,
-        ),
+        storeCtl.adjustInventory(TEST_INVENTORY_A_ID, { quantityOnHand: 50 } as any, req as any),
       );
     });
 
@@ -204,23 +200,22 @@ describe('integration:m67-store/controllers', () => {
   describe('StoreAdvancedController', () => {
     it('promotions endpoints — list/create/get/patch/applyPromoCode', async () => {
       const created = await withTestTenant(async () =>
-        advCtl.createPromotion(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          name: 'Promo',
-          discountType: 'PERCENTAGE',
-          discountValue: 10,
-          startsAt: '2020-01-01T00:00:00Z',
-          endsAt: '2030-01-01T00:00:00Z',
-          promoCode: 'CTLPROMO',
-        } as any),
+        advCtl.createPromotion(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            name: 'Promo',
+            discountType: 'PERCENTAGE',
+            discountValue: 10,
+            startsAt: '2020-01-01T00:00:00Z',
+            endsAt: '2030-01-01T00:00:00Z',
+            promoCode: 'CTLPROMO',
+          } as any,
+        ),
       );
-      const list = await withTestTenant(async () =>
-        advCtl.listPromotions(req as any),
-      );
+      const list = await withTestTenant(async () => advCtl.listPromotions(req as any));
       expect(list.map((p) => p.id)).toContain(created.id);
-      const detail = await withTestTenant(async () =>
-        advCtl.getPromotion(req as any, created.id),
-      );
+      const detail = await withTestTenant(async () => advCtl.getPromotion(req as any, created.id));
       expect(detail.id).toBe(created.id);
       const patched = await withTestTenant(async () =>
         advCtl.patchPromotion(req as any, created.id, { name: 'New' } as any),
@@ -237,13 +232,16 @@ describe('integration:m67-store/controllers', () => {
 
     it('loyalty endpoints — config + earn + balance + adjust + redeem', async () => {
       await withTestTenant(async () =>
-        advCtl.upsertLoyaltyConfig(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          pointsPerDollar: 1,
-          redemptionRateCents: 1,
-          minRedemptionPoints: 100,
-          isEnabled: true,
-        } as any),
+        advCtl.upsertLoyaltyConfig(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            pointsPerDollar: 1,
+            redemptionRateCents: 1,
+            minRedemptionPoints: 100,
+            isEnabled: true,
+          } as any,
+        ),
       );
       const cfg = await withTestTenant(async () =>
         advCtl.getLoyaltyConfig(req as any, TEST_STORE_STUDENT_ID),
@@ -251,11 +249,14 @@ describe('integration:m67-store/controllers', () => {
       expect(cfg.isEnabled).toBe(true);
 
       await withTestTenant(async () =>
-        advCtl.earnLoyalty(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          customerPersonId: TEST_ADMIN_PERSON_ID,
-          points: 500,
-        } as any),
+        advCtl.earnLoyalty(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            customerPersonId: TEST_ADMIN_PERSON_ID,
+            points: 500,
+          } as any,
+        ),
       );
       const bal = await withTestTenant(async () =>
         advCtl.getLoyaltyBalance(req as any, TEST_STORE_STUDENT_ID, TEST_ADMIN_PERSON_ID),
@@ -263,19 +264,25 @@ describe('integration:m67-store/controllers', () => {
       expect(bal.balance).toBe(500);
 
       await withTestTenant(async () =>
-        advCtl.adjustLoyalty(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          customerPersonId: TEST_ADMIN_PERSON_ID,
-          points: 50,
-          reason: 'adjustment',
-        } as any),
+        advCtl.adjustLoyalty(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            customerPersonId: TEST_ADMIN_PERSON_ID,
+            points: 50,
+            reason: 'adjustment',
+          } as any,
+        ),
       );
       await withTestTenant(async () =>
-        advCtl.redeemLoyalty(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          customerPersonId: TEST_ADMIN_PERSON_ID,
-          points: 200,
-        } as any),
+        advCtl.redeemLoyalty(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            customerPersonId: TEST_ADMIN_PERSON_ID,
+            points: 200,
+          } as any,
+        ),
       );
       const txs = await withTestTenant(async () =>
         advCtl.listLoyaltyTransactions(req as any, TEST_STORE_STUDENT_ID, TEST_ADMIN_PERSON_ID),
@@ -285,10 +292,13 @@ describe('integration:m67-store/controllers', () => {
 
     it('gift card endpoints — issue + redeem + topUp + cancel + list + getByCode', async () => {
       const card = await withTestTenant(async () =>
-        advCtl.issueGiftCard(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          initialBalanceCents: 5000,
-        } as any),
+        advCtl.issueGiftCard(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            initialBalanceCents: 5000,
+          } as any,
+        ),
       );
       const list = await withTestTenant(async () =>
         advCtl.listGiftCards(req as any, TEST_STORE_STUDENT_ID),
@@ -301,10 +311,13 @@ describe('integration:m67-store/controllers', () => {
       expect(detail.id).toBe(card.id);
 
       await withTestTenant(async () =>
-        advCtl.redeemGiftCard(req as any, {
-          cardCode: card.cardCode,
-          amountCents: 1000,
-        } as any),
+        advCtl.redeemGiftCard(
+          req as any,
+          {
+            cardCode: card.cardCode,
+            amountCents: 1000,
+          } as any,
+        ),
       );
       await withTestTenant(async () =>
         advCtl.topUpGiftCard(req as any, card.id, { amountCents: 500 } as any),
@@ -337,18 +350,19 @@ describe('integration:m67-store/controllers', () => {
 
     it('category endpoints', async () => {
       const root = await withTestTenant(async () =>
-        advCtl.createCategory(req as any, {
-          storeId: TEST_STORE_STUDENT_ID,
-          name: 'Cat',
-        } as any),
+        advCtl.createCategory(
+          req as any,
+          {
+            storeId: TEST_STORE_STUDENT_ID,
+            name: 'Cat',
+          } as any,
+        ),
       );
       const tree = await withTestTenant(async () =>
         advCtl.getCategoryTree(req as any, TEST_STORE_STUDENT_ID),
       );
       expect(tree.length).toBeGreaterThan(0);
-      const got = await withTestTenant(async () =>
-        advCtl.getCategory(req as any, root.id),
-      );
+      const got = await withTestTenant(async () => advCtl.getCategory(req as any, root.id));
       expect(got.id).toBe(root.id);
       await withTestTenant(async () =>
         advCtl.patchCategory(req as any, root.id, { name: 'Renamed' } as any),
@@ -358,11 +372,14 @@ describe('integration:m67-store/controllers', () => {
 
     it('price schedule endpoints', async () => {
       const sched = await withTestTenant(async () =>
-        advCtl.createPriceSchedule(req as any, {
-          productId: TEST_PRODUCT_A_ID,
-          scheduledPrice: 99,
-          effectiveFrom: '2099-01-01T00:00:00Z',
-        } as any),
+        advCtl.createPriceSchedule(
+          req as any,
+          {
+            productId: TEST_PRODUCT_A_ID,
+            scheduledPrice: 99,
+            effectiveFrom: '2099-01-01T00:00:00Z',
+          } as any,
+        ),
       );
       const list = await withTestTenant(async () =>
         advCtl.listPriceSchedules(req as any, TEST_PRODUCT_A_ID),
@@ -373,13 +390,16 @@ describe('integration:m67-store/controllers', () => {
 
     it('inventory adjustment endpoints', async () => {
       await withTestTenant(async () =>
-        advCtl.adjustInventory(req as any, {
-          productId: TEST_PRODUCT_A_ID,
-          inventoryId: TEST_INVENTORY_A_ID,
-          adjustmentType: 'RECOUNT',
-          quantityDelta: 1,
-          reason: 'controller test adjustment',
-        } as any),
+        advCtl.adjustInventory(
+          req as any,
+          {
+            productId: TEST_PRODUCT_A_ID,
+            inventoryId: TEST_INVENTORY_A_ID,
+            adjustmentType: 'RECOUNT',
+            quantityDelta: 1,
+            reason: 'controller test adjustment',
+          } as any,
+        ),
       );
       const list = await withTestTenant(async () =>
         advCtl.listInventoryAdjustments(req as any, TEST_PRODUCT_A_ID),

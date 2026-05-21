@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -201,11 +197,7 @@ describe('integration:m84-payments/payment-plans', () => {
       const sorted = [...plan.installments].sort(
         (a, b) => a.installmentNumber - b.installmentNumber,
       );
-      expect(sorted.map((i) => i.dueDate)).toEqual([
-        '2026-09-01',
-        '2026-12-01',
-        '2027-03-01',
-      ]);
+      expect(sorted.map((i) => i.dueDate)).toEqual(['2026-09-01', '2026-12-01', '2027-03-01']);
       for (const i of sorted) {
         expect(i.amount).toBe(300);
       }
@@ -366,9 +358,7 @@ describe('integration:m84-payments/payment-plans', () => {
 
     it('getById for missing plan → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          plans.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => plans.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

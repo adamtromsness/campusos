@@ -260,9 +260,9 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
     });
 
     it('list as non-DPO → Forbidden', async () => {
-      await expect(
-        withTestTenant(async () => consent.list(officerActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => consent.list(officerActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('officer with dpo-005:read can list', async () => {
@@ -338,9 +338,7 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
     }
 
     it('admin creates a draft notice', async () => {
-      const n = await withTestTenant(async () =>
-        privacy.create(adminActor(), baseNoticeInput()),
-      );
+      const n = await withTestTenant(async () => privacy.create(adminActor(), baseNoticeInput()));
       expect(n.noticeVersion).toBe('v1.0');
       expect(n.publishedAt).toBeNull();
       expect(n.supersededAt).toBeNull();
@@ -349,9 +347,7 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
 
     it('officer with dpo-005:write can create', async () => {
       await grantOfficer(['dpo-005:write']);
-      const n = await withTestTenant(async () =>
-        privacy.create(officerActor(), baseNoticeInput()),
-      );
+      const n = await withTestTenant(async () => privacy.create(officerActor(), baseNoticeInput()));
       expect(n.id).toBeTruthy();
     });
 
@@ -392,9 +388,7 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
       const n2 = await withTestTenant(async () =>
         privacy.create(adminActor(), baseNoticeInput({ noticeVersion: 'v1.1' })),
       );
-      const published1 = await withTestTenant(async () =>
-        privacy.publish(adminActor(), n1.id, {}),
-      );
+      const published1 = await withTestTenant(async () => privacy.publish(adminActor(), n1.id, {}));
       expect(published1.publishedAt).not.toBeNull();
       expect(published1.supersededAt).toBeNull();
       // Now publish n2 — n1 should become superseded
@@ -410,18 +404,14 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
     });
 
     it('publish as non-DPO → Forbidden', async () => {
-      const n = await withTestTenant(async () =>
-        privacy.create(adminActor(), baseNoticeInput()),
-      );
+      const n = await withTestTenant(async () => privacy.create(adminActor(), baseNoticeInput()));
       await expect(
         withTestTenant(async () => privacy.publish(officerActor(), n.id, {})),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('cross-school publish → NotFound', async () => {
-      const n = await withTestTenant(async () =>
-        privacy.create(adminActor(), baseNoticeInput()),
-      );
+      const n = await withTestTenant(async () => privacy.create(adminActor(), baseNoticeInput()));
       await expect(
         withTestTenantB(async () => privacy.publish(adminActor(), n.id, {})),
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -463,9 +453,7 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
 
     it('update as non-admin → Forbidden', async () => {
       await expect(
-        withTestTenant(async () =>
-          config.update(officerActor(), { sarDefaultDeadlineDays: 40 }),
-        ),
+        withTestTenant(async () => config.update(officerActor(), { sarDefaultDeadlineDays: 40 })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -478,9 +466,7 @@ describe('integration:m00-platform/governance-consent-privacy', () => {
     });
 
     it('cross-school: config rows are school-isolated', async () => {
-      await withTestTenant(async () =>
-        config.update(adminActor(), { sarDefaultDeadlineDays: 40 }),
-      );
+      await withTestTenant(async () => config.update(adminActor(), { sarDefaultDeadlineDays: 40 }));
       const b = await withTestTenantB(async () => config.get(adminActor()));
       // School B gets its own default (auto-create on first read)
       expect(b.sarDefaultDeadlineDays).not.toBe(40);

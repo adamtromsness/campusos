@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -15,11 +11,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -78,9 +70,7 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
 
   beforeEach(async () => {
     kafka.reset();
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.svc_caseloads WHERE student_id IN
          (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'RFL-%')`,
@@ -244,30 +234,19 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
       await grantScope(TEST_OFFICER_ACCOUNT_ID, ['cou-001:write']);
       const r = await submit('Academic');
       await withTestTenant(async () =>
-        service.triage(
-          r.id,
-          { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID },
-          officerActor(),
-        ),
+        service.triage(r.id, { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID }, officerActor()),
       );
       const filtered = await withTestTenant(async () =>
-        service.list(
-          { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID },
-          adminActor(),
-        ),
+        service.list({ assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID }, adminActor()),
       );
       expect(filtered.find((x) => x.id === r.id)).toBeDefined();
     });
 
     it('list custom limit (capped at 200)', async () => {
       await submit('Academic');
-      const small = await withTestTenant(async () =>
-        service.list({ limit: 1 }, adminActor()),
-      );
+      const small = await withTestTenant(async () => service.list({ limit: 1 }, adminActor()));
       expect(small.length).toBeLessThanOrEqual(1);
-      const big = await withTestTenant(async () =>
-        service.list({ limit: 9999 }, adminActor()),
-      );
+      const big = await withTestTenant(async () => service.list({ limit: 9999 }, adminActor()));
       expect(big.length).toBeLessThanOrEqual(200);
     });
   });
@@ -301,13 +280,9 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
 
     it('student / parent → empty list (FALSE visibility)', async () => {
       await submit('Academic', officerActor());
-      const studentList = await withTestTenant(async () =>
-        service.list({}, studentActor()),
-      );
+      const studentList = await withTestTenant(async () => service.list({}, studentActor()));
       expect(studentList).toEqual([]);
-      const parentList = await withTestTenant(async () =>
-        service.list({}, parentActor()),
-      );
+      const parentList = await withTestTenant(async () => service.list({}, parentActor()));
       expect(parentList).toEqual([]);
     });
   });
@@ -319,11 +294,7 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
       await grantScope(TEST_OFFICER_ACCOUNT_ID, ['cou-001:write']);
       const r = await submit(typeName, officerActor());
       await withTestTenant(async () =>
-        service.triage(
-          r.id,
-          { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID },
-          officerActor(),
-        ),
+        service.triage(r.id, { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID }, officerActor()),
       );
       return r;
     }
@@ -474,9 +445,7 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
     it('openCaseload=true without academicYearId → BadRequest', async () => {
       const { id } = await submitAndTriage('Academic');
       await expect(
-        withTestTenant(async () =>
-          service.accept(id, { openCaseload: true }, officerActor()),
-        ),
+        withTestTenant(async () => service.accept(id, { openCaseload: true }, officerActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -545,18 +514,14 @@ describe('integration:m27-student-services/referral-list-and-open-caseload', () 
     it('complete by non-counsellor → Forbidden', async () => {
       const id = await submitOne();
       await expect(
-        withTestTenant(async () =>
-          service.complete(id, { outcome: 'closed' }, teacherActor()),
-        ),
+        withTestTenant(async () => service.complete(id, { outcome: 'closed' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('decline by non-counsellor → Forbidden', async () => {
       const id = await submitOne();
       await expect(
-        withTestTenant(async () =>
-          service.decline(id, { reason: 'No' }, teacherActor()),
-        ),
+        withTestTenant(async () => service.decline(id, { reason: 'No' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

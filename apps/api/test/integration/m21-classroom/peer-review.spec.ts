@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -13,11 +9,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   teacherActor,
@@ -159,9 +151,7 @@ describe('integration:m21-classroom/peer-review', () => {
   beforeEach(async () => {
     // Wipe per-test state. Order matters — children before parents.
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_peer_reviews`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_peer_review_assignments`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_peer_review_assignments`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_rubric_scores`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_grades`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_submissions`);
@@ -277,19 +267,16 @@ describe('integration:m21-classroom/peer-review', () => {
     it('teacher NOT assigned to the class → ForbiddenException', async () => {
       const aid = await makePublishedAssignment();
       await expect(
-        withTestTenant(async () =>
-          service.enableForAssignment(aid, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => service.enableForAssignment(aid, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('non-employee actor (student) → ForbiddenException', async () => {
       const aid = await makePublishedAssignment();
       await expect(
-        withTestTenant(
-          async () => service.enableForAssignment(aid, {} as any, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.enableForAssignment(aid, {} as any, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -307,13 +294,9 @@ describe('integration:m21-classroom/peer-review', () => {
 
     it('re-enable on the same assignment → BadRequestException (UNIQUE keystone)', async () => {
       const aid = await makePublishedAssignment();
-      await withTestTenant(async () =>
-        service.enableForAssignment(aid, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => service.enableForAssignment(aid, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          service.enableForAssignment(aid, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => service.enableForAssignment(aid, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -366,9 +349,7 @@ describe('integration:m21-classroom/peer-review', () => {
       // no row has reviewer_student_id matching the submission owner.
       for (const row of out) {
         const reviewer = row.reviewerStudentId;
-        const subOwner = submissions.find(
-          ([, subId]) => subId === row.revieweeSubmissionId,
-        )?.[0];
+        const subOwner = submissions.find(([, subId]) => subId === row.revieweeSubmissionId)?.[0];
         expect(reviewer).not.toBe(subOwner);
       }
     });
@@ -381,29 +362,21 @@ describe('integration:m21-classroom/peer-review', () => {
       const s1 = await trackedStudent();
       await makeSubmission(aid, s1.studentId);
       await expect(
-        withTestTenant(async () =>
-          service.assignReviews(enabled.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => service.assignReviews(enabled.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('TEACHER_ASSIGNED mode without manualAssignments → BadRequest', async () => {
       const aid = await makePublishedAssignment();
       const enabled = await withTestTenant(async () =>
-        service.enableForAssignment(
-          aid,
-          { reviewType: 'TEACHER_ASSIGNED' } as any,
-          adminActor(),
-        ),
+        service.enableForAssignment(aid, { reviewType: 'TEACHER_ASSIGNED' } as any, adminActor()),
       );
       const s1 = await trackedStudent({ firstName: 'X', lastName: '1' });
       const s2 = await trackedStudent({ firstName: 'Y', lastName: '2' });
       await makeSubmission(aid, s1.studentId);
       await makeSubmission(aid, s2.studentId);
       await expect(
-        withTestTenant(async () =>
-          service.assignReviews(enabled.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => service.assignReviews(enabled.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -472,11 +445,7 @@ describe('integration:m21-classroom/peer-review', () => {
     it('TEACHER_ASSIGNED references a submission not on this assignment → BadRequest', async () => {
       const aid = await makePublishedAssignment();
       const enabled = await withTestTenant(async () =>
-        service.enableForAssignment(
-          aid,
-          { reviewType: 'TEACHER_ASSIGNED' } as any,
-          adminActor(),
-        ),
+        service.enableForAssignment(aid, { reviewType: 'TEACHER_ASSIGNED' } as any, adminActor()),
       );
       const s1 = await trackedStudent({ firstName: 'P', lastName: '1' });
       const s2 = await trackedStudent({ firstName: 'Q', lastName: '2' });
@@ -486,7 +455,9 @@ describe('integration:m21-classroom/peer-review', () => {
         withTestTenant(async () =>
           service.assignReviews(
             enabled.id,
-            { manualAssignments: { [s1.studentId]: ['00000000-0000-0000-0000-000000000000'] } } as any,
+            {
+              manualAssignments: { [s1.studentId]: ['00000000-0000-0000-0000-000000000000'] },
+            } as any,
             adminActor(),
           ),
         ),
@@ -496,7 +467,12 @@ describe('integration:m21-classroom/peer-review', () => {
     it('non-employee caller → ForbiddenException', async () => {
       await expect(
         withTestTenant(
-          async () => service.assignReviews('00000000-0000-0000-0000-000000000000', {} as any, studentActor()),
+          async () =>
+            service.assignReviews(
+              '00000000-0000-0000-0000-000000000000',
+              {} as any,
+              studentActor(),
+            ),
           { personId: TEST_STUDENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -505,11 +481,7 @@ describe('integration:m21-classroom/peer-review', () => {
     it('phantom peer-assignment id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.assignReviews(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          service.assignReviews('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -529,7 +501,11 @@ describe('integration:m21-classroom/peer-review', () => {
       const enabled = await withTestTenant(async () =>
         service.enableForAssignment(
           aid,
-          { reviewType: 'TEACHER_ASSIGNED', reviewsPerStudent: 1, isAnonymous: opts.anonymous } as any,
+          {
+            reviewType: 'TEACHER_ASSIGNED',
+            reviewsPerStudent: 1,
+            isAnonymous: opts.anonymous,
+          } as any,
           adminActor(),
         ),
       );
@@ -621,8 +597,7 @@ describe('integration:m21-classroom/peer-review', () => {
       // submission and should see the peer's review with identity
       // stripped (anonymous + non-staff reader + not the reviewer themself).
       const list = await withTestTenant(
-        async () =>
-          service.listForSubmission(ctx.reviewerSubmissionId, studentActor()),
+        async () => service.listForSubmission(ctx.reviewerSubmissionId, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       const got = list.find((r) => r.id === peerReviewId);
@@ -647,8 +622,7 @@ describe('integration:m21-classroom/peer-review', () => {
       );
 
       const list = await withTestTenant(
-        async () =>
-          service.listForSubmission(ctx.reviewerSubmissionId, studentActor()),
+        async () => service.listForSubmission(ctx.reviewerSubmissionId, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       const got = list.find((r) => r.id === peerReviewId)!;
@@ -660,10 +634,9 @@ describe('integration:m21-classroom/peer-review', () => {
       const ctx = await seedSubmittedPair({ anonymous: true });
       // listMy from the reviewer (student actor) — they should see
       // their own reviewer_student_id.
-      const list = await withTestTenant(
-        async () => service.listMy(studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => service.listMy(studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
+      });
       const own = list.find((r) => r.id === ctx.reviewId)!;
       expect(own.reviewerStudentId).toBe(ctx.reviewerSid);
     });
@@ -676,10 +649,7 @@ describe('integration:m21-classroom/peer-review', () => {
     it('listForAssignment with phantom id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.listForAssignment(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          service.listForAssignment('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -775,7 +745,7 @@ describe('integration:m21-classroom/peer-review', () => {
       expect(out.status).toBe('SUBMITTED');
     });
 
-    it('a different student trying to submit someone else\'s review → ForbiddenException', async () => {
+    it("a different student trying to submit someone else's review → ForbiddenException", async () => {
       const { reviewId } = await seedAssigned();
       // Re-seed the student actor to a NEW student (not the reviewer)
       // by creating a fresh sis_students row keyed off the original
@@ -783,9 +753,8 @@ describe('integration:m21-classroom/peer-review', () => {
       // submit as the same actor but force a non-matching personType
       // via parentActor (no studentId resolve) which should hit
       // ForbiddenException because parentActor.personType = GUARDIAN.
-      const { parentActor: parentActorFn, TEST_PARENT_PERSON_ID } = await import(
-        '../helpers/actor'
-      );
+      const { parentActor: parentActorFn, TEST_PARENT_PERSON_ID } =
+        await import('../helpers/actor');
       await expect(
         withTestTenant(
           async () => service.submit(reviewId, { feedback: 'nope' } as any, parentActorFn()),
@@ -798,7 +767,11 @@ describe('integration:m21-classroom/peer-review', () => {
       const { reviewId } = await seedAssigned();
       const first = await withTestTenant(
         async () =>
-          service.submit(reviewId, { feedback: 'v1', overallRating: 'GOOD' } as any, studentActor()),
+          service.submit(
+            reviewId,
+            { feedback: 'v1', overallRating: 'GOOD' } as any,
+            studentActor(),
+          ),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       const second = await withTestTenant(
@@ -850,11 +823,7 @@ describe('integration:m21-classroom/peer-review', () => {
     async function seedSubmitted(): Promise<string> {
       const aid = await makePublishedAssignment();
       const enabled = await withTestTenant(async () =>
-        service.enableForAssignment(
-          aid,
-          { reviewType: 'TEACHER_ASSIGNED' } as any,
-          adminActor(),
-        ),
+        service.enableForAssignment(aid, { reviewType: 'TEACHER_ASSIGNED' } as any, adminActor()),
       );
       const reviewerSid = await ensureStudentActorSisRow();
       const peer = await trackedStudent();
@@ -883,9 +852,7 @@ describe('integration:m21-classroom/peer-review', () => {
 
     it('admin marks review as teacher-reviewed → status flips, teacher_reviewed_by set', async () => {
       const id = await seedSubmitted();
-      const out = await withTestTenant(async () =>
-        service.markTeacherReviewed(id, adminActor()),
-      );
+      const out = await withTestTenant(async () => service.markTeacherReviewed(id, adminActor()));
       expect(out.status).toBe('REVIEWED_BY_TEACHER');
       expect(out.teacherReviewedAt).not.toBeNull();
     });
@@ -893,21 +860,16 @@ describe('integration:m21-classroom/peer-review', () => {
     it('non-employee actor (student) → ForbiddenException', async () => {
       const id = await seedSubmitted();
       await expect(
-        withTestTenant(
-          async () => service.markTeacherReviewed(id, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.markTeacherReviewed(id, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('ASSIGNED status cannot be teacher-reviewed yet → BadRequestException', async () => {
       const aid = await makePublishedAssignment();
       const enabled = await withTestTenant(async () =>
-        service.enableForAssignment(
-          aid,
-          { reviewType: 'TEACHER_ASSIGNED' } as any,
-          adminActor(),
-        ),
+        service.enableForAssignment(aid, { reviewType: 'TEACHER_ASSIGNED' } as any, adminActor()),
       );
       const reviewerSid = await ensureStudentActorSisRow();
       const peer = await trackedStudent();
@@ -927,9 +889,7 @@ describe('integration:m21-classroom/peer-review', () => {
         reviewerSid,
       );
       await expect(
-        withTestTenant(async () =>
-          service.markTeacherReviewed(rows[0]!.id, adminActor()),
-        ),
+        withTestTenant(async () => service.markTeacherReviewed(rows[0]!.id, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -944,10 +904,7 @@ describe('integration:m21-classroom/peer-review', () => {
     it('unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.markTeacherReviewed(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          service.markTeacherReviewed('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -960,11 +917,7 @@ describe('integration:m21-classroom/peer-review', () => {
     it('admin fetches by id', async () => {
       const aid = await makePublishedAssignment();
       const enabled = await withTestTenant(async () =>
-        service.enableForAssignment(
-          aid,
-          { reviewType: 'TEACHER_ASSIGNED' } as any,
-          adminActor(),
-        ),
+        service.enableForAssignment(aid, { reviewType: 'TEACHER_ASSIGNED' } as any, adminActor()),
       );
       const reviewerSid = await ensureStudentActorSisRow();
       const peer = await trackedStudent();

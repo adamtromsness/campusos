@@ -8,7 +8,12 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import { adminActor, teacherActor, TEST_TEACHER_EMPLOYEE_ID, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
+import {
+  adminActor,
+  teacherActor,
+  TEST_TEACHER_EMPLOYEE_ID,
+  TEST_ADMIN_EMPLOYEE_ID,
+} from '../helpers/actor';
 import { TEST_SIS_CLASS_ID } from '../fixtures/sis';
 import { assignTeacherToClass } from '../m20-sis/sis-helpers';
 
@@ -243,9 +248,7 @@ describe('integration:m21-classroom/lessons', () => {
         service.create({ lessonId, s3Key: 's3://f1' } as any, adminActor()),
       );
       recordingIds.push(r.id);
-      await withTestTenant(async () =>
-        service.markFailed(r.id, 'video too long'),
-      );
+      await withTestTenant(async () => service.markFailed(r.id, 'video too long'));
       const after = await withTestTenant(async () => service.getById(r.id, adminActor()));
       expect(after.processingStatus).toBe('FAILED');
       expect(after.errorMessage).toBe('video too long');

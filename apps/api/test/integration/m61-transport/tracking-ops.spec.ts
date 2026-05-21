@@ -92,9 +92,7 @@ describe('integration:m61-transport/tracking-ops', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        dispatch.list({ eventType: 'DELAY_REPORTED' }),
-      );
+      const list = await withTestTenant(async () => dispatch.list({ eventType: 'DELAY_REPORTED' }));
       expect(list.every((x) => x.eventType === 'DELAY_REPORTED')).toBe(true);
     });
   });
@@ -150,9 +148,7 @@ describe('integration:m61-transport/tracking-ops', () => {
       const latest = await withTestTenant(async () => positions.getLatest(TEST_VEHICLE_ID));
       expect(latest?.vehicleId).toBe(TEST_VEHICLE_ID);
 
-      const history = await withTestTenant(async () =>
-        positions.listHistory(TEST_VEHICLE_ID, {}),
-      );
+      const history = await withTestTenant(async () => positions.listHistory(TEST_VEHICLE_ID, {}));
       expect(history.length).toBeGreaterThan(0);
     });
   });
@@ -270,9 +266,7 @@ describe('integration:m61-transport/tracking-ops', () => {
     });
 
     it('listEvents returns array', async () => {
-      const list = await withTestTenant(async () =>
-        geofences.listEvents(TEST_GEOFENCE_ID, {}),
-      );
+      const list = await withTestTenant(async () => geofences.listEvents(TEST_GEOFENCE_ID, {}));
       expect(Array.isArray(list)).toBe(true);
     });
   });

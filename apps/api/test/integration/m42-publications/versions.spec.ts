@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -71,9 +67,7 @@ describe('integration:m42-publications/versions', () => {
   beforeEach(async () => {
     // pub_publication_versions is IMMUTABLE so we TRUNCATE
     // (BEFORE ROW triggers don't fire on TRUNCATE).
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`);
     if (seededTemplateIds.length > 0) {
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.pub_templates WHERE id = ANY($1::uuid[])`,
@@ -96,11 +90,13 @@ describe('integration:m42-publications/versions', () => {
     }
   });
 
-  async function seedPublication(opts: {
-    schoolId?: string;
-    title?: string;
-    status?: string;
-  } = {}): Promise<string> {
+  async function seedPublication(
+    opts: {
+      schoolId?: string;
+      title?: string;
+      status?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     seededPubIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -279,17 +275,13 @@ describe('integration:m42-publications/versions', () => {
     it('non-collaborator non-writer student → ForbiddenException', async () => {
       const pubId = await seedPublication();
       await expect(
-        withTestTenant(async () =>
-          versionService.checkpoint(studentActor(), pubId, {}),
-        ),
+        withTestTenant(async () => versionService.checkpoint(studentActor(), pubId, {})),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('checkpoint on phantom publication id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          versionService.checkpoint(adminActor(), generateId(), {}),
-        ),
+        withTestTenant(async () => versionService.checkpoint(adminActor(), generateId(), {})),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -332,9 +324,7 @@ describe('integration:m42-publications/versions', () => {
       const pubId = await seedPublication();
       await seedVersion(pubId, 1);
       await expect(
-        withTestTenant(async () =>
-          versionService.revert(adminActor(), pubId, 999, {}),
-        ),
+        withTestTenant(async () => versionService.revert(adminActor(), pubId, 999, {})),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -366,9 +356,7 @@ describe('integration:m42-publications/versions', () => {
 
     it('getById on phantom version id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          versionService.getById(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => versionService.getById(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -454,15 +442,11 @@ describe('integration:m42-publications/versions', () => {
       const versionId = await seedVersion(pubBId, 1);
       // List from School A
       await expect(
-        withTestTenant(async () =>
-          versionService.listForPublication(adminActor(), pubBId),
-        ),
+        withTestTenant(async () => versionService.listForPublication(adminActor(), pubBId)),
       ).rejects.toBeInstanceOf(NotFoundException);
       // getById on the foreign version → NotFound
       await expect(
-        withTestTenant(async () =>
-          versionService.getById(adminActor(), versionId),
-        ),
+        withTestTenant(async () => versionService.getById(adminActor(), versionId)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -480,12 +464,14 @@ describe('integration:m42-publications/versions', () => {
   // TemplateService
   // ──────────────────────────────────────────────────────────────────
   describe('TemplateService', () => {
-    async function seedTemplate(opts: {
-      schoolId?: string | null;
-      isSystem?: boolean;
-      name?: string;
-      isActive?: boolean;
-    } = {}): Promise<string> {
+    async function seedTemplate(
+      opts: {
+        schoolId?: string | null;
+        isSystem?: boolean;
+        name?: string;
+        isActive?: boolean;
+      } = {},
+    ): Promise<string> {
       const id = generateId();
       seededTemplateIds.push(id);
       await rawClient.$executeRawUnsafe(
@@ -556,9 +542,7 @@ describe('integration:m42-publications/versions', () => {
     it('patch on system template → ForbiddenException', async () => {
       const systemId = await seedTemplate({ schoolId: null, isSystem: true });
       await expect(
-        withTestTenant(async () =>
-          templateService.patch(adminActor(), systemId, { name: 'hack' }),
-        ),
+        withTestTenant(async () => templateService.patch(adminActor(), systemId, { name: 'hack' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

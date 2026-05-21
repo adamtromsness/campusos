@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -20,12 +16,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  parentActor,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { adminActor, teacherActor, parentActor, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import {
   TEST_ALERT_TYPE_INFO_ID,
   TEST_ALERT_TYPE_EMERGENCY_ID,
@@ -269,10 +260,7 @@ describe('integration:m40-communications/emergency-alerts', () => {
       );
       await expect(
         withTestTenant(async () =>
-          alerts.issue(
-            { alertTypeId: dto.id, title: 'IT-no-ch', body: 'b' } as any,
-            adminActor(),
-          ),
+          alerts.issue({ alertTypeId: dto.id, title: 'IT-no-ch', body: 'b' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -361,7 +349,7 @@ describe('integration:m40-communications/emergency-alerts', () => {
       expect(r2.acknowledgedAt).toBe(r.acknowledgedAt);
     });
 
-    it('acknowledgeDelivery for non-owning recipient → NotFoundException (don\'t leak)', async () => {
+    it("acknowledgeDelivery for non-owning recipient → NotFoundException (don't leak)", async () => {
       const id = await seedAlert({ title: 'IT-ack-wrong' });
       const deliveryId = generateId();
       await rawClient.$executeRawUnsafe(
@@ -379,10 +367,7 @@ describe('integration:m40-communications/emergency-alerts', () => {
     it('acknowledgeDelivery on unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          alerts.acknowledgeDelivery(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          alerts.acknowledgeDelivery('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

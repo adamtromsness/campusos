@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { EmployeeService } from '@modules/m80-hr/employees/employee.service';
@@ -78,13 +74,7 @@ describe('integration:m80-hr/employees-lifecycle', () => {
     certifications = new CertificationService(tenantPrisma, kafka as any);
     compliance = new TrainingComplianceService(tenantPrisma, permissions);
 
-    employeeCtrl = new EmployeeController(
-      employees,
-      documents,
-      certifications,
-      compliance,
-      actors,
-    );
+    employeeCtrl = new EmployeeController(employees, documents, certifications, compliance, actors);
     positionCtrl = new PositionController(positions, actors);
 
     await ensureWorkflowsPlatformFixtures(rawClient);
@@ -118,9 +108,7 @@ describe('integration:m80-hr/employees-lifecycle', () => {
   // ───────────────────────────────────────────────────────────────────
   describe('EmployeeService', () => {
     it('list returns active employees, includeInactive admin-only', async () => {
-      const list = await withTestTenant(async () =>
-        employees.list({} as any, adminActor()),
-      );
+      const list = await withTestTenant(async () => employees.list({} as any, adminActor()));
       const ids = list.map((e) => e.id);
       expect(ids).toContain(TEST_ADMIN_EMPLOYEE_ID);
       expect(ids).toContain(TEST_TEACHER_EMPLOYEE_ID);
@@ -156,18 +144,14 @@ describe('integration:m80-hr/employees-lifecycle', () => {
     });
 
     it('getById returns admin row', async () => {
-      const dto = await withTestTenant(async () =>
-        employees.getById(TEST_ADMIN_EMPLOYEE_ID),
-      );
+      const dto = await withTestTenant(async () => employees.getById(TEST_ADMIN_EMPLOYEE_ID));
       expect(dto.id).toBe(TEST_ADMIN_EMPLOYEE_ID);
       expect(dto.fullName.length).toBeGreaterThan(0);
     });
 
     it('getById missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          employees.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => employees.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -340,9 +324,7 @@ describe('integration:m80-hr/employees-lifecycle', () => {
         // distinct from the admin row.
         employees.list({} as any, adminActor()),
       );
-      const listB2 = await withTestTenantB(async () =>
-        employees.list({} as any, adminActor()),
-      );
+      const listB2 = await withTestTenantB(async () => employees.list({} as any, adminActor()));
       const idsB = listB2.map((e) => e.id);
       expect(idsB).toContain(TEST_HR_SHADOW_EMPLOYEE_B_ID);
       void listB;
@@ -360,22 +342,16 @@ describe('integration:m80-hr/employees-lifecycle', () => {
     });
 
     it('getById returns one + 404 on missing', async () => {
-      const dto = await withTestTenant(async () =>
-        positions.getById(TEST_HR_POSITION_TEACHER_ID),
-      );
+      const dto = await withTestTenant(async () => positions.getById(TEST_HR_POSITION_TEACHER_ID));
       expect(dto.title).toBe('HR Test Teacher Position');
       await expect(
-        withTestTenant(async () =>
-          positions.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => positions.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('create rejects non-admin + happy path', async () => {
       await expect(
-        withTestTenant(async () =>
-          positions.create({ title: 'Nope' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => positions.create({ title: 'Nope' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       const created = await withTestTenant(async () =>
@@ -448,9 +424,7 @@ describe('integration:m80-hr/employees-lifecycle', () => {
 
       // teacher views admin → Forbidden
       await expect(
-        withTestTenant(async () =>
-          documents.list(TEST_ADMIN_EMPLOYEE_ID, teacherActor()),
-        ),
+        withTestTenant(async () => documents.list(TEST_ADMIN_EMPLOYEE_ID, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -568,17 +542,13 @@ describe('integration:m80-hr/employees-lifecycle', () => {
     } as any;
 
     it('EmployeeController list + getMe + getById + update', async () => {
-      const list = await withTestTenant(async () =>
-        employeeCtrl.list({} as any, adminReq),
-      );
+      const list = await withTestTenant(async () => employeeCtrl.list({} as any, adminReq));
       expect(list.map((e) => e.id)).toContain(TEST_ADMIN_EMPLOYEE_ID);
 
       const me = await withTestTenant(async () => employeeCtrl.getMe(adminReq));
       expect(me.id).toBe(TEST_ADMIN_EMPLOYEE_ID);
 
-      const one = await withTestTenant(async () =>
-        employeeCtrl.getById(TEST_ADMIN_EMPLOYEE_ID),
-      );
+      const one = await withTestTenant(async () => employeeCtrl.getById(TEST_ADMIN_EMPLOYEE_ID));
       expect(one.id).toBe(TEST_ADMIN_EMPLOYEE_ID);
 
       const u = await withTestTenant(async () =>
@@ -643,21 +613,14 @@ describe('integration:m80-hr/employees-lifecycle', () => {
     });
 
     it('PositionController list + getById + create + update', async () => {
-      const list = await withTestTenant(async () =>
-        positionCtrl.list({} as any),
-      );
+      const list = await withTestTenant(async () => positionCtrl.list({} as any));
       expect(list.length).toBeGreaterThan(0);
 
-      const one = await withTestTenant(async () =>
-        positionCtrl.getById(TEST_HR_POSITION_ADMIN_ID),
-      );
+      const one = await withTestTenant(async () => positionCtrl.getById(TEST_HR_POSITION_ADMIN_ID));
       expect(one.id).toBe(TEST_HR_POSITION_ADMIN_ID);
 
       const created = await withTestTenant(async () =>
-        positionCtrl.create(
-          { title: 'Ctrl Position ' + Date.now() } as any,
-          adminReq,
-        ),
+        positionCtrl.create({ title: 'Ctrl Position ' + Date.now() } as any, adminReq),
       );
       expect(created.title).toContain('Ctrl Position');
 
@@ -707,9 +670,7 @@ describe('integration:m80-hr/employees-lifecycle', () => {
 
     it('studentActor cannot enumerate documents', async () => {
       await expect(
-        withTestTenant(async () =>
-          documents.list(TEST_ADMIN_EMPLOYEE_ID, studentActor()),
-        ),
+        withTestTenant(async () => documents.list(TEST_ADMIN_EMPLOYEE_ID, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

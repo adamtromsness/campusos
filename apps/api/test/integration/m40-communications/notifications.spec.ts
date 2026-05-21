@@ -182,7 +182,7 @@ describe('integration:m40-communications/notifications', () => {
       expect(r.channels.sort()).toEqual(['EMAIL', 'PUSH'].sort());
     });
 
-    it('cross-school: enqueued row carries the calling tenant\'s school_id', async () => {
+    it("cross-school: enqueued row carries the calling tenant's school_id", async () => {
       const r = await withTestTenantB(async () =>
         queue.enqueue({
           notificationType: 'TEST_CROSS',

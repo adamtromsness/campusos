@@ -20,8 +20,8 @@ pnpm --filter @campusos/api test:integration
 Result:
 
 | Test Files | Total Tests | Passed | Failed | Skipped |
-|---:|---:|---:|---:|---:|
-| 277 | 7545 | 7543 | 0 | 2 |
+| ---------: | ----------: | -----: | -----: | ------: |
+|        277 |        7545 |   7543 |      0 |       2 |
 
 Only runtime skipped spec: `test/integration/m84-payments/auto-invoice.spec.ts` with 2 skipped discount tests.
 
@@ -84,11 +84,11 @@ apps/api/test/integration/m84-payments/refunds-reversals.spec.ts:680:    // reve
 
 Assessment:
 
-| Type | Count | Status |
-|---|---:|---|
-| Executable skipped tests | 2 | Justified payment discount tests |
-| Unjustified executable skips | 0 | None found |
-| Stale grep false positives | 1 | Needs cleanup |
+| Type                         | Count | Status                           |
+| ---------------------------- | ----: | -------------------------------- |
+| Executable skipped tests     |     2 | Justified payment discount tests |
+| Unjustified executable skips |     0 | None found                       |
+| Stale grep false positives   |     1 | Needs cleanup                    |
 
 The two executable skips are the expected payment discount tests in `auto-invoice.spec.ts`. The third line is a comment in `refunds-reversals.spec.ts`; the surrounding tests now run and pass, but the comment still trips the requested grep.
 
@@ -132,10 +132,10 @@ find apps/api/test/unit/shared -name "*.spec.ts" | wc -l
 
 Results:
 
-| Location | Count | Required | Status |
-|---|---:|---:|---|
-| `apps/api/src/shared` | 0 | 0 | Pass |
-| `apps/api/test/unit/shared` | 14 | >=14 | Pass |
+| Location                    | Count | Required | Status |
+| --------------------------- | ----: | -------: | ------ |
+| `apps/api/src/shared`       |     0 |        0 | Pass   |
+| `apps/api/test/unit/shared` |    14 |     >=14 | Pass   |
 
 ## Step 6 - Global Coverage
 
@@ -155,32 +155,32 @@ pnpm --filter @campusos/api exec vitest run \
 Coverage run result:
 
 | Test Files | Total Tests | Passed | Failed | Skipped |
-|---:|---:|---:|---:|---:|
-| 277 | 7545 | 7543 | 0 | 2 |
+| ---------: | ----------: | -----: | -----: | ------: |
+|        277 |        7545 |   7543 |      0 |       2 |
 
 Coverage summary:
 
-| Metric | Covered / Total | Percentage | Meets 80% |
-|---|---:|---:|---|
-| Statements | 133784 / 152037 | 87.99% | Yes |
-| Branches | 28154 / 33172 | 84.87% | Yes |
-| Functions | 7424 / 8125 | 91.37% | Yes |
-| Lines | 133784 / 152037 | 87.99% | Yes |
+| Metric     | Covered / Total | Percentage | Meets 80% |
+| ---------- | --------------: | ---------: | --------- |
+| Statements | 133784 / 152037 |     87.99% | Yes       |
+| Branches   |   28154 / 33172 |     84.87% | Yes       |
+| Functions  |     7424 / 8125 |     91.37% | Yes       |
+| Lines      | 133784 / 152037 |     87.99% | Yes       |
 
 ## Gate Checklist
 
-| Gate | Status | Notes |
-|---|---|---|
-| Full integration suite: 0 failures | Pass | 7543 passed, 0 failed |
-| Runtime skips <= 2 | Pass | Exactly 2 skipped |
-| Only acceptable runtime skips | Pass | Both in payment discount tests |
-| CodeQL poll loop cap | Pass | `Math.min(..., MAX_POLL_OPTIONS)` at both sites |
-| CodeQL gift card randomness | Pass | `crypto.randomInt` used |
-| 0 unjustified executable skips | Pass | No executable skips beyond the 2 justified payment tests |
-| Exact skip grep returns only 2 lines | Fail | One stale `.skip'd` comment false positive |
-| Athletics roster school scope | Pass | `p.school_id = tenant.schoolId` predicate present |
-| Shared specs migrated out of `src/shared` | Pass | `src/shared`: 0, `test/unit/shared`: 14 |
-| Global statement coverage >= 80% | Pass | 87.99% |
+| Gate                                      | Status | Notes                                                    |
+| ----------------------------------------- | ------ | -------------------------------------------------------- |
+| Full integration suite: 0 failures        | Pass   | 7543 passed, 0 failed                                    |
+| Runtime skips <= 2                        | Pass   | Exactly 2 skipped                                        |
+| Only acceptable runtime skips             | Pass   | Both in payment discount tests                           |
+| CodeQL poll loop cap                      | Pass   | `Math.min(..., MAX_POLL_OPTIONS)` at both sites          |
+| CodeQL gift card randomness               | Pass   | `crypto.randomInt` used                                  |
+| 0 unjustified executable skips            | Pass   | No executable skips beyond the 2 justified payment tests |
+| Exact skip grep returns only 2 lines      | Fail   | One stale `.skip'd` comment false positive               |
+| Athletics roster school scope             | Pass   | `p.school_id = tenant.schoolId` predicate present        |
+| Shared specs migrated out of `src/shared` | Pass   | `src/shared`: 0, `test/unit/shared`: 14                  |
+| Global statement coverage >= 80%          | Pass   | 87.99%                                                   |
 
 ## Required Cleanup
 
@@ -188,4 +188,3 @@ Coverage summary:
 2. Re-run the Step 3 grep. Expected output should contain only:
    - `apps/api/test/integration/m84-payments/auto-invoice.spec.ts:566`
    - `apps/api/test/integration/m84-payments/auto-invoice.spec.ts:569`
-

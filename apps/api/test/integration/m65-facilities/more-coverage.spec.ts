@@ -113,13 +113,9 @@ describe('integration:m65-facilities/more-coverage', () => {
 
     it('list with category + status filter', async () => {
       await makeInit();
-      const byCat = await withTestTenant(async () =>
-        sustainability.list({ category: 'ENERGY' }),
-      );
+      const byCat = await withTestTenant(async () => sustainability.list({ category: 'ENERGY' }));
       expect(byCat.length).toBeGreaterThan(0);
-      const byStatus = await withTestTenant(async () =>
-        sustainability.list({ status: 'ACTIVE' }),
-      );
+      const byStatus = await withTestTenant(async () => sustainability.list({ status: 'ACTIVE' }));
       expect(Array.isArray(byStatus)).toBe(true);
     });
 
@@ -179,9 +175,7 @@ describe('integration:m65-facilities/more-coverage', () => {
           adminActor(),
         ),
       );
-      const byZone = await withTestTenant(async () =>
-        zoneInsp.list({ zoneId: TEST_ZONE_ID }),
-      );
+      const byZone = await withTestTenant(async () => zoneInsp.list({ zoneId: TEST_ZONE_ID }));
       expect(byZone.length).toBeGreaterThan(0);
 
       const needsFollowUp = await withTestTenant(async () =>
@@ -360,10 +354,7 @@ describe('integration:m65-facilities/more-coverage', () => {
   describe('CleaningRouteService — extended', () => {
     async function makeRoute() {
       return withTestTenant(async () =>
-        cleaning.createRoute(
-          { name: 'Extra Route', shift: 'EVENING' } as any,
-          adminActor(),
-        ),
+        cleaning.createRoute({ name: 'Extra Route', shift: 'EVENING' } as any, adminActor()),
       );
     }
 

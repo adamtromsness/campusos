@@ -115,13 +115,7 @@ describe('integration:m65-facilities/controllers', () => {
       supply,
       stubCtx,
     );
-    advCtl = new FacilitiesAdvancedController(
-      cleaning,
-      zoneInsp,
-      supplyAudit,
-      woDepth,
-      stubCtx,
-    );
+    advCtl = new FacilitiesAdvancedController(cleaning, zoneInsp, supplyAudit, woDepth, stubCtx);
     assetsCtl = new FacilitiesAssetsController(
       drills,
       assets,
@@ -191,9 +185,7 @@ describe('integration:m65-facilities/controllers', () => {
       );
       const myList = await withTestTenant(async () => ctl.listMyBookings(req));
       expect(myList.map((x: any) => x.id)).toContain(bk.id);
-      const spaceList = await withTestTenant(async () =>
-        ctl.listSpaceBookings(TEST_SPACE_ID, req),
-      );
+      const spaceList = await withTestTenant(async () => ctl.listSpaceBookings(TEST_SPACE_ID, req));
       expect(spaceList.length).toBeGreaterThan(0);
       await withTestTenant(async () =>
         ctl.patchBooking(bk.id, { status: 'CANCELLED' } as any, req),
@@ -294,10 +286,7 @@ describe('integration:m65-facilities/controllers', () => {
           req,
         ),
       );
-      await withTestTenant(async () =>
-        ctl.adjustSupply(ns.id, { currentQuantity: 5 } as any, req),
-      );
+      await withTestTenant(async () => ctl.adjustSupply(ns.id, { currentQuantity: 5 } as any, req));
     });
   });
-
 });

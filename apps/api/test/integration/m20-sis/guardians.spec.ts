@@ -110,22 +110,14 @@ describe('integration:m20-sis/guardians', () => {
   beforeEach(async () => {
     kafka.reset();
     // Wipe state for both services
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_child_link_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_parent_info_update_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_auto_approval_rules`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_child_link_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_parent_info_update_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_auto_approval_rules`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.platform_outbox WHERE topic LIKE 'sis.parent_update.%' AND tenant_id = $1::uuid`,
       TEST_SCHOOL_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_emergency_contacts`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_emergency_contacts`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -240,9 +232,7 @@ describe('integration:m20-sis/guardians', () => {
 
     it('non-GUARDIAN → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          childLinkService.submitLinkExisting(generateId(), adminActor()),
-        ),
+        withTestTenant(async () => childLinkService.submitLinkExisting(generateId(), adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -347,9 +337,7 @@ describe('integration:m20-sis/guardians', () => {
         otherChild.studentId,
       );
 
-      const list = await withTestTenant(async () =>
-        childLinkService.list({}, parentActor()),
-      );
+      const list = await withTestTenant(async () => childLinkService.list({}, parentActor()));
       expect(list).toHaveLength(1);
       expect(list[0]!.id).toBe(req.id);
     });
@@ -370,7 +358,7 @@ describe('integration:m20-sis/guardians', () => {
       expect(noneRejected).toHaveLength(0);
     });
 
-    it('parent cannot getById someone else\'s request → 404', async () => {
+    it("parent cannot getById someone else's request → 404", async () => {
       const otherG = await trackedGuardian();
       const otherChild = await trackedStudent();
       const id = generateId();
@@ -469,9 +457,7 @@ describe('integration:m20-sis/guardians', () => {
 
     it('approve a non-existent id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          childLinkService.approve(generateId(), undefined, adminActor()),
-        ),
+        withTestTenant(async () => childLinkService.approve(generateId(), undefined, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -483,9 +469,7 @@ describe('integration:m20-sis/guardians', () => {
       );
       await withTestTenant(async () => childLinkService.approve(req.id, undefined, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          childLinkService.approve(req.id, undefined, adminActor()),
-        ),
+        withTestTenant(async () => childLinkService.approve(req.id, undefined, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -513,9 +497,7 @@ describe('integration:m20-sis/guardians', () => {
 
     it('non-admin reject → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          childLinkService.reject(generateId(), undefined, parentActor()),
-        ),
+        withTestTenant(async () => childLinkService.reject(generateId(), undefined, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -527,9 +509,7 @@ describe('integration:m20-sis/guardians', () => {
       );
       await withTestTenant(async () => childLinkService.reject(req.id, undefined, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          childLinkService.reject(req.id, undefined, adminActor()),
-        ),
+        withTestTenant(async () => childLinkService.reject(req.id, undefined, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -763,11 +743,7 @@ describe('integration:m20-sis/guardians', () => {
         ),
       );
       const reviewed = await withTestTenant(async () =>
-        parentUpdateService.reviewRequest(
-          req.id,
-          { decision: 'REJECTED' },
-          adminActor(),
-        ),
+        parentUpdateService.reviewRequest(req.id, { decision: 'REJECTED' }, adminActor()),
       );
       expect(reviewed.status).toBe('REJECTED');
       expect(reviewed.appliedAt).toBeNull();
@@ -776,11 +752,7 @@ describe('integration:m20-sis/guardians', () => {
     it('Non-admin → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          parentUpdateService.reviewRequest(
-            generateId(),
-            { decision: 'APPROVED' },
-            parentActor(),
-          ),
+          parentUpdateService.reviewRequest(generateId(), { decision: 'APPROVED' }, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -800,19 +772,11 @@ describe('integration:m20-sis/guardians', () => {
         ),
       );
       await withTestTenant(async () =>
-        parentUpdateService.reviewRequest(
-          req.id,
-          { decision: 'APPROVED' },
-          adminActor(),
-        ),
+        parentUpdateService.reviewRequest(req.id, { decision: 'APPROVED' }, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          parentUpdateService.reviewRequest(
-            req.id,
-            { decision: 'REJECTED' },
-            adminActor(),
-          ),
+          parentUpdateService.reviewRequest(req.id, { decision: 'REJECTED' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -905,9 +869,7 @@ describe('integration:m20-sis/guardians', () => {
       );
       await ensureParentGuardian();
       await expect(
-        withTestTenant(async () =>
-          parentUpdateService.getByIdOrFail(id, parentActor()),
-        ),
+        withTestTenant(async () => parentUpdateService.getByIdOrFail(id, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -1025,9 +987,7 @@ describe('integration:m20-sis/guardians', () => {
 
       // School A admin queries → 404 because school_id predicate filters it out
       await expect(
-        withTestTenant(async () =>
-          parentUpdateService.getByIdOrFail(reqId, adminActor()),
-        ),
+        withTestTenant(async () => parentUpdateService.getByIdOrFail(reqId, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // Confirm school B admin can see it

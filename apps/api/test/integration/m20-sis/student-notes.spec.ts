@@ -7,11 +7,7 @@ import { StudentNoteService } from '@modules/m20-sis/notes/student-note.service'
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   teacherActor,

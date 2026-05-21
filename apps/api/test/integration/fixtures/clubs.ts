@@ -1,13 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from './sis';
-import {
-  TEST_ADMIN_EMPLOYEE_ID,
-  TEST_TEACHER_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from './sis';
+import { TEST_ADMIN_EMPLOYEE_ID, TEST_TEACHER_EMPLOYEE_ID } from '../helpers/actor';
 
 /**
  * Wave 7 — m64-clubs fixtures.
@@ -249,7 +243,4 @@ export async function resetClubsAndStudents(
 }
 
 // Re-exports used by spec files for convenience.
-export {
-  TEST_TEACHER_EMPLOYEE_ID,
-  TEST_ADMIN_EMPLOYEE_ID,
-};
+export { TEST_TEACHER_EMPLOYEE_ID, TEST_ADMIN_EMPLOYEE_ID };

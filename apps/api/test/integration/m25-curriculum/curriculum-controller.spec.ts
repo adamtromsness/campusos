@@ -12,10 +12,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 
@@ -306,9 +303,7 @@ describe('integration:m25-curriculum/curriculum-controller', () => {
       );
       expect(list.map((m) => m.id)).toContain(mapId);
 
-      const detail = await withTestTenant(async () =>
-        controller.getMap(mapId, fakeAdminReq()),
-      );
+      const detail = await withTestTenant(async () => controller.getMap(mapId, fakeAdminReq()));
       expect(detail.id).toBe(mapId);
     });
 
@@ -342,36 +337,31 @@ describe('integration:m25-curriculum/curriculum-controller', () => {
       );
       expect(list.map((u) => u.id)).toContain(unitId);
 
-      const detail = await withTestTenant(async () =>
-        controller.getUnit(unitId, fakeAdminReq()),
-      );
+      const detail = await withTestTenant(async () => controller.getUnit(unitId, fakeAdminReq()));
       expect(detail.id).toBe(unitId);
     });
 
     it('createUnit + patchUnit + reorderUnits', async () => {
       const created = await withTestTenant(async () =>
-        controller.createUnit(
-          mapId,
-          { title: 'Unit B', sequenceOrder: 2 } as any,
-          fakeAdminReq(),
-        ),
+        controller.createUnit(mapId, { title: 'Unit B', sequenceOrder: 2 } as any, fakeAdminReq()),
       );
       cleanupIds.unitIds.push(created.id);
       expect(created.title).toBe('Unit B');
 
       const patched = await withTestTenant(async () =>
-        controller.patchUnit(
-          created.id,
-          { description: 'patched' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchUnit(created.id, { description: 'patched' } as any, fakeAdminReq()),
       );
       expect(patched.description).toBe('patched');
 
       const reordered = await withTestTenant(async () =>
         controller.reorderUnits(
           mapId,
-          { order: [{ unitId: created.id, sequenceOrder: 1 }, { unitId: unitId, sequenceOrder: 2 }] } as any,
+          {
+            order: [
+              { unitId: created.id, sequenceOrder: 1 },
+              { unitId: unitId, sequenceOrder: 2 },
+            ],
+          } as any,
           fakeAdminReq(),
         ),
       );
@@ -403,9 +393,7 @@ describe('integration:m25-curriculum/curriculum-controller', () => {
       expect(aligned.unitId).toBe(unitId);
       expect(aligned.standardId).toBe(std.id);
 
-      await withTestTenant(async () =>
-        controller.unalignStandard(aligned.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.unalignStandard(aligned.id, fakeAdminReq()));
     });
   });
 
@@ -421,9 +409,7 @@ describe('integration:m25-curriculum/curriculum-controller', () => {
       );
       expect(Array.isArray(listUnit)).toBe(true);
 
-      const result = await withTestTenant(async () =>
-        controller.refreshGaps(fakeAdminReq()),
-      );
+      const result = await withTestTenant(async () => controller.refreshGaps(fakeAdminReq()));
       expect(typeof result.unitsScanned).toBe('number');
       expect(typeof result.gapsWritten).toBe('number');
     });
@@ -452,17 +438,11 @@ describe('integration:m25-curriculum/curriculum-controller', () => {
       expect(created.title).toBe('Reference');
 
       const patched = await withTestTenant(async () =>
-        controller.patchResource(
-          created.id,
-          { title: 'Renamed Ref' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchResource(created.id, { title: 'Renamed Ref' } as any, fakeAdminReq()),
       );
       expect(patched.title).toBe('Renamed Ref');
 
-      await withTestTenant(async () =>
-        controller.removeResource(created.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.removeResource(created.id, fakeAdminReq()));
       const after = await withTestTenant(async () =>
         controller.listResources(unitId, fakeAdminReq()),
       );

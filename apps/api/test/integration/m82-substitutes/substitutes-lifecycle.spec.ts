@@ -214,7 +214,8 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
   }) {
     const school = opts?.school ?? 'A';
     const fn = school === 'A' ? withTestTenant : withTestTenantB;
-    const teacher = opts?.absentTeacherId ??
+    const teacher =
+      opts?.absentTeacherId ??
       (school === 'A' ? TEST_TEACHER_EMPLOYEE_ID : TEST_SUB_HR_EMP_SCHOOL_B_ID);
     return fn(async () =>
       jobs.post(
@@ -332,9 +333,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('getById other-substitute as non-admin → 404 (no leak)', async () => {
       await expect(
-        withTestTenant(async () =>
-          profiles.getById(TEST_SUB_PROFILE_PARENT_ID, teacherActor()),
-        ),
+        withTestTenant(async () => profiles.getById(TEST_SUB_PROFILE_PARENT_ID, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -414,9 +413,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('search by gradeLevels filter', async () => {
       // K-3 matches teacher sub (K,1,2,3), not the marketplace sub (4-6)
-      const list = await withTestTenant(async () =>
-        profiles.search({ gradeLevels: ['K'] } as any),
-      );
+      const list = await withTestTenant(async () => profiles.search({ gradeLevels: ['K'] } as any));
       const ids = list.map((p) => p.id);
       expect(ids).toContain(TEST_SUB_PROFILE_TEACHER_ID);
       expect(ids).not.toContain(TEST_SUB_PROFILE_PARENT_ID);
@@ -675,10 +672,10 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('create without personId → Forbidden', async () => {
       await expect(
         withTestTenant(async () =>
-          availability.create(
-            { availabilityType: 'RECURRING', dayOfWeek: 1 } as any,
-            { ...adminActor(), personId: null as any },
-          ),
+          availability.create({ availabilityType: 'RECURRING', dayOfWeek: 1 } as any, {
+            ...adminActor(),
+            personId: null as any,
+          }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -696,19 +693,14 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('remove own row succeeds + remove other-substitute → 404', async () => {
       const dto = await withTestTenant(async () =>
-        availability.create(
-          { availabilityType: 'RECURRING', dayOfWeek: 2 } as any,
-          teacherActor(),
-        ),
+        availability.create({ availabilityType: 'RECURRING', dayOfWeek: 2 } as any, teacherActor()),
       );
       // Parent tries to remove teacher's row → 404
       await expect(
         withTestTenant(async () => availability.remove(dto.id, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Teacher removes own → ok
-      const res = await withTestTenant(async () =>
-        availability.remove(dto.id, teacherActor()),
-      );
+      const res = await withTestTenant(async () => availability.remove(dto.id, teacherActor()));
       expect(res.deleted).toBe(true);
     });
 
@@ -722,10 +714,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('remove without personId → Forbidden', async () => {
       const dto = await withTestTenant(async () =>
-        availability.create(
-          { availabilityType: 'RECURRING', dayOfWeek: 3 } as any,
-          teacherActor(),
-        ),
+        availability.create({ availabilityType: 'RECURRING', dayOfWeek: 3 } as any, teacherActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -783,10 +772,10 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('create without personId → Forbidden', async () => {
       await expect(
         withTestTenant(async () =>
-          preferences.create(
-            { schoolId: TEST_SCHOOL_ID, preferenceType: 'PREFERRED' } as any,
-            { ...adminActor(), personId: null as any },
-          ),
+          preferences.create({ schoolId: TEST_SCHOOL_ID, preferenceType: 'PREFERRED' } as any, {
+            ...adminActor(),
+            personId: null as any,
+          }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -812,9 +801,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
       await expect(
         withTestTenant(async () => preferences.remove(dto.id, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
-      const res = await withTestTenant(async () =>
-        preferences.remove(dto.id, teacherActor()),
-      );
+      const res = await withTestTenant(async () => preferences.remove(dto.id, teacherActor()));
       expect(res.deleted).toBe(true);
     });
 
@@ -1462,13 +1449,9 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('getById admin → ok; substitute sees own; cross-substitute → 404', async () => {
       const { assignmentId } = await postAndAccept();
-      const a1 = await withTestTenant(async () =>
-        assignments.getById(assignmentId, adminActor()),
-      );
+      const a1 = await withTestTenant(async () => assignments.getById(assignmentId, adminActor()));
       expect(a1.id).toBe(assignmentId);
-      const a2 = await withTestTenant(async () =>
-        assignments.getById(assignmentId, parentActor()),
-      );
+      const a2 = await withTestTenant(async () => assignments.getById(assignmentId, parentActor()));
       expect(a2.id).toBe(assignmentId);
       await expect(
         withTestTenant(async () => assignments.getById(assignmentId, teacherActor())),
@@ -1503,9 +1486,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('checkIn by admin allowed', async () => {
       const { assignmentId } = await postAndAccept();
-      const dto = await withTestTenant(async () =>
-        assignments.checkIn(assignmentId, adminActor()),
-      );
+      const dto = await withTestTenant(async () => assignments.checkIn(assignmentId, adminActor()));
       expect(dto.status).toBe('CHECKED_IN');
     });
 
@@ -1804,10 +1785,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('create non-admin → Forbidden', async () => {
       await expect(
         withTestTenant(async () =>
-          payRates.create(
-            { rate: 100, effectiveFrom: '2027-01-01' } as any,
-            teacherActor(),
-          ),
+          payRates.create({ rate: 100, effectiveFrom: '2027-01-01' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -1815,10 +1793,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('create with negative rate → BadRequest', async () => {
       await expect(
         withTestTenant(async () =>
-          payRates.create(
-            { rate: -1, effectiveFrom: '2027-01-01' } as any,
-            adminActor(),
-          ),
+          payRates.create({ rate: -1, effectiveFrom: '2027-01-01' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -1836,10 +1811,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('close pay rate stamps effective_to', async () => {
       const created = await withTestTenant(async () =>
-        payRates.create(
-          { rate: 200, effectiveFrom: '2027-01-01' } as any,
-          adminActor(),
-        ),
+        payRates.create({ rate: 200, effectiveFrom: '2027-01-01' } as any, adminActor()),
       );
       const closed = await withTestTenant(async () =>
         payRates.close(created.id, '2027-06-30', adminActor()),
@@ -1857,15 +1829,10 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('close non-admin → Forbidden', async () => {
       const created = await withTestTenant(async () =>
-        payRates.create(
-          { rate: 200, effectiveFrom: '2027-01-01' } as any,
-          adminActor(),
-        ),
+        payRates.create({ rate: 200, effectiveFrom: '2027-01-01' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          payRates.close(created.id, '2027-06-30', teacherActor()),
-        ),
+        withTestTenant(async () => payRates.close(created.id, '2027-06-30', teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -1873,10 +1840,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
       const { assignmentId } = await postAndAccept();
       // School-default
       await withTestTenant(async () =>
-        payRates.create(
-          { rate: 180, effectiveFrom: '2027-01-01' } as any,
-          adminActor(),
-        ),
+        payRates.create({ rate: 180, effectiveFrom: '2027-01-01' } as any, adminActor()),
       );
       // Per-substitute override for the parent sub
       await withTestTenant(async () =>
@@ -1897,10 +1861,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('computePay falls back to SCHOOL_DEFAULT', async () => {
       const { assignmentId } = await postAndAccept();
       await withTestTenant(async () =>
-        payRates.create(
-          { rate: 175, effectiveFrom: '2027-01-01' } as any,
-          adminActor(),
-        ),
+        payRates.create({ rate: 175, effectiveFrom: '2027-01-01' } as any, adminActor()),
       );
       const pay = await withTestTenant(async () => payRates.computePay(assignmentId));
       expect(pay.rateSource).toBe('SCHOOL_DEFAULT');
@@ -1916,18 +1877,13 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('computePay missing assignment → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          payRates.computePay('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => payRates.computePay('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('cross-school: pay rate in school A invisible to school B', async () => {
       await withTestTenant(async () =>
-        payRates.create(
-          { rate: 250, effectiveFrom: '2027-01-01' } as any,
-          adminActor(),
-        ),
+        payRates.create({ rate: 250, effectiveFrom: '2027-01-01' } as any, adminActor()),
       );
       const fromB = await withTestTenantB(async () => payRates.list());
       expect(fromB.length).toBe(0);
@@ -1995,14 +1951,10 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
       expect(view).toBeNull();
     });
 
-    it('unrelated actor → null (don\'t-leak-existence)', async () => {
+    it("unrelated actor → null (don't-leak-existence)", async () => {
       const { assignmentId } = await checkedOutAssignment();
       await withTestTenant(async () =>
-        notes.create(
-          assignmentId,
-          { notesText: 'private' } as any,
-          parentActor(),
-        ),
+        notes.create(assignmentId, { notesText: 'private' } as any, parentActor()),
       );
       const view = await withTestTenant(async () =>
         notes.getForAssignment(assignmentId, studentActor()),
@@ -2236,9 +2188,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('listForAssignment as foreign sub → 404', async () => {
       const assignmentId = await checkedOutAssignment();
       await expect(
-        withTestTenant(async () =>
-          ratings.listForAssignment(assignmentId, teacherActor()),
-        ),
+        withTestTenant(async () => ratings.listForAssignment(assignmentId, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -2257,10 +2207,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('listForAssignment missing → 404', async () => {
       await expect(
         withTestTenant(async () =>
-          ratings.listForAssignment(
-            '00000000-0000-0000-0000-000000000099',
-            adminActor(),
-          ),
+          ratings.listForAssignment('00000000-0000-0000-0000-000000000099', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -2291,10 +2238,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('upsert WARNING_ONLY then update', async () => {
       const a = await withTestTenant(async () =>
-        policies.upsert(
-          { lateWindowHours: 4, consequence: 'WARNING_ONLY' } as any,
-          adminActor(),
-        ),
+        policies.upsert({ lateWindowHours: 4, consequence: 'WARNING_ONLY' } as any, adminActor()),
       );
       expect(a.lateWindowHours).toBe(4);
       expect(a.consequence).toBe('WARNING_ONLY');
@@ -2308,10 +2252,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('upsert TEMPORARY_POOL_SUSPENSION requires suspensionDurationDays', async () => {
       await expect(
         withTestTenant(async () =>
-          policies.upsert(
-            { consequence: 'TEMPORARY_POOL_SUSPENSION' } as any,
-            adminActor(),
-          ),
+          policies.upsert({ consequence: 'TEMPORARY_POOL_SUSPENSION' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       const ok = await withTestTenant(async () =>
@@ -2329,10 +2270,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
     it('upsert RATING_PENALTY requires ratingPenaltyAmount + range', async () => {
       await expect(
         withTestTenant(async () =>
-          policies.upsert(
-            { consequence: 'RATING_PENALTY' } as any,
-            adminActor(),
-          ),
+          policies.upsert({ consequence: 'RATING_PENALTY' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
@@ -2379,10 +2317,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('upsert PATCH: switching to RATING_PENALTY without amount → BadRequest', async () => {
       await withTestTenant(async () =>
-        policies.upsert(
-          { consequence: 'WARNING_ONLY', lateWindowHours: 2 } as any,
-          adminActor(),
-        ),
+        policies.upsert({ consequence: 'WARNING_ONLY', lateWindowHours: 2 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -2393,17 +2328,11 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
     it('upsert PATCH: switching to TEMPORARY_POOL_SUSPENSION without days → BadRequest', async () => {
       await withTestTenant(async () =>
-        policies.upsert(
-          { consequence: 'WARNING_ONLY' } as any,
-          adminActor(),
-        ),
+        policies.upsert({ consequence: 'WARNING_ONLY' } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          policies.upsert(
-            { consequence: 'TEMPORARY_POOL_SUSPENSION' } as any,
-            adminActor(),
-          ),
+          policies.upsert({ consequence: 'TEMPORARY_POOL_SUSPENSION' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -3181,11 +3110,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
       const rs = await withTestTenant(async () => ctrlB.listRatings(asg.id, adminReq));
       expect(rs.length).toBe(1);
       const note = await withTestTenant(async () =>
-        ctrlB.createSessionNote(
-          asg.id,
-          { notesText: 'all good' } as any,
-          parentReq,
-        ),
+        ctrlB.createSessionNote(asg.id, { notesText: 'all good' } as any, parentReq),
       );
       const view = await withTestTenant(async () => ctrlB.getSessionNote(asg.id, adminReq));
       expect(view?.id).toBe(note.id);
@@ -3205,10 +3130,7 @@ describe('integration:m82-substitutes/substitutes-lifecycle', () => {
 
       // policy upsert + get
       const pol = await withTestTenant(async () =>
-        ctrlB.upsertPolicy(
-          { lateWindowHours: 3, consequence: 'WARNING_ONLY' } as any,
-          adminReq,
-        ),
+        ctrlB.upsertPolicy({ lateWindowHours: 3, consequence: 'WARNING_ONLY' } as any, adminReq),
       );
       expect(pol.lateWindowHours).toBe(3);
       const got = await withTestTenant(async () => ctrlB.getPolicy());

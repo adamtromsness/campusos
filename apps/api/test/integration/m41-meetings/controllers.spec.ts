@@ -212,15 +212,9 @@ describe('integration:m41-meetings/controllers', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_ai_minutes`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_meeting_slots`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_ai_minutes`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_meeting_slots`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.mtg_meetings WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -241,15 +235,9 @@ describe('integration:m41-meetings/controllers', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.ext_budget_transactions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.ext_club_budgets`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.ext_field_trip_evaluations`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.ext_budget_transactions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.ext_club_budgets`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.ext_field_trip_evaluations`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.platform_outbox WHERE topic = 'mtg.meeting.scheduled' AND tenant_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -258,10 +246,14 @@ describe('integration:m41-meetings/controllers', () => {
   });
 
   function adminReq(): any {
-    return { user: { sub: TEST_ADMIN_ACCOUNT_ID, personId: TEST_ADMIN_PERSON_ID, email: 'admin@test' } };
+    return {
+      user: { sub: TEST_ADMIN_ACCOUNT_ID, personId: TEST_ADMIN_PERSON_ID, email: 'admin@test' },
+    };
   }
   function parentReq(): any {
-    return { user: { sub: TEST_PARENT_ACCOUNT_ID, personId: TEST_PARENT_PERSON_ID, email: 'parent@test' } };
+    return {
+      user: { sub: TEST_PARENT_ACCOUNT_ID, personId: TEST_PARENT_PERSON_ID, email: 'parent@test' },
+    };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -369,9 +361,7 @@ describe('integration:m41-meetings/controllers', () => {
       const list = await withTestTenant(async () => conferenceController.list());
       expect(list.map((c) => c.id)).toContain(created.id);
 
-      const fetched = await withTestTenant(async () =>
-        conferenceController.getById(created.id),
-      );
+      const fetched = await withTestTenant(async () => conferenceController.getById(created.id));
       expect(fetched.id).toBe(created.id);
 
       const patched = await withTestTenant(async () =>
@@ -464,9 +454,7 @@ describe('integration:m41-meetings/controllers', () => {
       );
       expect(patched.title).toBe('Renamed');
 
-      await withTestTenant(async () =>
-        notesAgendaController.deleteAgenda(adminReq(), item.id),
-      );
+      await withTestTenant(async () => notesAgendaController.deleteAgenda(adminReq(), item.id));
     });
 
     it('action item CRUD: create + list + listMine + patch', async () => {
@@ -559,9 +547,7 @@ describe('integration:m41-meetings/controllers', () => {
         );
         expect(patched.outcomesSummary).toBe('done');
       } finally {
-        await rawClient.$executeRawUnsafe(
-          `DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`,
-        );
+        await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`);
         await rawClient.$executeRawUnsafe(
           `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE id = $1::uuid`,
           sid,
@@ -647,11 +633,7 @@ describe('integration:m41-meetings/controllers', () => {
 
     it('field trip evaluation CRUD', async () => {
       const created = await withTestTenant(async () =>
-        advancedController.createEvaluation(
-          fieldTripId,
-          { overallRating: 5 } as any,
-          adminReq(),
-        ),
+        advancedController.createEvaluation(fieldTripId, { overallRating: 5 } as any, adminReq()),
       );
       expect(created.overallRating).toBe(5);
 
@@ -690,11 +672,7 @@ describe('integration:m41-meetings/controllers', () => {
       expect(fetched.id).toBe(created.id);
 
       const patched = await withTestTenant(async () =>
-        advancedController.patchTemplate(
-          created.id,
-          { description: 'updated' } as any,
-          adminReq(),
-        ),
+        advancedController.patchTemplate(created.id, { description: 'updated' } as any, adminReq()),
       );
       expect(patched.description).toBe('updated');
 
@@ -726,12 +704,20 @@ describe('integration:m41-meetings/controllers', () => {
       expect(empty).toBeNull();
 
       const generated = await withTestTenant(async () =>
-        advancedController.generateMinutes(meetingId, { rawTranscript: 'some words' } as any, adminReq()),
+        advancedController.generateMinutes(
+          meetingId,
+          { rawTranscript: 'some words' } as any,
+          adminReq(),
+        ),
       );
       expect(generated.status).toBe('GENERATED');
 
       const re = await withTestTenant(async () =>
-        advancedController.regenerateMinutes(generated.id, { rawTranscript: 'new words' } as any, adminReq()),
+        advancedController.regenerateMinutes(
+          generated.id,
+          { rawTranscript: 'new words' } as any,
+          adminReq(),
+        ),
       );
       expect(re.rawTranscript).toContain('new words');
 

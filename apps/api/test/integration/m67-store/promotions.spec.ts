@@ -12,11 +12,7 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, studentActor } from '../helpers/actor';
 import {
   ensureStoreSeed,
@@ -328,9 +324,7 @@ describe('integration:m67-store/promotions', () => {
 
     it('empty patch is a no-op', async () => {
       const p = await makePromo();
-      const after = await withTestTenant(async () =>
-        service.patch(adminActor(), p.id, {} as any),
-      );
+      const after = await withTestTenant(async () => service.patch(adminActor(), p.id, {} as any));
       expect(after.id).toBe(p.id);
     });
   });

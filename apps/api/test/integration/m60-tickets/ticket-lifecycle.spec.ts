@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { TicketService } from '@modules/m60-tickets/ticket.service';
@@ -265,7 +261,12 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
     it('create assigns SLA + emits tkt.ticket.created + records activity', async () => {
       const dto = await withTestTenant(async () =>
         tickets.create(
-          { categoryId: TEST_TKT_CAT_IT_A_ID, title: 'Broken', description: 'no internet', priority: 'MEDIUM' } as any,
+          {
+            categoryId: TEST_TKT_CAT_IT_A_ID,
+            title: 'Broken',
+            description: 'no internet',
+            priority: 'MEDIUM',
+          } as any,
           adminActor(),
         ),
       );
@@ -282,7 +283,11 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
       await expect(
         withTestTenant(async () =>
           tickets.create(
-            { categoryId: '00000000-0000-0000-0000-000000000099', title: 'X', priority: 'MEDIUM' } as any,
+            {
+              categoryId: '00000000-0000-0000-0000-000000000099',
+              title: 'X',
+              priority: 'MEDIUM',
+            } as any,
             adminActor(),
           ),
         ),
@@ -560,11 +565,7 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
       const got = await withTestTenant(async () => problems.getById(p.id, adminActor()));
       expect(got.id).toBe(p.id);
       const patched = await withTestTenant(async () =>
-        problems.patch(
-          p.id,
-          { status: 'INVESTIGATING' } as any,
-          adminActor(),
-        ),
+        problems.patch(p.id, { status: 'INVESTIGATING' } as any, adminActor()),
       );
       expect(patched.status).toBe('INVESTIGATING');
     });
@@ -598,11 +599,7 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
       expect(linked.ticketIds?.length).toBeGreaterThanOrEqual(2);
       kafka.reset();
       const res = await withTestTenant(async () =>
-        problems.resolveBatch(
-          p.id,
-          { rootCause: 'rc', resolution: 'fixed' } as any,
-          adminActor(),
-        ),
+        problems.resolveBatch(p.id, { rootCause: 'rc', resolution: 'fixed' } as any, adminActor()),
       );
       expect(res.problem.status).toBe('RESOLVED');
       expect(res.ticketsFlipped.length).toBeGreaterThanOrEqual(2);
@@ -695,9 +692,7 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
     });
 
     it('CategoryController list + create + update + sub flows', async () => {
-      const list = await withTestTenant(async () =>
-        categoryCtrl.list({} as any),
-      );
+      const list = await withTestTenant(async () => categoryCtrl.list({} as any));
       expect(list.length).toBeGreaterThan(0);
       const cat = await withTestTenant(async () =>
         categoryCtrl.createCategory({ name: 'CtrlCat' } as any),
@@ -754,9 +749,7 @@ describe('integration:m60-tickets/ticket-lifecycle', () => {
         commentCtrl.post(t.id, { body: 'hi' } as any, fakeReq),
       );
       expect(cm.body).toBe('hi');
-      const cmList = await withTestTenant(async () =>
-        commentCtrl.list(t.id, fakeReq),
-      );
+      const cmList = await withTestTenant(async () => commentCtrl.list(t.id, fakeReq));
       expect(cmList.map((c: any) => c.id)).toContain(cm.id);
     });
 

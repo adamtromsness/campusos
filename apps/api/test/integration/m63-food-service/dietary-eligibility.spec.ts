@@ -11,11 +11,7 @@ import {
 } from '@modules/m63-food-service/dietary-eligibility.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -175,7 +171,12 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
       await withTestTenant(async () =>
         profiles.patch(
           resolvedStudentId,
-          { dietaryRestrictions: [], allergens: [], freeMealEligible: false, mealPlanType: 'STANDARD' } as any,
+          {
+            dietaryRestrictions: [],
+            allergens: [],
+            freeMealEligible: false,
+            mealPlanType: 'STANDARD',
+          } as any,
           adminActor(),
         ),
       );
@@ -187,9 +188,7 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
 
     it('getByStudent throws NotFoundException when no profile', async () => {
       await expect(
-        withTestTenant(async () =>
-          profiles.getByStudent(resolvedStudentId, adminActor()),
-        ),
+        withTestTenant(async () => profiles.getByStudent(resolvedStudentId, adminActor())),
       ).rejects.toThrow();
     });
   });
@@ -213,17 +212,11 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
       const list = await withTestTenant(async () => updates.list(adminActor(), {}));
       expect(list.map((r) => r.id)).toContain(req.id);
 
-      const fetched = await withTestTenant(async () =>
-        updates.getById(req.id, adminActor()),
-      );
+      const fetched = await withTestTenant(async () => updates.getById(req.id, adminActor()));
       expect(fetched.id).toBe(req.id);
 
       const reviewed = await withTestTenant(async () =>
-        updates.review(
-          req.id,
-          { status: 'APPROVED', reviewNotes: 'OK' } as any,
-          adminActor(),
-        ),
+        updates.review(req.id, { status: 'APPROVED', reviewNotes: 'OK' } as any, adminActor()),
       );
       expect(reviewed.status).toBe('APPROVED');
     });
@@ -344,9 +337,7 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
       const list = await withTestTenant(async () => temps.list({}));
       expect(list.map((x) => x.id)).toContain(log.id);
 
-      const filtered = await withTestTenant(async () =>
-        temps.list({ location: 'REFRIGERATOR' }),
-      );
+      const filtered = await withTestTenant(async () => temps.list({ location: 'REFRIGERATOR' }));
       expect(filtered.length).toBeGreaterThan(0);
     });
 

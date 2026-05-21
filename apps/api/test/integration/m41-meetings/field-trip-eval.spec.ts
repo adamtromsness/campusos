@@ -1,19 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { FieldTripEvalService } from '@modules/m41-meetings/meetings/field-trip-eval.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -97,11 +90,7 @@ describe('integration:m41-meetings/field-trip-eval', () => {
 
     it('admin can also create evaluation (admin bypass on assertStaff)', async () => {
       const dto = await withTestTenant(async () =>
-        service.create(
-          fieldTripId,
-          { overallRating: 3 } as any,
-          adminActor(),
-        ),
+        service.create(fieldTripId, { overallRating: 3 } as any, adminActor()),
       );
       expect(dto.overallRating).toBe(3);
     });
@@ -142,9 +131,7 @@ describe('integration:m41-meetings/field-trip-eval', () => {
       await withTestTenant(async () =>
         service.create(fieldTripId, { overallRating: 5 } as any, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        service.listForTrip(fieldTripId, adminActor()),
-      );
+      const list = await withTestTenant(async () => service.listForTrip(fieldTripId, adminActor()));
       expect(list).toHaveLength(2);
     });
 
@@ -181,9 +168,7 @@ describe('integration:m41-meetings/field-trip-eval', () => {
           adminActor(),
         ),
       );
-      const summary = await withTestTenant(async () =>
-        service.summary(fieldTripId, adminActor()),
-      );
+      const summary = await withTestTenant(async () => service.summary(fieldTripId, adminActor()));
       expect(summary.evaluationCount).toBe(2);
       expect(summary.averageOverall).toBeCloseTo(3.0, 1);
       expect(summary.averageEducational).toBeCloseTo(2.0, 1);
@@ -193,9 +178,7 @@ describe('integration:m41-meetings/field-trip-eval', () => {
     });
 
     it('summary on trip with no evaluations returns zero count and null averages', async () => {
-      const summary = await withTestTenant(async () =>
-        service.summary(fieldTripId, adminActor()),
-      );
+      const summary = await withTestTenant(async () => service.summary(fieldTripId, adminActor()));
       expect(summary.evaluationCount).toBe(0);
       expect(summary.recommendCount).toBe(0);
       expect(summary.averageOverall).toBeNull();

@@ -308,25 +308,23 @@ export class JobPostingService {
     // and the notification stays PENDING — defeating the
     // AcceptanceExpiryWorker fast-path contract this branch is meant to
     // honour.
-    const expiredNotifId = await this.tenantPrisma.executeInTenantContext(
-      async (client) => {
-        const notif = (await client.$queryRawUnsafe(
-          `SELECT id, response, acceptance_window_expires_at
+    const expiredNotifId = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const notif = (await client.$queryRawUnsafe(
+        `SELECT id, response, acceptance_window_expires_at
            FROM sub_job_notifications
            WHERE job_id = $1::uuid AND substitute_id = $2::uuid`,
-          jobId,
-          profile.id,
-        )) as Array<{
-          id: string;
-          response: string;
-          acceptance_window_expires_at: string;
-        }>;
-        if (notif.length === 0) return null;
-        if (notif[0]!.response !== 'PENDING') return null;
-        const expiresAt = new Date(notif[0]!.acceptance_window_expires_at);
-        return Date.now() > expiresAt.getTime() ? notif[0]!.id : null;
-      },
-    );
+        jobId,
+        profile.id,
+      )) as Array<{
+        id: string;
+        response: string;
+        acceptance_window_expires_at: string;
+      }>;
+      if (notif.length === 0) return null;
+      if (notif[0]!.response !== 'PENDING') return null;
+      const expiresAt = new Date(notif[0]!.acceptance_window_expires_at);
+      return Date.now() > expiresAt.getTime() ? notif[0]!.id : null;
+    });
     if (expiredNotifId) {
       await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
         await tx.$executeRawUnsafe(

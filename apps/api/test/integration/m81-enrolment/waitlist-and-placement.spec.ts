@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -24,16 +20,8 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  parentActor,
-  teacherActor,
-  TEST_PARENT_PERSON_ID,
-} from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { adminActor, parentActor, teacherActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 5 — m81-enrolment WaitlistService DB-backed integration tests.
@@ -79,10 +67,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
     kafka = makeRecordingKafka();
     outbox = new OutboxService();
     capacity = new CapacitySummaryService();
-    onboarding = new OnboardingService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    onboarding = new OnboardingService(tenantPrisma, kafka as unknown as KafkaProducerService);
     appService = new ApplicationService(
       tenantPrisma,
       kafka as unknown as KafkaProducerService,
@@ -109,43 +94,23 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_task_completions`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
     await rawClient.$executeRawUnsafe(
       `TRUNCATE ${TEST_SCHEMA}.pay_family_account_students, ${TEST_SCHEMA}.pay_family_accounts CASCADE`,
     );
@@ -180,15 +145,17 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
    * Seed a WAITLISTED application in the given period + grade, and the
    * matching enr_waitlist_entries row. Returns ids for downstream tests.
    */
-  async function seedWaitlistEntry(opts: {
-    periodId?: string;
-    schoolId?: string;
-    gradeLevel?: string;
-    position?: number;
-    priorityScore?: number;
-    firstName?: string;
-    parentOwned?: boolean;
-  } = {}): Promise<{ applicationId: string; entryId: string }> {
+  async function seedWaitlistEntry(
+    opts: {
+      periodId?: string;
+      schoolId?: string;
+      gradeLevel?: string;
+      position?: number;
+      priorityScore?: number;
+      firstName?: string;
+      parentOwned?: boolean;
+    } = {},
+  ): Promise<{ applicationId: string; entryId: string }> {
     const periodId = opts.periodId ?? periodAId;
     const schoolId = opts.schoolId ?? TEST_SCHOOL_ID;
     const grade = opts.gradeLevel ?? '5';
@@ -290,10 +257,9 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
     it('parent → ForbiddenException', async () => {
       await seedWaitlistEntry({ parentOwned: true });
       await expect(
-        withTestTenant(
-          async () => waitlist.list({}, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => waitlist.list({}, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -317,11 +283,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
     it('admin promotes ACTIVE waitlist entry → OFFERED + application ACCEPTED + offer issued', async () => {
       const { applicationId, entryId } = await seedWaitlistEntry();
       const dto = await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       expect(dto.status).toBe('OFFERED');
       expect(dto.offeredAt).not.toBeNull();
@@ -419,11 +381,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
     it('entry already OFFERED → BadRequest (state machine)', async () => {
       const { entryId } = await seedWaitlistEntry();
       await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -471,11 +429,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
       );
       const { entryId } = await seedWaitlistEntry();
       await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const sumRows = await rawClient.$queryRawUnsafe<
         Array<{ offers_issued: number; waitlisted: number }>
@@ -508,11 +462,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
       // `getCurrentTenant().schoolId` is School A). This DOCUMENTS the bug;
       // post-fix the test should flip to expecting NotFound / 404.
       const result = await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       expect(result.status).toBe('OFFERED');
       // The offer row was inserted with School A's school_id (cross-tenant
@@ -545,11 +495,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
       const { applicationId, entryId } = await seedWaitlistEntry({ parentOwned: true });
       // Stamp guardian_person_id since seedWaitlistEntry took parentOwned=true.
       const offered = await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       expect(offered.status).toBe('OFFERED');
 
@@ -561,11 +507,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
 
       const accepted = await withTestTenant(
         async () =>
-          offerService.respond(
-            offerId,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offerId, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(accepted.status).toBe('ACCEPTED');
@@ -588,11 +530,7 @@ describe('integration:m81-enrolment/waitlist-and-placement', () => {
     it('placement chain: parent declines from waitlist → offer DECLINED, application stays ACCEPTED', async () => {
       const { applicationId, entryId } = await seedWaitlistEntry({ parentOwned: true });
       await withTestTenant(async () =>
-        waitlist.offerFromWaitlist(
-          entryId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        waitlist.offerFromWaitlist(entryId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const offerRows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT id::text AS id FROM ${TEST_SCHEMA}.enr_offers WHERE application_id = $1::uuid`,

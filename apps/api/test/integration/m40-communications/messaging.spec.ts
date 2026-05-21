@@ -313,14 +313,14 @@ describe('integration:m40-communications/messaging', () => {
       expect(ids).not.toContain(t2);
     });
 
-    it('non-participant non-admin getById → NotFoundException (don\'t leak existence)', async () => {
+    it("non-participant non-admin getById → NotFoundException (don't leak existence)", async () => {
       const t = await seedThread({ subject: 'hidden' });
       await expect(
         withTestTenant(async () => threads.getById(t, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('admin viewing a thread they\'re not in writes msg_admin_access_log', async () => {
+    it("admin viewing a thread they're not in writes msg_admin_access_log", async () => {
       const t = await seedThread({
         creatorAccountId: TEST_TEACHER_ACCOUNT_ID,
         subject: 'audit me',
@@ -439,9 +439,7 @@ describe('integration:m40-communications/messaging', () => {
     it('non-participant tries to post → ForbiddenException', async () => {
       const tid = await seedThread();
       await expect(
-        withTestTenant(async () =>
-          messages.post(tid, { body: 'hi' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => messages.post(tid, { body: 'hi' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -450,9 +448,7 @@ describe('integration:m40-communications/messaging', () => {
         participants: [{ platformUserId: TEST_TEACHER_ACCOUNT_ID, role: 'OBSERVER' }],
       });
       await expect(
-        withTestTenant(async () =>
-          messages.post(tid, { body: 'hi' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => messages.post(tid, { body: 'hi' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -481,9 +477,7 @@ describe('integration:m40-communications/messaging', () => {
         TEST_ADMIN_ACCOUNT_ID,
       );
       await expect(
-        withTestTenant(async () =>
-          messages.post(tid, { body: 'hi' } as any, adminActor()),
-        ),
+        withTestTenant(async () => messages.post(tid, { body: 'hi' } as any, adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -626,9 +620,7 @@ describe('integration:m40-communications/messaging', () => {
         messages.post(tid, { body: 'admin wrote' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          messages.edit(m.id, { body: 'hacked' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => messages.edit(m.id, { body: 'hacked' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -678,7 +670,7 @@ describe('integration:m40-communications/messaging', () => {
       expect(del2.isDeleted).toBe(true);
     });
 
-    it('admin soft-deletes someone else\'s message', async () => {
+    it("admin soft-deletes someone else's message", async () => {
       const tid = await seedThread({
         creatorAccountId: TEST_TEACHER_ACCOUNT_ID,
         participants: [{ platformUserId: TEST_ADMIN_ACCOUNT_ID }],
@@ -781,10 +773,7 @@ describe('integration:m40-communications/messaging', () => {
     it('listRecipients on unknown type → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          threads.listRecipients(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          threads.listRecipients('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

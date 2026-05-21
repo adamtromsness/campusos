@@ -8,11 +8,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { IdempotencyService, KafkaConsumerService } from '@shared/kafka';
 import type { ConsumedMessage } from '@shared/kafka';
 
-import {
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-  TEST_SUBDOMAIN,
-} from '../helpers/tenant-context';
+import { TEST_SCHOOL_ID, TEST_SCHEMA, TEST_SUBDOMAIN } from '../helpers/tenant-context';
 
 const CONSUMER_GROUP = 'gl-consumer';
 

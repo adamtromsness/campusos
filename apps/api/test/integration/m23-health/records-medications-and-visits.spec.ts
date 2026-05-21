@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -61,13 +57,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
     const guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     const outbox = new OutboxService();
     accessLog = new HealthAccessLogService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     kafka = new RecordingKafkaProducer();
     conditions = new ConditionService(tenantPrisma, accessLog, records);
     medications = new MedicationService(tenantPrisma, accessLog, records);
@@ -125,9 +115,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       `DELETE FROM ${TEST_SCHEMA}.hlth_student_health_records WHERE student_id IN
          (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'RM-%')`,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'RM-%'`,
     );
@@ -244,9 +232,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
 
       await withTestTenant(async () => conditions.remove(c.id, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          conditions.update(c.id, { severity: 'MILD' }, adminActor()),
-        ),
+        withTestTenant(async () => conditions.update(c.id, { severity: 'MILD' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -263,11 +249,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       const c = await withTestTenant(async () =>
-        conditions.create(
-          studentId,
-          { conditionName: 'Asthma', severity: 'MILD' },
-          adminActor(),
-        ),
+        conditions.create(studentId, { conditionName: 'Asthma', severity: 'MILD' }, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -291,11 +273,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const studentId = await seedStudent();
       await seedHealthRecord(studentId);
       const c = await withTestTenant(async () =>
-        conditions.create(
-          studentId,
-          { conditionName: 'Asthma', severity: 'MILD' },
-          adminActor(),
-        ),
+        conditions.create(studentId, { conditionName: 'Asthma', severity: 'MILD' }, adminActor()),
       );
       const u = await withTestTenant(async () => conditions.update(c.id, {}, adminActor()));
       expect(u.id).toBe(c.id);
@@ -362,11 +340,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const studentId = await seedStudent();
       await seedHealthRecord(studentId);
       const m = await withTestTenant(async () =>
-        medications.create(
-          studentId,
-          { medicationName: 'X', route: 'ORAL' },
-          adminActor(),
-        ),
+        medications.create(studentId, { medicationName: 'X', route: 'ORAL' }, adminActor()),
       );
       const u = await withTestTenant(async () => medications.update(m.id, {}, adminActor()));
       expect(u.id).toBe(m.id);
@@ -374,9 +348,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
 
     it('update missing → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          medications.update(generateId(), { dosage: 'x' }, adminActor()),
-        ),
+        withTestTenant(async () => medications.update(generateId(), { dosage: 'x' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -385,11 +357,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       await seedHealthRecord(studentId);
       await expect(
         withTestTenant(async () =>
-          medications.create(
-            studentId,
-            { medicationName: 'X', route: 'ORAL' },
-            teacherActor(),
-          ),
+          medications.create(studentId, { medicationName: 'X', route: 'ORAL' }, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -406,11 +374,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const studentId = await seedStudent();
       await seedHealthRecord(studentId);
       const m = await withTestTenant(async () =>
-        medications.create(
-          studentId,
-          { medicationName: 'X', route: 'ORAL' },
-          adminActor(),
-        ),
+        medications.create(studentId, { medicationName: 'X', route: 'ORAL' }, adminActor()),
       );
       const r = await withTestTenant(async () => medications.loadStudentForMedication(m.id));
       expect(r.studentId).toBe(studentId);
@@ -428,11 +392,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const studentId = await seedStudent();
       await seedHealthRecord(studentId);
       const m = await withTestTenant(async () =>
-        medications.create(
-          studentId,
-          { medicationName: 'Ritalin', route: 'ORAL' },
-          adminActor(),
-        ),
+        medications.create(studentId, { medicationName: 'Ritalin', route: 'ORAL' }, adminActor()),
       );
       return { studentId, medicationId: m.id };
     }
@@ -540,11 +500,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const { medicationId } = await seedMedWithSlot();
       await expect(
         withTestTenant(async () =>
-          administrations.administer(
-            medicationId,
-            { scheduleEntryId: generateId() },
-            adminActor(),
-          ),
+          administrations.administer(medicationId, { scheduleEntryId: generateId() }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -555,17 +511,13 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
         medications.update(medicationId, { isActive: false }, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          administrations.administer(medicationId, {}, adminActor()),
-        ),
+        withTestTenant(async () => administrations.administer(medicationId, {}, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('administer on missing medication → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          administrations.administer(generateId(), {}, adminActor()),
-        ),
+        withTestTenant(async () => administrations.administer(generateId(), {}, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -610,42 +562,30 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
 
     it('listForMedication: admin gets history; teacher → Forbidden', async () => {
       const { medicationId } = await seedMedWithSlot();
-      await withTestTenant(async () =>
-        administrations.administer(medicationId, {}, adminActor()),
-      );
+      await withTestTenant(async () => administrations.administer(medicationId, {}, adminActor()));
       const list = await withTestTenant(async () =>
         administrations.listForMedication(medicationId, adminActor()),
       );
       expect(list.length).toBeGreaterThanOrEqual(1);
 
       await expect(
-        withTestTenant(async () =>
-          administrations.listForMedication(medicationId, teacherActor()),
-        ),
+        withTestTenant(async () => administrations.listForMedication(medicationId, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('getDashboard returns rows with PENDING / ADMINISTERED / MISSED status', async () => {
       const { medicationId, slotId } = await seedMedWithSlot();
       // Slot exists, no administration → PENDING
-      const dash1 = await withTestTenant(async () =>
-        administrations.getDashboard(adminActor()),
-      );
+      const dash1 = await withTestTenant(async () => administrations.getDashboard(adminActor()));
       const slot1 = dash1.find((r) => r.scheduleEntryId === slotId);
       // The slot may or may not be PENDING depending on day_of_week match.
       // With day_of_week NULL it should appear.
       if (slot1) expect(['PENDING', 'ADMINISTERED', 'MISSED']).toContain(slot1.status);
 
       await withTestTenant(async () =>
-        administrations.administer(
-          medicationId,
-          { scheduleEntryId: slotId },
-          adminActor(),
-        ),
+        administrations.administer(medicationId, { scheduleEntryId: slotId }, adminActor()),
       );
-      const dash2 = await withTestTenant(async () =>
-        administrations.getDashboard(adminActor()),
-      );
+      const dash2 = await withTestTenant(async () => administrations.getDashboard(adminActor()));
       const slot2 = dash2.find((r) => r.scheduleEntryId === slotId);
       if (slot2) expect(slot2.status).toBe('ADMINISTERED');
     });
@@ -663,10 +603,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
     it('admin signs in a student visit → status IN_PROGRESS', async () => {
       const studentId = await seedStudent();
       const v = await withTestTenant(async () =>
-        visits.create(
-          { visitedPersonId: studentId, reason: 'Stomach ache' },
-          adminActor(),
-        ),
+        visits.create({ visitedPersonId: studentId, reason: 'Stomach ache' }, adminActor()),
       );
       expect(v.status).toBe('IN_PROGRESS');
       expect(v.visitedPersonType).toBe('STUDENT');
@@ -688,9 +625,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
 
     it('create with bad student id → BadRequest', async () => {
       await expect(
-        withTestTenant(async () =>
-          visits.create({ visitedPersonId: generateId() }, adminActor()),
-        ),
+        withTestTenant(async () => visits.create({ visitedPersonId: generateId() }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -709,9 +644,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const studentId = await seedStudent();
       const noEmp = { ...adminActor(), employeeId: null };
       await expect(
-        withTestTenant(async () =>
-          visits.create({ visitedPersonId: studentId }, noEmp),
-        ),
+        withTestTenant(async () => visits.create({ visitedPersonId: studentId }, noEmp)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -760,9 +693,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const v = await withTestTenant(async () =>
         visits.create({ visitedPersonId: studentId }, adminActor()),
       );
-      await withTestTenant(async () =>
-        visits.update(v.id, { sentHome: true }, adminActor()),
-      );
+      await withTestTenant(async () => visits.update(v.id, { sentHome: true }, adminActor()));
       kafka.reset();
       const r = await withTestTenant(async () =>
         visits.update(v.id, { sentHome: false }, adminActor()),
@@ -778,21 +709,15 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const v = await withTestTenant(async () =>
         visits.create({ visitedPersonId: studentId }, adminActor()),
       );
-      await withTestTenant(async () =>
-        visits.update(v.id, { signOut: true }, adminActor()),
-      );
+      await withTestTenant(async () => visits.update(v.id, { signOut: true }, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          visits.update(v.id, { signOut: true }, adminActor()),
-        ),
+        withTestTenant(async () => visits.update(v.id, { signOut: true }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('update missing visit → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          visits.update(generateId(), { reason: 'x' }, adminActor()),
-        ),
+        withTestTenant(async () => visits.update(generateId(), { reason: 'x' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -801,9 +726,7 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const v = await withTestTenant(async () =>
         visits.create({ visitedPersonId: studentId }, adminActor()),
       );
-      const r = await withTestTenant(async () =>
-        visits.update(v.id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => visits.update(v.id, {}, adminActor()));
       expect(r.id).toBe(v.id);
     });
 
@@ -826,14 +749,9 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
 
     it('list filters fromDate + toDate + limit clamp', async () => {
       const studentId = await seedStudent();
-      await withTestTenant(async () =>
-        visits.create({ visitedPersonId: studentId }, adminActor()),
-      );
+      await withTestTenant(async () => visits.create({ visitedPersonId: studentId }, adminActor()));
       const r = await withTestTenant(async () =>
-        visits.list(
-          { fromDate: '2024-01-01', toDate: '2099-01-01', limit: 9999 },
-          adminActor(),
-        ),
+        visits.list({ fromDate: '2024-01-01', toDate: '2099-01-01', limit: 9999 }, adminActor()),
       );
       expect(r.length).toBeLessThanOrEqual(500);
     });
@@ -846,21 +764,15 @@ describe('integration:m23-health/records-medications-conditions-visits', () => {
       const inProgress = await withTestTenant(async () => visits.roster(adminActor()));
       expect(inProgress.find((x) => x.id === v.id)).toBeDefined();
 
-      await withTestTenant(async () =>
-        visits.update(v.id, { signOut: true }, adminActor()),
-      );
+      await withTestTenant(async () => visits.update(v.id, { signOut: true }, adminActor()));
       const after = await withTestTenant(async () => visits.roster(adminActor()));
       expect(after.find((x) => x.id === v.id)).toBeUndefined();
     });
 
     it('listForStudent + audit row', async () => {
       const studentId = await seedStudent();
-      await withTestTenant(async () =>
-        visits.create({ visitedPersonId: studentId }, adminActor()),
-      );
-      const list = await withTestTenant(async () =>
-        visits.listForStudent(studentId, adminActor()),
-      );
+      await withTestTenant(async () => visits.create({ visitedPersonId: studentId }, adminActor()));
+      const list = await withTestTenant(async () => visits.listForStudent(studentId, adminActor()));
       expect(list.length).toBeGreaterThanOrEqual(1);
     });
 

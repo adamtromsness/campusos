@@ -58,9 +58,7 @@ describe('integration:m22-scheduling/rotations', () => {
     coteachingService = new CoTeachingService(tenantPrisma);
 
     // Wipe.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_room_change_requests WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -139,9 +137,7 @@ describe('integration:m22-scheduling/rotations', () => {
   });
 
   afterAll(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_room_change_requests WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -179,9 +175,7 @@ describe('integration:m22-scheduling/rotations', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_coteaching_arrangements`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_room_change_requests WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -222,43 +216,28 @@ describe('integration:m22-scheduling/rotations', () => {
     it('non-admin → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          rotationService.createCycle(
-            { name: 'X', cycleLength: 2 } as any,
-            teacherActor(),
-          ),
+          rotationService.createCycle({ name: 'X', cycleLength: 2 } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('duplicate name → ConflictException', async () => {
       await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Cycle A', cycleLength: 6 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Cycle A', cycleLength: 6 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          rotationService.createCycle(
-            { name: 'Cycle A', cycleLength: 6 } as any,
-            adminActor(),
-          ),
+          rotationService.createCycle({ name: 'Cycle A', cycleLength: 6 } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('listCycles only returns current-school cycles', async () => {
       const a = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'A', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'A', cycleLength: 2 } as any, adminActor()),
       );
       const b = await withTestTenantB(async () =>
-        rotationService.createCycle(
-          { name: 'B', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'B', cycleLength: 2 } as any, adminActor()),
       );
       const aList = await withTestTenant(async () => rotationService.listCycles());
       expect(aList.map((c) => c.id)).toContain(a.id);
@@ -277,10 +256,7 @@ describe('integration:m22-scheduling/rotations', () => {
   describe('RotationService.updateCycle', () => {
     it('admin updates name + isActive', async () => {
       const dto = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Orig', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Orig', cycleLength: 2 } as any, adminActor()),
       );
       const upd = await withTestTenant(async () =>
         rotationService.updateCycle(
@@ -295,10 +271,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('updateCycle with no fields → returns existing', async () => {
       const dto = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'NoOp', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'NoOp', cycleLength: 2 } as any, adminActor()),
       );
       const got = await withTestTenant(async () =>
         rotationService.updateCycle(dto.id, {} as any, adminActor()),
@@ -308,10 +281,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('updateCycle non-admin → ForbiddenException', async () => {
       const dto = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Cyc', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Cyc', cycleLength: 2 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -336,10 +306,7 @@ describe('integration:m22-scheduling/rotations', () => {
   describe('RotationService.calendar', () => {
     it('upsert and list calendar entries', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'C2', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'C2', cycleLength: 2 } as any, adminActor()),
       );
       const entry = await withTestTenant(async () =>
         rotationService.upsertCalendarEntry(
@@ -369,10 +336,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('upsertCalendarEntry with rotationDay > cycleLength → BadRequest', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'C3', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'C3', cycleLength: 2 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -387,10 +351,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('non-admin upsertCalendarEntry → ForbiddenException', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'C4', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'C4', cycleLength: 2 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -405,10 +366,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('deleteCalendarEntry succeeds then 404', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'C5', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'C5', cycleLength: 2 } as any, adminActor()),
       );
       await withTestTenant(async () =>
         rotationService.upsertCalendarEntry(
@@ -430,10 +388,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('generateCalendar populates Mon-Fri across range with round-robin', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Gen Cycle', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Gen Cycle', cycleLength: 2 } as any, adminActor()),
       );
       const result = await withTestTenant(async () =>
         rotationService.generateCalendar(
@@ -467,10 +422,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('generateCalendar with closure dates marks isSchoolDay=false', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Gen Closure', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Gen Closure', cycleLength: 2 } as any, adminActor()),
       );
       const result = await withTestTenant(async () =>
         rotationService.generateCalendar(
@@ -489,10 +441,7 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('generateCalendar endDate before startDate → BadRequest', async () => {
       const cycle = await withTestTenant(async () =>
-        rotationService.createCycle(
-          { name: 'Gen Bad', cycleLength: 2 } as any,
-          adminActor(),
-        ),
+        rotationService.createCycle({ name: 'Gen Bad', cycleLength: 2 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -652,11 +601,7 @@ describe('integration:m22-scheduling/rotations', () => {
         ),
       );
       const approved = await withTestTenant(async () =>
-        roomChangeService.approve(
-          req.id,
-          { reviewNotes: 'ok' } as any,
-          adminActor(),
-        ),
+        roomChangeService.approve(req.id, { reviewNotes: 'ok' } as any, adminActor()),
       );
       expect(approved.status).toBe('APPROVED');
       expect(approved.reviewNotes).toBe('ok');
@@ -674,9 +619,7 @@ describe('integration:m22-scheduling/rotations', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          roomChangeService.approve(req.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => roomChangeService.approve(req.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -692,11 +635,7 @@ describe('integration:m22-scheduling/rotations', () => {
         ),
       );
       const approved = await withTestTenant(async () =>
-        roomChangeService.approve(
-          req.id,
-          { approvedRoomId: roomBId } as any,
-          adminActor(),
-        ),
+        roomChangeService.approve(req.id, { approvedRoomId: roomBId } as any, adminActor()),
       );
       expect(approved.status).toBe('APPROVED');
       expect(approved.requestedRoomId).toBe(roomBId);
@@ -714,13 +653,9 @@ describe('integration:m22-scheduling/rotations', () => {
           teacherActor(),
         ),
       );
-      await withTestTenant(async () =>
-        roomChangeService.approve(req.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => roomChangeService.approve(req.id, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          roomChangeService.approve(req.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => roomChangeService.approve(req.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -749,9 +684,7 @@ describe('integration:m22-scheduling/rotations', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          roomChangeService.approve(req.id, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => roomChangeService.approve(req.id, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -768,11 +701,7 @@ describe('integration:m22-scheduling/rotations', () => {
         ),
       );
       const rejected = await withTestTenant(async () =>
-        roomChangeService.reject(
-          req.id,
-          { reviewNotes: 'denied' } as any,
-          adminActor(),
-        ),
+        roomChangeService.reject(req.id, { reviewNotes: 'denied' } as any, adminActor()),
       );
       expect(rejected.status).toBe('REJECTED');
       expect(rejected.reviewNotes).toBe('denied');
@@ -790,13 +719,9 @@ describe('integration:m22-scheduling/rotations', () => {
           teacherActor(),
         ),
       );
-      await withTestTenant(async () =>
-        roomChangeService.reject(req.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => roomChangeService.reject(req.id, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          roomChangeService.reject(req.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => roomChangeService.reject(req.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -828,13 +753,16 @@ describe('integration:m22-scheduling/rotations', () => {
 
     it('non-admin without employeeId → []', async () => {
       const result = await withTestTenant(async () =>
-        roomChangeService.list({} as any, {
-          accountId: '00000000-0000-0000-0000-000000000999',
-          personId: '00000000-0000-0000-0000-000000000888',
-          employeeId: null,
-          personType: 'STAFF',
-          isSchoolAdmin: false,
-        } as any),
+        roomChangeService.list(
+          {} as any,
+          {
+            accountId: '00000000-0000-0000-0000-000000000999',
+            personId: '00000000-0000-0000-0000-000000000888',
+            employeeId: null,
+            personType: 'STAFF',
+            isSchoolAdmin: false,
+          } as any,
+        ),
       );
       expect(result).toEqual([]);
     });

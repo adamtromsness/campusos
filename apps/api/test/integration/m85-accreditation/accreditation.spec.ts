@@ -285,9 +285,11 @@ describe('integration:m85-accreditation/services', () => {
         frameworks.listStandardsForFramework(adminActor(), TEST_PLATFORM_FRAMEWORK_ID),
       );
       const ours = out.filter((s) =>
-        [TEST_PLATFORM_STANDARD_A_ID, TEST_PLATFORM_STANDARD_B_ID, TEST_PLATFORM_STANDARD_C_ID].includes(
-          s.id,
-        ),
+        [
+          TEST_PLATFORM_STANDARD_A_ID,
+          TEST_PLATFORM_STANDARD_B_ID,
+          TEST_PLATFORM_STANDARD_C_ID,
+        ].includes(s.id),
       );
       expect(ours.length).toBe(3);
       expect(ours[0]!.source).toBe('PLATFORM');
@@ -326,9 +328,7 @@ describe('integration:m85-accreditation/services', () => {
         frameworks.createCustomFramework(adminActor(), { name: 'School B custom' } as any),
       );
       await expect(
-        withTestTenant(async () =>
-          frameworks.listStandardsForFramework(adminActor(), f.id),
-        ),
+        withTestTenant(async () => frameworks.listStandardsForFramework(adminActor(), f.id)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -358,9 +358,7 @@ describe('integration:m85-accreditation/services', () => {
       const f = await withTestTenant(async () =>
         frameworks.createCustomFramework(adminActor(), { name: 'Custom' } as any),
       );
-      const s = await withTestTenant(async () =>
-        frameworks.getStandardById(adminActor(), f.id),
-      );
+      const s = await withTestTenant(async () => frameworks.getStandardById(adminActor(), f.id));
       expect(s.source).toBe('TENANT');
       expect(s.standardCode).toBe('Custom');
     });
@@ -683,9 +681,7 @@ describe('integration:m85-accreditation/services', () => {
       await withTestTenant(async () =>
         evidence.review(adminActor(), made.id, { status: 'SUBMITTED' } as any),
       );
-      const drafts = await withTestTenant(async () =>
-        evidence.listByStatus(adminActor(), 'DRAFT'),
-      );
+      const drafts = await withTestTenant(async () => evidence.listByStatus(adminActor(), 'DRAFT'));
       const submitted = await withTestTenant(async () =>
         evidence.listByStatus(adminActor(), 'SUBMITTED'),
       );
@@ -928,9 +924,7 @@ describe('integration:m85-accreditation/services', () => {
     }
 
     it('future targetDate → initial PLANNED', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       expect(ap.status).toBe('PLANNED');
       expect(ap.actions.length).toBe(2);
     });
@@ -972,10 +966,7 @@ describe('integration:m85-accreditation/services', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         withTestTenant(async () =>
-          actionPlans.create(
-            adminActor(),
-            dto({ actions: [{ description: 'no due' }] }),
-          ),
+          actionPlans.create(adminActor(), dto({ actions: [{ description: 'no due' }] })),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
@@ -983,9 +974,7 @@ describe('integration:m85-accreditation/services', () => {
           actionPlans.create(
             adminActor(),
             dto({
-              actions: [
-                { description: 'bad status', due_date: isoDate(1), status: 'NOPE' },
-              ],
+              actions: [{ description: 'bad status', due_date: isoDate(1), status: 'NOPE' }],
             }),
           ),
         ),
@@ -993,9 +982,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('FSM allowed forward transitions PLANNED → IN_PROGRESS → COMPLETE', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       const a = await withTestTenant(async () =>
         actionPlans.update(adminActor(), ap.id, { status: 'IN_PROGRESS' } as any),
       );
@@ -1007,9 +994,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('FSM forbidden transitions throw 400', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       // PLANNED → COMPLETE is allowed; force into COMPLETE then attempt transition
       await withTestTenant(async () =>
         actionPlans.update(adminActor(), ap.id, { status: 'COMPLETE' } as any),
@@ -1022,9 +1007,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('cannot delete a COMPLETE action plan', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       await withTestTenant(async () =>
         actionPlans.update(adminActor(), ap.id, { status: 'COMPLETE' } as any),
       );
@@ -1034,9 +1017,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('delete a PLANNED plan succeeds', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       await withTestTenant(async () => actionPlans.delete(adminActor(), ap.id));
       await expect(
         withTestTenant(async () => actionPlans.getById(adminActor(), ap.id)),
@@ -1080,9 +1061,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('updateSubAction out-of-bounds index → BadRequestException', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       await expect(
         withTestTenant(async () =>
           actionPlans.updateSubAction(adminActor(), ap.id, { index: 99 } as any),
@@ -1091,9 +1070,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('update with no fields returns existing untouched', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       const same = await withTestTenant(async () =>
         actionPlans.update(adminActor(), ap.id, {} as any),
       );
@@ -1106,13 +1083,9 @@ describe('integration:m85-accreditation/services', () => {
       await withTestTenant(async () =>
         actionPlans.create(adminActor(), dto({ targetDate: isoDate(-1) })),
       );
-      const planned = await withTestTenant(async () =>
-        actionPlans.list(adminActor(), 'PLANNED'),
-      );
+      const planned = await withTestTenant(async () => actionPlans.list(adminActor(), 'PLANNED'));
       expect(planned.length).toBe(1);
-      const overdue = await withTestTenant(async () =>
-        actionPlans.list(adminActor(), 'OVERDUE'),
-      );
+      const overdue = await withTestTenant(async () => actionPlans.list(adminActor(), 'OVERDUE'));
       expect(overdue.length).toBe(1);
       const all = await withTestTenant(async () => actionPlans.list(adminActor()));
       expect(all.length).toBe(2);
@@ -1122,9 +1095,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('update responsibleParty path also validates cross-tenant', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       await expect(
         withTestTenant(async () =>
           actionPlans.update(adminActor(), ap.id, {
@@ -1135,9 +1106,7 @@ describe('integration:m85-accreditation/services', () => {
     });
 
     it('update goal + notes + targetDate + actions all flow through', async () => {
-      const ap = await withTestTenant(async () =>
-        actionPlans.create(adminActor(), dto()),
-      );
+      const ap = await withTestTenant(async () => actionPlans.create(adminActor(), dto()));
       const updated = await withTestTenant(async () =>
         actionPlans.update(adminActor(), ap.id, {
           goal: 'New goal',
@@ -1173,9 +1142,7 @@ describe('integration:m85-accreditation/services', () => {
       // No ratings yet → 0% readiness
       expect(visit.readinessScore).toBe(0);
 
-      const got = await withTestTenant(async () =>
-        siteVisits.getById(adminActor(), visit.id),
-      );
+      const got = await withTestTenant(async () => siteVisits.getById(adminActor(), visit.id));
       expect(got.id).toBe(visit.id);
 
       const list = await withTestTenant(async () => siteVisits.list(adminActor()));
@@ -1294,9 +1261,7 @@ describe('integration:m85-accreditation/services', () => {
       await withTestTenant(async () =>
         siteVisits.update(adminActor(), v.id, { status: 'VISIT_COMPLETE' } as any),
       );
-      const scoreFrozen = await withTestTenant(async () =>
-        siteVisits.getById(adminActor(), v.id),
-      );
+      const scoreFrozen = await withTestTenant(async () => siteVisits.getById(adminActor(), v.id));
       expect(scoreFrozen.readinessScore).toBe(0);
 
       // Now approve some evidence + add rating → recompute fires but
@@ -1326,9 +1291,7 @@ describe('integration:m85-accreditation/services', () => {
         } as any),
       );
 
-      const after = await withTestTenant(async () =>
-        siteVisits.getById(adminActor(), v.id),
-      );
+      const after = await withTestTenant(async () => siteVisits.getById(adminActor(), v.id));
       // recomputeReadinessForSchool only updates non-VISIT_COMPLETE rows
       expect(after.readinessScore).toBe(0);
     });
@@ -1403,10 +1366,12 @@ describe('integration:m85-accreditation/services', () => {
       await seedAdoption(rawClient);
     });
 
-    async function seedInProgress(opts: {
-      schoolId?: string;
-      targetDate?: string;
-    } = {}): Promise<string> {
+    async function seedInProgress(
+      opts: {
+        schoolId?: string;
+        targetDate?: string;
+      } = {},
+    ): Promise<string> {
       const dto = {
         standardId: TEST_PLATFORM_STANDARD_A_ID,
         goal: 'g',
@@ -1440,11 +1405,7 @@ describe('integration:m85-accreditation/services', () => {
     it('tickForSchool flips IN_PROGRESS with past target_date → OVERDUE and enqueues outbox row', async () => {
       const id = await seedInProgress({ targetDate: isoDate(-2) });
 
-      const flipped = await worker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      const flipped = await worker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flipped).toBe(1);
 
       const row = await rawClient.$queryRawUnsafe<Array<{ status: string }>>(
@@ -1470,11 +1431,7 @@ describe('integration:m85-accreditation/services', () => {
 
     it('tickForSchool ignores future-dated IN_PROGRESS plans', async () => {
       await seedInProgress({ targetDate: isoDate(30) });
-      const flipped = await worker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      const flipped = await worker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flipped).toBe(0);
       const outboxRows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT id FROM platform.platform_outbox
@@ -1509,11 +1466,7 @@ describe('integration:m85-accreditation/services', () => {
       // Create a PLANNED future
       await withTestTenant(async () => actionPlans.create(adminActor(), dto({})));
 
-      const flipped = await worker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      const flipped = await worker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flipped).toBe(0);
     });
 
@@ -1572,12 +1525,8 @@ describe('integration:m85-accreditation/services', () => {
         accountB,
       );
       void aPlanId; // referenced to keep TS happy; the assertion below
-                   // checks the B row remained IN_PROGRESS.
-      const flippedA = await worker.tickForSchool(
-        TEST_SCHEMA,
-        TEST_SCHOOL_ID,
-        TEST_SUBDOMAIN,
-      );
+      // checks the B row remained IN_PROGRESS.
+      const flippedA = await worker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(flippedA).toBe(1);
       const bRow = await rawClient.$queryRawUnsafe<Array<{ status: string }>>(
         `SELECT status FROM ${TEST_SCHEMA}.acc_action_plans WHERE id = $1::uuid`,

@@ -107,7 +107,10 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
     rawClient = new PrismaClient();
     await rawClient.$connect();
     kafka = makeRecordingKafka();
-    assignmentService = new AssignmentService(tenantPrisma, kafka as unknown as KafkaProducerService);
+    assignmentService = new AssignmentService(
+      tenantPrisma,
+      kafka as unknown as KafkaProducerService,
+    );
     submissionService = new SubmissionService(
       tenantPrisma,
       assignmentService,
@@ -427,8 +430,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
     it('non-member (student not enrolled) → NotFoundException on list', async () => {
       await expect(
         withTestTenant(
-          async () =>
-            assignmentService.list(TEST_SIS_CLASS_ID, {} as any, studentActor()),
+          async () => assignmentService.list(TEST_SIS_CLASS_ID, {} as any, studentActor()),
           { personId: TEST_STUDENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -445,10 +447,9 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         ),
       );
       await expect(
-        withTestTenant(
-          async () => assignmentService.getById(draft.id, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => assignmentService.getById(draft.id, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -465,7 +466,11 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         withTestTenant(async () => assignmentService.getById(a.id, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       const list = await withTestTenant(async () =>
-        assignmentService.list(TEST_SIS_CLASS_ID, { includeUnpublished: true } as any, adminActor()),
+        assignmentService.list(
+          TEST_SIS_CLASS_ID,
+          { includeUnpublished: true } as any,
+          adminActor(),
+        ),
       );
       expect(list.map((r) => r.id)).not.toContain(a.id);
     });
@@ -547,11 +552,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
 
       const dto = await withTestTenant(
         async () =>
-          submissionService.submit(
-            aid,
-            { submissionText: 'my answer' } as any,
-            studentActor(),
-          ),
+          submissionService.submit(aid, { submissionText: 'my answer' } as any, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       expect(dto.status).toBe('SUBMITTED');
@@ -605,8 +606,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
       const aid = await publishedAssignment();
       await expect(
         withTestTenant(
-          async () =>
-            submissionService.submit(aid, { submissionText: 'x' } as any, studentActor()),
+          async () => submissionService.submit(aid, { submissionText: 'x' } as any, studentActor()),
           { personId: TEST_STUDENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -649,7 +649,8 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
 
       // Only the actor-student submits; peer remains NOT_STARTED.
       await withTestTenant(
-        async () => submissionService.submit(aid, { submissionText: 'mine' } as any, studentActor()),
+        async () =>
+          submissionService.submit(aid, { submissionText: 'mine' } as any, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
 
@@ -675,7 +676,8 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
       expect(before).toBeNull();
 
       await withTestTenant(
-        async () => submissionService.submit(aid, { submissionText: 'mine!' } as any, studentActor()),
+        async () =>
+          submissionService.submit(aid, { submissionText: 'mine!' } as any, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       const after = await withTestTenant(
@@ -729,9 +731,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         rubricService.create(
           {
             title: 'Lopsided',
-            criteria: [
-              { criterionName: 'Only', weight: 60, maxPoints: 10, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'Only', weight: 60, maxPoints: 10, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -747,9 +747,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
             rubricService.create(
               {
                 title: 'Nope',
-                criteria: [
-                  { criterionName: 'X', weight: 100, maxPoints: 10, sortOrder: 0 },
-                ],
+                criteria: [{ criterionName: 'X', weight: 100, maxPoints: 10, sortOrder: 0 }],
               } as any,
               studentActor(),
             ),
@@ -758,14 +756,12 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('non-creator teacher cannot update someone else\'s rubric → ForbiddenException', async () => {
+    it("non-creator teacher cannot update someone else's rubric → ForbiddenException", async () => {
       const created = await withTestTenant(async () =>
         rubricService.create(
           {
             title: 'admin-owned',
-            criteria: [
-              { criterionName: 'A', weight: 100, maxPoints: 10, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'A', weight: 100, maxPoints: 10, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -782,9 +778,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         rubricService.create(
           {
             title: 'will replace',
-            criteria: [
-              { criterionName: 'Original', weight: 100, maxPoints: 10, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'Original', weight: 100, maxPoints: 10, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -813,9 +807,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
           {
             title: 'Source',
             isTemplate: true,
-            criteria: [
-              { criterionName: 'C1', weight: 100, maxPoints: 5, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'C1', weight: 100, maxPoints: 5, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -835,9 +827,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         rubricService.create(
           {
             title: 'goodbye',
-            criteria: [
-              { criterionName: 'X', weight: 100, maxPoints: 1, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'X', weight: 100, maxPoints: 1, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -865,16 +855,15 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         return a.id;
       })();
       const submission = await withTestTenant(
-        async () => submissionService.submit(aid, { submissionText: 'work' } as any, studentActor()),
+        async () =>
+          submissionService.submit(aid, { submissionText: 'work' } as any, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       const rubric = await withTestTenant(async () =>
         rubricService.create(
           {
             title: 'Scorable',
-            criteria: [
-              { criterionName: 'Quality', weight: 100, maxPoints: 10, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'Quality', weight: 100, maxPoints: 10, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),
@@ -936,9 +925,7 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
         rubricService.create(
           {
             title: 'Bound',
-            criteria: [
-              { criterionName: 'Capped', weight: 100, maxPoints: 5, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'Capped', weight: 100, maxPoints: 5, sortOrder: 0 }],
           } as any,
           adminActor(),
         ),

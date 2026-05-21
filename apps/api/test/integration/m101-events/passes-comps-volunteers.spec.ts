@@ -76,12 +76,14 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     return new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
   }
 
-  async function seedEventDirect(opts: {
-    schoolId?: string;
-    eventType?: string;
-    status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
-    eventDate?: string;
-  } = {}): Promise<string> {
+  async function seedEventDirect(
+    opts: {
+      schoolId?: string;
+      eventType?: string;
+      status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+      eventDate?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.evt_events
@@ -676,11 +678,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
         personId,
       );
       const entry = await withTestTenant(async () =>
-        comps.add(
-          eventId,
-          { compType: 'OFFICIAL', personId } as any,
-          adminActor(),
-        ),
+        comps.add(eventId, { compType: 'OFFICIAL', personId } as any, adminActor()),
       );
       expect(entry.compType).toBe('OFFICIAL');
       // Cleanup the platform_official_profiles row directly
@@ -714,11 +712,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
       );
       await expect(
         withTestTenant(async () =>
-          comps.add(
-            eventId,
-            { compType: 'MEDIA', personId: orphanPersonId } as any,
-            adminActor(),
-          ),
+          comps.add(eventId, { compType: 'MEDIA', personId: orphanPersonId } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -734,11 +728,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
       );
       await expect(
         withTestTenant(async () =>
-          comps.add(
-            eventId,
-            { compType: 'STAFF', personId: orphanPersonId } as any,
-            adminActor(),
-          ),
+          comps.add(eventId, { compType: 'STAFF', personId: orphanPersonId } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -845,11 +835,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
       const eventId = await seedEventDirect();
       await expect(
         withTestTenant(async () =>
-          comps.remove(
-            eventId,
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          comps.remove(eventId, '00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -864,10 +850,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
         ),
       );
       const result = await withTestTenant(async () =>
-        comps.gateCheck(
-          { eventId, personId: TEST_ADMIN_PERSON_ID } as any,
-          adminActor(),
-        ),
+        comps.gateCheck({ eventId, personId: TEST_ADMIN_PERSON_ID } as any, adminActor()),
       );
       expect(result.admitted).toBe(true);
       expect(result.compType).toBe('STAFF');
@@ -876,10 +859,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('gateCheck admitted=false when not on list', async () => {
       const eventId = await seedEventDirect();
       const result = await withTestTenant(async () =>
-        comps.gateCheck(
-          { eventId, personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        comps.gateCheck({ eventId, personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
       expect(result.admitted).toBe(false);
     });
@@ -929,11 +909,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
       const eventId = await seedEventDirect();
       await expect(
         withTestTenant(async () =>
-          vols.signUp(
-            eventId,
-            { personId: TEST_ADMIN_PERSON_ID } as any,
-            parentActor(),
-          ),
+          vols.signUp(eventId, { personId: TEST_ADMIN_PERSON_ID } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -941,19 +917,11 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('duplicate (event, person) → ConflictException', async () => {
       const eventId = await seedEventDirect();
       await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          parentActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
       );
       await expect(
         withTestTenant(async () =>
-          vols.signUp(
-            eventId,
-            { personId: TEST_PARENT_PERSON_ID } as any,
-            parentActor(),
-          ),
+          vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -973,11 +941,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('listForEvent returns signed up volunteers', async () => {
       const eventId = await seedEventDirect();
       await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          parentActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
       );
       const list = await withTestTenant(async () => vols.listForEvent(eventId));
       expect(list.length).toBe(1);
@@ -986,11 +950,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('self-cancel allowed', async () => {
       const eventId = await seedEventDirect();
       const dto = await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          parentActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
       );
       const cancelled = await withTestTenant(async () =>
         vols.patch(dto.id, { status: 'CANCELLED' as any } as any, parentActor()),
@@ -1001,11 +961,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('non-owner non-admin cannot patch → ForbiddenException', async () => {
       const eventId = await seedEventDirect();
       const dto = await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          parentActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -1017,11 +973,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('non-admin cannot flip to CONFIRMED → ForbiddenException', async () => {
       const eventId = await seedEventDirect();
       const dto = await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          parentActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, parentActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -1033,11 +985,7 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('admin checkIn stamps timestamp', async () => {
       const eventId = await seedEventDirect();
       const dto = await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
       const checkedIn = await withTestTenant(async () =>
         vols.patch(
@@ -1066,15 +1014,9 @@ describe('integration:m101-events/passes-comps-volunteers', () => {
     it('patch empty body — no-op', async () => {
       const eventId = await seedEventDirect();
       const dto = await withTestTenant(async () =>
-        vols.signUp(
-          eventId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        vols.signUp(eventId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
-      const out = await withTestTenant(async () =>
-        vols.patch(dto.id, {} as any, adminActor()),
-      );
+      const out = await withTestTenant(async () => vols.patch(dto.id, {} as any, adminActor()));
       expect(out.id).toBe(dto.id);
     });
   });

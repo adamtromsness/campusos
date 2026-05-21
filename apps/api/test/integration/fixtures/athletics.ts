@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import { TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 
 /**

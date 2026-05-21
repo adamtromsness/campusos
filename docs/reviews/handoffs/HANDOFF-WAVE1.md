@@ -14,42 +14,42 @@ is green; then the mock is deleted. Tests live under
 
 ## Step status
 
-| Step | Title                                                                       | Status      |
-| ---- | --------------------------------------------------------------------------- | ----------- |
-| 1    | Extend `helpers/tenant-context.ts` with School B + `withTestTenantB`        | ✅          |
-| 2    | Extend `fixtures/platform.ts` with School B (same org, same schema)         | ✅          |
-| 3    | Extend `fixtures/finance.ts` with REVENUE + AP accounts + School B mirror  | ✅          |
-| 4    | Add `helpers/reset.ts::resetFinanceTables` + `resetFinanceAdvancedTables`  | ✅          |
-| 5    | `m83-finance/chart-of-accounts.spec.ts` (FundService + ChartOfAccountsService + PeriodService) | ✅ |
-| 6    | Delete `m83-finance/chart.service.spec.ts` (mock spec)                     | ✅          |
-| 7    | `m83-finance/gl-posting.spec.ts` (PostingService + IMMUTABLE trigger contract on fin_gl_entries) | ✅ |
-| 7a   | Delete `m83-finance/posting.service.spec.ts` (mock spec, 1084 LOC)         | ✅          |
-| 8    | `m83-finance/budget-management.spec.ts` (BudgetService + DepartmentalBudgetService + BudgetTransferService incl. atomic transfer + outbox-in-tx) | ✅ |
-| 8a   | Keep `m83-finance/budgets.service.spec.ts` for now (also covers AP/Reconciliation/Grants; delete in pieces as those surfaces get integration coverage) | ⚠️ deferred |
-| 9    | `m83-finance/gl-reconciliation.spec.ts` (GlReconciliationWorker — 7 check types incl. MISSING/AMOUNT/SIGN/ACCOUNT/SCHOOL mismatches + DUPLICATE_POSTING + ORPHAN_GL_ENTRY + outbox alert) | ✅ |
-| 9a   | Delete `m83-finance/gl-reconciliation.worker.spec.ts` (mock spec, 658 LOC) | ✅          |
-| 9b   | Fix migration 180 (splitter bug — semicolons in COMMENT block) so migrations 180 + 181 apply during fresh provisioning | ✅ |
-| 10   | `m84-payments/invoice-lifecycle.spec.ts` (InvoiceService.create/send/cancel + outbox-in-tx for pay.invoice.created + pay.debt.written_off) | ✅ |
-| 10a  | Keep `m84-payments/invoice.service.spec.ts` for now (also covers generateFromSchedule, not yet replaced) | ⚠️ deferred |
-| 11   | `m84-payments/payment-processing.spec.ts` (PaymentService.pay/list/getById + outbox-in-tx for pay.payment.received + Stripe stub + auth contract) | ✅ |
-| 11a  | Delete `m84-payments/payment.service.spec.ts` (mock spec, 649 LOC — fully replaced) | ✅ |
-| 12   | `m84-payments/refunds-reversals.spec.ts` (RefundService + CreditNoteService + ReversalService incl. IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox for refund / credit-note / reversal events) | ✅ |
-| 12a  | Delete `m84-payments/{refund,credit-note,reversal}.service.spec.ts` (3 mock specs, 1968 LOC — fully replaced) | ✅ |
-| 13   | `m84-payments/lunch-accounts.spec.ts` (LunchAccountService.transfer + deposit/update/listLowBalance/getById/getForStudent incl. IMMUTABLE pay_lunch_account_balance_transfers + Finding 8) | ✅ |
-| 13a  | Delete `m84-payments/lunch-account.service.spec.ts` (mock spec, 1192 LOC — fully replaced) | ✅ |
-| 14   | `m84-payments/payment-plans.spec.ts` (PaymentPlanService.create + getById, atomic plan+installments, residue handling, MONTHLY/QUARTERLY date math, UNIQUE(invoice_id), PAID/CANCELLED rejection) | ✅ |
-| 14a  | Delete `m84-payments/payment-plan.service.spec.ts` (mock spec, 444 LOC — fully replaced) | ✅ |
-| 15   | `m84-payments/financial-aid.spec.ts` (FinancialAidService programmes CRUD + reviewApplication APPROVE/REJECT/UNDER_REVIEW incl. pool exhaustion + two-award accumulation + Finding 9) | ✅ |
-| 15a  | Keep `m84-payments/financial-aid.service.spec.ts` for now (also covers createApplication FK chain not yet replaced) | ⚠️ deferred |
-| 16   | `m84-payments/late-fees.spec.ts` (LateFeeService getPolicy/upsertPolicy/runScan: FIXED + PERCENTAGE_MONTHLY computation, grace, cap, idempotency, status guards, school scope + Finding 10) | ✅ |
-| 16a  | Delete `m84-payments/late-fee.service.spec.ts` (mock spec, 602 LOC — fully replaced) | ✅ |
-| 17   | `m86-procurement/cross-school-and-immutable.spec.ts` (RequisitionService cross-school 404 + list scoping + 4th IMMUTABLE contract fds_inventory_transactions: UPDATE/DELETE → 23001, TRUNCATE bypasses) | ✅ |
-| 17a  | PO cross-school + distribution cross-school deferred (skipped with notes) — existing procurement specs already exercise the same school_id predicates in-tenant; full-DTO cross-school seed is a follow-up slice | ⚠️ deferred |
-| 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
-| 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
-| 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
-| 12   | `m86-procurement/*` (cross-school + IMMUTABLE additions)                   | ⏳ pending  |
-| 13   | Run `pnpm --filter @campusos/api test:integration -- --coverage`           | ⏳ pending  |
+| Step | Title                                                                                                                                                                                                                 | Status      |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 1    | Extend `helpers/tenant-context.ts` with School B + `withTestTenantB`                                                                                                                                                  | ✅          |
+| 2    | Extend `fixtures/platform.ts` with School B (same org, same schema)                                                                                                                                                   | ✅          |
+| 3    | Extend `fixtures/finance.ts` with REVENUE + AP accounts + School B mirror                                                                                                                                             | ✅          |
+| 4    | Add `helpers/reset.ts::resetFinanceTables` + `resetFinanceAdvancedTables`                                                                                                                                             | ✅          |
+| 5    | `m83-finance/chart-of-accounts.spec.ts` (FundService + ChartOfAccountsService + PeriodService)                                                                                                                        | ✅          |
+| 6    | Delete `m83-finance/chart.service.spec.ts` (mock spec)                                                                                                                                                                | ✅          |
+| 7    | `m83-finance/gl-posting.spec.ts` (PostingService + IMMUTABLE trigger contract on fin_gl_entries)                                                                                                                      | ✅          |
+| 7a   | Delete `m83-finance/posting.service.spec.ts` (mock spec, 1084 LOC)                                                                                                                                                    | ✅          |
+| 8    | `m83-finance/budget-management.spec.ts` (BudgetService + DepartmentalBudgetService + BudgetTransferService incl. atomic transfer + outbox-in-tx)                                                                      | ✅          |
+| 8a   | Keep `m83-finance/budgets.service.spec.ts` for now (also covers AP/Reconciliation/Grants; delete in pieces as those surfaces get integration coverage)                                                                | ⚠️ deferred |
+| 9    | `m83-finance/gl-reconciliation.spec.ts` (GlReconciliationWorker — 7 check types incl. MISSING/AMOUNT/SIGN/ACCOUNT/SCHOOL mismatches + DUPLICATE_POSTING + ORPHAN_GL_ENTRY + outbox alert)                             | ✅          |
+| 9a   | Delete `m83-finance/gl-reconciliation.worker.spec.ts` (mock spec, 658 LOC)                                                                                                                                            | ✅          |
+| 9b   | Fix migration 180 (splitter bug — semicolons in COMMENT block) so migrations 180 + 181 apply during fresh provisioning                                                                                                | ✅          |
+| 10   | `m84-payments/invoice-lifecycle.spec.ts` (InvoiceService.create/send/cancel + outbox-in-tx for pay.invoice.created + pay.debt.written_off)                                                                            | ✅          |
+| 10a  | Keep `m84-payments/invoice.service.spec.ts` for now (also covers generateFromSchedule, not yet replaced)                                                                                                              | ⚠️ deferred |
+| 11   | `m84-payments/payment-processing.spec.ts` (PaymentService.pay/list/getById + outbox-in-tx for pay.payment.received + Stripe stub + auth contract)                                                                     | ✅          |
+| 11a  | Delete `m84-payments/payment.service.spec.ts` (mock spec, 649 LOC — fully replaced)                                                                                                                                   | ✅          |
+| 12   | `m84-payments/refunds-reversals.spec.ts` (RefundService + CreditNoteService + ReversalService incl. IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox for refund / credit-note / reversal events) | ✅          |
+| 12a  | Delete `m84-payments/{refund,credit-note,reversal}.service.spec.ts` (3 mock specs, 1968 LOC — fully replaced)                                                                                                         | ✅          |
+| 13   | `m84-payments/lunch-accounts.spec.ts` (LunchAccountService.transfer + deposit/update/listLowBalance/getById/getForStudent incl. IMMUTABLE pay_lunch_account_balance_transfers + Finding 8)                            | ✅          |
+| 13a  | Delete `m84-payments/lunch-account.service.spec.ts` (mock spec, 1192 LOC — fully replaced)                                                                                                                            | ✅          |
+| 14   | `m84-payments/payment-plans.spec.ts` (PaymentPlanService.create + getById, atomic plan+installments, residue handling, MONTHLY/QUARTERLY date math, UNIQUE(invoice_id), PAID/CANCELLED rejection)                     | ✅          |
+| 14a  | Delete `m84-payments/payment-plan.service.spec.ts` (mock spec, 444 LOC — fully replaced)                                                                                                                              | ✅          |
+| 15   | `m84-payments/financial-aid.spec.ts` (FinancialAidService programmes CRUD + reviewApplication APPROVE/REJECT/UNDER_REVIEW incl. pool exhaustion + two-award accumulation + Finding 9)                                 | ✅          |
+| 15a  | Keep `m84-payments/financial-aid.service.spec.ts` for now (also covers createApplication FK chain not yet replaced)                                                                                                   | ⚠️ deferred |
+| 16   | `m84-payments/late-fees.spec.ts` (LateFeeService getPolicy/upsertPolicy/runScan: FIXED + PERCENTAGE_MONTHLY computation, grace, cap, idempotency, status guards, school scope + Finding 10)                           | ✅          |
+| 16a  | Delete `m84-payments/late-fee.service.spec.ts` (mock spec, 602 LOC — fully replaced)                                                                                                                                  | ✅          |
+| 17   | `m86-procurement/cross-school-and-immutable.spec.ts` (RequisitionService cross-school 404 + list scoping + 4th IMMUTABLE contract fds_inventory_transactions: UPDATE/DELETE → 23001, TRUNCATE bypasses)               | ✅          |
+| 17a  | PO cross-school + distribution cross-school deferred (skipped with notes) — existing procurement specs already exercise the same school_id predicates in-tenant; full-DTO cross-school seed is a follow-up slice      | ⚠️ deferred |
+| 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)                                                                                                                                                       | ⏳ pending  |
+| 10   | `m83-finance/journal-batch.spec.ts`                                                                                                                                                                                   | ⏳ pending  |
+| 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                                                                                                                                                                   | ⏳ pending  |
+| 12   | `m86-procurement/*` (cross-school + IMMUTABLE additions)                                                                                                                                                              | ⏳ pending  |
+| 13   | Run `pnpm --filter @campusos/api test:integration -- --coverage`                                                                                                                                                      | ⏳ pending  |
 
 ## Findings (real service bugs surfaced by integration tests) — ALL FIXED
 
@@ -104,7 +104,7 @@ a `FINDING` comment so the bug stays visible and trackable.
 violated the `CLAUDE.md` rule "Never put a `;` inside a string literal or
 block comment" — both the leading `/* ... */` block comment AND the
 `COMMENT ON COLUMN` text contained semicolons. The provisioning splitter
-is line-based; it split mid-comment and errored with "unterminated /*
+is line-based; it split mid-comment and errored with "unterminated /\*
 comment". `pnpm --filter @campusos/database exec tsx
 src/provision-tenant.ts --subdomain=test` failed at migration 180,
 blocking 181 and any later migration from applying to a fresh schema.
@@ -141,9 +141,9 @@ school isolation. In production each school has its own tenant schema
 so this is harmless. In the integration harness, however, School A and
 School B share the same `tenant_test` schema (different `school_id` rows
 but one schema), so a run scoped to School B still sees School A's
-pay_invoices and flags them as MISSING_GL_ENTRY. Belt-and-braces fix is
+pay*invoices and flags them as MISSING_GL_ENTRY. Belt-and-braces fix is
 to add the school predicate to every source SELECT. Captured in the
-runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
+runOnce test by NOT seeding any pay*\* rows — once Finding 5 is fixed,
 the test can seed differently and assert true cross-school isolation.
 
 ### Finding 10 — LateFeeService.upsertPolicy INSERT path parameter-count mismatch
@@ -221,7 +221,7 @@ predicate. Same model as Finding 5 — relies on schema-per-school
 isolation. The integration suite shows the leak directly: an admin
 scoped to School A sees an invoice created under School B. Belt-and-
 braces fix is one SQL predicate. The `cross-school isolation` test
-in `invoice-lifecycle.spec.ts` currently asserts the *current* (leaky)
+in `invoice-lifecycle.spec.ts` currently asserts the _current_ (leaky)
 behaviour with a clear comment — when the fix lands, flip the
 assertion to `expect(hasB).toBeUndefined()`.
 
@@ -260,10 +260,10 @@ packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restr
 
 ## Test counts
 
-| Suite              | Before | After (step 17 — WAVE 1 COMPLETE) |
-| ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2601 (2547 passed + 54 skipped) |
-| Integration tests  | 145    | 561  (549 passed + 12 documented skips) |
+| Suite             | Before | After (step 17 — WAVE 1 COMPLETE)      |
+| ----------------- | ------ | -------------------------------------- |
+| Unit tests        | 2858   | 2601 (2547 passed + 54 skipped)        |
+| Integration tests | 145    | 561 (549 passed + 12 documented skips) |
 
 ## Conventions established
 

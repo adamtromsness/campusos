@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { PayGradeService } from '@modules/m80-hr/payroll/pay-grade.service';
@@ -125,23 +121,17 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     });
 
     it('getById returns + 404 on missing', async () => {
-      const dto = await withTestTenant(async () =>
-        payGrades.getById(TEST_HR_PAY_GRADE_A_ID),
-      );
+      const dto = await withTestTenant(async () => payGrades.getById(TEST_HR_PAY_GRADE_A_ID));
       expect(dto.scales.length).toBeGreaterThanOrEqual(2);
 
       await expect(
-        withTestTenant(async () =>
-          payGrades.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => payGrades.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('create rejects non-admin', async () => {
       await expect(
-        withTestTenant(async () =>
-          payGrades.create({ gradeName: 'X' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => payGrades.create({ gradeName: 'X' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -171,13 +161,9 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
 
     it('create duplicate name → BadRequest', async () => {
       const name = 'Dup-' + Date.now();
-      await withTestTenant(async () =>
-        payGrades.create({ gradeName: name } as any, adminActor()),
-      );
+      await withTestTenant(async () => payGrades.create({ gradeName: name } as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          payGrades.create({ gradeName: name } as any, adminActor()),
-        ),
+        withTestTenant(async () => payGrades.create({ gradeName: name } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -215,14 +201,10 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     });
 
     it('listScales requires existing grade', async () => {
-      const scales = await withTestTenant(async () =>
-        payGrades.listScales(TEST_HR_PAY_GRADE_A_ID),
-      );
+      const scales = await withTestTenant(async () => payGrades.listScales(TEST_HR_PAY_GRADE_A_ID));
       expect(scales.length).toBeGreaterThanOrEqual(2);
       await expect(
-        withTestTenant(async () =>
-          payGrades.listScales('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => payGrades.listScales('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -370,17 +352,13 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       const p = await createPeriod();
       const all = await withTestTenant(async () => payroll.listPeriods({} as any));
       expect(all.map((x) => x.id)).toContain(p.id);
-      const open = await withTestTenant(async () =>
-        payroll.listPeriods({ status: 'OPEN' } as any),
-      );
+      const open = await withTestTenant(async () => payroll.listPeriods({ status: 'OPEN' } as any));
       expect(open.every((p) => p.status === 'OPEN')).toBe(true);
     });
 
     it('getPeriod 404 on missing', async () => {
       await expect(
-        withTestTenant(async () =>
-          payroll.getPeriod('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => payroll.getPeriod('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -390,11 +368,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     it('full lifecycle: process → approve → markPaid emits hr.payroll.processed outbox', async () => {
       const p = await createPeriod();
       const res = await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
       expect(res.processed).toBe(1);
       expect(res.skipped).toBe(0);
@@ -406,16 +380,12 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       expect(period2.totalGross).toBeGreaterThan(0);
 
       // Approve
-      const approved = await withTestTenant(async () =>
-        payroll.approvePeriod(p.id, adminActor()),
-      );
+      const approved = await withTestTenant(async () => payroll.approvePeriod(p.id, adminActor()));
       // Period stays PROCESSING (only records flip to APPROVED)
       expect(approved.status).toBe('PROCESSING');
 
       // Mark paid → flips PAID + queues outbox emits
-      const paid = await withTestTenant(async () =>
-        payroll.markPaid(p.id, adminActor()),
-      );
+      const paid = await withTestTenant(async () => payroll.markPaid(p.id, adminActor()));
       expect(paid.status).toBe('PAID');
 
       // Verify outbox has exactly one envelope per payroll record.
@@ -433,26 +403,16 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       expect(env.payload.deductions.length).toBeGreaterThan(0);
       // Deterministic event_id by payroll_record_id (stamped into
       // the envelope by OutboxService.enqueueInTx).
-      expect(env.event_id).toBe(
-        deterministicPayrollEventId(env.payload.payrollRecordId),
-      );
+      expect(env.event_id).toBe(deterministicPayrollEventId(env.payload.payrollRecordId));
     });
 
     it('processPeriod is idempotent (re-run does not duplicate)', async () => {
       const p = await createPeriod();
       const a = await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
       const b = await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
       expect(a.processed).toBe(1);
       // Second run sees no new rows to create
@@ -479,20 +439,12 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     it('processPeriod rejects when status != OPEN/PROCESSING', async () => {
       const p = await createPeriod();
       await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
-      await withTestTenant(async () =>
-        payroll.approvePeriod(p.id, adminActor()),
-      );
+      await withTestTenant(async () => payroll.approvePeriod(p.id, adminActor()));
       await withTestTenant(async () => payroll.markPaid(p.id, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          payroll.processPeriod(p.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => payroll.processPeriod(p.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -514,11 +466,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     it('markPaid rejects unapproved records', async () => {
       const p = await createPeriod();
       await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
       // Skip approve step
       await expect(
@@ -529,20 +477,14 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     it('processPeriod rejects non-admin', async () => {
       const p = await createPeriod();
       await expect(
-        withTestTenant(async () =>
-          payroll.processPeriod(p.id, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => payroll.processPeriod(p.id, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('processPeriod missing → 404', async () => {
       await expect(
         withTestTenant(async () =>
-          payroll.processPeriod(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          payroll.processPeriod('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -573,11 +515,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
         ),
       );
       await withTestTenant(async () =>
-        payroll.processPeriod(
-          p.id,
-          { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any,
-          adminActor(),
-        ),
+        payroll.processPeriod(p.id, { employeeIds: [TEST_ADMIN_EMPLOYEE_ID] } as any, adminActor()),
       );
       return p;
     }
@@ -589,16 +527,12 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       );
       expect(list.length).toBe(1);
       const recordId = list[0]!.id;
-      const got = await withTestTenant(async () =>
-        payroll.getRecord(recordId, adminActor()),
-      );
+      const got = await withTestTenant(async () => payroll.getRecord(recordId, adminActor()));
       expect(got.id).toBe(recordId);
       expect(got.deductions.length).toBeGreaterThan(0);
 
       // Non-admin: parent has no employeeId → empty
-      const empty = await withTestTenant(async () =>
-        payroll.listRecords({} as any, parentActor()),
-      );
+      const empty = await withTestTenant(async () => payroll.listRecords({} as any, parentActor()));
       expect(empty).toEqual([]);
 
       // Admin's own employee
@@ -721,9 +655,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       const dto = await submitReview();
       expect(dto.status).toBe('SUBMITTED');
 
-      const list = await withTestTenant(async () =>
-        salaryReviews.list({} as any, adminActor()),
-      );
+      const list = await withTestTenant(async () => salaryReviews.list({} as any, adminActor()));
       expect(list.map((r) => r.id)).toContain(dto.id);
 
       const filtered = await withTestTenant(async () =>
@@ -734,9 +666,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       );
       expect(filtered.length).toBeGreaterThan(0);
 
-      const got = await withTestTenant(async () =>
-        salaryReviews.getById(dto.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => salaryReviews.getById(dto.id, adminActor()));
       expect(got.id).toBe(dto.id);
     });
 
@@ -756,11 +686,14 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
 
     it('list non-admin without ids → []', async () => {
       const empty = await withTestTenant(async () =>
-        salaryReviews.list({} as any, {
-          ...parentActor(),
-          personId: null as any,
-          employeeId: null,
-        } as any),
+        salaryReviews.list(
+          {} as any,
+          {
+            ...parentActor(),
+            personId: null as any,
+            employeeId: null,
+          } as any,
+        ),
       );
       expect(empty).toEqual([]);
     });
@@ -768,10 +701,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     it('getById missing → 404; non-owner non-admin → 404', async () => {
       await expect(
         withTestTenant(async () =>
-          salaryReviews.getById(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            adminActor(),
-          ),
+          salaryReviews.getById('019e0cf8-aaaa-7777-8888-00000000ffff', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
 
@@ -871,11 +801,10 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       const dto = await submitReview();
       await expect(
         withTestTenant(async () =>
-          salaryReviews.patch(
-            dto.id,
-            { status: 'APPROVED' } as any,
-            { ...adminActor(), personId: null as any },
-          ),
+          salaryReviews.patch(dto.id, { status: 'APPROVED' } as any, {
+            ...adminActor(),
+            personId: null as any,
+          }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -886,14 +815,10 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
   // ───────────────────────────────────────────────────────────────────
   describe('PayrollController', () => {
     it('pay-grades CRUD + scales', async () => {
-      const grades = await withTestTenant(async () =>
-        payrollCtrl.listGrades('false'),
-      );
+      const grades = await withTestTenant(async () => payrollCtrl.listGrades('false'));
       expect(grades.length).toBeGreaterThan(0);
 
-      const got = await withTestTenant(async () =>
-        payrollCtrl.getGrade(TEST_HR_PAY_GRADE_A_ID),
-      );
+      const got = await withTestTenant(async () => payrollCtrl.getGrade(TEST_HR_PAY_GRADE_A_ID));
       expect(got.id).toBe(TEST_HR_PAY_GRADE_A_ID);
 
       const created = await withTestTenant(async () =>
@@ -933,9 +858,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
     });
 
     it('pay-periods + process + approve + markPaid via controller', async () => {
-      const periods = await withTestTenant(async () =>
-        payrollCtrl.listPeriods({} as any),
-      );
+      const periods = await withTestTenant(async () => payrollCtrl.listPeriods({} as any));
       expect(Array.isArray(periods)).toBe(true);
 
       const created = await withTestTenant(async () =>
@@ -962,9 +885,7 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       );
       expect(approved.status).toBe('PROCESSING');
 
-      const paid = await withTestTenant(async () =>
-        payrollCtrl.markPaid(adminReq(), created.id),
-      );
+      const paid = await withTestTenant(async () => payrollCtrl.markPaid(adminReq(), created.id));
       expect(paid.status).toBe('PAID');
     });
 
@@ -987,14 +908,10 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
       );
       expect(list.length).toBe(1);
       const r0 = list[0]!;
-      const got = await withTestTenant(async () =>
-        payrollCtrl.getRecord(adminReq(), r0.id),
-      );
+      const got = await withTestTenant(async () => payrollCtrl.getRecord(adminReq(), r0.id));
       expect(got.id).toBe(r0.id);
 
-      const mine = await withTestTenant(async () =>
-        payrollCtrl.myPayslips(adminReq(), {} as any),
-      );
+      const mine = await withTestTenant(async () => payrollCtrl.myPayslips(adminReq(), {} as any));
       expect(mine.map((m) => m.id)).toContain(r0.id);
     });
 
@@ -1006,13 +923,9 @@ describe('integration:m80-hr/payroll-lifecycle', () => {
           justification: 'ctrl',
         } as any),
       );
-      const list = await withTestTenant(async () =>
-        payrollCtrl.listReviews(adminReq(), {} as any),
-      );
+      const list = await withTestTenant(async () => payrollCtrl.listReviews(adminReq(), {} as any));
       expect(list.map((r) => r.id)).toContain(dto.id);
-      const got = await withTestTenant(async () =>
-        payrollCtrl.getReview(adminReq(), dto.id),
-      );
+      const got = await withTestTenant(async () => payrollCtrl.getReview(adminReq(), dto.id));
       expect(got.id).toBe(dto.id);
       const upd = await withTestTenant(async () =>
         payrollCtrl.patchReview(adminReq(), dto.id, {

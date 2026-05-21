@@ -9,11 +9,7 @@ import {
 } from '@modules/m00-platform/configuration/configuration.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 /**
  * Covers configuration.service.ts paths not exercised by the existing
@@ -243,16 +239,12 @@ describe('integration:m00-platform/configuration-remaining', () => {
         positionId,
       );
       const summary = await withTestTenant(async () => connections.getSummary());
-      const ourPositionSchool = summary.positionSchool.find(
-        (p) => p.positionId === positionId,
-      );
+      const ourPositionSchool = summary.positionSchool.find((p) => p.positionId === positionId);
       expect(ourPositionSchool).toBeDefined();
       expect(ourPositionSchool!.filledByName).toBeTruthy();
       expect(ourPositionSchool!.departmentName).toContain('CFG-Dept');
 
-      const ourPersonPosition = summary.personPosition.find(
-        (p) => p.positionId === positionId,
-      );
+      const ourPersonPosition = summary.personPosition.find((p) => p.positionId === positionId);
       expect(ourPersonPosition).toBeDefined();
       expect(ourPersonPosition!.employeeId).toBe(employeeId);
       expect(ourPersonPosition!.isVacant).toBe(false);
@@ -264,9 +256,7 @@ describe('integration:m00-platform/configuration-remaining', () => {
 
   describe('AcademicTreeService.getTree with unknown academicYearId', () => {
     it('falls back to current year (does not throw)', async () => {
-      const tree = await withTestTenant(async () =>
-        academic.getTree(generateId()),
-      );
+      const tree = await withTestTenant(async () => academic.getTree(generateId()));
       // The fixture seeds an academic year. Service falls back to
       // current-year branch even though the requested id is unknown.
       expect(tree.selectedYear).toBeTruthy();

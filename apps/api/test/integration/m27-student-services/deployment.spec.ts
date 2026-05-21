@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -183,9 +179,7 @@ describe('integration:m27-student-services/deployment', () => {
     );
   }
 
-  async function seedClassWithEnrolledStudents(
-    studentIds: string[],
-  ): Promise<string> {
+  async function seedClassWithEnrolledStudents(studentIds: string[]): Promise<string> {
     const courseId = generateId();
     const classId = generateId();
     const suffix = generateId().slice(-4);
@@ -527,10 +521,7 @@ describe('integration:m27-student-services/deployment', () => {
     async function seedDeployment(actor = adminActor()): Promise<string> {
       const templateId = await seedTemplate();
       const r = await withTestTenant(async () =>
-        service.create(
-          { templateId, deployAt: futureIso(1000), targetType: 'CASELOAD' },
-          actor,
-        ),
+        service.create({ templateId, deployAt: futureIso(1000), targetType: 'CASELOAD' }, actor),
       );
       return r.id;
     }
@@ -595,14 +586,10 @@ describe('integration:m27-student-services/deployment', () => {
 
     it('list respects custom limit (capped at 200)', async () => {
       await seedDeployment(adminActor());
-      const r = await withTestTenant(async () =>
-        service.list({ limit: 1 }, adminActor()),
-      );
+      const r = await withTestTenant(async () => service.list({ limit: 1 }, adminActor()));
       expect(r.length).toBeLessThanOrEqual(1);
       // limit > 200 → clamped
-      const big = await withTestTenant(async () =>
-        service.list({ limit: 9999 }, adminActor()),
-      );
+      const big = await withTestTenant(async () => service.list({ limit: 9999 }, adminActor()));
       expect(big.length).toBeLessThanOrEqual(200);
     });
 
@@ -836,9 +823,7 @@ describe('integration:m27-student-services/deployment', () => {
         ),
       );
       await withTestTenant(async () => service.activate(dep.id, adminActor()));
-      const completed = await withTestTenant(async () =>
-        service.complete(dep.id, adminActor()),
-      );
+      const completed = await withTestTenant(async () => service.complete(dep.id, adminActor()));
       expect(completed.status).toBe('COMPLETED');
     });
 
@@ -884,9 +869,7 @@ describe('integration:m27-student-services/deployment', () => {
           adminActor(),
         ),
       );
-      const cancelled = await withTestTenant(async () =>
-        service.cancel(dep.id, adminActor()),
-      );
+      const cancelled = await withTestTenant(async () => service.cancel(dep.id, adminActor()));
       expect(cancelled.status).toBe('CANCELLED');
     });
 
@@ -905,9 +888,7 @@ describe('integration:m27-student-services/deployment', () => {
         ),
       );
       await withTestTenant(async () => service.activate(dep.id, adminActor()));
-      const cancelled = await withTestTenant(async () =>
-        service.cancel(dep.id, adminActor()),
-      );
+      const cancelled = await withTestTenant(async () => service.cancel(dep.id, adminActor()));
       expect(cancelled.status).toBe('CANCELLED');
     });
 

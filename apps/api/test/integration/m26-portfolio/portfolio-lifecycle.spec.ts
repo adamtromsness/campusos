@@ -278,17 +278,13 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(dto.visibility).toBe('PRIVATE');
 
       await expect(
-        withTestTenant(async () =>
-          portfolios.create(studentActor(), { title: 'Another' } as any),
-        ),
+        withTestTenant(async () => portfolios.create(studentActor(), { title: 'Another' } as any)),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('create (non-student) → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          portfolios.create(adminActor(), { title: 'x' } as any),
-        ),
+        withTestTenant(async () => portfolios.create(adminActor(), { title: 'x' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -350,9 +346,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        withTestTenant(async () =>
-          portfolios.getByStudent(parentActor(), TEST_PORTFOLIO_STU_A_ID),
-        ),
+        withTestTenant(async () => portfolios.getByStudent(parentActor(), TEST_PORTFOLIO_STU_A_ID)),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Another student also blocked
       await expect(
@@ -416,9 +410,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
 
     it('getByStudent — missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          portfolios.getByStudent(adminActor(), TEST_PORTFOLIO_STU_B_ID),
-        ),
+        withTestTenant(async () => portfolios.getByStudent(adminActor(), TEST_PORTFOLIO_STU_B_ID)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -428,11 +420,12 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       );
       // owner update
       const upd = await withTestTenant(async () =>
-        portfolios.patch(
-          studentActor(),
-          created.id,
-          { title: 'New Title', description: 'd2', visibility: 'PUBLIC', shareLinkEnabled: true } as any,
-        ),
+        portfolios.patch(studentActor(), created.id, {
+          title: 'New Title',
+          description: 'd2',
+          visibility: 'PUBLIC',
+          shareLinkEnabled: true,
+        } as any),
       );
       expect(upd.title).toBe('New Title');
       expect(upd.visibility).toBe('PUBLIC');
@@ -604,9 +597,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         );
         expect(list.length).toBe(1);
         await expect(
-          withTestTenant(async () =>
-            portfolios.listItemsForPortfolio(pid, studentA2Actor()),
-          ),
+          withTestTenant(async () => portfolios.listItemsForPortfolio(pid, studentA2Actor())),
         ).rejects.toBeInstanceOf(NotFoundException);
         // missing portfolio
         await expect(
@@ -738,11 +729,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // missing portfolio
       await expect(
         withTestTenant(async () =>
-          shares.create(
-            studentActor(),
-            '00000000-0000-0000-0000-000000000099',
-            {} as any,
-          ),
+          shares.create(studentActor(), '00000000-0000-0000-0000-000000000099', {} as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -760,17 +747,12 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(aList.length).toBeGreaterThanOrEqual(1);
       // non-owner gets collapsed 404
       await expect(
-        withTestTenant(async () =>
-          shares.listForPortfolio(studentA2Actor(), portfolioId),
-        ),
+        withTestTenant(async () => shares.listForPortfolio(studentA2Actor(), portfolioId)),
       ).rejects.toBeInstanceOf(NotFoundException);
       // missing portfolio
       await expect(
         withTestTenant(async () =>
-          shares.listForPortfolio(
-            studentActor(),
-            '00000000-0000-0000-0000-000000000099',
-          ),
+          shares.listForPortfolio(studentActor(), '00000000-0000-0000-0000-000000000099'),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -836,13 +818,11 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
     });
 
     it('viewByToken — invalid token → 400, missing → 404, revoked → 410, expired → 410', async () => {
+      await expect(withTestTenant(async () => shares.viewByToken('short'))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       await expect(
-        withTestTenant(async () => shares.viewByToken('short')),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      await expect(
-        withTestTenant(async () =>
-          shares.viewByToken('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-        ),
+        withTestTenant(async () => shares.viewByToken('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // Revoked
@@ -858,9 +838,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       ).rejects.toBeInstanceOf(GoneException);
 
       // Expired (ACTIVE row past expires_at flips to EXPIRED + 410)
-      const p2 = await withTestTenant(async () =>
-        portfolios.patch(adminActor(), p.id, {} as any),
-      );
+      const p2 = await withTestTenant(async () => portfolios.patch(adminActor(), p.id, {} as any));
       const share2 = await withTestTenant(async () =>
         shares.create(studentActor(), p2.id, {
           expiresAt: new Date(Date.now() - 86_400_000).toISOString(),
@@ -1095,42 +1073,28 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
 
     it('list — admin sees all in school A; cross-school isolated', async () => {
       await awardAcademic();
-      const list = await withTestTenant(async () =>
-        achievements.list(adminActor(), undefined),
-      );
+      const list = await withTestTenant(async () => achievements.list(adminActor(), undefined));
       expect(list.length).toBeGreaterThanOrEqual(1);
       // Cross-school: list from School B sees none of School A's rows
-      const fromB = await withTestTenantB(async () =>
-        achievements.list(adminActor(), undefined),
-      );
+      const fromB = await withTestTenantB(async () => achievements.list(adminActor(), undefined));
       expect(fromB.length).toBe(0);
     });
 
     it('list — student sees only own; guardian sees only linked; non-staff anon empty', async () => {
       await awardAcademic();
-      const ownList = await withTestTenant(async () =>
-        achievements.list(studentActor()),
-      );
+      const ownList = await withTestTenant(async () => achievements.list(studentActor()));
       expect(ownList.length).toBeGreaterThanOrEqual(1);
-      const gList = await withTestTenant(async () =>
-        achievements.list(parentActor()),
-      );
+      const gList = await withTestTenant(async () => achievements.list(parentActor()));
       expect(gList.length).toBeGreaterThanOrEqual(1);
       // Other student (no link) — sees own (= zero)
-      const otherList = await withTestTenant(async () =>
-        achievements.list(studentA2Actor()),
-      );
+      const otherList = await withTestTenant(async () => achievements.list(studentA2Actor()));
       expect(otherList.length).toBe(0);
       // STAFF without grant → empty
-      const staffNoGrant = await withTestTenant(async () =>
-        achievements.list(teacherActor()),
-      );
+      const staffNoGrant = await withTestTenant(async () => achievements.list(teacherActor()));
       expect(staffNoGrant.length).toBe(0);
       // STAFF with grant → sees all
       await grantTeacher(['ach-001:read']);
-      const staffWithGrant = await withTestTenant(async () =>
-        achievements.list(teacherActor()),
-      );
+      const staffWithGrant = await withTestTenant(async () => achievements.list(teacherActor()));
       expect(staffWithGrant.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -1147,9 +1111,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       const got = await withTestTenant(async () => achievements.getById(adminActor(), ach.id));
       expect(got.id).toBe(ach.id);
       // owner student reads
-      const owner = await withTestTenant(async () =>
-        achievements.getById(studentActor(), ach.id),
-      );
+      const owner = await withTestTenant(async () => achievements.getById(studentActor(), ach.id));
       expect(owner.id).toBe(ach.id);
       // other student → 404 (row scope returns nothing)
       await expect(
@@ -1210,9 +1172,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // teacher with grant still can't edit (no awarder bound)
       await grantTeacher(['ach-001:write']);
       await expect(
-        withTestTenant(async () =>
-          achievements.patch(teacherActor(), id, { title: 'x' } as any),
-        ),
+        withTestTenant(async () => achievements.patch(teacherActor(), id, { title: 'x' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // admin can
       const upd = await withTestTenant(async () =>
@@ -1250,11 +1210,9 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // missing achievement
       await expect(
         withTestTenant(async () =>
-          achievements.createShare(
-            studentActor(),
-            '00000000-0000-0000-0000-000000000099',
-            { platform: 'EMAIL' } as any,
-          ),
+          achievements.createShare(studentActor(), '00000000-0000-0000-0000-000000000099', {
+            platform: 'EMAIL',
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1318,9 +1276,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(s2.sortOrder).toBe(2);
       // non-owner Forbidden
       await expect(
-        withTestTenant(async () =>
-          sections.create(pid, studentA2Actor(), { title: 'X' } as any),
-        ),
+        withTestTenant(async () => sections.create(pid, studentA2Actor(), { title: 'X' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // missing portfolio
       await expect(
@@ -1367,9 +1323,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(bRows[0]!.sort_order).toBe(1);
       // Invalid sortOrder
       await expect(
-        withTestTenant(async () =>
-          sections.patch(a.id, studentActor(), { sortOrder: 0 } as any),
-        ),
+        withTestTenant(async () => sections.patch(a.id, studentActor(), { sortOrder: 0 } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
       // Missing
       await expect(
@@ -1381,9 +1335,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       // Non-owner Forbidden
       await expect(
-        withTestTenant(async () =>
-          sections.patch(a.id, studentA2Actor(), { title: 'x' } as any),
-        ),
+        withTestTenant(async () => sections.patch(a.id, studentA2Actor(), { title: 'x' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -1479,11 +1431,9 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // missing item
       await expect(
         withTestTenant(async () =>
-          sections.assignItemToSection(
-            '00000000-0000-0000-0000-000000000099',
-            studentActor(),
-            { sectionId: s.id } as any,
-          ),
+          sections.assignItemToSection('00000000-0000-0000-0000-000000000099', studentActor(), {
+            sectionId: s.id,
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // non-owner Forbidden
@@ -1582,15 +1532,11 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       );
       expect(ownList.length).toBe(1);
       // admin reads
-      const aList = await withTestTenant(async () =>
-        reflections.listForItem(itemId, adminActor()),
-      );
+      const aList = await withTestTenant(async () => reflections.listForItem(itemId, adminActor()));
       expect(aList.length).toBe(1);
       // non-owner non-admin on PRIVATE → 404
       await expect(
-        withTestTenant(async () =>
-          reflections.listForItem(itemId, studentA2Actor()),
-        ),
+        withTestTenant(async () => reflections.listForItem(itemId, studentA2Actor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       // missing item
       await expect(
@@ -1622,9 +1568,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       await withTestTenant(async () =>
         reflections.create(i2, studentActor(), { reflectionText: 't' } as any),
       );
-      const tList = await withTestTenant(async () =>
-        reflections.listForItem(i2, teacherActor()),
-      );
+      const tList = await withTestTenant(async () => reflections.listForItem(i2, teacherActor()));
       expect(tList.length).toBe(1);
       await expect(
         withTestTenant(async () => reflections.listForItem(i2, officerActor())),
@@ -1639,13 +1583,9 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       await withTestTenant(async () =>
         reflections.create(i3, studentActor(), { reflectionText: 'p' } as any),
       );
-      const pList = await withTestTenant(async () =>
-        reflections.listForItem(i3, parentActor()),
-      );
+      const pList = await withTestTenant(async () => reflections.listForItem(i3, parentActor()));
       expect(pList.length).toBe(1);
-      const tList2 = await withTestTenant(async () =>
-        reflections.listForItem(i3, teacherActor()),
-      );
+      const tList2 = await withTestTenant(async () => reflections.listForItem(i3, teacherActor()));
       expect(tList2.length).toBe(1);
     });
 
@@ -1775,11 +1715,15 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       const pid = await seedPortfolio();
       await expect(
         withTestTenant(async () =>
-          endorsements.create(pid, { ...teacherActor(), employeeId: null } as any, {
-            endorserRole: 'COUNSELLOR',
-            skills: ['x'],
-            comment: 'y',
-          } as any),
+          endorsements.create(
+            pid,
+            { ...teacherActor(), employeeId: null } as any,
+            {
+              endorserRole: 'COUNSELLOR',
+              skills: ['x'],
+              comment: 'y',
+            } as any,
+          ),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -1818,10 +1762,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // missing
       await expect(
         withTestTenant(async () =>
-          endorsements.listForPortfolio(
-            '00000000-0000-0000-0000-000000000099',
-            adminActor(),
-          ),
+          endorsements.listForPortfolio('00000000-0000-0000-0000-000000000099', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1919,11 +1860,9 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // missing
       await expect(
         withTestTenant(async () =>
-          endorsements.updateVisibility(
-            '00000000-0000-0000-0000-000000000099',
-            adminActor(),
-            { isVisibleOnShare: true } as any,
-          ),
+          endorsements.updateVisibility('00000000-0000-0000-0000-000000000099', adminActor(), {
+            isVisibleOnShare: true,
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -2055,9 +1994,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       const got = await withTestTenant(async () => readiness.getPathway(id));
       expect(got.milestones.length).toBe(1);
       await expect(
-        withTestTenant(async () =>
-          readiness.getPathway('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => readiness.getPathway('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
       // patch no-op
       const noop = await withTestTenant(async () =>
@@ -2173,9 +2110,13 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       const pid = await makePathway('CounsNoEmp');
       await expect(
         withTestTenant(async () =>
-          readiness.assignToStudent(pid, { ...adminActor(), employeeId: null } as any, {
-            studentId: TEST_PORTFOLIO_STU_A_ID,
-          } as any),
+          readiness.assignToStudent(
+            pid,
+            { ...adminActor(), employeeId: null } as any,
+            {
+              studentId: TEST_PORTFOLIO_STU_A_ID,
+            } as any,
+          ),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -2218,9 +2159,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
           studentId: TEST_PORTFOLIO_STU_A_ID,
         } as any),
       );
-      const got = await withTestTenant(async () =>
-        readiness.getAssignment(a.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => readiness.getAssignment(a.id, adminActor()));
       expect(got.id).toBe(a.id);
       // missing
       await expect(
@@ -2316,11 +2255,10 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // Missing assignment
       await expect(
         withTestTenant(async () =>
-          readiness.updateMilestoneStatus(
-            '00000000-0000-0000-0000-000000000099',
-            adminActor(),
-            { milestoneId: mid, status: 'COMPLETED' } as any,
-          ),
+          readiness.updateMilestoneStatus('00000000-0000-0000-0000-000000000099', adminActor(), {
+            milestoneId: mid,
+            status: 'COMPLETED',
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Flip status to WITHDRAWN to exercise the non-ACTIVE branch
@@ -2381,7 +2319,13 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
             SET milestone_statuses = $1::jsonb
           WHERE id = $2::uuid`,
         JSON.stringify([
-          { milestone_id: m1, status: 'NOT_STARTED', completed_at: null, notes: null, progress_detail: null },
+          {
+            milestone_id: m1,
+            status: 'NOT_STARTED',
+            completed_at: null,
+            notes: null,
+            progress_detail: null,
+          },
           {
             milestoneId: fakeId,
             status: 'COMPLETED',
@@ -2392,9 +2336,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         ]),
         a.id,
       );
-      const got = await withTestTenant(async () =>
-        readiness.getAssignment(a.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => readiness.getAssignment(a.id, adminActor()));
       const removed = got.milestoneStatuses.find((s) => s.milestoneName === '(removed milestone)');
       expect(removed).toBeTruthy();
     });
@@ -2458,11 +2400,10 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         ),
       );
       expect(count).toBe(1);
-      const after = await withTestTenant(async () =>
-        readiness.getAssignment(a.id, adminActor()),
-      );
-      expect(after.milestoneStatuses.some((s) => s.milestoneId === mid && s.status === 'COMPLETED'))
-        .toBe(true);
+      const after = await withTestTenant(async () => readiness.getAssignment(a.id, adminActor()));
+      expect(
+        after.milestoneStatuses.some((s) => s.milestoneId === mid && s.status === 'COMPLETED'),
+      ).toBe(true);
     });
 
     it('getDashboard — admin sees rows, atRiskOnly filters, non-counsellor 403', async () => {
@@ -2477,9 +2418,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(dash.length).toBeGreaterThanOrEqual(1);
       expect(dash[0]!.isAtRisk).toBe(true); // 0% progress → at risk
       // atRiskOnly filter
-      const risky = await withTestTenant(async () =>
-        readiness.getDashboard(adminActor(), true),
-      );
+      const risky = await withTestTenant(async () => readiness.getDashboard(adminActor(), true));
       expect(risky.length).toBeGreaterThanOrEqual(1);
       // student → 403
       await expect(
@@ -2637,9 +2576,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       );
       expect(dlNull.deadline).toBeNull();
       // no-op
-      const noop = await withTestTenant(async () =>
-        college.patch(id, adminActor(), {} as any),
-      );
+      const noop = await withTestTenant(async () => college.patch(id, adminActor(), {} as any));
       expect(noop.id).toBe(id);
       // missing
       await expect(
@@ -2654,9 +2591,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
     it('patch — non-counsellor STAFF cannot edit', async () => {
       const id = await makeApp();
       await expect(
-        withTestTenant(async () =>
-          college.patch(id, teacherActor(), { collegeName: 'x' } as any),
-        ),
+        withTestTenant(async () => college.patch(id, teacherActor(), { collegeName: 'x' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -2681,9 +2616,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
 
     it('listUpcomingDeadlines — admin sees open with deadlines; non-counsellor 403', async () => {
       await makeApp();
-      const list = await withTestTenant(async () =>
-        college.listUpcomingDeadlines(adminActor()),
-      );
+      const list = await withTestTenant(async () => college.listUpcomingDeadlines(adminActor()));
       expect(list.length).toBeGreaterThanOrEqual(1);
       await expect(
         withTestTenant(async () => college.listUpcomingDeadlines(studentActor())),
@@ -2707,15 +2640,11 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       expect(dto2.id).toBe(dto.id);
       // Cross-school student id → 404
       await expect(
-        withTestTenant(async () =>
-          resume.getForStudent(TEST_PORTFOLIO_STU_B_ID, adminActor()),
-        ),
+        withTestTenant(async () => resume.getForStudent(TEST_PORTFOLIO_STU_B_ID, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Non-owner non-admin non-guardian non-counsellor → 404
       await expect(
-        withTestTenant(async () =>
-          resume.getForStudent(TEST_PORTFOLIO_STU_A_ID, studentA2Actor()),
-        ),
+        withTestTenant(async () => resume.getForStudent(TEST_PORTFOLIO_STU_A_ID, studentA2Actor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Guardian sees
       const g = await withTestTenant(async () =>
@@ -2741,9 +2670,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       // owner/admin so the auto-create branch refuses → 404.
       await grantTeacher(['ach-003:read']);
       await expect(
-        withTestTenant(async () =>
-          resume.getForStudent(TEST_PORTFOLIO_STU_A_ID, teacherActor()),
-        ),
+        withTestTenant(async () => resume.getForStudent(TEST_PORTFOLIO_STU_A_ID, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -2852,9 +2779,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         TEST_PORTFOLIO_STU_A_ID,
       );
       await expect(
-        withTestTenant(async () =>
-          resume.generatePdf(TEST_PORTFOLIO_STU_A_ID, studentActor()),
-        ),
+        withTestTenant(async () => resume.generatePdf(TEST_PORTFOLIO_STU_A_ID, studentActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -2865,14 +2790,10 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         } as any),
       );
       await expect(
-        withTestTenant(async () =>
-          resume.generatePdf(TEST_PORTFOLIO_STU_A_ID, studentA2Actor()),
-        ),
+        withTestTenant(async () => resume.generatePdf(TEST_PORTFOLIO_STU_A_ID, studentA2Actor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          resume.generatePdf(TEST_PORTFOLIO_STU_B_ID, adminActor()),
-        ),
+        withTestTenant(async () => resume.generatePdf(TEST_PORTFOLIO_STU_B_ID, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -3023,9 +2944,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         hoursTotal: 40,
       });
       await (consumer as any).handle(ev);
-      const got = await withTestTenant(async () =>
-        readiness.getAssignment(aid, adminActor()),
-      );
+      const got = await withTestTenant(async () => readiness.getAssignment(aid, adminActor()));
       const ms = got.milestoneStatuses.find((s) => s.milestoneId === mid);
       expect(ms?.status).toBe('COMPLETED');
       // Outbox event exists
@@ -3054,9 +2973,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         schoolId: TEST_SCHOOL_ID,
       });
       await (consumer as any).handle(ev);
-      const got = await withTestTenant(async () =>
-        readiness.getAssignment(aid, adminActor()),
-      );
+      const got = await withTestTenant(async () => readiness.getAssignment(aid, adminActor()));
       const ms = got.milestoneStatuses.find((s) => s.milestoneId === mid);
       expect(ms?.status).toBe('COMPLETED');
     });
@@ -3138,18 +3055,14 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       const s = await withTestTenant(async () =>
         portfolioCtrl.createShare(p.id, {} as any, studentReq),
       );
-      const list = await withTestTenant(async () =>
-        portfolioCtrl.listShares(p.id, studentReq),
-      );
+      const list = await withTestTenant(async () => portfolioCtrl.listShares(p.id, studentReq));
       expect(list.map((x) => x.id)).toContain(s.id);
       // Make it public so view works (token is the gate but the underlying
       // portfolio also has to be reachable). Set visibility PUBLIC.
       await withTestTenant(async () =>
         portfolioCtrl.patch(p.id, { visibility: 'PUBLIC' } as any, studentReq),
       );
-      const view = await withTestTenant(async () =>
-        portfolioCtrl.viewByToken(s.shareToken),
-      );
+      const view = await withTestTenant(async () => portfolioCtrl.viewByToken(s.shareToken));
       expect(view.portfolioId).toBe(p.id);
       await withTestTenant(async () => portfolioCtrl.revokeShare(s.id, studentReq));
     });
@@ -3173,9 +3086,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         portfolioCtrl.listForStudent(TEST_PORTFOLIO_STU_A_ID, adminReq),
       );
       expect(forStu.map((x) => x.id)).toContain(a.id);
-      const got = await withTestTenant(async () =>
-        portfolioCtrl.getAchievement(a.id, adminReq),
-      );
+      const got = await withTestTenant(async () => portfolioCtrl.getAchievement(a.id, adminReq));
       expect(got.id).toBe(a.id);
       const upd = await withTestTenant(async () =>
         portfolioCtrl.patchAchievement(a.id, { title: 'Renamed' } as any, adminReq),
@@ -3314,9 +3225,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         advancedCtrl.getStudentReadiness(TEST_PORTFOLIO_STU_A_ID, adminReq),
       );
       expect(studReadiness.length).toBeGreaterThanOrEqual(1);
-      const got = await withTestTenant(async () =>
-        advancedCtrl.getAssignment(asg.id, adminReq),
-      );
+      const got = await withTestTenant(async () => advancedCtrl.getAssignment(asg.id, adminReq));
       expect(got.id).toBe(asg.id);
       const upd = await withTestTenant(async () =>
         advancedCtrl.updateMilestoneStatus(
@@ -3330,9 +3239,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
         advancedCtrl.readinessDashboard('false', adminReq),
       );
       expect(Array.isArray(dash)).toBe(true);
-      await withTestTenant(async () =>
-        advancedCtrl.removeMilestone(mile.id, adminReq),
-      );
+      await withTestTenant(async () => advancedCtrl.removeMilestone(mile.id, adminReq));
     });
 
     it('college applications CRUD + deadlines + resume CRUD + generate', async () => {
@@ -3356,20 +3263,12 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
       );
       expect(got.id).toBe(app.id);
       const upd = await withTestTenant(async () =>
-        advancedCtrl.patchCollegeApplication(
-          app.id,
-          { notes: 'updated' } as any,
-          adminReq,
-        ),
+        advancedCtrl.patchCollegeApplication(app.id, { notes: 'updated' } as any, adminReq),
       );
       expect(upd.notes).toBe('updated');
-      const dl = await withTestTenant(async () =>
-        advancedCtrl.listUpcomingDeadlines(adminReq),
-      );
+      const dl = await withTestTenant(async () => advancedCtrl.listUpcomingDeadlines(adminReq));
       expect(Array.isArray(dl)).toBe(true);
-      await withTestTenant(async () =>
-        advancedCtrl.removeCollegeApplication(app.id, adminReq),
-      );
+      await withTestTenant(async () => advancedCtrl.removeCollegeApplication(app.id, adminReq));
 
       // Resume
       const r = await withTestTenant(async () =>
@@ -3397,9 +3296,7 @@ describe('integration:m26-portfolio/portfolio-lifecycle', () => {
   describe('fixture sanity', () => {
     it('reset wipes pfl_*', async () => {
       // Seed some data
-      await withTestTenant(async () =>
-        portfolios.create(studentActor(), { title: 'X' } as any),
-      );
+      await withTestTenant(async () => portfolios.create(studentActor(), { title: 'X' } as any));
       await resetPortfolioTables(rawClient);
       const c = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS c FROM ${TEST_SCHEMA}.pfl_portfolios`,

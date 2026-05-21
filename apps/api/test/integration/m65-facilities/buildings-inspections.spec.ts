@@ -102,10 +102,7 @@ describe('integration:m65-facilities/buildings-inspections', () => {
 
     it('create, patch, list patch flows', async () => {
       const created = await withTestTenant(async () =>
-        buildings.create(
-          { name: 'New Bldg', code: 'NB', yearBuilt: 2020 } as any,
-          adminActor(),
-        ),
+        buildings.create({ name: 'New Bldg', code: 'NB', yearBuilt: 2020 } as any, adminActor()),
       );
       expect(created.name).toBe('New Bldg');
 
@@ -126,9 +123,7 @@ describe('integration:m65-facilities/buildings-inspections', () => {
 
     it('non-admin create → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          buildings.create({ name: 'x' } as any, studentActor()),
-        ),
+        withTestTenant(async () => buildings.create({ name: 'x' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -373,11 +368,7 @@ describe('integration:m65-facilities/buildings-inspections', () => {
         ),
       );
       const updated = await withTestTenant(async () =>
-        closures.patch(
-          dto.id,
-          { closureReason: 'Updated' } as any,
-          adminActor(),
-        ),
+        closures.patch(dto.id, { closureReason: 'Updated' } as any, adminActor()),
       );
       expect(updated.closureReason).toBe('Updated');
     });
@@ -443,7 +434,9 @@ describe('integration:m65-facilities/buildings-inspections', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () => inspections.list({ buildingId: TEST_BUILDING_ID }));
+      const list = await withTestTenant(async () =>
+        inspections.list({ buildingId: TEST_BUILDING_ID }),
+      );
       expect(list.map((i) => i.id)).toContain(dto.id);
     });
 
@@ -628,9 +621,7 @@ describe('integration:m65-facilities/buildings-inspections', () => {
   // ────────────────────────────────────────────────────────
   describe('SupplyService', () => {
     it('listForBuilding returns supplies', async () => {
-      const list = await withTestTenant(async () =>
-        supplies.listForBuilding(TEST_BUILDING_ID),
-      );
+      const list = await withTestTenant(async () => supplies.listForBuilding(TEST_BUILDING_ID));
       expect(list.map((s) => s.id)).toContain(TEST_SUPPLY_ID);
     });
 

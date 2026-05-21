@@ -85,7 +85,14 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
     visitors = new VisitorService(tenantPrisma, permCheck, visitorTypes);
     settings = new SignInSettingsService(tenantPrisma, permCheck);
     banned = new BannedPersonService(tenantPrisma, permCheck, kafka as any);
-    signIn = new SignInService(tenantPrisma, permCheck, kafka as any, visitors, visitorTypes, banned);
+    signIn = new SignInService(
+      tenantPrisma,
+      permCheck,
+      kafka as any,
+      visitors,
+      visitorTypes,
+      banned,
+    );
     preReg = new PreRegistrationService(tenantPrisma, permCheck, visitors, visitorTypes, signIn);
     recurring = new RecurringVisitorService(tenantPrisma, permCheck, visitors);
     muster = new MusterService(tenantPrisma, permCheck, kafka as any);
@@ -185,16 +192,12 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
     });
 
     it('list with includeInactive=true returns retired too', async () => {
-      const all = await withTestTenant(async () =>
-        visitorTypes.list(adminActor(), true),
-      );
+      const all = await withTestTenant(async () => visitorTypes.list(adminActor(), true));
       expect(all.map((v) => v.id)).toContain(TEST_VIS_TYPE_RETIRED_A_ID);
     });
 
     it('cross-school: B types not visible from A', async () => {
-      const list = await withTestTenant(async () =>
-        visitorTypes.list(adminActor(), true),
-      );
+      const list = await withTestTenant(async () => visitorTypes.list(adminActor(), true));
       expect(list.map((v) => v.id)).not.toContain(TEST_VIS_TYPE_CONTRACTOR_B_ID);
     });
 
@@ -205,9 +208,7 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
       expect(dto.name).toBe('Inspector');
       // Duplicate name → 409
       await expect(
-        withTestTenant(async () =>
-          visitorTypes.create({ name: 'Inspector' } as any, adminActor()),
-        ),
+        withTestTenant(async () => visitorTypes.create({ name: 'Inspector' } as any, adminActor())),
       ).rejects.toBeInstanceOf(ConflictException);
       // Patch
       const patched = await withTestTenant(async () =>
@@ -242,17 +243,13 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
 
     it('loadOrFail missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          visitorTypes.loadOrFail('00000000-0000-0000-0000-000000000099'),
-        ),
+        withTestTenant(async () => visitorTypes.loadOrFail('00000000-0000-0000-0000-000000000099')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('create gated for non-admin without saf-002:admin → Forbidden', async () => {
       await expect(
-        withTestTenant(async () =>
-          visitorTypes.create({ name: 'X' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => visitorTypes.create({ name: 'X' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -313,7 +310,9 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
 
     it('getById missing → 404', async () => {
       await expect(
-        withTestTenant(async () => visitors.getById('00000000-0000-0000-0000-000000000099', adminActor())),
+        withTestTenant(async () =>
+          visitors.getById('00000000-0000-0000-0000-000000000099', adminActor()),
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -362,9 +361,9 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
 
     it('loadInternal rejects cross-school visitor → 404', async () => {
       const { id } = await newVisitor({ schoolId: TEST_SCHOOL_B_ID });
-      await expect(
-        withTestTenant(async () => visitors.loadInternal(id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => visitors.loadInternal(id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -397,7 +396,9 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
 
     it('update requires admin', async () => {
       await expect(
-        withTestTenant(async () => settings.update({ requirePurpose: true } as any, teacherActor())),
+        withTestTenant(async () =>
+          settings.update({ requirePurpose: true } as any, teacherActor()),
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -733,20 +734,13 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
       expect(fetched.id).toBe(dto.id);
 
       const patched = await withTestTenant(async () =>
-        banned.patch(
-          dto.id,
-          { notes: 'updated', isActive: false } as any,
-          adminActor(),
-        ),
+        banned.patch(dto.id, { notes: 'updated', isActive: false } as any, adminActor()),
       );
       expect(patched.isActive).toBe(false);
 
       // Inactive ban → kiosk check passes
       const check = await withTestTenant(async () =>
-        banned.checkAtKiosk(
-          { firstName: 'No', lastName: 'Way' },
-          adminActor(),
-        ),
+        banned.checkAtKiosk({ firstName: 'No', lastName: 'Way' }, adminActor()),
       );
       expect(check.blocked).toBe(false);
 
@@ -755,10 +749,7 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
         banned.patch(dto.id, { isActive: true } as any, adminActor()),
       );
       const check2 = await withTestTenant(async () =>
-        banned.checkAtKiosk(
-          { firstName: 'No', lastName: 'Way' },
-          adminActor(),
-        ),
+        banned.checkAtKiosk({ firstName: 'No', lastName: 'Way' }, adminActor()),
       );
       expect(check2.blocked).toBe(true);
     });
@@ -766,7 +757,13 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
     it('list includeInactive=true returns inactive too', async () => {
       const dto = await withTestTenant(async () =>
         banned.create(
-          { firstName: 'In', lastName: 'Active', banReason: 'r', banType: 'OTHER', effectiveFrom: '2026-01-01' } as any,
+          {
+            firstName: 'In',
+            lastName: 'Active',
+            banReason: 'r',
+            banType: 'OTHER',
+            effectiveFrom: '2026-01-01',
+          } as any,
           adminActor(),
         ),
       );
@@ -783,7 +780,13 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
       await expect(
         withTestTenant(async () =>
           banned.create(
-            { firstName: 'X', lastName: 'Y', banReason: 'r', banType: 'SAFEGUARDING', effectiveFrom: '2026-01-01' } as any,
+            {
+              firstName: 'X',
+              lastName: 'Y',
+              banReason: 'r',
+              banType: 'SAFEGUARDING',
+              effectiveFrom: '2026-01-01',
+            } as any,
             teacherActor(),
           ),
         ),
@@ -955,9 +958,7 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
     } as any;
 
     it('visitor types CRUD via controller', async () => {
-      const list = await withTestTenant(async () =>
-        ctrl.listTypes(false as any, fakeReq),
-      );
+      const list = await withTestTenant(async () => ctrl.listTypes(false as any, fakeReq));
       expect(list.length).toBeGreaterThan(0);
       const dto = await withTestTenant(async () =>
         ctrl.createType({ name: 'CtrlNew' } as any, fakeReq),
@@ -992,9 +993,7 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
       );
       const list = await withTestTenant(async () => ctrl.listVisitors(undefined as any, fakeReq));
       expect(list.length).toBeGreaterThan(0);
-      const lookup = await withTestTenant(async () =>
-        ctrl.lookup({ email: 'dr@x.local' } as any),
-      );
+      const lookup = await withTestTenant(async () => ctrl.lookup({ email: 'dr@x.local' } as any));
       expect(lookup?.firstName).toBe('Dr');
     });
 
@@ -1022,7 +1021,13 @@ describe('integration:m90-visitors/visitor-lifecycle', () => {
     it('banned-person + check + muster paths', async () => {
       const dto = await withTestTenant(async () =>
         ctrl.createBanned(
-          { firstName: 'B', lastName: 'P', banReason: 'r', banType: 'SAFEGUARDING', effectiveFrom: '2026-01-01' } as any,
+          {
+            firstName: 'B',
+            lastName: 'P',
+            banReason: 'r',
+            banType: 'SAFEGUARDING',
+            effectiveFrom: '2026-01-01',
+          } as any,
           fakeReq,
         ),
       );

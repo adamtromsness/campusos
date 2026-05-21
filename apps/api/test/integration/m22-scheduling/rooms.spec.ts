@@ -89,13 +89,15 @@ describe('integration:m22-scheduling/rooms', () => {
     }
   });
 
-  async function seedRoom(opts: {
-    schoolId?: string;
-    name?: string;
-    capacity?: number | null;
-    roomType?: string;
-    isActive?: boolean;
-  } = {}): Promise<string> {
+  async function seedRoom(
+    opts: {
+      schoolId?: string;
+      name?: string;
+      capacity?: number | null;
+      roomType?: string;
+      isActive?: boolean;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.sch_rooms
@@ -143,10 +145,7 @@ describe('integration:m22-scheduling/rooms', () => {
     it('non-admin (teacher) → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          roomService.create(
-            { name: 'X', roomType: 'CLASSROOM' } as any,
-            teacherActor(),
-          ),
+          roomService.create({ name: 'X', roomType: 'CLASSROOM' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -162,9 +161,7 @@ describe('integration:m22-scheduling/rooms', () => {
 
     it('unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          roomService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => roomService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -187,17 +184,13 @@ describe('integration:m22-scheduling/rooms', () => {
     it('non-admin → ForbiddenException', async () => {
       const id = await seedRoom();
       await expect(
-        withTestTenant(async () =>
-          roomService.update(id, { name: 'nope' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => roomService.update(id, { name: 'nope' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('empty patch returns existing dto unchanged', async () => {
       const id = await seedRoom({ name: 'Untouched' });
-      const dto = await withTestTenant(async () =>
-        roomService.update(id, {} as any, adminActor()),
-      );
+      const dto = await withTestTenant(async () => roomService.update(id, {} as any, adminActor()));
       expect(dto.name).toBe('Untouched');
     });
   });
@@ -207,9 +200,7 @@ describe('integration:m22-scheduling/rooms', () => {
       const activeId = await seedRoom({ name: 'Active Room', isActive: true });
       const inactiveId = await seedRoom({ name: 'Inactive Room', isActive: false });
 
-      const defaultList = await withTestTenant(async () =>
-        roomService.list({} as any),
-      );
+      const defaultList = await withTestTenant(async () => roomService.list({} as any));
       const ids = defaultList.map((r) => r.id);
       expect(ids).toContain(activeId);
       expect(ids).not.toContain(inactiveId);
@@ -225,9 +216,7 @@ describe('integration:m22-scheduling/rooms', () => {
     it('roomType filter narrows to that type', async () => {
       const labId = await seedRoom({ name: 'Lab 1', roomType: 'LAB' });
       const classroomId = await seedRoom({ name: 'CR 1', roomType: 'CLASSROOM' });
-      const list = await withTestTenant(async () =>
-        roomService.list({ roomType: 'LAB' } as any),
-      );
+      const list = await withTestTenant(async () => roomService.list({ roomType: 'LAB' } as any));
       const ids = list.map((r) => r.id);
       expect(ids).toContain(labId);
       expect(ids).not.toContain(classroomId);
@@ -461,13 +450,9 @@ describe('integration:m22-scheduling/rooms', () => {
         ),
       );
       bookingIds.push(booking.id);
-      await withTestTenant(async () =>
-        bookingService.cancel(booking.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => bookingService.cancel(booking.id, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          bookingService.cancel(booking.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => bookingService.cancel(booking.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -485,9 +470,7 @@ describe('integration:m22-scheduling/rooms', () => {
         ),
       );
       bookingIds.push(first.id);
-      await withTestTenant(async () =>
-        bookingService.cancel(first.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => bookingService.cancel(first.id, {} as any, adminActor()));
       // Now a new overlapping booking should succeed because the first is
       // CANCELLED and the conflict-check filters on status='CONFIRMED'.
       const second = await withTestTenant(async () =>
@@ -535,9 +518,7 @@ describe('integration:m22-scheduling/rooms', () => {
       );
       bookingIds.push(b.id);
 
-      const onlyA = await withTestTenant(async () =>
-        bookingService.list({ roomId: roomA } as any),
-      );
+      const onlyA = await withTestTenant(async () => bookingService.list({ roomId: roomA } as any));
       const ids = onlyA.map((r) => r.id);
       expect(ids).toContain(a.id);
       expect(ids).not.toContain(b.id);
@@ -569,9 +550,7 @@ describe('integration:m22-scheduling/rooms', () => {
         ),
       );
       bookingIds.push(toCancel.id);
-      await withTestTenant(async () =>
-        bookingService.cancel(toCancel.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => bookingService.cancel(toCancel.id, {} as any, adminActor()));
 
       const confirmedList = await withTestTenant(async () =>
         bookingService.list({ status: 'CONFIRMED' } as any),

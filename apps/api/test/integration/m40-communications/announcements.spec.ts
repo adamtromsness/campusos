@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -77,12 +73,8 @@ describe('integration:m40-communications/announcements', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_announcement_reads`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_reads`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcements`);
   });
 
@@ -141,10 +133,7 @@ describe('integration:m40-communications/announcements', () => {
     it('CLASS audience requires audienceRef → BadRequestException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.create(
-            { title: 'Class', body: 'b', audienceType: 'CLASS' } as any,
-            adminActor(),
-          ),
+          service.create({ title: 'Class', body: 'b', audienceType: 'CLASS' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -428,9 +417,7 @@ describe('integration:m40-communications/announcements', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          service.update(d.id, { title: 'edited' } as any, adminActor()),
-        ),
+        withTestTenant(async () => service.update(d.id, { title: 'edited' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -456,9 +443,7 @@ describe('integration:m40-communications/announcements', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          service.update(d.id, { title: 'x' } as any, parentActor()),
-        ),
+        withTestTenant(async () => service.update(d.id, { title: 'x' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -585,10 +570,7 @@ describe('integration:m40-communications/announcements', () => {
 
     it('non-author non-admin → ForbiddenException', async () => {
       const d = await withTestTenant(async () =>
-        service.create(
-          { title: 't', body: 'b', audienceType: 'ALL_SCHOOL' } as any,
-          adminActor(),
-        ),
+        service.create({ title: 't', body: 'b', audienceType: 'ALL_SCHOOL' } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => service.getStats(d.id, parentActor())),

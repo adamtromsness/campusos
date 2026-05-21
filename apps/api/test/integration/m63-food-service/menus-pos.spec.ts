@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import {
@@ -26,11 +22,7 @@ import {
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import {
   resetFoodServiceTables,
@@ -93,10 +85,7 @@ describe('integration:m63-food-service/menus-pos', () => {
 
     it('admin creates a cycle', async () => {
       const dto = await withTestTenant(async () =>
-        cycles.create(
-          { name: 'New 2-week', cycleLengthDays: 14 } as any,
-          adminActor(),
-        ),
+        cycles.create({ name: 'New 2-week', cycleLengthDays: 14 } as any, adminActor()),
       );
       expect(dto.name).toBe('New 2-week');
     });
@@ -121,10 +110,7 @@ describe('integration:m63-food-service/menus-pos', () => {
 
     it('admin creates item; getById returns', async () => {
       const dto = await withTestTenant(async () =>
-        items.create(
-          { name: 'Banana', category: 'SIDE', allergenCodes: [] } as any,
-          adminActor(),
-        ),
+        items.create({ name: 'Banana', category: 'SIDE', allergenCodes: [] } as any, adminActor()),
       );
       const fetched = await withTestTenant(async () => items.getById(dto.id));
       expect(fetched.name).toBe('Banana');
@@ -155,10 +141,7 @@ describe('integration:m63-food-service/menus-pos', () => {
 
     it('create + patch device', async () => {
       const d = await withTestTenant(async () =>
-        pos.create(
-          { deviceName: 'New Kiosk', deviceType: 'CASHIER_STAFFED' } as any,
-          adminActor(),
-        ),
+        pos.create({ deviceName: 'New Kiosk', deviceType: 'CASHIER_STAFFED' } as any, adminActor()),
       );
       expect(d.deviceName).toBe('New Kiosk');
 
@@ -180,10 +163,7 @@ describe('integration:m63-food-service/menus-pos', () => {
   describe('SessionService', () => {
     it('open + close session lifecycle', async () => {
       const opened = await withTestTenant(async () =>
-        sessions.open(
-          { serviceDate: '2026-06-01', mealType: 'LUNCH' } as any,
-          adminActor(),
-        ),
+        sessions.open({ serviceDate: '2026-06-01', mealType: 'LUNCH' } as any, adminActor()),
       );
       expect(opened.closedAt).toBeNull();
 

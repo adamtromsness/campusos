@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { ProgrammeService } from '@modules/m66-athletics/programme.service';
@@ -13,11 +9,7 @@ import { MedicalClearanceService } from '@modules/m66-athletics/medical-clearanc
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   teacherActor,
@@ -332,17 +324,13 @@ describe('integration:m66-athletics/injuries', () => {
 
   it('getById: missing → NotFoundException', async () => {
     await expect(
-      withTestTenant(() =>
-        injuries.getById('00000000-0000-0000-0000-000000000000', adminActor()),
-      ),
+      withTestTenant(() => injuries.getById('00000000-0000-0000-0000-000000000000', adminActor())),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('getById: parent → NotFoundException (no row scope)', async () => {
     await expect(
-      withTestTenant(() =>
-        injuries.getById('00000000-0000-0000-0000-000000000000', parentActor()),
-      ),
+      withTestTenant(() => injuries.getById('00000000-0000-0000-0000-000000000000', parentActor())),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -501,11 +489,7 @@ describe('integration:m66-athletics/injuries', () => {
       );
       await expect(
         withTestTenant(() =>
-          protocol.startStep(
-            inj.id,
-            { stepNumber: 1, stepName: 'Rest' } as any,
-            adminActor(),
-          ),
+          protocol.startStep(inj.id, { stepNumber: 1, stepName: 'Rest' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -514,11 +498,7 @@ describe('integration:m66-athletics/injuries', () => {
       const { inj } = await newConcussionInjury();
       await expect(
         withTestTenant(() =>
-          protocol.startStep(
-            inj.id,
-            { stepNumber: 2, stepName: 'Light' } as any,
-            adminActor(),
-          ),
+          protocol.startStep(inj.id, { stepNumber: 2, stepName: 'Light' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -534,11 +514,7 @@ describe('integration:m66-athletics/injuries', () => {
       );
       await expect(
         withTestTenant(() =>
-          protocol.startStep(
-            inj.id,
-            { stepNumber: 2, stepName: 'Light' } as any,
-            adminActor(),
-          ),
+          protocol.startStep(inj.id, { stepNumber: 2, stepName: 'Light' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -830,9 +806,7 @@ describe('integration:m66-athletics/injuries', () => {
         clearance.review(c.id, { decision: 'ACCEPTED' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(() =>
-          clearance.review(c.id, { decision: 'REJECTED' } as any, adminActor()),
-        ),
+        withTestTenant(() => clearance.review(c.id, { decision: 'REJECTED' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

@@ -35,10 +35,7 @@ import {
   TEST_STUDENT_ACCOUNT_ID,
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
-import {
-  TEST_PUB_SERIES_ID,
-  TEST_PUB_SERIES_B_ID,
-} from '../fixtures/publications';
+import { TEST_PUB_SERIES_ID, TEST_PUB_SERIES_B_ID } from '../fixtures/publications';
 
 /**
  * Wave 5 — m42-publications publication-lifecycle DB-backed integration
@@ -94,9 +91,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`);
     if (seededPubIds.length > 0) {
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.pub_sections WHERE publication_id = ANY($1::uuid[])`,
@@ -164,13 +159,15 @@ describe('integration:m42-publications/publication-lifecycle', () => {
     );
   }
 
-  async function seedPublication(opts: {
-    schoolId?: string;
-    title?: string;
-    status?: string;
-    seriesId?: string | null;
-    createdBy?: string;
-  } = {}): Promise<string> {
+  async function seedPublication(
+    opts: {
+      schoolId?: string;
+      title?: string;
+      status?: string;
+      seriesId?: string | null;
+      createdBy?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     seededPubIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -247,9 +244,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
     });
 
     it('getById on a School B series with School B context works', async () => {
-      const dto = await withTestTenantB(async () =>
-        seriesService.getById(TEST_PUB_SERIES_B_ID),
-      );
+      const dto = await withTestTenantB(async () => seriesService.getById(TEST_PUB_SERIES_B_ID));
       expect(dto.schoolId).toBe(TEST_SCHOOL_B_ID);
     });
 
@@ -347,9 +342,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
 
     it('create on phantom series id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          editionService.create(adminActor(), generateId(), {} as any),
-        ),
+        withTestTenant(async () => editionService.create(adminActor(), generateId(), {} as any)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -480,10 +473,9 @@ describe('integration:m42-publications/publication-lifecycle', () => {
         status: 'PUBLISHED',
         title: 'Published Pub',
       });
-      const list = await withTestTenant(
-        async () => publicationService.list(parentActor()),
-        { personId: '019e0cf8-aaaa-7777-8888-000000000050' },
-      );
+      const list = await withTestTenant(async () => publicationService.list(parentActor()), {
+        personId: '019e0cf8-aaaa-7777-8888-000000000050',
+      });
       const ids = list.map((p) => p.id);
       expect(ids).toContain(pubId);
       expect(ids).not.toContain(draftId);
@@ -491,9 +483,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
 
     it('admin sees DRAFT publications in list', async () => {
       const draftId = await seedPublication({ status: 'DRAFT', title: 'Adm Draft' });
-      const list = await withTestTenant(async () =>
-        publicationService.list(adminActor()),
-      );
+      const list = await withTestTenant(async () => publicationService.list(adminActor()));
       expect(list.map((p) => p.id)).toContain(draftId);
     });
 
@@ -532,9 +522,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
     it('non-writer parent getById on a DRAFT publication → collapsed 404', async () => {
       const draftId = await seedPublication({ status: 'DRAFT' });
       await expect(
-        withTestTenant(async () =>
-          publicationService.getById(draftId, parentActor()),
-        ),
+        withTestTenant(async () => publicationService.getById(draftId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -549,9 +537,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
 
     it('getById on a phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          publicationService.getById(generateId(), adminActor()),
-        ),
+        withTestTenant(async () => publicationService.getById(generateId(), adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -739,9 +725,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
         } as any),
       );
       await expect(
-        withTestTenant(async () =>
-          collaboratorService.remove(teacherActor(), collab.id),
-        ),
+        withTestTenant(async () => collaboratorService.remove(teacherActor(), collab.id)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -756,9 +740,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
         status: 'PUBLISHED',
       });
       await expect(
-        withTestTenant(async () =>
-          publicationService.getById(pubBId, adminActor()),
-        ),
+        withTestTenant(async () => publicationService.getById(pubBId, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -771,9 +753,7 @@ describe('integration:m42-publications/publication-lifecycle', () => {
         schoolId: TEST_SCHOOL_B_ID,
         title: 'B',
       });
-      const list = await withTestTenant(async () =>
-        publicationService.list(adminActor()),
-      );
+      const list = await withTestTenant(async () => publicationService.list(adminActor()));
       const ids = list.map((p) => p.id);
       expect(ids).toContain(pubAId);
       expect(ids).not.toContain(pubBId);

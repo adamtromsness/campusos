@@ -23,10 +23,7 @@ import {
   TEST_SCHOOL_B_ID,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import { TEST_ACADEMIC_YEAR_ID } from '../fixtures/finance';
 
 /**
@@ -83,11 +80,7 @@ describe('integration:m27-student-services/cross-school', () => {
     );
     sessions = new SessionService(tenantPrisma, permCheck);
     checkins = new CheckinService(tenantPrisma, permCheck, outbox);
-    mtss = new MtssTierService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-      permCheck,
-    );
+    mtss = new MtssTierService(tenantPrisma, kafka as unknown as KafkaProducerService, permCheck);
   });
 
   afterAll(async () => {
@@ -102,9 +95,7 @@ describe('integration:m27-student-services/cross-school', () => {
 
   beforeEach(async () => {
     // svc_referral_activity is IMMUTABLE — TRUNCATE bypasses trigger
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.svc_mtss_tiers WHERE student_id IN (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'XSCH-%')`,
     );
@@ -211,9 +202,7 @@ describe('integration:m27-student-services/cross-school', () => {
       referralTypeId,
     );
     // Sanity: B sees it
-    const seenInB = await withTestTenantB(async () =>
-      referrals.getById(refBId, adminActor()),
-    );
+    const seenInB = await withTestTenantB(async () => referrals.getById(refBId, adminActor()));
     expect(seenInB.id).toBe(refBId);
     // School A admin probing → NotFound (loadOrFail now carries r.school_id predicate)
     await expect(
@@ -235,9 +224,7 @@ describe('integration:m27-student-services/cross-school', () => {
       TEST_ADMIN_EMPLOYEE_ID,
     );
     // Sanity: B sees it
-    const seenInB = await withTestTenantB(async () =>
-      sessions.getById(sessBId, adminActor()),
-    );
+    const seenInB = await withTestTenantB(async () => sessions.getById(sessBId, adminActor()));
     expect(seenInB.id).toBe(sessBId);
     // School A probe → NotFound
     await expect(
@@ -274,9 +261,7 @@ describe('integration:m27-student-services/cross-school', () => {
       templateBId,
     );
     // Sanity: B sees it
-    const seenInB = await withTestTenantB(async () =>
-      checkins.getById(checkinBId, adminActor()),
-    );
+    const seenInB = await withTestTenantB(async () => checkins.getById(checkinBId, adminActor()));
     expect(seenInB.id).toBe(checkinBId);
     // School A probe → NotFound
     await expect(
@@ -312,9 +297,7 @@ describe('integration:m27-student-services/cross-school', () => {
       TEST_ADMIN_EMPLOYEE_ID,
     );
     // Sanity: B sees it
-    const seenInB = await withTestTenantB(async () =>
-      mtss.getById(tierBId, adminActor()),
-    );
+    const seenInB = await withTestTenantB(async () => mtss.getById(tierBId, adminActor()));
     expect(seenInB.id).toBe(tierBId);
     // School A probe → NotFound
     await expect(

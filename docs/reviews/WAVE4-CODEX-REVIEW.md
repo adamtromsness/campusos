@@ -3,6 +3,7 @@
 Date: 2026-05-19
 
 Scope:
+
 - `m20-sis`
 - `m21-classroom`
 - `m22-scheduling`
@@ -20,8 +21,8 @@ pnpm --filter @campusos/api test:integration
 Result: **FAIL**
 
 | Total Tests | Passed | Failed | Skipped |
-|---:|---:|---:|---:|
-| 3817 | 3807 | 1 | 9 |
+| ----------: | -----: | -----: | ------: |
+|        3817 |   3807 |      1 |       9 |
 
 Vitest summary:
 
@@ -33,8 +34,8 @@ Duration    469.93s
 
 Failing spec:
 
-| Spec | Test | Error Summary |
-|---|---|---|
+| Spec                                                   | Test                                                                                                         | Error Summary                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api/test/integration/m20-sis/attendance.spec.ts` | `integration:m20-sis/attendance > AttendanceService > student persona: getClassAttendance only sees own row` | `PrismaClientKnownRequestError`, raw SQL failed with PostgreSQL `23505`: `Key (person_id)=(019e0cf8-aaaa-7777-8888-000000000040) already exists.` The failing insert is at `attendance.spec.ts:300`, inserting `TEST_STUDENT_PERSON_ID` into `platform.platform_students` without conflict handling. |
 
 Blocking conclusion: **Do not proceed to coverage until Step 1 has 0 failures.**
@@ -43,26 +44,26 @@ Blocking conclusion: **Do not proceed to coverage until Step 1 has 0 failures.**
 
 Coverage was **not measured** because Step 1 failed. This follows the requested gate: "Do NOT proceed to coverage until 0 failures."
 
-| Module | Target | Measured % | Suite Green? | Meets Target? |
-|---|---:|---:|---|---|
-| `m20-sis` | 80% | Blocked | No | Unknown |
-| `m21-classroom` | 80% | Blocked | Blocked by full suite | Unknown |
-| `m22-scheduling` | 80% | Blocked | Blocked by full suite | Unknown |
-| `m81-enrolment` | 80% | Blocked | Blocked by full suite | Unknown |
-| `m25-curriculum` | 80% | Blocked | Blocked by full suite | Unknown |
+| Module           | Target | Measured % | Suite Green?          | Meets Target? |
+| ---------------- | -----: | ---------: | --------------------- | ------------- |
+| `m20-sis`        |    80% |    Blocked | No                    | Unknown       |
+| `m21-classroom`  |    80% |    Blocked | Blocked by full suite | Unknown       |
+| `m22-scheduling` |    80% |    Blocked | Blocked by full suite | Unknown       |
+| `m81-enrolment`  |    80% |    Blocked | Blocked by full suite | Unknown       |
+| `m25-curriculum` |    80% |    Blocked | Blocked by full suite | Unknown       |
 
 ## Step 3 - Quality Checks
 
 Static checks were performed where they did not violate the coverage gate.
 
-| Check | `m20-sis` | `m21-classroom` | `m22-scheduling` | `m81-enrolment` | `m25-curriculum` |
-|---|---|---|---|---|---|
-| DB-backed, no DB mocks | Pass: no `vi.fn`/`vi.mock` hits in integration folder | Pass | Pass | Pass | Pass |
-| Real state assertions | Pass: raw SQL assertions present | Pass | Pass | Pass | Pass |
-| Cross-school isolation | Pass, but suite has unrelated failing m20 test | Pass | Pass | **Defect**: some tests document current leakage instead of expecting `NotFoundException`/empty | Pass |
-| Codex hardening findings | Pass by static evidence | N/A | N/A | N/A | Pass by static evidence |
-| Key domain scenarios | Present by static evidence, but suite not green | Present by static evidence | Present by static evidence | Present by static evidence plus cross-school defect below | Present by static evidence |
-| Old mock specs removed | Pass | Pass | Pass | Pass | Pass |
+| Check                    | `m20-sis`                                             | `m21-classroom`            | `m22-scheduling`           | `m81-enrolment`                                                                                | `m25-curriculum`           |
+| ------------------------ | ----------------------------------------------------- | -------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------- |
+| DB-backed, no DB mocks   | Pass: no `vi.fn`/`vi.mock` hits in integration folder | Pass                       | Pass                       | Pass                                                                                           | Pass                       |
+| Real state assertions    | Pass: raw SQL assertions present                      | Pass                       | Pass                       | Pass                                                                                           | Pass                       |
+| Cross-school isolation   | Pass, but suite has unrelated failing m20 test        | Pass                       | Pass                       | **Defect**: some tests document current leakage instead of expecting `NotFoundException`/empty | Pass                       |
+| Codex hardening findings | Pass by static evidence                               | N/A                        | N/A                        | N/A                                                                                            | Pass by static evidence    |
+| Key domain scenarios     | Present by static evidence, but suite not green       | Present by static evidence | Present by static evidence | Present by static evidence plus cross-school defect below                                      | Present by static evidence |
+| Old mock specs removed   | Pass                                                  | Pass                       | Pass                       | Pass                                                                                           | Pass                       |
 
 ### Static Evidence
 

@@ -18,7 +18,11 @@ import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service'
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_EMPLOYEE_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
+import {
+  TEST_ADMIN_ACCOUNT_ID,
+  TEST_ADMIN_EMPLOYEE_ID,
+  TEST_ADMIN_PERSON_ID,
+} from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_CLASS_ID } from '../fixtures/sis';
 import { seedStudent, enrollStudent, cleanupSeededIds } from '../m20-sis/sis-helpers';
@@ -266,11 +270,7 @@ describe('integration:m21-classroom/grading-controllers', () => {
       expect(unpublished.isPublished).toBe(false);
 
       const publishAll = await withTestTenant(async () =>
-        gradeController.publishAll(
-          TEST_SIS_CLASS_ID,
-          { assignmentId: aid } as any,
-          fakeAdminReq(),
-        ),
+        gradeController.publishAll(TEST_SIS_CLASS_ID, { assignmentId: aid } as any, fakeAdminReq()),
       );
       expect(publishAll.publishedCount).toBeGreaterThanOrEqual(1);
     });
@@ -310,21 +310,13 @@ describe('integration:m21-classroom/grading-controllers', () => {
       await enrollStudent(rawClient, student.studentId);
 
       const classGb = await withTestTenant(async () =>
-        gradebookController.getClassGradebook(
-          TEST_SIS_CLASS_ID,
-          {} as any,
-          fakeAdminReq(),
-        ),
+        gradebookController.getClassGradebook(TEST_SIS_CLASS_ID, {} as any, fakeAdminReq()),
       );
       expect(classGb.class.id).toBe(TEST_SIS_CLASS_ID);
       expect(Array.isArray(classGb.rows)).toBe(true);
 
       const studentGb = await withTestTenant(async () =>
-        gradebookController.getStudentGradebook(
-          student.studentId,
-          {} as any,
-          fakeAdminReq(),
-        ),
+        gradebookController.getStudentGradebook(student.studentId, {} as any, fakeAdminReq()),
       );
       expect(studentGb.student.id).toBe(student.studentId);
 
@@ -381,9 +373,7 @@ describe('integration:m21-classroom/grading-controllers', () => {
       );
       expect(updated.noteText).toBe('Updated note');
 
-      await withTestTenant(async () =>
-        observationController.delete(created.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => observationController.delete(created.id, fakeAdminReq()));
       const listAfter = await withTestTenant(async () =>
         observationController.listForStudent(student.studentId, fakeAdminReq()),
       );
@@ -420,9 +410,7 @@ describe('integration:m21-classroom/grading-controllers', () => {
       );
       expect(list.map((g) => g.id)).toContain(created.id);
 
-      const fetched = await withTestTenant(async () =>
-        standardGradeController.getById(created.id),
-      );
+      const fetched = await withTestTenant(async () => standardGradeController.getById(created.id));
       expect(fetched.id).toBe(created.id);
 
       const updated = await withTestTenant(async () =>

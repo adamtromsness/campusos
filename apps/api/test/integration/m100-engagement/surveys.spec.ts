@@ -140,7 +140,10 @@ describe('integration:m100-engagement/surveys', () => {
 
   // 8-4-4-4-12 v4-shape hex generator for the direct-insert path
   function generatedUuid(): string {
-    const hex = (n: number) => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+    const hex = (n: number) =>
+      Math.floor(Math.random() * 0x10000)
+        .toString(16)
+        .padStart(4, '0');
     return `${hex(0)}${hex(0)}-${hex(0)}-4${hex(0).slice(1)}-${(8 + Math.floor(Math.random() * 4)).toString(16)}${hex(0).slice(1)}-${hex(0)}${hex(0)}${hex(0)}`;
   }
 
@@ -199,9 +202,7 @@ describe('integration:m100-engagement/surveys', () => {
         withTestTenant(async () =>
           surveys.create(adminActor(), {
             title: 'X',
-            questions: [
-              { id: 'a', question_text: 'q', question_type: 'MULTIPLE_CHOICE' },
-            ],
+            questions: [{ id: 'a', question_text: 'q', question_type: 'MULTIPLE_CHOICE' }],
           } as any),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -245,9 +246,7 @@ describe('integration:m100-engagement/surveys', () => {
     it('parent sees only OPEN', async () => {
       const id1 = await createSurvey(); // DRAFT
       // Flip to OPEN
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id1, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id1, { status: 'OPEN' } as any));
       const id2 = await createSurvey(); // DRAFT — should not be visible to parent
 
       const listP = await withTestTenant(async () => surveys.list(parentActor()));
@@ -290,9 +289,7 @@ describe('integration:m100-engagement/surveys', () => {
       expect(opened.status).toBe('OPEN');
       expect(opened.openedAt).toBeTruthy();
 
-      const rows = await rawClient.$queryRawUnsafe<
-        Array<{ topic: string; envelope: string }>
-      >(
+      const rows = await rawClient.$queryRawUnsafe<Array<{ topic: string; envelope: string }>>(
         `SELECT topic, envelope::text AS envelope FROM platform.platform_outbox
            WHERE topic = 'eng.survey.opened' AND tenant_id = $1::uuid`,
         TEST_SCHOOL_ID,
@@ -305,9 +302,7 @@ describe('integration:m100-engagement/surveys', () => {
 
     it('OPEN → CLOSED sets closed_at', async () => {
       const id = await createSurvey();
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
       const closed = await withTestTenant(async () =>
         surveys.patch(adminActor(), id, { status: 'CLOSED' } as any),
       );
@@ -317,37 +312,27 @@ describe('integration:m100-engagement/surveys', () => {
 
     it('OPEN → DRAFT rejected — invalid transition', async () => {
       const id = await createSurvey();
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
       await expect(
-        withTestTenant(async () =>
-          surveys.patch(adminActor(), id, { status: 'DRAFT' } as any),
-        ),
+        withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'DRAFT' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('CLOSED → OPEN rejected — terminal', async () => {
       const id = await createSurvey();
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
       await withTestTenant(async () =>
         surveys.patch(adminActor(), id, { status: 'CLOSED' } as any),
       );
       await expect(
-        withTestTenant(async () =>
-          surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-        ),
+        withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('parent → ForbiddenException', async () => {
       const id = await createSurvey();
       await expect(
-        withTestTenant(async () =>
-          surveys.patch(parentActor(), id, { title: 'X' } as any),
-        ),
+        withTestTenant(async () => surveys.patch(parentActor(), id, { title: 'X' } as any)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -390,9 +375,7 @@ describe('integration:m100-engagement/surveys', () => {
 
     it('empty body → no-op DTO read', async () => {
       const id = await createSurvey();
-      const dto = await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, {} as any),
-      );
+      const dto = await withTestTenant(async () => surveys.patch(adminActor(), id, {} as any));
       expect(dto.id).toBe(id);
     });
   });
@@ -403,9 +386,7 @@ describe('integration:m100-engagement/surveys', () => {
   describe('submitResponse', () => {
     async function openSurvey(opts?: { isAnonymous?: boolean }): Promise<string> {
       const id = await createSurvey({ isAnonymous: opts?.isAnonymous ?? true });
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
       return id;
     }
 
@@ -575,9 +556,7 @@ describe('integration:m100-engagement/surveys', () => {
       await withTestTenant(async () =>
         surveys.submitResponse(parentActor(), id, { answers: { q1: 3, q3: 'Spring' } } as any),
       );
-      const rows = await rawClient.$queryRawUnsafe<
-        Array<{ response_data_aggregated: string }>
-      >(
+      const rows = await rawClient.$queryRawUnsafe<Array<{ response_data_aggregated: string }>>(
         `SELECT response_data_aggregated::text AS response_data_aggregated FROM ${TEST_SCHEMA}.eng_parent_surveys WHERE id = $1::uuid`,
         id,
       );
@@ -602,9 +581,7 @@ describe('integration:m100-engagement/surveys', () => {
           answers: { q2: false, q4: 'bad' },
         } as any),
       );
-      const rows = await rawClient.$queryRawUnsafe<
-        Array<{ response_data_aggregated: string }>
-      >(
+      const rows = await rawClient.$queryRawUnsafe<Array<{ response_data_aggregated: string }>>(
         `SELECT response_data_aggregated::text AS response_data_aggregated FROM ${TEST_SCHEMA}.eng_parent_surveys WHERE id = $1::uuid`,
         id,
       );
@@ -623,20 +600,14 @@ describe('integration:m100-engagement/surveys', () => {
   describe('getResults', () => {
     it('admin reads aggregated results', async () => {
       const id = await createSurvey();
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
-      const r = await withTestTenant(async () =>
-        surveys.getResults(adminActor(), id),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
+      const r = await withTestTenant(async () => surveys.getResults(adminActor(), id));
       expect(r.id).toBe(id);
     });
 
     it('parent → ForbiddenException', async () => {
       const id = await createSurvey();
-      await withTestTenant(async () =>
-        surveys.patch(adminActor(), id, { status: 'OPEN' } as any),
-      );
+      await withTestTenant(async () => surveys.patch(adminActor(), id, { status: 'OPEN' } as any));
       await expect(
         withTestTenant(async () => surveys.getResults(parentActor(), id)),
       ).rejects.toBeInstanceOf(ForbiddenException);

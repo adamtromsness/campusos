@@ -113,9 +113,7 @@ describe('integration:m84-payments/late-fees', () => {
         {
           familyAccountId: fa,
           title: 'Overdue test',
-          lineItems: [
-            { description: 'Tuition', quantity: 1, unitPrice: opts.total ?? 100 },
-          ],
+          lineItems: [{ description: 'Tuition', quantity: 1, unitPrice: opts.total ?? 100 }],
         },
         adminActor(),
       ),
@@ -169,9 +167,7 @@ describe('integration:m84-payments/late-fees', () => {
       opts.isActive ?? true,
       opts.gracePeriodDays ?? 7,
       opts.feeType,
-      opts.feeAmount === undefined || opts.feeAmount === null
-        ? null
-        : opts.feeAmount.toFixed(2),
+      opts.feeAmount === undefined || opts.feeAmount === null ? null : opts.feeAmount.toFixed(2),
       opts.feePercentage === undefined || opts.feePercentage === null
         ? null
         : opts.feePercentage.toFixed(4),
@@ -278,9 +274,9 @@ describe('integration:m84-payments/late-fees', () => {
       ['student', studentActor],
       ['parent', parentActor],
     ])('getPolicy as %s → ForbiddenException', async (_label, actor) => {
-      await expect(
-        withTestTenant(async () => lateFees.getPolicy(actor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => lateFees.getPolicy(actor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it.each([
@@ -440,9 +436,7 @@ describe('integration:m84-payments/late-fees', () => {
         ),
       );
       // Back-date due_date but leave status='DRAFT' (which is the create-default)
-      const dueDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const dueDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       await rawClient.$executeRawUnsafe(
         `UPDATE ${TEST_SCHEMA}.pay_invoices SET due_date = $1::date WHERE id = $2::uuid`,
         dueDate,
@@ -592,9 +586,9 @@ describe('integration:m84-payments/late-fees', () => {
       ['student', studentActor],
       ['parent', parentActor],
     ])('runScan as %s → ForbiddenException', async (_label, actor) => {
-      await expect(
-        withTestTenant(async () => lateFees.runScan(actor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => lateFees.runScan(actor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 });

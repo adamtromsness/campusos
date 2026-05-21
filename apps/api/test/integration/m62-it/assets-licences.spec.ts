@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import {
@@ -14,20 +10,18 @@ import {
   DamageReportService,
   RepairRecordService,
 } from '@modules/m62-it/assets.service';
-import {
-  LicenceService,
-  CredentialVaultService,
-} from '@modules/m62-it/licences.service';
+import { LicenceService, CredentialVaultService } from '@modules/m62-it/licences.service';
 import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
+  adminActor,
+  studentActor,
+  TEST_ADMIN_EMPLOYEE_ID,
+  TEST_ADMIN_PERSON_ID,
+} from '../helpers/actor';
 import {
   resetItTables,
   ensureItSeed,
@@ -284,11 +278,7 @@ describe('integration:m62-it/assets-licences', () => {
       expect(detail.password).toBe('secret123');
 
       const patched = await withTestTenant(async () =>
-        vault.patch(
-          dto.id,
-          { serviceName: 'Renamed' } as any,
-          adminActor(),
-        ),
+        vault.patch(dto.id, { serviceName: 'Renamed' } as any, adminActor()),
       );
       expect(patched.serviceName).toBe('Renamed');
 

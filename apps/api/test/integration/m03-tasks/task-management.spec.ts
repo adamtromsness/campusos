@@ -1,19 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { TaskService } from '@modules/m03-tasks/task.service';
 import { AcknowledgementService } from '@modules/m03-tasks/acknowledgement.service';
 import { TaskController } from '@modules/m03-tasks/task.controller';
 import { AcknowledgementController } from '@modules/m03-tasks/acknowledgement.controller';
-import {
-  renderTemplate,
-  buildPlaceholderValues,
-} from '@modules/m03-tasks/template-render';
+import { renderTemplate, buildPlaceholderValues } from '@modules/m03-tasks/template-render';
 import { TicketTaskCompletionConsumer } from '@modules/m03-tasks/ticket-task-completion.consumer';
 import { TaskWorker } from '@modules/m03-tasks/task.worker';
 import { evaluateConditions } from '@modules/m03-tasks/task.worker';
@@ -36,9 +29,7 @@ import {
   TEST_TEACHER_PERSON_ID,
 } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  ensureWorkflowsPlatformFixtures,
-} from '../fixtures/workflows';
+import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 import {
   resetAndSeedTasks,
   resetTasksTables,
@@ -233,15 +224,17 @@ describe('integration:m03-tasks/task-management', () => {
   // TaskService.list / listAssigned / getById
   // ───────────────────────────────────────────────────────────────────
   describe('TaskService.list/getById', () => {
-    async function insertTask(opts: Partial<{
-      schoolId: string;
-      ownerId: string;
-      createdForId: string | null;
-      status: string;
-      priority: string;
-      title: string;
-      dueAt: string | null;
-    }> = {}) {
+    async function insertTask(
+      opts: Partial<{
+        schoolId: string;
+        ownerId: string;
+        createdForId: string | null;
+        status: string;
+        priority: string;
+        title: string;
+        dueAt: string | null;
+      }> = {},
+    ) {
       const id = generateId();
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.tsk_tasks
@@ -403,7 +396,12 @@ describe('integration:m03-tasks/task-management', () => {
       const dto = await withTestTenant(async () =>
         tasks.update(
           id,
-          { title: 'New', description: 'd', priority: 'URGENT', dueAt: '2026-12-31T00:00:00Z' } as any,
+          {
+            title: 'New',
+            description: 'd',
+            priority: 'URGENT',
+            dueAt: '2026-12-31T00:00:00Z',
+          } as any,
           adminActor(),
         ),
       );
@@ -464,9 +462,7 @@ describe('integration:m03-tasks/task-management', () => {
 
     it('update — empty patch is a no-op returning current state', async () => {
       const id = await seed();
-      const dto = await withTestTenant(async () =>
-        tasks.update(id, {} as any, adminActor()),
-      );
+      const dto = await withTestTenant(async () => tasks.update(id, {} as any, adminActor()));
       expect(dto.id).toBe(id);
     });
   });
@@ -475,20 +471,20 @@ describe('integration:m03-tasks/task-management', () => {
   // AcknowledgementService
   // ───────────────────────────────────────────────────────────────────
   describe('AcknowledgementService', () => {
-    async function seedAck(opts: {
-      schoolId?: string;
-      subjectId?: string;
-      status?: string;
-      sourceRefId?: string;
-    } = {}) {
+    async function seedAck(
+      opts: {
+        schoolId?: string;
+        subjectId?: string;
+        status?: string;
+        sourceRefId?: string;
+      } = {},
+    ) {
       const id = generateId();
       const sourceRefId = opts.sourceRefId ?? generateId();
       const status = opts.status ?? 'PENDING';
       // Schema CHECK requires acknowledged_at non-null for terminal statuses.
       const ackedAt =
-        status === 'ACKNOWLEDGED' || status === 'ACKNOWLEDGED_WITH_DISPUTE'
-          ? 'now()'
-          : 'NULL';
+        status === 'ACKNOWLEDGED' || status === 'ACKNOWLEDGED_WITH_DISPUTE' ? 'now()' : 'NULL';
       const disputeReason = status === 'ACKNOWLEDGED_WITH_DISPUTE' ? "'reason'" : 'NULL';
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.tsk_acknowledgements
@@ -601,9 +597,7 @@ describe('integration:m03-tasks/task-management', () => {
 
     it('dispute — sets ACKNOWLEDGED_WITH_DISPUTE + dispute_reason', async () => {
       const { id } = await seedAck();
-      const dto = await withTestTenant(async () =>
-        acks.dispute(id, 'I disagree', adminActor()),
-      );
+      const dto = await withTestTenant(async () => acks.dispute(id, 'I disagree', adminActor()));
       expect(dto.status).toBe('ACKNOWLEDGED_WITH_DISPUTE');
       expect(dto.disputeReason).toBe('I disagree');
     });
@@ -623,9 +617,9 @@ describe('integration:m03-tasks/task-management', () => {
     });
 
     it('listAll — non-admin → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => acks.listAll(teacherActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => acks.listAll(teacherActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('cross-school: B ack not visible from A', async () => {
@@ -824,7 +818,11 @@ describe('integration:m03-tasks/task-management', () => {
   // TaskWorker.handle (auto-task rule evaluation + creation)
   // ───────────────────────────────────────────────────────────────────
   describe('TaskWorker.handle', () => {
-    function makeMsg(eventType: string, payload: Record<string, unknown>, schoolId = TEST_SCHOOL_ID) {
+    function makeMsg(
+      eventType: string,
+      payload: Record<string, unknown>,
+      schoolId = TEST_SCHOOL_ID,
+    ) {
       return {
         topic: eventType, // worker un-prefixes via unprefixTopic; integration runs without prefix
         partition: 0,
@@ -1063,9 +1061,7 @@ describe('integration:m03-tasks/task-management', () => {
       const sourceRefId = generateId();
       // Pre-block all claims globally so the dedup hits for every owner.
       stubRedis.claimAllowed = false;
-      await (worker as any).handle(
-        makeMsg('pay.invoice.overdue', { amount: 1000, sourceRefId }),
-      );
+      await (worker as any).handle(makeMsg('pay.invoice.overdue', { amount: 1000, sourceRefId }));
       const matching = kafka
         .callsForTopic('task.created')
         .filter((c: any) => c.payload?.sourceRefId === sourceRefId);
@@ -1078,7 +1074,11 @@ describe('integration:m03-tasks/task-management', () => {
       // → 0 owners → no creation.
       kafka.reset();
       await (worker as any).handle(
-        makeMsg('cls.assignment.posted', { assignment_title: 'X' }, '019e0cf8-aaaa-7777-8888-00000000000b'),
+        makeMsg(
+          'cls.assignment.posted',
+          { assignment_title: 'X' },
+          '019e0cf8-aaaa-7777-8888-00000000000b',
+        ),
       );
       expect(kafka.callsForTopic('task.created')).toHaveLength(0);
     });
@@ -1107,9 +1107,9 @@ describe('integration:m03-tasks/task-management', () => {
     });
 
     it('EQUALS / NOT_EQUALS', () => {
-      expect(
-        evaluateConditions([{ field_path: 'a', operator: 'EQUALS', value: 5 }], payload),
-      ).toBe(true);
+      expect(evaluateConditions([{ field_path: 'a', operator: 'EQUALS', value: 5 }], payload)).toBe(
+        true,
+      );
       expect(
         evaluateConditions([{ field_path: 'a', operator: 'NOT_EQUALS', value: 6 }], payload),
       ).toBe(true);
@@ -1117,32 +1117,26 @@ describe('integration:m03-tasks/task-management', () => {
 
     it('IN / NOT_IN', () => {
       expect(
-        evaluateConditions(
-          [{ field_path: 'a', operator: 'IN', value: [1, 5, 10] }],
-          payload,
-        ),
+        evaluateConditions([{ field_path: 'a', operator: 'IN', value: [1, 5, 10] }], payload),
       ).toBe(true);
       expect(
-        evaluateConditions(
-          [{ field_path: 'a', operator: 'NOT_IN', value: [1, 2] }],
-          payload,
-        ),
+        evaluateConditions([{ field_path: 'a', operator: 'NOT_IN', value: [1, 2] }], payload),
       ).toBe(true);
     });
 
     it('GT / LT', () => {
-      expect(
-        evaluateConditions([{ field_path: 'a', operator: 'GT', value: 4 }], payload),
-      ).toBe(true);
-      expect(
-        evaluateConditions([{ field_path: 'a', operator: 'LT', value: 4 }], payload),
-      ).toBe(false);
+      expect(evaluateConditions([{ field_path: 'a', operator: 'GT', value: 4 }], payload)).toBe(
+        true,
+      );
+      expect(evaluateConditions([{ field_path: 'a', operator: 'LT', value: 4 }], payload)).toBe(
+        false,
+      );
     });
 
     it('unknown operator returns false', () => {
-      expect(
-        evaluateConditions([{ field_path: 'a', operator: 'WTF', value: 5 }], payload),
-      ).toBe(false);
+      expect(evaluateConditions([{ field_path: 'a', operator: 'WTF', value: 5 }], payload)).toBe(
+        false,
+      );
     });
 
     it('dotted field_path resolves nested', () => {
@@ -1169,10 +1163,7 @@ describe('integration:m03-tasks/task-management', () => {
     it('object value compared via JSON-equal', () => {
       const p = { o: { k: 1 } } as any;
       expect(
-        evaluateConditions(
-          [{ field_path: 'o', operator: 'EQUALS', value: { k: 1 } }],
-          p,
-        ),
+        evaluateConditions([{ field_path: 'o', operator: 'EQUALS', value: { k: 1 } }], p),
       ).toBe(true);
     });
   });

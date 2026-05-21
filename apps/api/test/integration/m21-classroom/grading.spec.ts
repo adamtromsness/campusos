@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -16,11 +12,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   teacherActor,
@@ -31,11 +23,7 @@ import {
   TEST_STUDENT_PERSON_ID,
   TEST_PARENT_PERSON_ID,
 } from '../helpers/actor';
-import {
-  TEST_SIS_CLASS_ID,
-  TEST_SIS_CLASS_B_ID,
-  TEST_SIS_TERM_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_CLASS_ID, TEST_SIS_CLASS_B_ID, TEST_SIS_TERM_ID } from '../fixtures/sis';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import {
   seedStudent,
@@ -139,7 +127,10 @@ describe('integration:m21-classroom/grading', () => {
     rawClient = new PrismaClient();
     await rawClient.$connect();
     kafka = makeRecordingKafka();
-    assignmentService = new AssignmentService(tenantPrisma, kafka as unknown as KafkaProducerService);
+    assignmentService = new AssignmentService(
+      tenantPrisma,
+      kafka as unknown as KafkaProducerService,
+    );
     gradeService = new GradeService(
       tenantPrisma,
       assignmentService,
@@ -258,7 +249,9 @@ describe('integration:m21-classroom/grading', () => {
     return sid;
   }
 
-  async function makePublishedAssignment(opts: { title?: string; maxPoints?: number } = {}): Promise<string> {
+  async function makePublishedAssignment(
+    opts: { title?: string; maxPoints?: number } = {},
+  ): Promise<string> {
     const a = await withTestTenant(async () =>
       assignmentService.create(
         TEST_SIS_CLASS_ID,
@@ -510,7 +503,11 @@ describe('integration:m21-classroom/grading', () => {
   // GradeService.publish / unpublish / publishAllForAssignment
   // ────────────────────────────────────────────────────────────────────
   describe('GradeService.publish / unpublish', () => {
-    async function seedDraftGrade(): Promise<{ gradeId: string; assignmentId: string; studentId: string }> {
+    async function seedDraftGrade(): Promise<{
+      gradeId: string;
+      assignmentId: string;
+      studentId: string;
+    }> {
       const student = await trackedStudent();
       await enrollStudent(rawClient, student.studentId);
       const aid = await makePublishedAssignment();
@@ -680,7 +677,7 @@ describe('integration:m21-classroom/grading', () => {
       expect(resp.student.id).toBe(sid);
     });
 
-    it('STUDENT actor reading someone else\'s gradebook → NotFoundException', async () => {
+    it("STUDENT actor reading someone else's gradebook → NotFoundException", async () => {
       const peer = await trackedStudent({ firstName: 'Peer', lastName: 'X' });
       await enrollStudent(rawClient, peer.studentId);
       await expect(
@@ -1152,7 +1149,7 @@ describe('integration:m21-classroom/grading', () => {
       expect(updated.noteText).toBe('edited');
     });
 
-    it('non-author teacher cannot update an admin\'s observation → ForbiddenException', async () => {
+    it("non-author teacher cannot update an admin's observation → ForbiddenException", async () => {
       await assignTeacherToClass(rawClient, TEST_SIS_CLASS_ID, TEST_TEACHER_EMPLOYEE_ID);
       const student = await trackedStudent();
       await enrollStudent(rawClient, student.studentId);

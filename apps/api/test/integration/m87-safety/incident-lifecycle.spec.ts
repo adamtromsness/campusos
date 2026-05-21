@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -29,10 +25,7 @@ import {
   TEST_OFFICER_ACCOUNT_ID,
 } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
-import {
-  RecordingKafkaProducer,
-  makeRecordingKafka,
-} from '../helpers/recording-kafka';
+import { RecordingKafkaProducer, makeRecordingKafka } from '../helpers/recording-kafka';
 
 /**
  * Wave 3 — DB-backed integration tests for IncidentService + TimelineService.
@@ -110,9 +103,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.inc_incidents WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -134,9 +125,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.inc_incidents WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -188,7 +177,11 @@ describe('integration:m87-safety/incident-lifecycle', () => {
     it('admin declares with platform-default incident type → inc_incidents + inc_declaration_outbox both land', async () => {
       const dto = await withTestTenant(async () =>
         service.declare(
-          { incidentTypeId: platformTypeId, title: 'Tornado warning', description: 'Sirens at 2pm' },
+          {
+            incidentTypeId: platformTypeId,
+            title: 'Tornado warning',
+            description: 'Sirens at 2pm',
+          },
           adminActor(),
         ),
       );
@@ -245,9 +238,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       ['parent', parentActor],
     ])('declare as %s → ForbiddenException; no rows written', async (_label, actor) => {
       await expect(
-        withTestTenant(async () =>
-          service.declare({ incidentTypeId: platformTypeId }, actor()),
-        ),
+        withTestTenant(async () => service.declare({ incidentTypeId: platformTypeId }, actor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(await countIncidents(TEST_SCHOOL_ID)).toBe(0);
       expect(recordingKafka.calls).toHaveLength(0);
@@ -266,10 +257,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
     it('unknown incident type → BadRequest; no rows written', async () => {
       await expect(
         withTestTenant(async () =>
-          service.declare(
-            { incidentTypeId: '00000000-0000-0000-0000-000000000000' },
-            adminActor(),
-          ),
+          service.declare({ incidentTypeId: '00000000-0000-0000-0000-000000000000' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(await countIncidents(TEST_SCHOOL_ID)).toBe(0);
@@ -359,9 +347,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
     it('STAFF with saf-001:write can resolve', async () => {
       const incidentId = await declareActive();
       await grantOfficerSafetyWrite();
-      const dto = await withTestTenant(async () =>
-        service.resolve(incidentId, {}, officerActor()),
-      );
+      const dto = await withTestTenant(async () => service.resolve(incidentId, {}, officerActor()));
       expect(dto.status).toBe('RESOLVED');
     });
 
@@ -447,7 +433,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('cross-school: cannot cancel another school\'s incident → NotFound', async () => {
+    it("cross-school: cannot cancel another school's incident → NotFound", async () => {
       const incidentId = await declareActive();
       await expect(
         withTestTenantB(async () => service.cancel(incidentId, adminActor())),
@@ -494,7 +480,9 @@ describe('integration:m87-safety/incident-lifecycle', () => {
         service.declare({ incidentTypeId: platformTypeId }, adminActor()),
       );
       const active = await withTestTenant(async () => service.list({ status: 'ACTIVE' as any }));
-      const resolved = await withTestTenant(async () => service.list({ status: 'RESOLVED' as any }));
+      const resolved = await withTestTenant(async () =>
+        service.list({ status: 'RESOLVED' as any }),
+      );
       expect(active).toHaveLength(1);
       expect(resolved).toHaveLength(1);
     });
@@ -522,9 +510,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
 
     it('getById missing → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -532,9 +518,9 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       const decl = await withTestTenant(async () =>
         service.declare({ incidentTypeId: platformTypeId }, adminActor()),
       );
-      await expect(
-        withTestTenantB(async () => service.getById(decl.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => service.getById(decl.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -564,9 +550,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       );
       expect(entry.eventType).toBe('ALERT_SENT');
       expect(entry.metadata).toMatchObject({ channel: 'sms', count: 850 });
-      const entries = await withTestTenant(async () =>
-        timeline.listForIncident(incidentId),
-      );
+      const entries = await withTestTenant(async () => timeline.listForIncident(incidentId));
       expect(entries).toHaveLength(1);
       expect(entries[0]!.id).toBe(entry.id);
     });
@@ -614,11 +598,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
       const incidentId = await declareActive();
       await expect(
         withTestTenantB(async () =>
-          timeline.append(
-            incidentId,
-            { eventType: 'X', description: 'y' },
-            adminActor(),
-          ),
+          timeline.append(incidentId, { eventType: 'X', description: 'y' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -640,9 +620,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
           adminActor(),
         ),
       );
-      const entries = await withTestTenant(async () =>
-        timeline.listForIncident(incidentId),
-      );
+      const entries = await withTestTenant(async () => timeline.listForIncident(incidentId));
       expect(entries.map((e) => e.description)).toEqual(['first', 'second']);
     });
 
@@ -655,9 +633,7 @@ describe('integration:m87-safety/incident-lifecycle', () => {
           adminActor(),
         ),
       );
-      const fromB = await withTestTenantB(async () =>
-        timeline.listForIncident(incidentId),
-      );
+      const fromB = await withTestTenantB(async () => timeline.listForIncident(incidentId));
       expect(fromB).toHaveLength(0);
     });
 

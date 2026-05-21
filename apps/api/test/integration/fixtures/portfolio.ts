@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_ADMIN_EMPLOYEE_ID,
@@ -73,87 +69,57 @@ import { TEST_SIS_CLASS_ID, TEST_SIS_CLASS_B_ID } from './sis';
 // a second row with the same person. ensurePortfolioSeed below uses
 // lookup-or-insert and updates these bindings to point at whichever
 // canonical row already exists (or its newly-inserted hint id).
-const TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT =
-  '019e0cf8-aaaa-7777-8888-000000026101';
-const TEST_PORTFOLIO_STU_A_ID_HINT =
-  '019e0cf8-aaaa-7777-8888-000000026102';
-export let TEST_PORTFOLIO_STU_A_PLATFORM_ID =
-  TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT;
+const TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT = '019e0cf8-aaaa-7777-8888-000000026101';
+const TEST_PORTFOLIO_STU_A_ID_HINT = '019e0cf8-aaaa-7777-8888-000000026102';
+export let TEST_PORTFOLIO_STU_A_PLATFORM_ID = TEST_PORTFOLIO_STU_A_PLATFORM_ID_HINT;
 export let TEST_PORTFOLIO_STU_A_ID = TEST_PORTFOLIO_STU_A_ID_HINT;
 
-export const TEST_PORTFOLIO_STU_A2_PERSON_ID =
-  '019e0cf8-aaaa-7777-8888-000000026111';
-export const TEST_PORTFOLIO_STU_A2_PLATFORM_ID =
-  '019e0cf8-aaaa-7777-8888-000000026112';
-export const TEST_PORTFOLIO_STU_A2_ID =
-  '019e0cf8-aaaa-7777-8888-000000026113';
-export const TEST_PORTFOLIO_STU_A2_ACCOUNT_ID =
-  '019e0cf8-aaaa-7777-8888-000000026114';
+export const TEST_PORTFOLIO_STU_A2_PERSON_ID = '019e0cf8-aaaa-7777-8888-000000026111';
+export const TEST_PORTFOLIO_STU_A2_PLATFORM_ID = '019e0cf8-aaaa-7777-8888-000000026112';
+export const TEST_PORTFOLIO_STU_A2_ID = '019e0cf8-aaaa-7777-8888-000000026113';
+export const TEST_PORTFOLIO_STU_A2_ACCOUNT_ID = '019e0cf8-aaaa-7777-8888-000000026114';
 
-export const TEST_PORTFOLIO_STU_B_PERSON_ID =
-  '019e0cf8-aaaa-7777-8888-000000026201';
-export const TEST_PORTFOLIO_STU_B_PLATFORM_ID =
-  '019e0cf8-aaaa-7777-8888-000000026202';
-export const TEST_PORTFOLIO_STU_B_ID =
-  '019e0cf8-aaaa-7777-8888-000000026203';
+export const TEST_PORTFOLIO_STU_B_PERSON_ID = '019e0cf8-aaaa-7777-8888-000000026201';
+export const TEST_PORTFOLIO_STU_B_PLATFORM_ID = '019e0cf8-aaaa-7777-8888-000000026202';
+export const TEST_PORTFOLIO_STU_B_ID = '019e0cf8-aaaa-7777-8888-000000026203';
 
 // Guardian for student A (parent persona — sis_guardians binding)
-export const TEST_PORTFOLIO_GUARDIAN_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026301';
-export const TEST_PORTFOLIO_GUARDIAN_LINK_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026302';
+export const TEST_PORTFOLIO_GUARDIAN_A_ID = '019e0cf8-aaaa-7777-8888-000000026301';
+export const TEST_PORTFOLIO_GUARDIAN_LINK_A_ID = '019e0cf8-aaaa-7777-8888-000000026302';
 
 // Class-teacher binding so isAssignedTeacherOf returns true for student A.
-export const TEST_PORTFOLIO_CLASS_TEACHER_LINK_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026401';
-export const TEST_PORTFOLIO_ENROLLMENT_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026402';
+export const TEST_PORTFOLIO_CLASS_TEACHER_LINK_A_ID = '019e0cf8-aaaa-7777-8888-000000026401';
+export const TEST_PORTFOLIO_ENROLLMENT_A_ID = '019e0cf8-aaaa-7777-8888-000000026402';
 
 // Classroom assignment + grade rows (for source validation path).
-export const TEST_PORTFOLIO_ASSIGNMENT_TYPE_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026501';
-export const TEST_PORTFOLIO_ASSIGNMENT_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026502';
-export const TEST_PORTFOLIO_SUBMISSION_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026503';
-export const TEST_PORTFOLIO_GRADE_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026504';
+export const TEST_PORTFOLIO_ASSIGNMENT_TYPE_A_ID = '019e0cf8-aaaa-7777-8888-000000026501';
+export const TEST_PORTFOLIO_ASSIGNMENT_A_ID = '019e0cf8-aaaa-7777-8888-000000026502';
+export const TEST_PORTFOLIO_SUBMISSION_A_ID = '019e0cf8-aaaa-7777-8888-000000026503';
+export const TEST_PORTFOLIO_GRADE_A_ID = '019e0cf8-aaaa-7777-8888-000000026504';
 // Cross-school assignment + submission belonging to student B (cross-school
 // source-ownership validation).
-export const TEST_PORTFOLIO_ASSIGNMENT_TYPE_B_ID =
-  '019e0cf8-aaaa-7777-8888-000000026511';
-export const TEST_PORTFOLIO_ASSIGNMENT_B_ID =
-  '019e0cf8-aaaa-7777-8888-000000026512';
-export const TEST_PORTFOLIO_SUBMISSION_B_ID =
-  '019e0cf8-aaaa-7777-8888-000000026513';
+export const TEST_PORTFOLIO_ASSIGNMENT_TYPE_B_ID = '019e0cf8-aaaa-7777-8888-000000026511';
+export const TEST_PORTFOLIO_ASSIGNMENT_B_ID = '019e0cf8-aaaa-7777-8888-000000026512';
+export const TEST_PORTFOLIO_SUBMISSION_B_ID = '019e0cf8-aaaa-7777-8888-000000026513';
 
 // Library programme + completion (cross-cycle achievement source).
-export const TEST_PORTFOLIO_LIB_PROGRAMME_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026601';
-export const TEST_PORTFOLIO_LIB_COMPLETION_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026602';
+export const TEST_PORTFOLIO_LIB_PROGRAMME_A_ID = '019e0cf8-aaaa-7777-8888-000000026601';
+export const TEST_PORTFOLIO_LIB_COMPLETION_A_ID = '019e0cf8-aaaa-7777-8888-000000026602';
 
 // Clubs / service programme + progress (cross-cycle achievement source).
-export const TEST_PORTFOLIO_CLUB_PROGRAMME_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026701';
-export const TEST_PORTFOLIO_SERVICE_PROGRESS_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026702';
+export const TEST_PORTFOLIO_CLUB_PROGRAMME_A_ID = '019e0cf8-aaaa-7777-8888-000000026701';
+export const TEST_PORTFOLIO_SERVICE_PROGRESS_A_ID = '019e0cf8-aaaa-7777-8888-000000026702';
 
 // Athletics all-time record (cross-cycle achievement source).
-export const TEST_PORTFOLIO_ATH_RECORD_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026801';
+export const TEST_PORTFOLIO_ATH_RECORD_A_ID = '019e0cf8-aaaa-7777-8888-000000026801';
 
 // Extracurricular activity + membership (resume aggregation).
-export const TEST_PORTFOLIO_EXT_ACTIVITY_TYPE_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026901';
-export const TEST_PORTFOLIO_EXT_ACTIVITY_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026902';
-export const TEST_PORTFOLIO_EXT_MEMBER_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026903';
+export const TEST_PORTFOLIO_EXT_ACTIVITY_TYPE_A_ID = '019e0cf8-aaaa-7777-8888-000000026901';
+export const TEST_PORTFOLIO_EXT_ACTIVITY_A_ID = '019e0cf8-aaaa-7777-8888-000000026902';
+export const TEST_PORTFOLIO_EXT_MEMBER_A_ID = '019e0cf8-aaaa-7777-8888-000000026903';
 
 // Service-learning hour row (resume aggregation).
-export const TEST_PORTFOLIO_SERVICE_HOURS_A_ID =
-  '019e0cf8-aaaa-7777-8888-000000026a01';
+export const TEST_PORTFOLIO_SERVICE_HOURS_A_ID = '019e0cf8-aaaa-7777-8888-000000026a01';
 
 // Reviewer account / hr_employee for the service-learning hour APPROVED entry
 // — sis_service_learning_hours requires reviewed_by/reviewed_at to be set

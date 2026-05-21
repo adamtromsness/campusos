@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -129,19 +125,11 @@ describe('integration:m20-sis/student-profile', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_profiles`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_profiles`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_awards`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_medical_exemption_records`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_medical_exemption_records`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.platform_outbox WHERE topic = 'sis.avatar.reviewed' AND tenant_id = $1::uuid`,
       TEST_SCHOOL_ID,
@@ -275,10 +263,9 @@ describe('integration:m20-sis/student-profile', () => {
       await ensureGuardianForPerson(rawClient, TEST_PARENT_PERSON_ID, TEST_PARENT_ACCOUNT_ID);
       // No link
       await expect(
-        withTestTenant(
-          async () => profileService.getOrCreateProfile(s.studentId, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => profileService.getOrCreateProfile(s.studentId, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -335,8 +322,7 @@ describe('integration:m20-sis/student-profile', () => {
     it('student updates own profile', async () => {
       const sid = await mapStudentActorToRow();
       const updated = await withTestTenant(
-        async () =>
-          profileService.updateProfile(sid, { motto: 'Live laugh' }, studentActor()),
+        async () => profileService.updateProfile(sid, { motto: 'Live laugh' }, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       expect(updated.motto).toBe('Live laugh');
@@ -502,7 +488,9 @@ describe('integration:m20-sis/student-profile', () => {
       await withTestTenantB(async () =>
         profileService.uploadAvatar(sB.studentId, { s3Key: 's3://b' }, adminActor()),
       );
-      const list = await withTestTenant(async () => profileService.listPendingAvatars(adminActor()));
+      const list = await withTestTenant(async () =>
+        profileService.listPendingAvatars(adminActor()),
+      );
       const sids = list.map((p) => p.studentId);
       expect(sids).toContain(a.studentId);
       expect(sids).not.toContain(sB.studentId);
@@ -608,10 +596,9 @@ describe('integration:m20-sis/student-profile', () => {
       const other = await trackedStudent();
       await mapStudentActorToRow();
       await expect(
-        withTestTenant(
-          async () => awardService.listForStudent(other.studentId, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => awardService.listForStudent(other.studentId, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -1018,9 +1005,7 @@ describe('integration:m20-sis/student-profile', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          exemptionService.patch(exB.id, { reason: 'foo' }, adminActor()),
-        ),
+        withTestTenant(async () => exemptionService.patch(exB.id, { reason: 'foo' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

@@ -278,12 +278,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
       tenantPrisma,
       checkpoints,
     );
-    itWorker = new ITReadModelWorker(
-      stubConsumer,
-      stubIdempotency,
-      tenantPrisma,
-      checkpoints,
-    );
+    itWorker = new ITReadModelWorker(stubConsumer, stubIdempotency, tenantPrisma, checkpoints);
     libraryWorker = new LibraryReadModelWorker(
       stubConsumer,
       stubIdempotency,
@@ -698,18 +693,14 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
     });
 
     it('listDailyAttendance limits to teacher classes for non-manager', async () => {
-      const rows = await withTestTenant(async () =>
-        dashboards.listDailyAttendance(teacherActor()),
-      );
+      const rows = await withTestTenant(async () => dashboards.listDailyAttendance(teacherActor()));
       // teacher is assigned to TEST_ANA_CLASS_ID via fixture, so should
       // return rows scoped to that class. Returns the seeded class's row.
       expect(rows.every((r) => r.classId === TEST_ANA_CLASS_ID)).toBe(true);
     });
 
     it('listDailyAttendance returns empty for student persona (no class memberships)', async () => {
-      const rows = await withTestTenant(async () =>
-        dashboards.listDailyAttendance(studentActor()),
-      );
+      const rows = await withTestTenant(async () => dashboards.listDailyAttendance(studentActor()));
       expect(rows).toEqual([]);
     });
 
@@ -741,18 +732,14 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
       const adminHasFlags = adminRows.some((r) => Object.keys(r.atRiskFlags).length > 0);
       expect(adminHasFlags).toBe(true);
 
-      const teacherRows = await withTestTenant(async () =>
-        dashboards.listAcademic(teacherActor()),
-      );
+      const teacherRows = await withTestTenant(async () => dashboards.listAcademic(teacherActor()));
       // Teacher's results have at_risk_flags stripped to {}
       expect(teacherRows.every((r) => Object.keys(r.atRiskFlags).length === 0)).toBe(true);
     });
 
     it('listAcademic with atRiskOnly throws ForbiddenException for non-manager', async () => {
       await expect(
-        withTestTenant(async () =>
-          dashboards.listAcademic(teacherActor(), { atRiskOnly: true }),
-        ),
+        withTestTenant(async () => dashboards.listAcademic(teacherActor(), { atRiskOnly: true })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -792,9 +779,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
     });
 
     it('listClassPerformance returns school rows for admin', async () => {
-      const rows = await withTestTenant(async () =>
-        dashboards.listClassPerformance(adminActor()),
-      );
+      const rows = await withTestTenant(async () => dashboards.listClassPerformance(adminActor()));
       expect(rows.length).toBeGreaterThan(0);
     });
 
@@ -848,9 +833,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
       await expect(
         withTestTenant(async () => dashboards.listWellbeingTrends(teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      const rows = await withTestTenant(async () =>
-        dashboards.listWellbeingTrends(adminActor()),
-      );
+      const rows = await withTestTenant(async () => dashboards.listWellbeingTrends(adminActor()));
       expect(rows.length).toBeGreaterThan(0);
       expect(rows[0]!.gradeLevel).toBeTruthy();
     });
@@ -876,9 +859,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
       await expect(
         withTestTenant(async () => dashboards.listAtRiskStudents(teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      const rows = await withTestTenant(async () =>
-        dashboards.listAtRiskStudents(adminActor()),
-      );
+      const rows = await withTestTenant(async () => dashboards.listAtRiskStudents(adminActor()));
       expect(rows.length).toBeGreaterThan(0);
     });
 
@@ -1059,23 +1040,15 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
 
     it('cross-school isolation — School B sees only School B rows', async () => {
       // School B has no rpt rows seeded; admin in B should see 0.
-      const att = await withTestTenantB(async () =>
-        dashboards.listDailyAttendance(adminActor()),
-      );
+      const att = await withTestTenantB(async () => dashboards.listDailyAttendance(adminActor()));
       expect(att).toEqual([]);
       const acad = await withTestTenantB(async () => dashboards.listAcademic(adminActor()));
       expect(acad).toEqual([]);
-      const cls = await withTestTenantB(async () =>
-        dashboards.listClassPerformance(adminActor()),
-      );
+      const cls = await withTestTenantB(async () => dashboards.listClassPerformance(adminActor()));
       expect(cls).toEqual([]);
-      const staff = await withTestTenantB(async () =>
-        dashboards.listStaffSummary(adminActor()),
-      );
+      const staff = await withTestTenantB(async () => dashboards.listStaffSummary(adminActor()));
       expect(staff).toEqual([]);
-      const debtors = await withTestTenantB(async () =>
-        dashboards.listAgedDebtors(adminActor()),
-      );
+      const debtors = await withTestTenantB(async () => dashboards.listAgedDebtors(adminActor()));
       expect(debtors).toEqual([]);
     });
   });
@@ -1191,7 +1164,9 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
 
     it('ReportDefinitionService — update raises 404 for missing', async () => {
       await expect(
-        withTestTenant(async () => definitions.update(adminActor(), generateId(), { isActive: false })),
+        withTestTenant(async () =>
+          definitions.update(adminActor(), generateId(), { isActive: false }),
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -1315,9 +1290,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
           scheduleCron: '0 7 * * *',
         }),
       );
-      const same = await withTestTenant(async () =>
-        scheduled.update(adminActor(), sched.id, {}),
-      );
+      const same = await withTestTenant(async () => scheduled.update(adminActor(), sched.id, {}));
       expect(same.id).toBe(sched.id);
     });
 
@@ -1523,13 +1496,9 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
         analyticsCtrl.updateReport(req, created.id, { description: 'updated' }),
       );
       expect(upd.description).toBe('updated');
-      const run = await withTestTenant(async () =>
-        analyticsCtrl.runReport(req, created.id, {}),
-      );
+      const run = await withTestTenant(async () => analyticsCtrl.runReport(req, created.id, {}));
       expect(run.status).toBe('COMPLETE');
-      const runs2 = await withTestTenant(async () =>
-        analyticsCtrl.listRunsForReport(created.id),
-      );
+      const runs2 = await withTestTenant(async () => analyticsCtrl.listRunsForReport(created.id));
       expect(runs2.length).toBeGreaterThan(0);
     });
 
@@ -1644,17 +1613,27 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
     it('EnrolmentReadModelWorker — multi-topic deltas (offer issued/accepted/enrolled/tour/waitlisted)', async () => {
       const sid = TEST_SCHOOL_ID;
       const seq: Array<[any, string]> = [
-        [{ applicationId: '1', schoolId: sid, academicYearName: '2025' }, 'env.enr.application.submitted'],
+        [
+          { applicationId: '1', schoolId: sid, academicYearName: '2025' },
+          'env.enr.application.submitted',
+        ],
         [{ offerId: '1', schoolId: sid, academicYearName: '2025' }, 'env.enr.offer.issued'],
-        [{ offerId: '1', schoolId: sid, familyResponse: 'ACCEPTED', academicYearName: '2025' }, 'env.enr.offer.responded'],
-        [{ applicationId: '2', schoolId: sid, academicYearName: '2025' }, 'env.enr.student.enrolled'],
+        [
+          { offerId: '1', schoolId: sid, familyResponse: 'ACCEPTED', academicYearName: '2025' },
+          'env.enr.offer.responded',
+        ],
+        [
+          { applicationId: '2', schoolId: sid, academicYearName: '2025' },
+          'env.enr.student.enrolled',
+        ],
         [{ bookingId: '1', schoolId: sid, academicYear: '2025' }, 'env.enr.tour.booked'],
-        [{ applicationId: '3', schoolId: sid, status: 'WAITLISTED', academicYearName: '2025' }, 'env.enr.application.status_changed'],
+        [
+          { applicationId: '3', schoolId: sid, status: 'WAITLISTED', academicYearName: '2025' },
+          'env.enr.application.status_changed',
+        ],
       ];
       for (const [payload, topic] of seq) {
-        await withTestTenant(async () =>
-          enrolmentWorker.upsert(makeEvent(payload) as any, topic),
-        );
+        await withTestTenant(async () => enrolmentWorker.upsert(makeEvent(payload) as any, topic));
       }
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT applications_received, tours_booked, offers_made, offers_accepted, enrolled, waitlisted
@@ -1781,10 +1760,7 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
 
     it('GroupsReadModelWorker — drops missing fields', async () => {
       await withTestTenant(async () =>
-        groupsWorker.upsert(
-          makeEvent({} as any) as any,
-          'env.grp.post.created',
-        ),
+        groupsWorker.upsert(makeEvent({} as any) as any, 'env.grp.post.created'),
       );
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS c FROM ${TEST_SCHEMA}.rpt_grp_engagement_summary`,
@@ -2295,8 +2271,12 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
     });
 
     it('FacilitiesReadModelWorker — drops missing fields', async () => {
-      await withTestTenant(async () => facilitiesWorker.upsertInspection(makeEvent({} as any) as any));
-      await withTestTenant(async () => facilitiesWorker.upsertWorkOrder(makeEvent({} as any) as any));
+      await withTestTenant(async () =>
+        facilitiesWorker.upsertInspection(makeEvent({} as any) as any),
+      );
+      await withTestTenant(async () =>
+        facilitiesWorker.upsertWorkOrder(makeEvent({} as any) as any),
+      );
       const c = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS c FROM ${TEST_SCHEMA}.rpt_facilities_condition`,
       )) as any[];
@@ -2541,12 +2521,12 @@ describe('integration:m110-analytics/analytics-lifecycle', () => {
         tenant: { schoolId: TEST_SCHOOL_ID },
         eventId: 'e1',
       };
-      expect(
-        assertPayloadSchoolMatchesEnvelope(evMatch, TEST_SCHOOL_ID, 'g', 't', logger),
-      ).toBe(true);
-      expect(
-        assertPayloadSchoolMatchesEnvelope(evMatch, TEST_SCHOOL_B_ID, 'g', 't', logger),
-      ).toBe(false);
+      expect(assertPayloadSchoolMatchesEnvelope(evMatch, TEST_SCHOOL_ID, 'g', 't', logger)).toBe(
+        true,
+      );
+      expect(assertPayloadSchoolMatchesEnvelope(evMatch, TEST_SCHOOL_B_ID, 'g', 't', logger)).toBe(
+        false,
+      );
       expect(assertPayloadSchoolMatchesEnvelope(evMatch, null, 'g', 't', logger)).toBe(true);
       expect(
         assertPayloadSchoolMatchesEnvelope(

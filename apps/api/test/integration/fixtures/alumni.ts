@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 
 /**
  * Wave 7 — m102-alumni fixtures.
@@ -35,7 +31,11 @@ export async function resetAlumniTables(
   extra?: { personIds?: string[] },
 ): Promise<void> {
   for (const table of ALM_TABLES) {
-    if (table === 'alm_alumni_tags' || table === 'alm_donations' || table === 'alm_campaign_recipients') {
+    if (
+      table === 'alm_alumni_tags' ||
+      table === 'alm_donations' ||
+      table === 'alm_campaign_recipients'
+    ) {
       // child tables — wipe all rows that hang off this tenant's profiles
       await client.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.${table} WHERE ${
@@ -87,7 +87,11 @@ export async function resetAlumniTables(
 export async function ensureIamPerson(
   client: PrismaClient,
   personId: string,
-  opts: { firstName?: string; lastName?: string; personType?: 'STAFF' | 'STUDENT' | 'GUARDIAN' } = {},
+  opts: {
+    firstName?: string;
+    lastName?: string;
+    personType?: 'STAFF' | 'STUDENT' | 'GUARDIAN';
+  } = {},
 ): Promise<void> {
   // person_type is a Prisma enum — interpolate the literal so Postgres sees
   // it as the enum value rather than a generic text param.

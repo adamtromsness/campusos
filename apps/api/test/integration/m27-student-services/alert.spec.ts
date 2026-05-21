@@ -364,9 +364,7 @@ describe('integration:m27-student-services/alert-list-visibility', () => {
         s1,
         responseId,
       );
-      const list = await withTestTenant(async () =>
-        alerts.list({ studentId: s1 }, adminActor()),
-      );
+      const list = await withTestTenant(async () => alerts.list({ studentId: s1 }, adminActor()));
       const row = list.find((a) => a.id === alertId);
       expect(row).toBeDefined();
       expect(row!.responsePreview!.length).toBe(80);
@@ -439,9 +437,7 @@ describe('integration:m27-student-services/alert-list-visibility', () => {
       const { alertId } = await seedAlert(s1, 'FEELS_UNSAFE', null, 1);
       const noEmp = { ...adminActor(), employeeId: null };
       await expect(
-        withTestTenant(async () =>
-          alerts.resolve(alertId, { resolutionNotes: 'closed' }, noEmp),
-        ),
+        withTestTenant(async () => alerts.resolve(alertId, { resolutionNotes: 'closed' }, noEmp)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

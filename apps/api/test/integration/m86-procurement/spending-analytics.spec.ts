@@ -126,7 +126,15 @@ describe('integration:m86-procurement/spending-analytics', () => {
 
   describe('list', () => {
     it('admin reads spending analytics for current school', async () => {
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, 'supplies', null, 1500, 3);
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-01-01',
+        TEST_SUPPLIER_A_ID,
+        'supplies',
+        null,
+        1500,
+        3,
+      );
       const list = await withTestTenant(async () => service.list(adminActor(), {}));
       expect(list.length).toBeGreaterThanOrEqual(1);
       expect(list[0]!.totalSpend).toBe(1500);
@@ -184,8 +192,24 @@ describe('integration:m86-procurement/spending-analytics', () => {
     });
 
     it('filter by category', async () => {
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, 'supplies', null, 100, 1);
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, 'services', null, 200, 2);
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-01-01',
+        TEST_SUPPLIER_A_ID,
+        'supplies',
+        null,
+        100,
+        1,
+      );
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-01-01',
+        TEST_SUPPLIER_A_ID,
+        'services',
+        null,
+        200,
+        2,
+      );
       const list = await withTestTenant(async () =>
         service.list(adminActor(), { category: 'supplies' }),
       );
@@ -193,7 +217,15 @@ describe('integration:m86-procurement/spending-analytics', () => {
     });
 
     it('filter by department', async () => {
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, null, 'science', 100, 1);
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-01-01',
+        TEST_SUPPLIER_A_ID,
+        null,
+        'science',
+        100,
+        1,
+      );
       await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, null, 'arts', 200, 2);
       const list = await withTestTenant(async () =>
         service.list(adminActor(), { department: 'science' }),
@@ -202,9 +234,33 @@ describe('integration:m86-procurement/spending-analytics', () => {
     });
 
     it('combined filters: vendor + category + period range', async () => {
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-01-01', TEST_SUPPLIER_A_ID, 'supplies', null, 100, 1);
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-06-01', TEST_SUPPLIER_A_ID, 'supplies', null, 200, 2);
-      await seedAnalytics(TEST_SCHOOL_ID, '2026-06-01', TEST_SUPPLIER_B_ID, 'supplies', null, 300, 3);
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-01-01',
+        TEST_SUPPLIER_A_ID,
+        'supplies',
+        null,
+        100,
+        1,
+      );
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-06-01',
+        TEST_SUPPLIER_A_ID,
+        'supplies',
+        null,
+        200,
+        2,
+      );
+      await seedAnalytics(
+        TEST_SCHOOL_ID,
+        '2026-06-01',
+        TEST_SUPPLIER_B_ID,
+        'supplies',
+        null,
+        300,
+        3,
+      );
       const list = await withTestTenant(async () =>
         service.list(adminActor(), {
           vendorId: TEST_SUPPLIER_A_ID,

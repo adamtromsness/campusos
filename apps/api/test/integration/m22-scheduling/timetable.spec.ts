@@ -13,10 +13,7 @@ import { StudentService } from '@modules/m20-sis/students/student.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
-import {
-  makeRecordingKafka,
-  RecordingKafkaProducer,
-} from '../helpers/recording-kafka';
+import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
 import {
   withTestTenant,
   withTestTenantB,
@@ -482,11 +479,7 @@ describe('integration:m22-scheduling/timetable', () => {
       (kafka as unknown as RecordingKafkaProducer).reset();
 
       const updated = await withTestTenant(async () =>
-        service.update(
-          dto.id,
-          { roomId: roomBId, notes: 'patched' } as any,
-          adminActor(),
-        ),
+        service.update(dto.id, { roomId: roomBId, notes: 'patched' } as any, adminActor()),
       );
       expect(updated.roomId).toBe(roomBId);
       expect(updated.notes).toBe('patched');
@@ -648,9 +641,7 @@ describe('integration:m22-scheduling/timetable', () => {
 
     it('getById unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

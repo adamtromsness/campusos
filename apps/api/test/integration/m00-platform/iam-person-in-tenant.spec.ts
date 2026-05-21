@@ -11,11 +11,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import type { RedisService } from '@shared/cache';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import { TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 
 /**
@@ -115,9 +111,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
         'PIT-' + suffix,
       );
       await expect(
-        withTestTenant(async () =>
-          assertPersonInTenant(tenantPrisma, personId, 'testField'),
-        ),
+        withTestTenant(async () => assertPersonInTenant(tenantPrisma, personId, 'testField')),
       ).resolves.toBeUndefined();
     });
 
@@ -133,9 +127,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
         TEST_SCHOOL_ID,
       );
       await expect(
-        withTestTenant(async () =>
-          assertPersonInTenant(tenantPrisma, personId, 'testField'),
-        ),
+        withTestTenant(async () => assertPersonInTenant(tenantPrisma, personId, 'testField')),
       ).resolves.toBeUndefined();
     });
 
@@ -158,9 +150,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
         'PIT-EMP-' + suffix,
       );
       await expect(
-        withTestTenant(async () =>
-          assertPersonInTenant(tenantPrisma, personId, 'testField'),
-        ),
+        withTestTenant(async () => assertPersonInTenant(tenantPrisma, personId, 'testField')),
       ).resolves.toBeUndefined();
     });
 
@@ -172,9 +162,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
         ),
       ).rejects.toThrow(/assignedToPersonId/);
       await expect(
-        withTestTenant(async () =>
-          assertPersonInTenant(tenantPrisma, personId, 'x'),
-        ),
+        withTestTenant(async () => assertPersonInTenant(tenantPrisma, personId, 'x')),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -195,9 +183,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
       // platform fixture; the admin person has an hr_employees row in
       // tenant_test under the same school via the employee fixture seed.
       await expect(
-        withTestTenant(async () =>
-          assertAccountInTenant(tenantPrisma, TEST_ADMIN_ACCOUNT_ID, 'x'),
-        ),
+        withTestTenant(async () => assertAccountInTenant(tenantPrisma, TEST_ADMIN_ACCOUNT_ID, 'x')),
       ).resolves.toBeUndefined();
     });
 
@@ -216,9 +202,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
       );
       try {
         await expect(
-          withTestTenant(async () =>
-            assertAccountInTenant(tenantPrisma, accountId, 'fieldX'),
-          ),
+          withTestTenant(async () => assertAccountInTenant(tenantPrisma, accountId, 'fieldX')),
         ).rejects.toThrow(/fieldX/);
       } finally {
         await rawClient.$executeRawUnsafe(
@@ -274,9 +258,7 @@ describe('integration:m00-platform/iam-person-in-tenant', () => {
     it('invalidate is a no-op when redis is undefined', async () => {
       const svc = new PermissionCheckService(rawClient);
       // Just verify the early-return branch doesn't throw.
-      await expect(
-        svc.invalidate(generateId(), generateId()),
-      ).resolves.toBeUndefined();
+      await expect(svc.invalidate(generateId(), generateId())).resolves.toBeUndefined();
     });
   });
 });

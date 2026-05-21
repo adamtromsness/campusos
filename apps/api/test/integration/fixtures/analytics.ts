@@ -181,10 +181,10 @@ export async function resetAnalyticsTables(client: PrismaClient): Promise<void> 
     TEST_ANA_PLATFORM_STUDENT_ID,
     TEST_ANA_PLATFORM_STUDENT2_ID,
   );
-  await client.$executeRawUnsafe(
-    `DELETE FROM platform.iam_person WHERE id = ANY($1::uuid[])`,
-    [TEST_ANA_STUDENT_PERSON_ID, TEST_ANA_STUDENT2_PERSON_ID],
-  );
+  await client.$executeRawUnsafe(`DELETE FROM platform.iam_person WHERE id = ANY($1::uuid[])`, [
+    TEST_ANA_STUDENT_PERSON_ID,
+    TEST_ANA_STUDENT2_PERSON_ID,
+  ]);
 
   // The TRUNCATE above wipes sis_academic_years / sis_terms / sis_courses /
   // sis_classes including the canonical TEST_SIS_* fixture rows that
@@ -240,9 +240,7 @@ export async function ensureAnalyticsSeed(client: PrismaClient): Promise<void> {
   // ships several academic_years rows from other waves' fixtures (sis,
   // finance) — we explicitly own the current flag here. Use a start_date
   // unique against (school_id, start_date) UNIQUE so we never collide.
-  await client.$executeRawUnsafe(
-    `UPDATE ${TEST_SCHEMA}.sis_academic_years SET is_current = false`,
-  );
+  await client.$executeRawUnsafe(`UPDATE ${TEST_SCHEMA}.sis_academic_years SET is_current = false`);
   await client.$executeRawUnsafe(
     `INSERT INTO ${TEST_SCHEMA}.sis_academic_years (id, school_id, name, start_date, end_date, is_current)
      VALUES ($1::uuid, $2::uuid, 'Analytics 2025-26', '2025-08-05', '2026-07-30', true)
@@ -511,9 +509,7 @@ export async function ensureAnalyticsSeed(client: PrismaClient): Promise<void> {
     dueOverdue,
   );
   // Current invoice (due 5 days from now, status SENT, 200 outstanding)
-  const dueCurrent = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const dueCurrent = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   await client.$executeRawUnsafe(
     `INSERT INTO ${TEST_SCHEMA}.pay_invoices
        (id, school_id, family_account_id, title, total_amount, due_date, status, sent_at)
@@ -625,4 +621,3 @@ export async function resetAndSeedAnalytics(client: PrismaClient): Promise<void>
   await resetAnalyticsTables(client);
   await ensureAnalyticsSeed(client);
 }
-

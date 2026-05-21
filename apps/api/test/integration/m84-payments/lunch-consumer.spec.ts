@@ -6,11 +6,7 @@ import { LunchAccountService } from '@modules/m84-payments/lunch-account.service
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import { resetFinanceAdvancedTables } from '../helpers/reset';
 
 /**

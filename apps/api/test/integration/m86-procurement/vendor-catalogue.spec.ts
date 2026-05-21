@@ -242,9 +242,9 @@ describe('integration:m86-procurement/vendor-catalogue', () => {
     });
 
     it('list/getById as student → Forbidden', async () => {
-      await expect(
-        withTestTenant(async () => service.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 
@@ -298,7 +298,9 @@ describe('integration:m86-procurement/vendor-catalogue', () => {
     it('patch rename to duplicate name → ConflictException', async () => {
       const id = await seed();
       const id2 = await withTestTenant(async () =>
-        service.create(adminActor(), baseCatalogue({ catalogueName: 'Different' })).then((c) => c.id),
+        service
+          .create(adminActor(), baseCatalogue({ catalogueName: 'Different' }))
+          .then((c) => c.id),
       );
       await expect(
         withTestTenant(async () =>
@@ -315,9 +317,7 @@ describe('integration:m86-procurement/vendor-catalogue', () => {
 
     it('missing catalogue → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.patch(adminActor(), generateId(), { notes: 'x' }),
-        ),
+        withTestTenant(async () => service.patch(adminActor(), generateId(), { notes: 'x' })),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -394,7 +394,11 @@ describe('integration:m86-procurement/vendor-catalogue', () => {
       const cid = await seedCatalogue();
       await withTestTenant(async () => service.addItem(adminActor(), cid, baseItem()));
       await withTestTenant(async () =>
-        service.addItem(adminActor(), cid, baseItem({ itemCode: 'ITEM-002', description: 'Other' })),
+        service.addItem(
+          adminActor(),
+          cid,
+          baseItem({ itemCode: 'ITEM-002', description: 'Other' }),
+        ),
       );
       const detail = await withTestTenant(async () => service.getById(adminActor(), cid));
       expect(detail.items).toHaveLength(2);
@@ -475,10 +479,7 @@ describe('integration:m86-procurement/vendor-catalogue', () => {
   describe('cross-school isolation', () => {
     it('catalogue created in School B not visible from School A list', async () => {
       const b = await withTestTenantB(async () =>
-        service.create(
-          adminActor(),
-          baseCatalogue({ vendorId: TEST_SUPPLIER_B_SCHOOL_ID }),
-        ),
+        service.create(adminActor(), baseCatalogue({ vendorId: TEST_SUPPLIER_B_SCHOOL_ID })),
       );
       const listA = await withTestTenant(async () => service.list(adminActor()));
       expect(listA.find((c) => c.id === b.id)).toBeUndefined();

@@ -446,7 +446,10 @@ function isLockerUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; meta?: { code?: string }; message?: string };
   if (e.meta?.code === '23505') {
-    if (typeof e.message === 'string' && /school_id|locker_number|sis_lockers_unique/i.test(e.message)) {
+    if (
+      typeof e.message === 'string' &&
+      /school_id|locker_number|sis_lockers_unique/i.test(e.message)
+    ) {
       return true;
     }
     // Bare 23505 with no key info — assume locker uniqueness since the only
@@ -454,8 +457,10 @@ function isLockerUniqueViolation(err: unknown): boolean {
     return true;
   }
   if (typeof e.message === 'string') {
-    return /sis_lockers_unique/.test(e.message)
-      || (/23505|duplicate key value/i.test(e.message) && /school_id|locker_number/i.test(e.message));
+    return (
+      /sis_lockers_unique/.test(e.message) ||
+      (/23505|duplicate key value/i.test(e.message) && /school_id|locker_number/i.test(e.message))
+    );
   }
   return false;
 }

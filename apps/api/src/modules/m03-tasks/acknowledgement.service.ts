@@ -225,8 +225,7 @@ export class AcknowledgementService {
     const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AckRow[]>(
-        SELECT_ACK_BASE +
-          'WHERE a.school_id = $1::uuid ORDER BY a.created_at DESC LIMIT 200',
+        SELECT_ACK_BASE + 'WHERE a.school_id = $1::uuid ORDER BY a.created_at DESC LIMIT 200',
         tenant.schoolId,
       );
     });

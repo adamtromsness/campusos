@@ -17,16 +17,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
+import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import {
   resetTransportTables,
   ensureTransportSeed,
@@ -74,11 +66,9 @@ describe('integration:m61-transport/services-coverage', () => {
     );
     busPass = new BusPassService(tenantPrisma);
     fleetStatus = new FleetStatusService(tenantPrisma);
-    const assignments = new (await import('@modules/m61-transport/assignment.service')).AssignmentService(
-      tenantPrisma,
-      routes,
-      changeLog,
-    );
+    const assignments = new (
+      await import('@modules/m61-transport/assignment.service')
+    ).AssignmentService(tenantPrisma, routes, changeLog);
     changeReq = new RouteChangeRequestService(tenantPrisma, assignments);
   });
 

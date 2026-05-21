@@ -177,9 +177,7 @@ describe('integration:m00-platform/governance-dpia', () => {
     it('status filter', async () => {
       const a = await withTestTenant(async () => service.create(adminActor(), baseInput()));
       const b = await withTestTenant(async () => service.create(adminActor(), baseInput()));
-      await withTestTenant(async () =>
-        service.update(adminActor(), b.id, { status: 'COMPLETED' }),
-      );
+      await withTestTenant(async () => service.update(adminActor(), b.id, { status: 'COMPLETED' }));
       const scoping = await withTestTenant(async () =>
         service.list(adminActor(), { status: 'SCOPING' }),
       );
@@ -188,9 +186,9 @@ describe('integration:m00-platform/governance-dpia', () => {
     });
 
     it('list as non-DPO → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => service.list(officerActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(officerActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('getById missing → NotFoundException', async () => {
@@ -244,26 +242,18 @@ describe('integration:m00-platform/governance-dpia', () => {
 
     it('REJECTED is terminal — cannot transition out except to REJECTED itself', async () => {
       const id = await seed();
-      await withTestTenant(async () =>
-        service.update(adminActor(), id, { status: 'REJECTED' }),
-      );
+      await withTestTenant(async () => service.update(adminActor(), id, { status: 'REJECTED' }));
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), id, { status: 'IN_PROGRESS' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), id, { status: 'IN_PROGRESS' })),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), id, { status: 'APPROVED' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), id, { status: 'APPROVED' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('APPROVED → REJECTED is allowed; APPROVED → IN_PROGRESS is blocked', async () => {
       const id = await seed();
-      await withTestTenant(async () =>
-        service.update(adminActor(), id, { status: 'APPROVED' }),
-      );
+      await withTestTenant(async () => service.update(adminActor(), id, { status: 'APPROVED' }));
       // Allowed transition: APPROVED → REJECTED
       const rejected = await withTestTenant(async () =>
         service.update(adminActor(), id, { status: 'REJECTED' }),
@@ -273,13 +263,9 @@ describe('integration:m00-platform/governance-dpia', () => {
 
     it('APPROVED → IN_PROGRESS blocked', async () => {
       const id = await seed();
-      await withTestTenant(async () =>
-        service.update(adminActor(), id, { status: 'APPROVED' }),
-      );
+      await withTestTenant(async () => service.update(adminActor(), id, { status: 'APPROVED' }));
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), id, { status: 'IN_PROGRESS' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), id, { status: 'IN_PROGRESS' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -309,9 +295,7 @@ describe('integration:m00-platform/governance-dpia', () => {
     it('non-DPO update → ForbiddenException', async () => {
       const id = await seed();
       await expect(
-        withTestTenant(async () =>
-          service.update(officerActor(), id, { status: 'IN_PROGRESS' }),
-        ),
+        withTestTenant(async () => service.update(officerActor(), id, { status: 'IN_PROGRESS' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -393,9 +389,7 @@ describe('integration:m22-scheduling/calendar', () => {
           adminActor(),
         ),
       );
-      const res = await withTestTenant(async () =>
-        calendarService.delete(dto.id, adminActor()),
-      );
+      const res = await withTestTenant(async () => calendarService.delete(dto.id, adminActor()));
       expect(res.deleted).toBe(true);
       await expect(
         withTestTenant(async () => calendarService.getById(dto.id, adminActor())),
@@ -456,9 +450,7 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(dto.id);
-      const got = await withTestTenant(async () =>
-        calendarService.getById(dto.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => calendarService.getById(dto.id, adminActor()));
       expect(got.id).toBe(dto.id);
     });
   });
@@ -597,10 +589,7 @@ describe('integration:m22-scheduling/calendar', () => {
       );
       eventIds.push(mid.id);
       const list = await withTestTenant(async () =>
-        calendarService.list(
-          { fromDate: '2027-06-01', toDate: '2027-06-30' } as any,
-          adminActor(),
-        ),
+        calendarService.list({ fromDate: '2027-06-01', toDate: '2027-06-30' } as any, adminActor()),
       );
       const ids = list.map((r) => r.id);
       expect(ids).toContain(mid.id);
@@ -613,9 +602,7 @@ describe('integration:m22-scheduling/calendar', () => {
   // ────────────────────────────────────────────────────────────────────
   describe('resolveDay', () => {
     it('returns DEFAULT when no override or event applies', async () => {
-      const resolution = await withTestTenant(async () =>
-        calendarService.resolveDay('2030-04-15'),
-      );
+      const resolution = await withTestTenant(async () => calendarService.resolveDay('2030-04-15'));
       expect(resolution.resolvedFrom).toBe('DEFAULT');
       expect(resolution.isSchoolDay).toBe(true);
       expect(resolution.bellScheduleId).toBe(bellScheduleId);
@@ -629,9 +616,7 @@ describe('integration:m22-scheduling/calendar', () => {
         generateId(),
         TEST_SCHOOL_ID,
       );
-      const resolution = await withTestTenant(async () =>
-        calendarService.resolveDay('2030-04-16'),
-      );
+      const resolution = await withTestTenant(async () => calendarService.resolveDay('2030-04-16'));
       expect(resolution.resolvedFrom).toBe('OVERRIDE');
       expect(resolution.isSchoolDay).toBe(false);
       expect(resolution.overrideReason).toBe('snow');
@@ -652,9 +637,7 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      const resolution = await withTestTenant(async () =>
-        calendarService.resolveDay('2030-05-03'),
-      );
+      const resolution = await withTestTenant(async () => calendarService.resolveDay('2030-05-03'));
       expect(resolution.resolvedFrom).toBe('EVENT');
       expect(resolution.bellScheduleId).toBe(bellScheduleId);
       expect(resolution.eventIds).toContain(ev.id);
@@ -701,9 +684,7 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'TENTATIVE', adminActor()),
-      );
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'TENTATIVE', adminActor()));
       const updated = await withTestTenant(async () =>
         rsvpService.setResponse(ev.id, 'NOT_GOING', adminActor()),
       );
@@ -725,20 +706,14 @@ describe('integration:m22-scheduling/calendar', () => {
       );
       eventIds.push(ev.id);
       await expect(
-        withTestTenant(async () =>
-          rsvpService.setResponse(ev.id, 'GOING', teacherActor()),
-        ),
+        withTestTenant(async () => rsvpService.setResponse(ev.id, 'GOING', teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('unknown event → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          rsvpService.setResponse(
-            '00000000-0000-0000-0000-000000000000',
-            'GOING',
-            adminActor(),
-          ),
+          rsvpService.setResponse('00000000-0000-0000-0000-000000000000', 'GOING', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -757,12 +732,8 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'GOING', adminActor()),
-      );
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()),
-      );
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'GOING', adminActor()));
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()));
       const list = await withTestTenant(async () => rsvpService.list(ev.id, adminActor()));
       expect(list.length).toBe(2);
     });
@@ -781,15 +752,9 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'GOING', adminActor()),
-      );
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()),
-      );
-      const list = await withTestTenant(async () =>
-        rsvpService.list(ev.id, teacherActor()),
-      );
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'GOING', adminActor()));
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()));
+      const list = await withTestTenant(async () => rsvpService.list(ev.id, teacherActor()));
       expect(list.length).toBe(1);
       expect(list[0]!.personId).toBe(TEST_TEACHER_PERSON_ID);
     });
@@ -808,15 +773,9 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'GOING', adminActor()),
-      );
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()),
-      );
-      const summary = await withTestTenant(async () =>
-        rsvpService.summary(ev.id, adminActor()),
-      );
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'GOING', adminActor()));
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'TENTATIVE', teacherActor()));
+      const summary = await withTestTenant(async () => rsvpService.summary(ev.id, adminActor()));
       expect(summary.going).toBe(1);
       expect(summary.tentative).toBe(1);
       expect(summary.notGoing).toBe(0);
@@ -845,9 +804,7 @@ describe('integration:m22-scheduling/calendar', () => {
         ),
       );
       eventIds.push(ev.id);
-      await withTestTenant(async () =>
-        rsvpService.setResponse(ev.id, 'GOING', teacherActor()),
-      );
+      await withTestTenant(async () => rsvpService.setResponse(ev.id, 'GOING', teacherActor()));
       const result = await withTestTenant(async () =>
         rsvpService.eventIdsForPersons([TEST_TEACHER_PERSON_ID]),
       );

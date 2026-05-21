@@ -78,10 +78,7 @@ describe('integration:m22-scheduling/controllers-coverage', () => {
     actorContext = new ActorContextService(rawClient, permCheck, tenantPrisma);
     kafka = makeRecordingKafka();
 
-    coverageService = new CoverageService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    coverageService = new CoverageService(tenantPrisma, kafka as unknown as KafkaProducerService);
     substitutionService = new SubstitutionService(tenantPrisma);
     rotationService = new RotationService(tenantPrisma);
 
@@ -429,9 +426,7 @@ describe('integration:m22-scheduling/controllers-coverage', () => {
       );
       expect(typeof result.created).toBe('number');
 
-      const lookup = await withTestTenant(async () =>
-        rotationController.lookup('2027-06-01'),
-      );
+      const lookup = await withTestTenant(async () => rotationController.lookup('2027-06-01'));
       expect(lookup).toBeTruthy();
     });
   });

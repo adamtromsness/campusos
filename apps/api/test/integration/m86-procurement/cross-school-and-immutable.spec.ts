@@ -20,11 +20,7 @@ import {
   TEST_SCHOOL_B_ID,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_EMPLOYEE_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { resetProcurementTables } from '../helpers/reset';
 import { RecordingKafkaProducer } from '../helpers/recording-kafka';
 import {
@@ -97,9 +93,7 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
     // carries an IMMUTABLE prevent_mutation trigger (BEFORE UPDATE/DELETE),
     // so a per-row DELETE fails. TRUNCATE bypasses the row trigger and
     // cascades through every monthly partition.
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.fds_inventory_transactions`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.fds_inventory_transactions`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.fds_inventory_items WHERE name LIKE 'PROC-TEST-%'`,
     );
@@ -156,9 +150,9 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
         }),
       );
       // School A admin cannot read it
-      await expect(
-        withTestTenant(async () => poService.getById(poB.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => poService.getById(poB.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('procurement list endpoints scoped: School A list does NOT include School B rows', async () => {
@@ -342,9 +336,9 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
       expect(caught).toBeDefined();
       const code = caught?.meta?.code ?? '';
       const msg = caught?.message ?? '';
-      expect(code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable')).toBe(
-        true,
-      );
+      expect(
+        code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable'),
+      ).toBe(true);
     });
 
     it('UPDATE fds_inventory_transactions.transaction_type → SQLSTATE 23001', async () => {
@@ -396,19 +390,21 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
       // and bypasses BEFORE ROW triggers per Postgres semantics. Use
       // a transaction so we can roll back after asserting — keeping
       // partitions clean for the rest of the suite.
-      await rawClient.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.fds_inventory_transactions`);
-        const after = (await tx.$queryRawUnsafe(
-          `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.fds_inventory_transactions WHERE id = $1::uuid AND transaction_at = $2::timestamptz`,
-          transactionId,
-          transactionAt,
-        )) as Array<{ n: number }>;
-        expect(after[0]!.n).toBe(0);
-        // Rollback by throwing — tx is discarded.
-        throw new Error('rollback');
-      }).catch((e) => {
-        if ((e as Error).message !== 'rollback') throw e;
-      });
+      await rawClient
+        .$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.fds_inventory_transactions`);
+          const after = (await tx.$queryRawUnsafe(
+            `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.fds_inventory_transactions WHERE id = $1::uuid AND transaction_at = $2::timestamptz`,
+            transactionId,
+            transactionAt,
+          )) as Array<{ n: number }>;
+          expect(after[0]!.n).toBe(0);
+          // Rollback by throwing — tx is discarded.
+          throw new Error('rollback');
+        })
+        .catch((e) => {
+          if ((e as Error).message !== 'rollback') throw e;
+        });
 
       // After rollback the row is back (proving TRUNCATE was visible inside
       // the tx and rolled back cleanly with it).

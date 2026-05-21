@@ -30,11 +30,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  parentActor,
-  TEST_PARENT_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, parentActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
 import { resetAlumniTables, ensureIamPerson } from '../fixtures/alumni';
 
 /**
@@ -93,12 +89,14 @@ describe('integration:m102-alumni/campaigns-donations', () => {
     await resetAlumniTables(rawClient, { personIds: seededPersonIds.splice(0) });
   });
 
-  async function seedProfile(opts: {
-    schoolId?: string;
-    personId?: string;
-    optedIn?: boolean;
-    tag?: string;
-  } = {}): Promise<string> {
+  async function seedProfile(
+    opts: {
+      schoolId?: string;
+      personId?: string;
+      optedIn?: boolean;
+      tag?: string;
+    } = {},
+  ): Promise<string> {
     const generated = opts.personId === undefined;
     const personId = opts.personId ?? generateId();
     if (generated) seededPersonIds.push(personId);
@@ -124,12 +122,14 @@ describe('integration:m102-alumni/campaigns-donations', () => {
     return id;
   }
 
-  async function seedCampaign(opts: {
-    schoolId?: string;
-    status?: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
-    reportingCurrency?: string;
-    goalAmount?: number;
-  } = {}): Promise<string> {
+  async function seedCampaign(
+    opts: {
+      schoolId?: string;
+      status?: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+      reportingCurrency?: string;
+      goalAmount?: number;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.alm_campaigns
@@ -169,9 +169,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
     it('non-admin cannot create → ForbiddenException', async () => {
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
-        withTestTenant(async () =>
-          campaigns.create({ title: 'X' } as any, parentActor()),
-        ),
+        withTestTenant(async () => campaigns.create({ title: 'X' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -231,18 +229,14 @@ describe('integration:m102-alumni/campaigns-donations', () => {
 
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
-        withTestTenant(async () =>
-          campaigns.patch(id, { title: 'X' } as any, parentActor()),
-        ),
+        withTestTenant(async () => campaigns.patch(id, { title: 'X' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('cross-school: School B campaign UUID → 404 in School A patch', async () => {
       const bId = await seedCampaign({ schoolId: TEST_SCHOOL_B_ID, status: 'DRAFT' });
       await expect(
-        withTestTenant(async () =>
-          campaigns.patch(bId, { title: 'X' } as any, adminActor()),
-        ),
+        withTestTenant(async () => campaigns.patch(bId, { title: 'X' } as any, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -305,12 +299,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       const cId = await seedCampaign({ status: 'ACTIVE' });
       const aId = await seedProfile();
       await withTestTenant(async () =>
-        donations.donate(
-          cId,
-          aId,
-          { amount: 100, currency: 'USD' } as any,
-          adminActor(),
-        ),
+        donations.donate(cId, aId, { amount: 100, currency: 'USD' } as any, adminActor()),
       );
       const r = await withTestTenant(async () => campaigns.raised(cId, adminActor()));
       expect(r.raisedAmount).toBe(100);
@@ -343,9 +332,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       expect(second.created).toBe(0);
       expect(second.skipped).toBe(2);
 
-      const list = await withTestTenant(async () =>
-        campaigns.listRecipients(cId, adminActor()),
-      );
+      const list = await withTestTenant(async () => campaigns.listRecipients(cId, adminActor()));
       expect(list.length).toBe(2);
       expect(list.map((r) => r.alumniId).sort()).toEqual([a1, a2].sort());
     });
@@ -553,12 +540,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       const cId = await seedCampaign({ status: 'ACTIVE', reportingCurrency: 'USD' });
       const aId = await seedProfile();
       const d = await withTestTenant(async () =>
-        donations.donate(
-          cId,
-          aId,
-          { amount: 250, currency: 'USD' } as any,
-          adminActor(),
-        ),
+        donations.donate(cId, aId, { amount: 250, currency: 'USD' } as any, adminActor()),
       );
       expect(d.amount).toBe(250);
       expect(d.amountInReportingCurrency).toBe(250);
@@ -572,12 +554,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       // missing fx → 400
       await expect(
         withTestTenant(async () =>
-          donations.donate(
-            cId,
-            aId,
-            { amount: 100, currency: 'EUR' } as any,
-            adminActor(),
-          ),
+          donations.donate(cId, aId, { amount: 100, currency: 'EUR' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -598,12 +575,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       const cId = await seedCampaign({ status: 'ACTIVE' });
       const aId = await seedProfile();
       const d = await withTestTenant(async () =>
-        donations.donate(
-          cId,
-          aId,
-          { amount: 50, currency: 'USD' } as any,
-          adminActor(),
-        ),
+        donations.donate(cId, aId, { amount: 50, currency: 'USD' } as any, adminActor()),
       );
       const rows = await rawClient.$queryRawUnsafe<Array<{ envelope: string }>>(
         `SELECT envelope::text AS envelope FROM platform.platform_outbox
@@ -628,14 +600,11 @@ describe('integration:m102-alumni/campaigns-donations', () => {
         aId,
       );
       await withTestTenant(async () =>
-        donations.donate(
-          cId,
-          aId,
-          { amount: 25, currency: 'USD' } as any,
-          adminActor(),
-        ),
+        donations.donate(cId, aId, { amount: 25, currency: 'USD' } as any, adminActor()),
       );
-      const r = await rawClient.$queryRawUnsafe<Array<{ outreach_status: string; donated_at: Date | null }>>(
+      const r = await rawClient.$queryRawUnsafe<
+        Array<{ outreach_status: string; donated_at: Date | null }>
+      >(
         `SELECT outreach_status, donated_at FROM ${TEST_SCHEMA}.alm_campaign_recipients WHERE id = $1::uuid`,
         rId,
       );
@@ -681,12 +650,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
         withTestTenant(async () =>
-          donations.donate(
-            cId,
-            otherId,
-            { amount: 10, currency: 'USD' } as any,
-            parentActor(),
-          ),
+          donations.donate(cId, otherId, { amount: 10, currency: 'USD' } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -696,12 +660,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       const aId = await seedProfile();
       await expect(
         withTestTenant(async () =>
-          donations.donate(
-            cId,
-            aId,
-            { amount: 10, currency: 'USD' } as any,
-            adminActor(),
-          ),
+          donations.donate(cId, aId, { amount: 10, currency: 'USD' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -715,9 +674,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       await withTestTenant(async () =>
         donations.donate(cId, aId, { amount: 20, currency: 'USD' } as any, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        donations.listForCampaign(cId, adminActor()),
-      );
+      const list = await withTestTenant(async () => donations.listForCampaign(cId, adminActor()));
       expect(list.length).toBe(2);
       expect(list[0]!.amount).toBe(20); // newest first
     });
@@ -727,12 +684,7 @@ describe('integration:m102-alumni/campaigns-donations', () => {
       const aId = await seedProfile(); // School A profile
       await expect(
         withTestTenant(async () =>
-          donations.donate(
-            bId,
-            aId,
-            { amount: 10, currency: 'USD' } as any,
-            adminActor(),
-          ),
+          donations.donate(bId, aId, { amount: 10, currency: 'USD' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

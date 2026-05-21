@@ -137,9 +137,9 @@ describe('integration:shared/tenant-context', () => {
     });
 
     it('throws when called outside any tenant context', async () => {
-      await expect(
-        tenantPrisma.executeInTenantContext(async () => 1),
-      ).rejects.toThrow(/No tenant context/);
+      await expect(tenantPrisma.executeInTenantContext(async () => 1)).rejects.toThrow(
+        /No tenant context/,
+      );
     });
 
     it('resolves tenant-scoped table names without schema-qualification', async () => {

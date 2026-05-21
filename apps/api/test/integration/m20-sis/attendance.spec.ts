@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { AttendanceService } from '@modules/m20-sis/attendance/attendance.service';
@@ -66,9 +62,7 @@ describe('integration:m20-sis/attendance', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_absence_requests`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
     // Other m20-sis specs (graduation-workers, student-profile, etc.) may
@@ -110,7 +104,13 @@ describe('integration:m20-sis/attendance', () => {
         [s1.studentId, s2.studentId],
       );
       // eslint-disable-next-line no-console
-      console.log('[DEBUG] enrollments seeded:', debugEnrolls.length, 'student ids:', s1.studentId, s2.studentId);
+      console.log(
+        '[DEBUG] enrollments seeded:',
+        debugEnrolls.length,
+        'student ids:',
+        s1.studentId,
+        s2.studentId,
+      );
 
       const rows = await withTestTenant(async () =>
         service.getClassAttendance(TEST_SIS_CLASS_ID, '2026-09-01', '1', adminActor()),
@@ -217,13 +217,7 @@ describe('integration:m20-sis/attendance', () => {
       await enrollStudent(rawClient, s.studentId);
       await expect(
         withTestTenant(async () =>
-          service.batchSubmit(
-            TEST_SIS_CLASS_ID,
-            '2026-09-07',
-            '1',
-            [],
-            teacherActor(),
-          ),
+          service.batchSubmit(TEST_SIS_CLASS_ID, '2026-09-07', '1', [], teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -284,11 +278,7 @@ describe('integration:m20-sis/attendance', () => {
       await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
       await expect(
         withTestTenant(async () =>
-          service.markIndividual(
-            recordRow[0]!.id,
-            { status: 'TARDY' } as any,
-            teacherActor(),
-          ),
+          service.markIndividual(recordRow[0]!.id, { status: 'TARDY' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -372,8 +362,7 @@ describe('integration:m20-sis/attendance', () => {
       );
 
       const rows = await withTestTenant(
-        async () =>
-          service.getClassAttendance(TEST_SIS_CLASS_ID, '2026-09-11', '1', parentActor()),
+        async () => service.getClassAttendance(TEST_SIS_CLASS_ID, '2026-09-11', '1', parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(rows.map((r) => r.studentId)).toContain(child.studentId);
@@ -509,11 +498,10 @@ describe('integration:m20-sis/attendance', () => {
         ),
       );
       const reviewed = await withTestTenant(async () =>
-        absenceService.review(
-          req.id,
-          TEST_ADMIN_ACCOUNT_ID,
-          { decision: 'APPROVED', reviewerNotes: 'ok' } as any,
-        ),
+        absenceService.review(req.id, TEST_ADMIN_ACCOUNT_ID, {
+          decision: 'APPROVED',
+          reviewerNotes: 'ok',
+        } as any),
       );
       expect(reviewed.status).toBe('APPROVED');
       const calls = (kafka as unknown as RecordingKafkaProducer).calls;
@@ -548,11 +536,9 @@ describe('integration:m20-sis/attendance', () => {
     it('review unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          absenceService.review(
-            '00000000-0000-0000-0000-000000000000',
-            TEST_ADMIN_ACCOUNT_ID,
-            { decision: 'APPROVED' } as any,
-          ),
+          absenceService.review('00000000-0000-0000-0000-000000000000', TEST_ADMIN_ACCOUNT_ID, {
+            decision: 'APPROVED',
+          } as any),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -615,9 +601,7 @@ describe('integration:m20-sis/attendance', () => {
       expect(adminDto.id).toBe(req.id);
 
       await expect(
-        withTestTenant(async () =>
-          absenceService.getById(req.id, TEST_PARENT_ACCOUNT_ID, false),
-        ),
+        withTestTenant(async () => absenceService.getById(req.id, TEST_PARENT_ACCOUNT_ID, false)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

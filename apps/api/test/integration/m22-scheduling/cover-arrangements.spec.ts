@@ -398,9 +398,7 @@ describe('integration:m22-scheduling/cover-arrangements', () => {
       expect(cls.disposition).toBe('COVERED_BY_SUB');
 
       // Hydrating the arrangement should now include the class.
-      const reloaded = await withTestTenant(async () =>
-        coverService.getById(arr.id),
-      );
+      const reloaded = await withTestTenant(async () => coverService.getById(arr.id));
       expect(reloaded.classes).toHaveLength(1);
       expect(reloaded.classes[0]!.id).toBe(cls.id);
     });
@@ -447,9 +445,7 @@ describe('integration:m22-scheduling/cover-arrangements', () => {
   describe('CoverArrangementService.getById / listForDate', () => {
     it('getById unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          coverService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => coverService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -477,9 +473,7 @@ describe('integration:m22-scheduling/cover-arrangements', () => {
       );
       arrangementIds.push(b.id);
 
-      const may10 = await withTestTenant(async () =>
-        coverService.listForDate('2027-05-10'),
-      );
+      const may10 = await withTestTenant(async () => coverService.listForDate('2027-05-10'));
       expect(may10.map((r) => r.id)).toContain(a.id);
       expect(may10.map((r) => r.id)).not.toContain(b.id);
     });
@@ -506,9 +500,9 @@ describe('integration:m22-scheduling/cover-arrangements', () => {
       );
       arrangementIds.push(arrId);
 
-      await expect(
-        withTestTenant(async () => coverService.getById(arrId)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => coverService.getById(arrId))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

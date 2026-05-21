@@ -44,11 +44,7 @@ import { CommunicationsAdvancedController } from '@modules/m40-communications/me
 
 import type { ResolvedActor } from '@modules/m00-platform';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   TEST_ADMIN_ACCOUNT_ID,
@@ -57,10 +53,7 @@ import {
   TEST_TEACHER_PERSON_ID,
   TEST_PARENT_ACCOUNT_ID,
 } from '../helpers/actor';
-import {
-  TEST_THREAD_TYPE_DIRECT_ID,
-  TEST_ALERT_TYPE_INFO_ID,
-} from '../fixtures/communications';
+import { TEST_THREAD_TYPE_DIRECT_ID, TEST_ALERT_TYPE_INFO_ID } from '../fixtures/communications';
 
 /**
  * Wave 5 — m40-communications controllers spec.
@@ -179,54 +172,36 @@ describe('integration:m40-communications/controllers', () => {
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_messages`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_thread_participants`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_threads`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_announcement_reads`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_reads`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcements`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_emergency_alert_deliveries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_emergency_alert_deliveries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_emergency_alerts`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_alert_types WHERE name LIKE 'IT-%'`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_template_usage_log`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_template_usage_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_templates WHERE name LIKE 'IT-%'`,
     );
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_translations`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_user_language_preferences`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_appeals`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_user_language_preferences`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_appeals`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_rules WHERE name LIKE 'IT-%'`,
     );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_policies WHERE name LIKE 'IT-%'`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_broadcast_segments WHERE name LIKE 'IT-%'`,
     );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_push_analytics_contributions`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_push_analytics`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_push_analytics`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_push_campaigns WHERE title LIKE 'IT-%'`,
     );
@@ -302,9 +277,7 @@ describe('integration:m40-communications/controllers', () => {
         ctrl.post(t.id, { body: 'controller post' } as any, adminReq),
       );
       expect(m.body).toBe('controller post');
-      const lst = await withTestTenant(async () =>
-        ctrl.list(t.id, { limit: 10 } as any, adminReq),
-      );
+      const lst = await withTestTenant(async () => ctrl.list(t.id, { limit: 10 } as any, adminReq));
       expect(lst.map((r) => r.id)).toContain(m.id);
       const ed = await withTestTenant(async () =>
         ctrl.edit(m.id, { body: 'controller edited' } as any, adminReq),
@@ -373,14 +346,11 @@ describe('integration:m40-communications/controllers', () => {
       const all = await withTestTenant(async () => ctrl.list('true'));
       expect(Array.isArray(all)).toBe(true);
       const dto = await withTestTenant(async () =>
-        ctrl.create(
-          req,
-          {
-            name: 'IT-ctrl-type',
-            severity: 'WARNING',
-            defaultChannels: ['IN_APP'],
-          } as any,
-        ),
+        ctrl.create(req, {
+          name: 'IT-ctrl-type',
+          severity: 'WARNING',
+          defaultChannels: ['IN_APP'],
+        } as any),
       );
       const upd = await withTestTenant(async () =>
         ctrl.patch(req, dto.id, { severity: 'URGENT' } as any),

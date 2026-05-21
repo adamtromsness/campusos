@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -71,10 +67,7 @@ describe('integration:m66-athletics/conferences', () => {
   it('create: tenant AD → ForbiddenException (BLOCKING 3)', async () => {
     await expect(
       withTestTenant(() =>
-        conferences.create(
-          { name: 'X League', sport: 'Soccer' } as any,
-          adminActor(),
-        ),
+        conferences.create({ name: 'X League', sport: 'Soccer' } as any, adminActor()),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -82,9 +75,7 @@ describe('integration:m66-athletics/conferences', () => {
   it('patch: tenant AD → ForbiddenException', async () => {
     const cId = await seedConferenceDirect('PatchTarget', 'Soccer A');
     await expect(
-      withTestTenant(() =>
-        conferences.patch(cId, { name: 'Renamed' } as any, adminActor()),
-      ),
+      withTestTenant(() => conferences.patch(cId, { name: 'Renamed' } as any, adminActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -159,11 +150,7 @@ describe('integration:m66-athletics/conferences', () => {
   it('addMembership: duplicate → BadRequestException', async () => {
     const cId = await seedConferenceDirect();
     await withTestTenant(() =>
-      conferences.addMembership(
-        cId,
-        { programmeId: TEST_ATH_PROGRAMME_A_ID } as any,
-        adminActor(),
-      ),
+      conferences.addMembership(cId, { programmeId: TEST_ATH_PROGRAMME_A_ID } as any, adminActor()),
     );
     await expect(
       withTestTenant(() =>
@@ -316,14 +303,10 @@ describe('integration:m66-athletics/conferences', () => {
 
   it('listMemberships + listSchedule on missing conference → NotFoundException', async () => {
     await expect(
-      withTestTenant(() =>
-        conferences.listMemberships('00000000-0000-0000-0000-000000000000'),
-      ),
+      withTestTenant(() => conferences.listMemberships('00000000-0000-0000-0000-000000000000')),
     ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
-      withTestTenant(() =>
-        conferences.listSchedule('00000000-0000-0000-0000-000000000000'),
-      ),
+      withTestTenant(() => conferences.listSchedule('00000000-0000-0000-0000-000000000000')),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

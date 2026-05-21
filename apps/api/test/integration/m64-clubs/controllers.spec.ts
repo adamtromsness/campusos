@@ -16,11 +16,7 @@ import { type ActorContextService, type ResolvedActor } from '@modules/m00-platf
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -427,11 +423,7 @@ describe('integration:m64-clubs/controllers', () => {
     const req = parentReq();
     req.headers = {}; // remove x-forwarded-for
     const consent = await withTestTenant(async () =>
-      ctl.signConsent(
-        trip.id,
-        { studentId: stu.studentId, consentGiven: false } as any,
-        req,
-      ),
+      ctl.signConsent(trip.id, { studentId: stu.studentId, consentGiven: false } as any, req),
     );
     expect(consent.ipAddress).toBe('127.0.0.1');
   });
@@ -502,11 +494,7 @@ describe('integration:m64-clubs/controllers', () => {
     const stuId = await linkStudentToPerson(TEST_STUDENT_PERSON_ID);
     actorStub.current = studentActor();
     const cand = await withTestTenant(async () =>
-      ctl.registerCandidate(
-        election.id,
-        { studentId: stuId, position: 'P' } as any,
-        studentReq(),
-      ),
+      ctl.registerCandidate(election.id, { studentId: stuId, position: 'P' } as any, studentReq()),
     );
     // Admin approves the candidate so the vote will succeed
     actorStub.current = adminActor();

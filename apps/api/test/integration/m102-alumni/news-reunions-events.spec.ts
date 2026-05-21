@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -132,10 +128,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
         withTestTenant(async () =>
-          news.create(
-            { title: 'X', body: 'Y', category: 'GENERAL' as any } as any,
-            parentActor(),
-          ),
+          news.create({ title: 'X', body: 'Y', category: 'GENERAL' as any } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       const pub = await withTestTenant(async () =>
@@ -145,9 +138,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          news.patch(pub.id, { title: 'Renamed' } as any, parentActor()),
-        ),
+        withTestTenant(async () => news.patch(pub.id, { title: 'Renamed' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () => news.remove(pub.id, parentActor())),
@@ -156,10 +147,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
 
     it('getById: draft hidden from non-admin → 404', async () => {
       const draft = await withTestTenant(async () =>
-        news.create(
-          { title: 'D', body: 'b', category: 'GENERAL' as any } as any,
-          adminActor(),
-        ),
+        news.create({ title: 'D', body: 'b', category: 'GENERAL' as any } as any, adminActor()),
       );
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
@@ -171,10 +159,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
 
     it('patch toggles publish state', async () => {
       const draft = await withTestTenant(async () =>
-        news.create(
-          { title: 'D', body: 'b', category: 'GENERAL' as any } as any,
-          adminActor(),
-        ),
+        news.create({ title: 'D', body: 'b', category: 'GENERAL' as any } as any, adminActor()),
       );
       expect(draft.publishedAt).toBe(null);
       const published = await withTestTenant(async () =>
@@ -189,10 +174,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
 
     it('patch with title/body/category fields', async () => {
       const draft = await withTestTenant(async () =>
-        news.create(
-          { title: 'A', body: 'A', category: 'GENERAL' as any } as any,
-          adminActor(),
-        ),
+        news.create({ title: 'A', body: 'A', category: 'GENERAL' as any } as any, adminActor()),
       );
       const out = await withTestTenant(async () =>
         news.patch(
@@ -208,10 +190,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
 
     it('remove succeeds; missing → 404', async () => {
       const draft = await withTestTenant(async () =>
-        news.create(
-          { title: 'A', body: 'A', category: 'GENERAL' as any } as any,
-          adminActor(),
-        ),
+        news.create({ title: 'A', body: 'A', category: 'GENERAL' as any } as any, adminActor()),
       );
       await withTestTenant(async () => news.remove(draft.id, adminActor()));
       await expect(
@@ -288,7 +267,9 @@ describe('integration:m102-alumni/news-reunions-events', () => {
       await withTestTenant(async () =>
         reunions.create({ graduationYear: 2011, name: 'B', organiserId: a } as any, adminActor()),
       );
-      const byYear = await withTestTenant(async () => reunions.list(adminActor(), { graduationYear: 2010 }));
+      const byYear = await withTestTenant(async () =>
+        reunions.list(adminActor(), { graduationYear: 2010 }),
+      );
       expect(byYear.length).toBe(1);
       const byStatus = await withTestTenant(async () =>
         reunions.list(adminActor(), { status: 'PLANNING' as any }),
@@ -299,10 +280,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
     it('patch: CONFIRMED requires event_date', async () => {
       const a = await seedProfile();
       const r = await withTestTenant(async () =>
-        reunions.create(
-          { graduationYear: 2010, name: 'A', organiserId: a } as any,
-          adminActor(),
-        ),
+        reunions.create({ graduationYear: 2010, name: 'A', organiserId: a } as any, adminActor()),
       );
       // Without event_date → 400
       await expect(
@@ -334,9 +312,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          reunions.patch(r.id, { name: 'X' } as any, parentActor()),
-        ),
+        withTestTenant(async () => reunions.patch(r.id, { name: 'X' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -377,10 +353,7 @@ describe('integration:m102-alumni/news-reunions-events', () => {
     it('cross-school: School B reunion → 404 from School A', async () => {
       const aB = await seedProfile({ schoolId: TEST_SCHOOL_B_ID });
       const rB = await withTestTenantB(async () =>
-        reunions.create(
-          { graduationYear: 2010, name: 'B', organiserId: aB } as any,
-          adminActor(),
-        ),
+        reunions.create({ graduationYear: 2010, name: 'B', organiserId: aB } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => reunions.getById(rB.id, adminActor())),
@@ -437,17 +410,11 @@ describe('integration:m102-alumni/news-reunions-events', () => {
       await ensureIamPerson(rawClient, TEST_PARENT_PERSON_ID, { personType: 'GUARDIAN' });
       await expect(
         withTestTenant(async () =>
-          events.create(
-            { title: 'X', eventDate: dateFuture(30) } as any,
-            parentActor(),
-          ),
+          events.create({ title: 'X', eventDate: dateFuture(30) } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       const ev = await withTestTenant(async () =>
-        events.create(
-          { title: 'E', eventDate: dateFuture(30) } as any,
-          adminActor(),
-        ),
+        events.create({ title: 'E', eventDate: dateFuture(30) } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => events.patch(ev.id, { title: 'Z' } as any, parentActor())),
@@ -539,18 +506,13 @@ describe('integration:m102-alumni/news-reunions-events', () => {
 
     it('cross-school: School B alumni event → 404 from School A', async () => {
       const bEv = await withTestTenantB(async () =>
-        events.create(
-          { title: 'B', eventDate: dateFuture(40) } as any,
-          adminActor(),
-        ),
+        events.create({ title: 'B', eventDate: dateFuture(40) } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => events.getById(bEv.id, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        withTestTenant(async () =>
-          events.patch(bEv.id, { title: 'X' } as any, adminActor()),
-        ),
+        withTestTenant(async () => events.patch(bEv.id, { title: 'X' } as any, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
         withTestTenant(async () => events.remove(bEv.id, adminActor())),

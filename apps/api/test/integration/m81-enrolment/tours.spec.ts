@@ -21,12 +21,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  parentActor,
-  teacherActor,
-  TEST_PARENT_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, parentActor, teacherActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
 
 /**
  * Wave 4 — m81-enrolment Tours (TourSlotService + TourBookingService)
@@ -74,15 +69,9 @@ describe('integration:m81-enrolment/tours', () => {
   beforeEach(async () => {
     // FK CASCADE: enr_tour_booking_guests -> enr_tour_bookings -> enr_tour_slots
     // Wipe in order; guests cascade with bookings.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_booking_guests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_bookings`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_slots`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_booking_guests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_bookings`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_slots`);
   });
 
   function futureDate(daysAhead: number): string {
@@ -141,19 +130,14 @@ describe('integration:m81-enrolment/tours', () => {
 
     it('non-admin / non-permission caller → ForbiddenException on create', async () => {
       await expect(
-        withTestTenant(async () =>
-          slotService.create(makeSlotInput(), teacherActor()),
-        ),
+        withTestTenant(async () => slotService.create(makeSlotInput(), teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('endTime <= startTime → BadRequestException', async () => {
       await expect(
         withTestTenant(async () =>
-          slotService.create(
-            makeSlotInput({ startTime: '11:00', endTime: '10:00' }),
-            adminActor(),
-          ),
+          slotService.create(makeSlotInput({ startTime: '11:00', endTime: '10:00' }), adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -208,9 +192,7 @@ describe('integration:m81-enrolment/tours', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        slotService.listAdmin(adminActor()),
-      );
+      const list = await withTestTenant(async () => slotService.listAdmin(adminActor()));
       expect(list.length).toBeGreaterThan(0);
     });
 
@@ -316,9 +298,7 @@ describe('integration:m81-enrolment/tours', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          bookingService.bookPublic(slot.id, makeBookingInput()),
-        ),
+        withTestTenant(async () => bookingService.bookPublic(slot.id, makeBookingInput())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -330,19 +310,14 @@ describe('integration:m81-enrolment/tours', () => {
         slotService.patch(slot.id, { isCancelled: true } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          bookingService.bookPublic(slot.id, makeBookingInput()),
-        ),
+        withTestTenant(async () => bookingService.bookPublic(slot.id, makeBookingInput())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('unknown slot → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          bookingService.bookPublic(
-            '00000000-0000-0000-0000-000000000000',
-            makeBookingInput(),
-          ),
+          bookingService.bookPublic('00000000-0000-0000-0000-000000000000', makeBookingInput()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -498,11 +473,7 @@ describe('integration:m81-enrolment/tours', () => {
       const { bookingId } = await seedSlotAndBooking();
       await expect(
         withTestTenant(async () =>
-          bookingService.patch(
-            bookingId,
-            { status: 'COMPLETED' } as any,
-            teacherActor(),
-          ),
+          bookingService.patch(bookingId, { status: 'COMPLETED' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -510,11 +481,7 @@ describe('integration:m81-enrolment/tours', () => {
     it('CONFIRMED → COMPLETED transition succeeds (no counter change)', async () => {
       const { slotId, bookingId } = await seedSlotAndBooking();
       const updated = await withTestTenant(async () =>
-        bookingService.patch(
-          bookingId,
-          { status: 'COMPLETED' } as any,
-          adminActor(),
-        ),
+        bookingService.patch(bookingId, { status: 'COMPLETED' } as any, adminActor()),
       );
       expect(updated.status).toBe('COMPLETED');
       const rows = await rawClient.$queryRawUnsafe<Array<{ current_bookings: number }>>(
@@ -535,11 +502,7 @@ describe('integration:m81-enrolment/tours', () => {
       );
       await expect(
         withTestTenant(async () =>
-          bookingService.patch(
-            bookingId,
-            { status: 'CONFIRMED' } as any,
-            adminActor(),
-          ),
+          bookingService.patch(bookingId, { status: 'CONFIRMED' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -559,9 +522,7 @@ describe('integration:m81-enrolment/tours', () => {
       const bSlot = await withTestTenantB(async () =>
         slotService.create(makeSlotInput({ tourDate: futureDate(7) }), adminActor()),
       );
-      const aList = await withTestTenant(async () =>
-        slotService.listAdmin(adminActor()),
-      );
+      const aList = await withTestTenant(async () => slotService.listAdmin(adminActor()));
       expect(aList.map((s) => s.id)).not.toContain(bSlot.id);
     });
 
@@ -585,11 +546,7 @@ describe('integration:m81-enrolment/tours', () => {
       );
       await expect(
         withTestTenant(async () =>
-          bookingService.patch(
-            bBooking.id,
-            { status: 'COMPLETED' } as any,
-            adminActor(),
-          ),
+          bookingService.patch(bBooking.id, { status: 'COMPLETED' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

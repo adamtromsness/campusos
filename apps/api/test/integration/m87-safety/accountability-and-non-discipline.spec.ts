@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -171,9 +167,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       await seedAccountabilityRecord(incidentId, generateId(), 'STAFF', 'ACCOUNTED_FOR');
       await seedAccountabilityRecord(incidentId, generateId(), 'STUDENT', 'EVACUATED');
 
-      const list = await withTestTenant(async () =>
-        accountability.listForIncident(incidentId),
-      );
+      const list = await withTestTenant(async () => accountability.listForIncident(incidentId));
       expect(list).toHaveLength(3);
     });
 
@@ -189,9 +183,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
     describe('getSummary', () => {
       it('returns null when no records yet (no summary row materialised)', async () => {
         const incidentId = await seedIncident();
-        const summary = await withTestTenant(async () =>
-          accountability.getSummary(incidentId),
-        );
+        const summary = await withTestTenant(async () => accountability.getSummary(incidentId));
         expect(summary).toBeNull();
       });
 
@@ -235,7 +227,11 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
           'UNKNOWN',
         );
         const updated = await withTestTenant(async () =>
-          accountability.update(recordId, { status: 'ACCOUNTED_FOR', notes: 'In room 12' }, adminActor()),
+          accountability.update(
+            recordId,
+            { status: 'ACCOUNTED_FOR', notes: 'In room 12' },
+            adminActor(),
+          ),
         );
         expect(updated.status).toBe('ACCOUNTED_FOR');
         expect(updated.notes).toBe('In room 12');
@@ -416,9 +412,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
     }
 
     it('admin creates a non-discipline incident report', async () => {
-      const r = await withTestTenant(async () =>
-        nonDiscipline.create(baseInput(), adminActor()),
-      );
+      const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
       expect(r.incidentType).toBe('STUDENT_INJURY');
       expect(r.severity).toBe('LOW');
       expect(r.status).toBe('OPEN');
@@ -464,10 +458,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
     it('cross-tenant studentsInvolved → BadRequest', async () => {
       await expect(
         withTestTenant(async () =>
-          nonDiscipline.create(
-            baseInput({ studentsInvolved: [generateId()] }),
-            adminActor(),
-          ),
+          nonDiscipline.create(baseInput({ studentsInvolved: [generateId()] }), adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -475,10 +466,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
     it('cross-tenant staffInvolved → BadRequest', async () => {
       await expect(
         withTestTenant(async () =>
-          nonDiscipline.create(
-            baseInput({ staffInvolved: [generateId()] }),
-            adminActor(),
-          ),
+          nonDiscipline.create(baseInput({ staffInvolved: [generateId()] }), adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -512,9 +500,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
           expect(teacherList.find((r) => r.id === otherReport.id)).toBeUndefined();
 
           // Admin sees both
-          const adminList = await withTestTenant(async () =>
-            nonDiscipline.list({}, adminActor()),
-          );
+          const adminList = await withTestTenant(async () => nonDiscipline.list({}, adminActor()));
           expect(adminList.find((r) => r.id === myReport.id)).toBeDefined();
           expect(adminList.find((r) => r.id === otherReport.id)).toBeDefined();
         } finally {
@@ -530,10 +516,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
           nonDiscipline.create(baseInput(), adminActor()),
         );
         const damage = await withTestTenant(async () =>
-          nonDiscipline.create(
-            baseInput({ incidentType: 'PROPERTY_DAMAGE' }),
-            adminActor(),
-          ),
+          nonDiscipline.create(baseInput({ incidentType: 'PROPERTY_DAMAGE' }), adminActor()),
         );
         const onlyInjury = await withTestTenant(async () =>
           nonDiscipline.list({ incidentType: 'STUDENT_INJURY' }, adminActor()),
@@ -543,9 +526,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('list filter: status', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         const open = await withTestTenant(async () =>
           nonDiscipline.list({ status: 'OPEN' }, adminActor()),
         );
@@ -557,9 +538,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('list filter: mineOnly clamps to own reports', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         const list = await withTestTenant(async () =>
           nonDiscipline.list({ mineOnly: true }, adminActor()),
         );
@@ -616,9 +595,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('cross-school → NotFound', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         await expect(
           withTestTenantB(async () => nonDiscipline.getById(r.id, adminActor())),
         ).rejects.toBeInstanceOf(NotFoundException);
@@ -627,9 +604,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
 
     describe('patch', () => {
       it('admin patches status OPEN → UNDER_REVIEW stamps reviewed_by + reviewed_at', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         const u = await withTestTenant(async () =>
           nonDiscipline.patch(r.id, { status: 'UNDER_REVIEW' }, adminActor()),
         );
@@ -638,9 +613,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('admin patches status OPEN → CLOSED stamps closed_at + reviewed_at', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         const u = await withTestTenant(async () =>
           nonDiscipline.patch(
             r.id,
@@ -653,23 +626,17 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('cannot reopen a CLOSED incident → BadRequest', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         await withTestTenant(async () =>
           nonDiscipline.patch(r.id, { status: 'CLOSED' }, adminActor()),
         );
         await expect(
-          withTestTenant(async () =>
-            nonDiscipline.patch(r.id, { status: 'OPEN' }, adminActor()),
-          ),
+          withTestTenant(async () => nonDiscipline.patch(r.id, { status: 'OPEN' }, adminActor())),
         ).rejects.toBeInstanceOf(BadRequestException);
       });
 
       it('patch followUpTicketId + resolution without status change', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         const ticketId = generateId();
         const u = await withTestTenant(async () =>
           nonDiscipline.patch(
@@ -683,20 +650,14 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('empty patch returns the existing row', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
-        const u = await withTestTenant(async () =>
-          nonDiscipline.patch(r.id, {}, adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
+        const u = await withTestTenant(async () => nonDiscipline.patch(r.id, {}, adminActor()));
         expect(u.id).toBe(r.id);
         expect(u.status).toBe('OPEN');
       });
 
       it('non-reviewer (teacher) → Forbidden even on own report', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         await expect(
           withTestTenant(async () =>
             nonDiscipline.patch(r.id, { status: 'CLOSED' }, teacherActor()),
@@ -713,9 +674,7 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
       });
 
       it('cross-school patch → NotFound', async () => {
-        const r = await withTestTenant(async () =>
-          nonDiscipline.create(baseInput(), adminActor()),
-        );
+        const r = await withTestTenant(async () => nonDiscipline.create(baseInput(), adminActor()));
         await expect(
           withTestTenantB(async () =>
             nonDiscipline.patch(r.id, { status: 'CLOSED' }, adminActor()),

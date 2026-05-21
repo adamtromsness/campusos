@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -50,27 +46,15 @@ describe('integration:m20-sis/graduation', () => {
 
   beforeEach(async () => {
     // Clean grad + GPA + service-learning + prereq rows
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_service_learning_requirements`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_course_prerequisites`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_course_prerequisites`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -238,11 +222,7 @@ describe('integration:m20-sis/graduation', () => {
         ),
       );
       await withTestTenant(async () =>
-        graduationService.patchRequirement(
-          inactive.id,
-          { isActive: false } as any,
-          adminActor(),
-        ),
+        graduationService.patchRequirement(inactive.id, { isActive: false } as any, adminActor()),
       );
       const defaultList = await withTestTenant(async () => graduationService.listRequirements());
       expect(defaultList.map((r) => r.id)).toContain(active.id);
@@ -323,7 +303,9 @@ describe('integration:m20-sis/graduation', () => {
     });
 
     it('admin: getAuditForStudent on cross-school student → NotFoundException', async () => {
-      const otherStudent = await trackedStudent({ schoolId: '019e0cf8-aaaa-7777-8888-00000000000b' });
+      const otherStudent = await trackedStudent({
+        schoolId: '019e0cf8-aaaa-7777-8888-00000000000b',
+      });
       await expect(
         withTestTenant(async () =>
           graduationService.getAuditForStudent(otherStudent.studentId, adminActor()),
@@ -350,10 +332,9 @@ describe('integration:m20-sis/graduation', () => {
 
     it('listAtRiskStudents: non-staff non-admin → ForbiddenException', async () => {
       await expect(
-        withTestTenant(
-          async () => graduationService.listAtRiskStudents(studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => graduationService.listAtRiskStudents(studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -465,9 +446,7 @@ describe('integration:m20-sis/graduation', () => {
 
     it('patchConfig + getConfig unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          gpaService.getConfig('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => gpaService.getConfig('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -573,10 +552,7 @@ describe('integration:m20-sis/graduation', () => {
     it('non-admin delete → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          prerequisiteService.delete(
-            '00000000-0000-0000-0000-000000000000',
-            teacherActor(),
-          ),
+          prerequisiteService.delete('00000000-0000-0000-0000-000000000000', teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -596,9 +572,7 @@ describe('integration:m20-sis/graduation', () => {
       );
       expect(r.requiredHours).toBe(40);
 
-      const list = await withTestTenant(async () =>
-        serviceLearningService.listRequirements(),
-      );
+      const list = await withTestTenant(async () => serviceLearningService.listRequirements());
       expect(list.map((x) => x.id)).toContain(r.id);
     });
 
@@ -716,11 +690,7 @@ describe('integration:m20-sis/graduation', () => {
       // Teacher actor has no stu-005:write in this test — ForbiddenException
       await expect(
         withTestTenant(async () =>
-          serviceLearningService.reviewHours(
-            h.id,
-            { decision: 'APPROVED' } as any,
-            teacherActor(),
-          ),
+          serviceLearningService.reviewHours(h.id, { decision: 'APPROVED' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -748,10 +718,7 @@ describe('integration:m20-sis/graduation', () => {
     it('getById unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          serviceLearningService.getById(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          serviceLearningService.getById('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

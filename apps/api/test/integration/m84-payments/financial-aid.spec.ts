@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -329,16 +325,14 @@ describe('integration:m84-payments/financial-aid', () => {
           adminActor(),
         ),
       );
-      await expect(
-        withTestTenant(async () => service.getProgramById(b.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => service.getProgramById(b.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('getProgramById missing → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getProgramById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getProgramById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -520,11 +514,7 @@ describe('integration:m84-payments/financial-aid', () => {
       });
 
       const result = await withTestTenant(async () =>
-        service.reviewApplication(
-          appId,
-          { action: 'APPROVE', awardAmount: 999999 },
-          adminActor(),
-        ),
+        service.reviewApplication(appId, { action: 'APPROVE', awardAmount: 999999 }, adminActor()),
       );
       expect(result.status).toBe('APPROVED');
     });
@@ -667,11 +657,7 @@ describe('integration:m84-payments/financial-aid', () => {
         ),
       );
       await withTestTenant(async () =>
-        service.reviewApplication(
-          app2,
-          { action: 'APPROVE', awardAmount: 350 },
-          adminActor(),
-        ),
+        service.reviewApplication(app2, { action: 'APPROVE', awardAmount: 350 }, adminActor()),
       );
 
       const prog = (await rawClient.$queryRawUnsafe(

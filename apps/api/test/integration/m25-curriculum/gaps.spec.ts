@@ -1,18 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { StandardService } from '@modules/m25-curriculum/frameworks.service';
-import {
-  DeliveryGapService,
-  ResourceLinkService,
-} from '@modules/m25-curriculum/gaps.service';
+import { DeliveryGapService, ResourceLinkService } from '@modules/m25-curriculum/gaps.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
@@ -173,8 +166,8 @@ describe('integration:m25-curriculum/gaps', () => {
   }): Promise<string> {
     const id = generateId();
     const status = opts.status ?? 'PUBLISHED';
-    const publishedAt = status === 'PUBLISHED' || status === 'ARCHIVED' ? "now()" : 'NULL';
-    const archivedAt = status === 'ARCHIVED' ? "now()" : 'NULL';
+    const publishedAt = status === 'PUBLISHED' || status === 'ARCHIVED' ? 'now()' : 'NULL';
+    const archivedAt = status === 'ARCHIVED' ? 'now()' : 'NULL';
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.cur_curriculum_maps
          (id, school_id, academic_year_id, subject, grade_level, title, created_by, status, published_at, archived_at)
@@ -754,9 +747,7 @@ describe('integration:m25-curriculum/gaps', () => {
       await alignStandard(u2, PLATFORM_STD_ID);
       await withTestTenant(async () => gapService.materialiseCurrentTenant());
 
-      const dtos = await withTestTenant(async () =>
-        gapService.list({ unitId: u1 }, adminActor()),
-      );
+      const dtos = await withTestTenant(async () => gapService.list({ unitId: u1 }, adminActor()));
       expect(dtos).toHaveLength(1);
       expect(dtos[0]!.unitId).toBe(u1);
     });

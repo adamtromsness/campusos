@@ -123,9 +123,7 @@ describe('integration:m65-facilities/extras', () => {
       const fetched = await withTestTenant(async () => utilisation.getRecord(rec.id));
       expect(fetched.id).toBe(rec.id);
 
-      const list = await withTestTenant(async () =>
-        utilisation.listForSpace(TEST_SPACE_ID, {}),
-      );
+      const list = await withTestTenant(async () => utilisation.listForSpace(TEST_SPACE_ID, {}));
       expect(list.map((x) => x.id)).toContain(rec.id);
 
       const under = await withTestTenant(async () => utilisation.underused());
@@ -136,7 +134,12 @@ describe('integration:m65-facilities/extras', () => {
       await expect(
         withTestTenant(async () =>
           utilisation.record(
-            { spaceId: TEST_SPACE_ID, recordDate: '2026-09-15', occupancyCount: 10, capacity: 30 } as any,
+            {
+              spaceId: TEST_SPACE_ID,
+              recordDate: '2026-09-15',
+              occupancyCount: 10,
+              capacity: 30,
+            } as any,
             studentActor(),
           ),
         ),
@@ -200,7 +203,11 @@ describe('integration:m65-facilities/extras', () => {
       const att = await withTestTenant(async () =>
         workDepth.addAttachment(
           wo.id,
-          { s3Key: 's3://bucket/photo.jpg', filename: 'photo.jpg', attachmentType: 'PHOTO_BEFORE' } as any,
+          {
+            s3Key: 's3://bucket/photo.jpg',
+            filename: 'photo.jpg',
+            attachmentType: 'PHOTO_BEFORE',
+          } as any,
           adminActor(),
         ),
       );

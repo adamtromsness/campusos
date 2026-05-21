@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -15,11 +11,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -64,13 +56,7 @@ describe('integration:m23-health/iep-plans', () => {
     permCheck = new PermissionCheckService(rawClient);
     guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     accessLog = new HealthAccessLogService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     service = new IepPlanService(tenantPrisma, accessLog, records, outbox);
   });
 
@@ -89,9 +75,7 @@ describe('integration:m23-health/iep-plans', () => {
       `DELETE FROM ${TEST_SCHEMA}.hlth_iep_plans WHERE student_id IN (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'IEP-TEST-%')`,
     );
     // Wipe access log rows so tests don't accumulate
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     if (createdStudentIds.length > 0) {
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE id = ANY($1::uuid[])`,
@@ -211,9 +195,7 @@ describe('integration:m23-health/iep-plans', () => {
         service.create(studentId, { planType: 'IEP' }, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          service.create(studentId, { planType: '504' }, adminActor()),
-        ),
+        withTestTenant(async () => service.create(studentId, { planType: '504' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -235,11 +217,7 @@ describe('integration:m23-health/iep-plans', () => {
     it('create against a non-existent student → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.create(
-            '00000000-0000-0000-0000-000000000000',
-            { planType: 'IEP' },
-            adminActor(),
-          ),
+          service.create('00000000-0000-0000-0000-000000000000', { planType: 'IEP' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -252,9 +230,7 @@ describe('integration:m23-health/iep-plans', () => {
     ])('create as %s → ForbiddenException', async (_label, actor) => {
       const studentId = await seedStudent();
       await expect(
-        withTestTenant(async () =>
-          service.create(studentId, { planType: 'IEP' }, actor()),
-        ),
+        withTestTenant(async () => service.create(studentId, { planType: 'IEP' }, actor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -340,11 +316,7 @@ describe('integration:m23-health/iep-plans', () => {
       );
 
       await withTestTenant(async () =>
-        service.updateAccommodation(
-          acc.id,
-          { description: 'Updated description' },
-          adminActor(),
-        ),
+        service.updateAccommodation(acc.id, { description: 'Updated description' }, adminActor()),
       );
 
       const emits = await readIepOutbox();
@@ -390,9 +362,7 @@ describe('integration:m23-health/iep-plans', () => {
       );
 
       // Flip ACTIVE — accommodation snapshot still emitted
-      await withTestTenant(async () =>
-        service.update(planId, { status: 'ACTIVE' }, adminActor()),
-      );
+      await withTestTenant(async () => service.update(planId, { status: 'ACTIVE' }, adminActor()));
       const emits = await readIepOutbox();
       expect(emits).toHaveLength(1);
       const envelope = JSON.parse(emits[0]!.envelope);
@@ -414,9 +384,7 @@ describe('integration:m23-health/iep-plans', () => {
         TEST_SCHOOL_ID,
       );
 
-      await withTestTenant(async () =>
-        service.update(planId, { status: 'EXPIRED' }, adminActor()),
-      );
+      await withTestTenant(async () => service.update(planId, { status: 'EXPIRED' }, adminActor()));
       const emits = await readIepOutbox();
       expect(emits).toHaveLength(1);
       const envelope = JSON.parse(emits[0]!.envelope);

@@ -118,9 +118,7 @@ describe('integration:m83-finance/ap-recon-board', () => {
     }
 
     it('admin creates a voucher', async () => {
-      const v = await withTestTenant(async () =>
-        apVouchers.create(adminActor(), baseVoucher()),
-      );
+      const v = await withTestTenant(async () => apVouchers.create(adminActor(), baseVoucher()));
       expect(v.status).toBe('PENDING');
       expect(v.totalAmount).toBe(1500);
       expect(v.amountPaid).toBe(0);
@@ -128,9 +126,7 @@ describe('integration:m83-finance/ap-recon-board', () => {
     });
 
     it('STAFF officer can create', async () => {
-      const v = await withTestTenant(async () =>
-        apVouchers.create(officerActor(), baseVoucher()),
-      );
+      const v = await withTestTenant(async () => apVouchers.create(officerActor(), baseVoucher()));
       expect(v.id).toBeTruthy();
     });
 
@@ -236,16 +232,14 @@ describe('integration:m83-finance/ap-recon-board', () => {
 
     it('cross-school getById → NotFound', async () => {
       const v = await withTestTenant(async () => apVouchers.create(adminActor(), baseVoucher()));
-      await expect(
-        withTestTenantB(async () => apVouchers.getById(v.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => apVouchers.getById(v.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     describe('transition state machine', () => {
       async function seed(): Promise<string> {
-        const v = await withTestTenant(async () =>
-          apVouchers.create(adminActor(), baseVoucher()),
-        );
+        const v = await withTestTenant(async () => apVouchers.create(adminActor(), baseVoucher()));
         return v.id;
       }
 
@@ -355,9 +349,7 @@ describe('integration:m83-finance/ap-recon-board', () => {
           id,
         );
         await expect(
-          withTestTenant(async () =>
-            apVouchers.transition(adminActor(), id, { action: 'VOID' }),
-          ),
+          withTestTenant(async () => apVouchers.transition(adminActor(), id, { action: 'VOID' })),
         ).rejects.toBeInstanceOf(BadRequestException);
       });
 
@@ -452,16 +444,16 @@ describe('integration:m83-finance/ap-recon-board', () => {
     });
 
     it('getById missing → NotFound', async () => {
-      await expect(
-        withTestTenant(async () => recon.getById(generateId())),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => recon.getById(generateId()))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('cross-school getById → NotFound', async () => {
       const a = await withTestTenant(async () => recon.start(adminActor(), baseRecon()));
-      await expect(
-        withTestTenantB(async () => recon.getById(a.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => recon.getById(a.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     describe('finalize', () => {
@@ -563,14 +555,10 @@ describe('integration:m83-finance/ap-recon-board', () => {
 
     it('non-admin → Forbidden', async () => {
       await expect(
-        withTestTenant(async () =>
-          board.generate(officerActor(), { reportType: 'BALANCE_SHEET' }),
-        ),
+        withTestTenant(async () => board.generate(officerActor(), { reportType: 'BALANCE_SHEET' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          board.generate(teacherActor(), { reportType: 'BALANCE_SHEET' }),
-        ),
+        withTestTenant(async () => board.generate(teacherActor(), { reportType: 'BALANCE_SHEET' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -591,18 +579,18 @@ describe('integration:m83-finance/ap-recon-board', () => {
     });
 
     it('getById missing → NotFound', async () => {
-      await expect(
-        withTestTenant(async () => board.getById(generateId())),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => board.getById(generateId()))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('cross-school getById → NotFound', async () => {
       const a = await withTestTenant(async () =>
         board.generate(adminActor(), { reportType: 'BALANCE_SHEET' }),
       );
-      await expect(
-        withTestTenantB(async () => board.getById(a.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => board.getById(a.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

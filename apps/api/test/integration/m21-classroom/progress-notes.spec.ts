@@ -121,9 +121,7 @@ describe('integration:m21-classroom/progress-notes', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_student_progress_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_student_progress_notes`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_enrollments`);
     await cleanupSeededIds(rawClient, {
@@ -429,9 +427,7 @@ describe('integration:m21-classroom/progress-notes', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          service.listForStudent(student.studentId, teacherActor()),
-        ),
+        withTestTenant(async () => service.listForStudent(student.studentId, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -454,46 +450,47 @@ describe('integration:m21-classroom/progress-notes', () => {
       // Insert a hidden note manually (cannot use service — would emit
       // events and would default to visible).
       const hiddenId = generateId();
-      await rawClient.$executeRawUnsafe(
-        `INSERT INTO ${TEST_SCHEMA}.cls_student_progress_notes
+      await rawClient
+        .$executeRawUnsafe(
+          `INSERT INTO ${TEST_SCHEMA}.cls_student_progress_notes
            (id, class_id, student_id, term_id, author_id, note_text,
             overall_effort_rating, is_parent_visible, is_student_visible, published_at)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, 'hidden',
                  NULL, false, false, now())`,
-        hiddenId,
-        TEST_SIS_CLASS_ID,
-        sid,
-        // Use a different "term" by re-using TEST_SIS_TERM_ID is taken;
-        // create a tag the UNIQUE allows... actually term is the
-        // dimension. To avoid UNIQUE collision, use the same term id
-        // — but UNIQUE(class+student+term) means we cannot insert
-        // two. So delete the visible row, insert hidden, then re-
-        // assert visibility. Simpler: drop visible first.
-        TEST_SIS_TERM_ID,
-        TEST_ADMIN_EMPLOYEE_ID,
-      ).catch(async () => {
-        // UNIQUE collision — drop the visible row first then insert hidden.
-        await rawClient.$executeRawUnsafe(
-          `DELETE FROM ${TEST_SCHEMA}.cls_student_progress_notes WHERE id = $1::uuid`,
-          visible.id,
-        );
-        await rawClient.$executeRawUnsafe(
-          `INSERT INTO ${TEST_SCHEMA}.cls_student_progress_notes
+          hiddenId,
+          TEST_SIS_CLASS_ID,
+          sid,
+          // Use a different "term" by re-using TEST_SIS_TERM_ID is taken;
+          // create a tag the UNIQUE allows... actually term is the
+          // dimension. To avoid UNIQUE collision, use the same term id
+          // — but UNIQUE(class+student+term) means we cannot insert
+          // two. So delete the visible row, insert hidden, then re-
+          // assert visibility. Simpler: drop visible first.
+          TEST_SIS_TERM_ID,
+          TEST_ADMIN_EMPLOYEE_ID,
+        )
+        .catch(async () => {
+          // UNIQUE collision — drop the visible row first then insert hidden.
+          await rawClient.$executeRawUnsafe(
+            `DELETE FROM ${TEST_SCHEMA}.cls_student_progress_notes WHERE id = $1::uuid`,
+            visible.id,
+          );
+          await rawClient.$executeRawUnsafe(
+            `INSERT INTO ${TEST_SCHEMA}.cls_student_progress_notes
              (id, class_id, student_id, term_id, author_id, note_text,
               overall_effort_rating, is_parent_visible, is_student_visible, published_at)
            VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, 'hidden',
                    NULL, false, false, now())`,
-          hiddenId,
-          TEST_SIS_CLASS_ID,
-          sid,
-          TEST_SIS_TERM_ID,
-          TEST_ADMIN_EMPLOYEE_ID,
-        );
+            hiddenId,
+            TEST_SIS_CLASS_ID,
+            sid,
+            TEST_SIS_TERM_ID,
+            TEST_ADMIN_EMPLOYEE_ID,
+          );
+        });
+      const list = await withTestTenant(async () => service.listForStudent(sid, studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
       });
-      const list = await withTestTenant(
-        async () => service.listForStudent(sid, studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
       // Student must NOT see the hidden one
       expect(list.map((r) => r.id)).not.toContain(hiddenId);
     });
@@ -503,10 +500,9 @@ describe('integration:m21-classroom/progress-notes', () => {
       const peer = await trackedStudent({ firstName: 'Peer', lastName: 'Z' });
       await enrollStudent(rawClient, peer.studentId);
       await expect(
-        withTestTenant(
-          async () => service.listForStudent(peer.studentId, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.listForStudent(peer.studentId, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -547,20 +543,16 @@ describe('integration:m21-classroom/progress-notes', () => {
       await enrollStudent(rawClient, student.studentId);
       // No sis_student_guardians link
       await expect(
-        withTestTenant(
-          async () => service.listForStudent(student.studentId, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.listForStudent(student.studentId, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('phantom studentId → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.listForStudent(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          service.listForStudent('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

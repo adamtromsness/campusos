@@ -205,9 +205,7 @@ describe('integration:m83-finance/gl-reconciliation', () => {
     return batchId;
   }
 
-  async function readReconRows(
-    schoolId = TEST_SCHOOL_ID,
-  ): Promise<
+  async function readReconRows(schoolId = TEST_SCHOOL_ID): Promise<
     Array<{
       id: string;
       check_type: string;
@@ -231,9 +229,9 @@ describe('integration:m83-finance/gl-reconciliation', () => {
     }>;
   }
 
-  async function readAlertOutbox(schoolId = TEST_SCHOOL_ID): Promise<
-    Array<{ topic: string; message_key: string; envelope: string }>
-  > {
+  async function readAlertOutbox(
+    schoolId = TEST_SCHOOL_ID,
+  ): Promise<Array<{ topic: string; message_key: string; envelope: string }>> {
     return (await rawClient.$queryRawUnsafe(
       `SELECT topic, message_key, envelope::text AS envelope
          FROM platform.platform_outbox
@@ -337,8 +335,8 @@ describe('integration:m83-finance/gl-reconciliation', () => {
 
       // No alert for the INVOICE_AR check
       const alerts = await readAlertOutbox();
-      const invoiceAlert = alerts.find((a) =>
-        JSON.parse(a.envelope).payload.checkType === 'INVOICE_AR',
+      const invoiceAlert = alerts.find(
+        (a) => JSON.parse(a.envelope).payload.checkType === 'INVOICE_AR',
       );
       expect(invoiceAlert).toBeUndefined();
     });
@@ -487,7 +485,9 @@ describe('integration:m83-finance/gl-reconciliation', () => {
         sourceId: string;
         issue: string;
       }>;
-      expect(discreps.find((d) => d.sourceId === payId && d.issue === 'MISSING_GL_ENTRY')).toBeDefined();
+      expect(
+        discreps.find((d) => d.sourceId === payId && d.issue === 'MISSING_GL_ENTRY'),
+      ).toBeDefined();
     });
 
     it('COMPLETED payment with correctly-coded GL (DR Cash / CR AR) → CLEAN', async () => {

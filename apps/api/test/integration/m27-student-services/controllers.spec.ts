@@ -219,9 +219,7 @@ describe('integration:m27-student-services/controllers', () => {
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.platform_students WHERE first_name = 'Ctrl'`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM platform.iam_person WHERE first_name = 'Ctrl'`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM platform.iam_person WHERE first_name = 'Ctrl'`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.platform_outbox WHERE tenant_id = $1::uuid AND topic LIKE 'svc.%'`,
       TEST_SCHOOL_ID,
@@ -242,9 +240,7 @@ describe('integration:m27-student-services/controllers', () => {
     // svc_referral_activity is IMMUTABLE — TRUNCATE bypasses BEFORE-ROW trigger
     await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity CASCADE`);
     // Clean m27 tenant tables in FK-safe order
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.svc_intervention_progress`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.svc_intervention_progress`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.svc_interventions`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.svc_mtss_team_meeting_students`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.svc_mtss_team_meetings`);
@@ -611,18 +607,12 @@ describe('integration:m27-student-services/controllers', () => {
       );
 
       const note = await withTestTenant(() =>
-        sessionNoteCtrl.create(
-          session.id,
-          { studentId, notesText: 'initial' } as any,
-          req(),
-        ),
+        sessionNoteCtrl.create(session.id, { studentId, notesText: 'initial' } as any, req()),
       );
       expect(note.notesText).toBe('initial');
       expect(note.isLocked).toBe(false);
 
-      const list = await withTestTenant(() =>
-        sessionNoteCtrl.listForSession(session.id, req()),
-      );
+      const list = await withTestTenant(() => sessionNoteCtrl.listForSession(session.id, req()));
       expect(list.find((n: any) => n.id === note.id)).toBeDefined();
 
       const got = await withTestTenant(() => sessionNoteCtrl.getById(note.id, req()));
@@ -857,7 +847,11 @@ describe('integration:m27-student-services/controllers', () => {
       expect(started.status).toBe('IN_PROGRESS');
 
       const completed = await withTestTenant(() =>
-        referralCtrl.complete(id, { outcome: 'Resolved through counselling sessions' } as any, req()),
+        referralCtrl.complete(
+          id,
+          { outcome: 'Resolved through counselling sessions' } as any,
+          req(),
+        ),
       );
       expect(completed.status).toBe('COMPLETED');
     });
@@ -1007,9 +1001,7 @@ describe('integration:m27-student-services/controllers', () => {
           req(),
         ),
       );
-      const list = await withTestTenant(() =>
-        advancedCtrl.listDiscussions(meeting.id, req()),
-      );
+      const list = await withTestTenant(() => advancedCtrl.listDiscussions(meeting.id, req()));
       expect(Array.isArray(list)).toBe(true);
     });
 
@@ -1258,15 +1250,13 @@ describe('integration:m27-student-services/controllers', () => {
       );
       await withTestTenant(() => deploymentCtrl.activate(dep.id, req()));
 
-      const checkinRow = (
-        await rawClient.$queryRawUnsafe(
-          `SELECT id::text AS id FROM ${TEST_SCHEMA}.svc_wellbeing_checkins
+      const checkinRow = (await rawClient.$queryRawUnsafe(
+        `SELECT id::text AS id FROM ${TEST_SCHEMA}.svc_wellbeing_checkins
              WHERE deployment_id = $1::uuid AND student_id = $2::uuid
              LIMIT 1`,
-          dep.id,
-          studentId,
-        )
-      ) as Array<{ id: string }>;
+        dep.id,
+        studentId,
+      )) as Array<{ id: string }>;
       const checkinId = checkinRow[0]!.id;
 
       // Read the SAFETY question id off the template
@@ -1297,9 +1287,7 @@ describe('integration:m27-student-services/controllers', () => {
     it('checkin: list + getById + submit (KEYSTONE)', async () => {
       const { studentId, checkinId } = await seedSubmittedCheckinWithAlert();
 
-      const list = await withTestTenant(() =>
-        checkinCtrl.list({ studentId } as any, req()),
-      );
+      const list = await withTestTenant(() => checkinCtrl.list({ studentId } as any, req()));
       expect(list.find((c: any) => c.id === checkinId)).toBeDefined();
 
       const got = await withTestTenant(() => checkinCtrl.getById(checkinId, req()));

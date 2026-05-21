@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { FieldTripService } from '@modules/m64-clubs/field-trips/field-trip.service';
@@ -28,11 +24,7 @@ import {
   TEST_PARENT_PERSON_ID,
   TEST_PARENT_ACCOUNT_ID,
 } from '../helpers/actor';
-import {
-  seedStudent,
-  ensureGuardianForPerson,
-  linkStudentGuardian,
-} from '../m20-sis/sis-helpers';
+import { seedStudent, ensureGuardianForPerson, linkStudentGuardian } from '../m20-sis/sis-helpers';
 import { resetClubsAndStudents, ensureClubsSeed } from '../fixtures/clubs';
 
 /**
@@ -167,10 +159,7 @@ describe('integration:m64-clubs/field-trips', () => {
       };
       await expect(
         withTestTenant(async () =>
-          fieldTrips.create(
-            { title: 'X', destination: 'Y', tripDate: '2027-05-01' } as any,
-            ghost,
-          ),
+          fieldTrips.create({ title: 'X', destination: 'Y', tripDate: '2027-05-01' } as any, ghost),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -243,11 +232,7 @@ describe('integration:m64-clubs/field-trips', () => {
         TEST_PARENT_PERSON_ID,
       );
       // Ensure the parent person has a guardian row so the soft check works
-      await ensureGuardianForPerson(
-        rawClient,
-        TEST_PARENT_PERSON_ID,
-        TEST_PARENT_ACCOUNT_ID,
-      );
+      await ensureGuardianForPerson(rawClient, TEST_PARENT_PERSON_ID, TEST_PARENT_ACCOUNT_ID);
 
       const dto = await withTestTenant(async () => fieldTrips.getById(tripId, adminActor()));
       expect(dto.participants?.length).toBe(1);
@@ -289,11 +274,7 @@ describe('integration:m64-clubs/field-trips', () => {
 
     it('getById: guardian without linked child on trip → NotFoundException', async () => {
       const tripId = await seedTrip({ schoolId: TEST_SCHOOL_ID });
-      await ensureGuardianForPerson(
-        rawClient,
-        TEST_PARENT_PERSON_ID,
-        TEST_PARENT_ACCOUNT_ID,
-      );
+      await ensureGuardianForPerson(rawClient, TEST_PARENT_PERSON_ID, TEST_PARENT_ACCOUNT_ID);
       await expect(
         withTestTenant(async () => fieldTrips.getById(tripId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -520,12 +501,7 @@ describe('integration:m64-clubs/field-trips', () => {
       const { tripId, studentId } = await setupTripWithChild();
       await expect(
         withTestTenant(async () =>
-          consent.sign(
-            tripId,
-            { studentId, consentGiven: true } as any,
-            null,
-            adminActor(),
-          ),
+          consent.sign(tripId, { studentId, consentGiven: true } as any, null, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -595,21 +571,11 @@ describe('integration:m64-clubs/field-trips', () => {
     it('sign: duplicate signature → BadRequestException via UNIQUE', async () => {
       const { tripId, studentId } = await setupTripWithChild();
       await withTestTenant(async () =>
-        consent.sign(
-          tripId,
-          { studentId, consentGiven: true } as any,
-          null,
-          parentActor(),
-        ),
+        consent.sign(tripId, { studentId, consentGiven: true } as any, null, parentActor()),
       );
       await expect(
         withTestTenant(async () =>
-          consent.sign(
-            tripId,
-            { studentId, consentGiven: false } as any,
-            null,
-            parentActor(),
-          ),
+          consent.sign(tripId, { studentId, consentGiven: false } as any, null, parentActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -752,19 +718,11 @@ describe('integration:m64-clubs/field-trips', () => {
       );
       guardianIds.push(guardianId);
       await withTestTenant(async () =>
-        chaperones.add(
-          tripId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        chaperones.add(tripId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          chaperones.add(
-            tripId,
-            { personId: TEST_PARENT_PERSON_ID } as any,
-            adminActor(),
-          ),
+          chaperones.add(tripId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -778,11 +736,7 @@ describe('integration:m64-clubs/field-trips', () => {
       );
       guardianIds.push(guardianId);
       const chap = await withTestTenant(async () =>
-        chaperones.add(
-          tripId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        chaperones.add(tripId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
       const patched = await withTestTenant(async () =>
         chaperones.patch(
@@ -804,11 +758,7 @@ describe('integration:m64-clubs/field-trips', () => {
       );
       guardianIds.push(guardianId);
       const chap = await withTestTenant(async () =>
-        chaperones.add(
-          tripId,
-          { personId: TEST_PARENT_PERSON_ID } as any,
-          adminActor(),
-        ),
+        chaperones.add(tripId, { personId: TEST_PARENT_PERSON_ID } as any, adminActor()),
       );
       const dto = await withTestTenant(async () =>
         chaperones.patch(chap.id, {} as any, adminActor()),

@@ -20,14 +20,8 @@ import {
   TEST_BUDGET_LINE_B_ID,
   TEST_SUPPLIER_B_SCHOOL_ID,
 } from '../fixtures/finance';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
-import {
-  TEST_HR_ACADEMIC_YEAR_ID,
-  TEST_HR_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/hr';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
+import { TEST_HR_ACADEMIC_YEAR_ID, TEST_HR_ACADEMIC_YEAR_B_ID } from '../fixtures/hr';
 import { TEST_ANA_ACADEMIC_YEAR_ID } from '../fixtures/analytics';
 
 /**
@@ -268,9 +262,7 @@ export async function resetPaymentsTables(tenantPrisma: TenantPrismaService): Pr
  * scans pay_invoices / pay_payments / pay_refunds / pay_credit_notes /
  * pay_payment_reversals as source surfaces for its checks.
  */
-export async function resetFinanceAdvancedTables(
-  tenantPrisma: TenantPrismaService,
-): Promise<void> {
+export async function resetFinanceAdvancedTables(tenantPrisma: TenantPrismaService): Promise<void> {
   await resetFinanceTables(tenantPrisma);
   await resetPaymentsTables(tenantPrisma);
   await tenantPrisma.executeInTenantContext(async (client) => {

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -337,11 +333,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
       const { paymentId } = await seedPaidInvoice({ total: 50 });
       await expect(
         withTestTenant(async () =>
-          refunds.issue(
-            paymentId,
-            { amount: 25, refundCategory: 'OTHER', reason: 'x' },
-            actor(),
-          ),
+          refunds.issue(paymentId, { amount: 25, refundCategory: 'OTHER', reason: 'x' }, actor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -362,9 +354,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
         ),
       );
 
-      const byPayment = await withTestTenant(async () =>
-        refunds.list({ paymentId }, adminActor()),
-      );
+      const byPayment = await withTestTenant(async () => refunds.list({ paymentId }, adminActor()));
       expect(byPayment).toHaveLength(1);
       expect(byPayment[0]!.id).toBe(r1.id);
 
@@ -629,9 +619,9 @@ describe('integration:m84-payments/refunds-reversals', () => {
       expect(caught).toBeDefined();
       const code = caught?.meta?.code ?? '';
       const msg = caught?.message ?? '';
-      expect(code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable')).toBe(
-        true,
-      );
+      expect(
+        code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable'),
+      ).toBe(true);
     });
 
     it('UPDATE pay_credit_notes.credit_amount → SQLSTATE 23001', async () => {
@@ -815,11 +805,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
       // School A actor cannot reverse School B's payment
       await expect(
         withTestTenant(async () =>
-          reversals.reverse(
-            payB.id,
-            { reversalType: 'OTHER', reversalReason: 'x' },
-            adminActor(),
-          ),
+          reversals.reverse(payB.id, { reversalType: 'OTHER', reversalReason: 'x' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -833,11 +819,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
       const { paymentId } = await seedPaidInvoice({ total: 50 });
       await expect(
         withTestTenant(async () =>
-          reversals.reverse(
-            paymentId,
-            { reversalType: 'OTHER', reversalReason: 'x' },
-            actor(),
-          ),
+          reversals.reverse(paymentId, { reversalType: 'OTHER', reversalReason: 'x' }, actor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -856,11 +838,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
     it('list as admin scopes to current school + filters by familyAccountId / invoiceId [Finding 7 FIXED]', async () => {
       const { paymentId, familyAccountId, invoiceId } = await seedPaidInvoice({ total: 50 });
       const rev = await withTestTenant(async () =>
-        reversals.reverse(
-          paymentId,
-          { reversalType: 'OTHER', reversalReason: 'x' },
-          adminActor(),
-        ),
+        reversals.reverse(paymentId, { reversalType: 'OTHER', reversalReason: 'x' }, adminActor()),
       );
 
       const byFa = await withTestTenant(async () =>

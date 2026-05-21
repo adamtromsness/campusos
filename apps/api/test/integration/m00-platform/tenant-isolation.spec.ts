@@ -83,9 +83,9 @@ describe('integration:m00-platform/tenant-isolation', () => {
     it('search_path is FIRST set to tenant_test BEFORE the callback runs (SHOW search_path verifies)', async () => {
       const setting = await withTestTenant(async () =>
         tenantPrisma.executeInTenantContext(async (client) => {
-          const r = (await client.$queryRawUnsafe(
-            `SHOW search_path`,
-          )) as Array<{ search_path: string }>;
+          const r = (await client.$queryRawUnsafe(`SHOW search_path`)) as Array<{
+            search_path: string;
+          }>;
           return r[0]!.search_path;
         }),
       );
@@ -98,9 +98,9 @@ describe('integration:m00-platform/tenant-isolation', () => {
     });
 
     it('without tenant context → throws "No tenant context"', async () => {
-      await expect(
-        tenantPrisma.executeInTenantContext(async () => undefined),
-      ).rejects.toThrowError(/No tenant context/);
+      await expect(tenantPrisma.executeInTenantContext(async () => undefined)).rejects.toThrowError(
+        /No tenant context/,
+      );
     });
 
     it('search_path does NOT leak between sequential withTestTenant + withTestTenantB calls', async () => {
@@ -135,9 +135,9 @@ describe('integration:m00-platform/tenant-isolation', () => {
       // outside a tx. The pooled connection should NOT carry the
       // tenant_test search_path because SET LOCAL is tx-scoped.
       const platformClient = tenantPrisma.getPlatformClient();
-      const r = (await platformClient.$queryRawUnsafe(
-        `SHOW search_path`,
-      )) as Array<{ search_path: string }>;
+      const r = (await platformClient.$queryRawUnsafe(`SHOW search_path`)) as Array<{
+        search_path: string;
+      }>;
       const sp = r[0]!.search_path;
       // The platform client is initialized with DATABASE_URL `?schema=platform`,
       // so the default search_path is `"$user", platform` (or similar). The

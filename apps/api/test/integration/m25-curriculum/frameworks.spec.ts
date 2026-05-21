@@ -8,10 +8,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
-import {
-  FrameworkService,
-  StandardService,
-} from '@modules/m25-curriculum/frameworks.service';
+import { FrameworkService, StandardService } from '@modules/m25-curriculum/frameworks.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
@@ -23,10 +20,7 @@ import {
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
 import { adminActor, teacherActor } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 4 — m25-curriculum FrameworkService + StandardService.patchCustom

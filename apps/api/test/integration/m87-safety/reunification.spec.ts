@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -107,9 +103,7 @@ describe('integration:m87-safety/reunification', () => {
     );
     // inc_incident_timeline is IMMUTABLE — TRUNCATE bypasses the
     // prevent_mutation trigger, which is the only safe per-test reset.
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.inc_declaration_outbox WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -325,7 +319,6 @@ describe('integration:m87-safety/reunification', () => {
       );
       expect(result.id).toBeTruthy();
     });
-
   });
 
   describe('create — validation paths', () => {
@@ -335,29 +328,17 @@ describe('integration:m87-safety/reunification', () => {
       const { visitorId } = await seedVisitor();
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: visitorId },
-            teacherActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: visitorId }, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: visitorId },
-            studentActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: visitorId }, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: visitorId },
-            parentActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: visitorId }, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -367,11 +348,7 @@ describe('integration:m87-safety/reunification', () => {
       const { visitorId } = await seedVisitor();
       await expect(
         withTestTenant(async () =>
-          service.create(
-            generateId(),
-            { studentId, releasedToId: visitorId },
-            adminActor(),
-          ),
+          service.create(generateId(), { studentId, releasedToId: visitorId }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -388,11 +365,7 @@ describe('integration:m87-safety/reunification', () => {
       const { visitorId } = await seedVisitor();
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: visitorId },
-            adminActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: visitorId }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -416,11 +389,7 @@ describe('integration:m87-safety/reunification', () => {
       const studentId = await seedStudent();
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: generateId() },
-            adminActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: generateId() }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -431,15 +400,10 @@ describe('integration:m87-safety/reunification', () => {
       const { visitorId } = await seedVisitor({ signedIn: false });
       await expect(
         withTestTenant(async () =>
-          service.create(
-            incidentId,
-            { studentId, releasedToId: visitorId },
-            adminActor(),
-          ),
+          service.create(incidentId, { studentId, releasedToId: visitorId }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
-
   });
 
   describe('correct — validation paths', () => {
@@ -504,6 +468,5 @@ describe('integration:m87-safety/reunification', () => {
         withTestTenant(async () => service.listForIncident(incidentBId)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
-
   });
 });

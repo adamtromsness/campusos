@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -240,9 +236,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
 
     it('non-manager (parent) → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          lockerService.create({ lockerNumber: 'A-02' }, parentActor()),
-        ),
+        withTestTenant(async () => lockerService.create({ lockerNumber: 'A-02' }, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -257,29 +251,21 @@ describe('integration:m20-sis/lockers-transfers', () => {
         lockerService.create({ lockerNumber: 'DUP-1' }, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          lockerService.create({ lockerNumber: 'DUP-1' }, adminActor()),
-        ),
+        withTestTenant(async () => lockerService.create({ lockerNumber: 'DUP-1' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
   describe('LockerService.list', () => {
     it('admin lists lockers in current school', async () => {
-      await withTestTenant(async () =>
-        lockerService.create({ lockerNumber: 'L-1' }, adminActor()),
-      );
-      await withTestTenant(async () =>
-        lockerService.create({ lockerNumber: 'L-2' }, adminActor()),
-      );
+      await withTestTenant(async () => lockerService.create({ lockerNumber: 'L-1' }, adminActor()));
+      await withTestTenant(async () => lockerService.create({ lockerNumber: 'L-2' }, adminActor()));
       const list = await withTestTenant(async () => lockerService.list({}, adminActor()));
       expect(list.map((l) => l.lockerNumber)).toEqual(expect.arrayContaining(['L-1', 'L-2']));
     });
 
     it('list filters by status', async () => {
-      await withTestTenant(async () =>
-        lockerService.create({ lockerNumber: 'L-X' }, adminActor()),
-      );
+      await withTestTenant(async () => lockerService.create({ lockerNumber: 'L-X' }, adminActor()));
       const list = await withTestTenant(async () =>
         lockerService.list({ status: 'AVAILABLE' }, adminActor()),
       );
@@ -292,9 +278,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
 
     it('Invalid status → BadRequestException', async () => {
       await expect(
-        withTestTenant(async () =>
-          lockerService.list({ status: 'BOGUS' }, adminActor()),
-        ),
+        withTestTenant(async () => lockerService.list({ status: 'BOGUS' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -376,9 +360,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
       const locker = await withTestTenant(async () =>
         lockerService.create({ lockerNumber: 'A-301' }, adminActor()),
       );
-      await withTestTenant(async () =>
-        lockerService.markOutOfService(locker.id, adminActor()),
-      );
+      await withTestTenant(async () => lockerService.markOutOfService(locker.id, adminActor()));
       await expect(
         withTestTenant(async () =>
           lockerService.assign(
@@ -584,9 +566,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
       const locker = await withTestTenant(async () =>
         lockerService.create({ lockerNumber: 'M-3' }, adminActor()),
       );
-      await withTestTenant(async () =>
-        lockerService.markOutOfService(locker.id, adminActor()),
-      );
+      await withTestTenant(async () => lockerService.markOutOfService(locker.id, adminActor()));
       const updated = await withTestTenant(async () =>
         lockerService.markAvailable(locker.id, adminActor()),
       );
@@ -797,19 +777,14 @@ describe('integration:m20-sis/lockers-transfers', () => {
       );
       expect(incoming).toHaveLength(1);
       const inRange = await withTestTenant(async () =>
-        transferService.list(
-          { fromDate: '2026-09-15', toDate: '2026-10-31' },
-          adminActor(),
-        ),
+        transferService.list({ fromDate: '2026-09-15', toDate: '2026-10-31' }, adminActor()),
       );
       expect(inRange).toHaveLength(1);
     });
 
     it('list rejects invalid direction value', async () => {
       await expect(
-        withTestTenant(async () =>
-          transferService.list({ direction: 'BAD' }, adminActor()),
-        ),
+        withTestTenant(async () => transferService.list({ direction: 'BAD' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -830,9 +805,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
         transferService.listForStudent(s.studentId, adminActor()),
       );
       expect(list).toHaveLength(1);
-      const dto = await withTestTenant(async () =>
-        transferService.getById(tr.id, adminActor()),
-      );
+      const dto = await withTestTenant(async () => transferService.getById(tr.id, adminActor()));
       expect(dto.id).toBe(tr.id);
     });
 
@@ -943,9 +916,7 @@ describe('integration:m20-sis/lockers-transfers', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          transferService.patch(trB.id, { notes: 'fooA' }, adminActor()),
-        ),
+        withTestTenant(async () => transferService.patch(trB.id, { notes: 'fooA' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

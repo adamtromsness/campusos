@@ -19,11 +19,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { adminActor, teacherActor, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 
 /**
  * Wave 5 — m40-communications broadcasts DB-backed integration tests.
@@ -53,9 +49,7 @@ describe('integration:m40-communications/broadcasts', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_broadcast_segments WHERE name LIKE 'IT-%'`,
     );
@@ -213,9 +207,9 @@ describe('integration:m40-communications/broadcasts', () => {
           adminActor(),
         ),
       );
-      await expect(
-        withTestTenant(async () => segments.resolve(dto.id)),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => segments.resolve(dto.id))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('CLASS requires non-empty filter_criteria.class_ids', async () => {
@@ -225,9 +219,9 @@ describe('integration:m40-communications/broadcasts', () => {
           adminActor(),
         ),
       );
-      await expect(
-        withTestTenant(async () => segments.resolve(dto.id)),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => segments.resolve(dto.id))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('TRANSPORT_ROUTE returns empty when transport tables not present', async () => {
@@ -256,9 +250,9 @@ describe('integration:m40-communications/broadcasts', () => {
           adminActor(),
         ),
       );
-      await expect(
-        withTestTenant(async () => segments.resolve(dto.id)),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => segments.resolve(dto.id))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('CUSTOM with a school-affiliated id resolves to that id; bogus id silently drops', async () => {
@@ -327,9 +321,9 @@ describe('integration:m40-communications/broadcasts', () => {
         id,
         TEST_SCHOOL_B_ID,
       );
-      await expect(
-        withTestTenant(async () => segments.getById(id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => segments.getById(id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -416,9 +410,7 @@ describe('integration:m40-communications/broadcasts', () => {
 
     it('missing broadcastId → BadRequestException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analytics.applyDeliveryEvent({ broadcastId: '' } as any),
-        ),
+        withTestTenant(async () => analytics.applyDeliveryEvent({ broadcastId: '' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

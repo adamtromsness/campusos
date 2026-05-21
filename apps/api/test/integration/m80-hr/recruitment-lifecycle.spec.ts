@@ -29,11 +29,7 @@ import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_ADMIN_PERSON_ID,
 } from '../helpers/actor';
-import {
-  resetAndSeedHr,
-  ensureHrFixtures,
-  TEST_HR_POSITION_TEACHER_ID,
-} from '../fixtures/hr';
+import { resetAndSeedHr, ensureHrFixtures, TEST_HR_POSITION_TEACHER_ID } from '../fixtures/hr';
 import { generateId } from '@campusos/database';
 
 describe('integration:m80-hr/recruitment-lifecycle', () => {
@@ -111,9 +107,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
 
   async function makeLivePosting(): Promise<string> {
     const id = await createPosting();
-    await withTestTenant(async () =>
-      postings.patch(id, { status: 'LIVE' } as any, adminActor()),
-    );
+    await withTestTenant(async () => postings.patch(id, { status: 'LIVE' } as any, adminActor()));
     return id;
   }
 
@@ -206,9 +200,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
 
     it('getById 404 missing', async () => {
       await expect(
-        withTestTenant(async () =>
-          postings.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => postings.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -226,9 +218,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
 
     it('patch no-op returns existing', async () => {
       const id = await createPosting();
-      const same = await withTestTenant(async () =>
-        postings.patch(id, {} as any, adminActor()),
-      );
+      const same = await withTestTenant(async () => postings.patch(id, {} as any, adminActor()));
       expect(same.id).toBe(id);
     });
 
@@ -239,9 +229,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       );
       expect(closed.status).toBe('CLOSED');
       await expect(
-        withTestTenant(async () =>
-          postings.patch(id, { status: 'LIVE' } as any, adminActor()),
-        ),
+        withTestTenant(async () => postings.patch(id, { status: 'LIVE' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -267,9 +255,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       await expect(
         withTestTenant(async () => postings.loadOpenForApply(id)),
       ).rejects.toBeInstanceOf(BadRequestException);
-      await withTestTenant(async () =>
-        postings.patch(id, { status: 'LIVE' } as any, adminActor()),
-      );
+      await withTestTenant(async () => postings.patch(id, { status: 'LIVE' } as any, adminActor()));
       const row = await withTestTenant(async () => postings.loadOpenForApply(id));
       expect(row.id).toBe(id);
     });
@@ -331,9 +317,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       await expect(
         withTestTenant(async () => applications.getById(app.id, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
-      const dto = await withTestTenant(async () =>
-        applications.getById(app.id, adminActor()),
-      );
+      const dto = await withTestTenant(async () => applications.getById(app.id, adminActor()));
       expect(dto.id).toBe(app.id);
     });
 
@@ -343,9 +327,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       await expect(
         withTestTenant(async () => applications.listForPosting(id, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      const list = await withTestTenant(async () =>
-        applications.listForPosting(id, adminActor()),
-      );
+      const list = await withTestTenant(async () => applications.listForPosting(id, adminActor()));
       expect(list.length).toBeGreaterThan(0);
     });
 
@@ -490,9 +472,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
 
     it('listPanels admin + rejects non-admin', async () => {
       const { postingId } = await panelAndApplication();
-      const list = await withTestTenant(async () =>
-        interviews.listPanels(postingId, adminActor()),
-      );
+      const list = await withTestTenant(async () => interviews.listPanels(postingId, adminActor()));
       expect(list.length).toBeGreaterThan(0);
       await expect(
         withTestTenant(async () => interviews.listPanels(postingId, teacherActor())),
@@ -502,9 +482,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
     it('listPanels empty → []', async () => {
       // Brand new posting → no panels.
       const id = await createPosting();
-      const list = await withTestTenant(async () =>
-        interviews.listPanels(id, adminActor()),
-      );
+      const list = await withTestTenant(async () => interviews.listPanels(id, adminActor()));
       expect(list).toEqual([]);
     });
 
@@ -531,9 +509,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       );
       expect(list.map((i) => i.id)).toContain(iv.id);
 
-      const got = await withTestTenant(async () =>
-        interviews.getById(iv.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => interviews.getById(iv.id, adminActor()));
       expect(got.id).toBe(iv.id);
 
       const noop = await withTestTenant(async () =>
@@ -542,22 +518,14 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       expect(noop.id).toBe(iv.id);
 
       const completed = await withTestTenant(async () =>
-        interviews.patch(
-          iv.id,
-          { notes: 'good', status: 'COMPLETED' } as any,
-          adminActor(),
-        ),
+        interviews.patch(iv.id, { notes: 'good', status: 'COMPLETED' } as any, adminActor()),
       );
       expect(completed.status).toBe('COMPLETED');
 
       // Cannot re-flip terminal
       await expect(
         withTestTenant(async () =>
-          interviews.patch(
-            iv.id,
-            { status: 'SCHEDULED' } as any,
-            adminActor(),
-          ),
+          interviews.patch(iv.id, { status: 'SCHEDULED' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -664,33 +632,24 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
 
       // Re-submit → UPSERT
       const ev2 = await withTestTenant(async () =>
-        interviews.submitEvaluation(
-          iv.id,
-          { rating: 'STRONG_HIRE' } as any,
-          adminActor(),
-        ),
+        interviews.submitEvaluation(iv.id, { rating: 'STRONG_HIRE' } as any, adminActor()),
       );
       expect(ev2.rating).toBe('STRONG_HIRE');
 
       // Non-member (teacher) → Forbidden
       await expect(
         withTestTenant(async () =>
-          interviews.submitEvaluation(
-            iv.id,
-            { rating: 'HIRE' } as any,
-            teacherActor(),
-          ),
+          interviews.submitEvaluation(iv.id, { rating: 'HIRE' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       // No-personId → Forbidden
       await expect(
         withTestTenant(async () =>
-          interviews.submitEvaluation(
-            iv.id,
-            { rating: 'HIRE' } as any,
-            { ...adminActor(), personId: null as any },
-          ),
+          interviews.submitEvaluation(iv.id, { rating: 'HIRE' } as any, {
+            ...adminActor(),
+            personId: null as any,
+          }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -795,9 +754,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       const list = await withTestTenant(async () => offers.list(adminActor()));
       expect(list.map((o) => o.id)).toContain(offer.id);
 
-      const got = await withTestTenant(async () =>
-        offers.getById(offer.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => offers.getById(offer.id, adminActor()));
       expect(got.id).toBe(offer.id);
 
       // Accept
@@ -1092,17 +1049,11 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       );
       expect(upd.status).toBe('INTERVIEW_COMPLETED');
       // Lists
-      const aList = await withTestTenant(async () =>
-        ctrl.listApplications(adminReq(), {} as any),
-      );
+      const aList = await withTestTenant(async () => ctrl.listApplications(adminReq(), {} as any));
       expect(aList.map((x) => x.id)).toContain(a.id);
-      const aGot = await withTestTenant(async () =>
-        ctrl.getApplication(adminReq(), a.id),
-      );
+      const aGot = await withTestTenant(async () => ctrl.getApplication(adminReq(), a.id));
       expect(aGot.id).toBe(a.id);
-      const aList2 = await withTestTenant(async () =>
-        ctrl.listForPosting(adminReq(), p.id),
-      );
+      const aList2 = await withTestTenant(async () => ctrl.listForPosting(adminReq(), p.id));
       expect(aList2.map((x) => x.id)).toContain(a.id);
 
       // Panel
@@ -1113,9 +1064,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
           panelistPersonIds: [TEST_ADMIN_PERSON_ID],
         } as any),
       );
-      const panels = await withTestTenant(async () =>
-        ctrl.listPanels(adminReq(), p.id),
-      );
+      const panels = await withTestTenant(async () => ctrl.listPanels(adminReq(), p.id));
       expect(panels.map((x) => x.id)).toContain(panel.id);
 
       // Interview
@@ -1126,13 +1075,9 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
           scheduledAt: new Date().toISOString(),
         } as any),
       );
-      const ivList = await withTestTenant(async () =>
-        ctrl.listInterviews(adminReq(), a.id),
-      );
+      const ivList = await withTestTenant(async () => ctrl.listInterviews(adminReq(), a.id));
       expect(ivList.map((x) => x.id)).toContain(iv.id);
-      const ivGot = await withTestTenant(async () =>
-        ctrl.getInterview(adminReq(), iv.id),
-      );
+      const ivGot = await withTestTenant(async () => ctrl.getInterview(adminReq(), iv.id));
       expect(ivGot.id).toBe(iv.id);
       const ivUpd = await withTestTenant(async () =>
         ctrl.patchInterview(adminReq(), iv.id, { status: 'COMPLETED' } as any),
@@ -1143,9 +1088,7 @@ describe('integration:m80-hr/recruitment-lifecycle', () => {
       const ev = await withTestTenant(async () =>
         ctrl.submitEvaluation(adminReq(), iv.id, { rating: 'HIRE' } as any),
       );
-      const evList = await withTestTenant(async () =>
-        ctrl.listEvaluations(adminReq(), iv.id),
-      );
+      const evList = await withTestTenant(async () => ctrl.listEvaluations(adminReq(), iv.id));
       expect(evList.map((e) => e.id)).toContain(ev.id);
 
       // Offer

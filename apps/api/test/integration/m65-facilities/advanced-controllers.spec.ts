@@ -60,13 +60,7 @@ describe('integration:m65-facilities/advanced-controllers', () => {
     const woDepth = new WorkOrderDepthService(tenantPrisma, permCheck);
     workOrders = new WorkOrderService(tenantPrisma, kafka, permCheck);
 
-    advCtl = new FacilitiesAdvancedController(
-      cleaning,
-      zoneInsp,
-      supplyAudit,
-      woDepth,
-      stubCtx,
-    );
+    advCtl = new FacilitiesAdvancedController(cleaning, zoneInsp, supplyAudit, woDepth, stubCtx);
 
     req = {
       user: {
@@ -199,9 +193,7 @@ describe('integration:m65-facilities/advanced-controllers', () => {
           req,
         ),
       );
-      const list = await withTestTenant(async () =>
-        advCtl.listSupplyTransactions(TEST_SUPPLY_ID),
-      );
+      const list = await withTestTenant(async () => advCtl.listSupplyTransactions(TEST_SUPPLY_ID));
       expect(list.map((x: any) => x.id)).toContain(t.id);
 
       const st = await withTestTenant(async () =>
@@ -210,9 +202,7 @@ describe('integration:m65-facilities/advanced-controllers', () => {
           req,
         ),
       );
-      const stList = await withTestTenant(async () =>
-        advCtl.listStocktakes(TEST_BUILDING_ID),
-      );
+      const stList = await withTestTenant(async () => advCtl.listStocktakes(TEST_BUILDING_ID));
       expect(stList.map((x: any) => x.id)).toContain(st.id);
       const stGet = await withTestTenant(async () => advCtl.getStocktake(st.id));
       expect(stGet.id).toBe(st.id);
@@ -239,7 +229,11 @@ describe('integration:m65-facilities/advanced-controllers', () => {
       await withTestTenant(async () =>
         advCtl.addAttachment(
           wo.id,
-          { s3Key: 's3://bucket/photo.jpg', filename: 'photo.jpg', attachmentType: 'PHOTO_BEFORE' } as any,
+          {
+            s3Key: 's3://bucket/photo.jpg',
+            filename: 'photo.jpg',
+            attachmentType: 'PHOTO_BEFORE',
+          } as any,
           req,
         ),
       );

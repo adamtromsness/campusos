@@ -9,12 +9,13 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import { adminActor, studentActor, TEST_ADMIN_EMPLOYEE_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
+  adminActor,
+  studentActor,
+  TEST_ADMIN_EMPLOYEE_ID,
+  TEST_ADMIN_PERSON_ID,
+} from '../helpers/actor';
 import {
   resetFoodServiceTables,
   ensureFoodServiceSeed,
@@ -123,10 +124,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       expect(Number(levels[0]!.quantityOnHand)).toBe(50);
 
       await withTestTenant(async () =>
-        inventory.usage(
-          { groupId: g.id, itemId: it.id, quantity: 10 } as any,
-          adminActor(),
-        ),
+        inventory.usage({ groupId: g.id, itemId: it.id, quantity: 10 } as any, adminActor()),
       );
 
       const afterUsage = await withTestTenant(async () => inventory.listLevels(g.id));
@@ -168,16 +166,10 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       const it = await makeItem('Low Stock Item');
       // Receive enough to be above threshold then use to drop below
       await withTestTenant(async () =>
-        inventory.receive(
-          { groupId: g.id, itemId: it.id, quantity: 10 } as any,
-          adminActor(),
-        ),
+        inventory.receive({ groupId: g.id, itemId: it.id, quantity: 10 } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        inventory.usage(
-          { groupId: g.id, itemId: it.id, quantity: 7 } as any,
-          adminActor(),
-        ),
+        inventory.usage({ groupId: g.id, itemId: it.id, quantity: 7 } as any, adminActor()),
       );
       const outbox = (await rawClient.$queryRawUnsafe(
         `SELECT topic FROM platform.platform_outbox WHERE topic = 'fds.inventory.low'`,
@@ -189,10 +181,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       const g = await makeGroup();
       const it = await makeItem();
       await withTestTenant(async () =>
-        inventory.receive(
-          { groupId: g.id, itemId: it.id, quantity: 100 } as any,
-          adminActor(),
-        ),
+        inventory.receive({ groupId: g.id, itemId: it.id, quantity: 100 } as any, adminActor()),
       );
       const list = await withTestTenant(async () => inventory.listTransactions({}));
       expect(list.length).toBeGreaterThan(0);
@@ -201,10 +190,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
     it('non-admin createGroup → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          inventory.createGroup(
-            { name: 'x', groupType: 'LUNCH' } as any,
-            studentActor(),
-          ),
+          inventory.createGroup({ name: 'x', groupType: 'LUNCH' } as any, studentActor()),
         ),
       ).rejects.toThrow();
     });
@@ -270,11 +256,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       const ingredientId = withIng.ingredients[0]!.id;
 
       await withTestTenant(async () =>
-        recipes.updateIngredient(
-          ingredientId,
-          { quantity: 3 } as any,
-          adminActor(),
-        ),
+        recipes.updateIngredient(ingredientId, { quantity: 3 } as any, adminActor()),
       );
 
       const afterDelete = await withTestTenant(async () =>
@@ -294,10 +276,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
     it('non-admin create → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          recipes.create(
-            { name: 'X', category: 'ENTREE', servingYield: 1 } as any,
-            studentActor(),
-          ),
+          recipes.create({ name: 'X', category: 'ENTREE', servingYield: 1 } as any, studentActor()),
         ),
       ).rejects.toThrow();
     });
@@ -320,10 +299,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
         ),
       );
       await withTestTenant(async () =>
-        inventory.receive(
-          { groupId: fromG.id, itemId: it.id, quantity: 100 } as any,
-          adminActor(),
-        ),
+        inventory.receive({ groupId: fromG.id, itemId: it.id, quantity: 100 } as any, adminActor()),
       );
 
       const t = await withTestTenant(async () =>
@@ -345,9 +321,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       );
       expect(decided.status).toBe('APPROVED');
 
-      const completed = await withTestTenant(async () =>
-        transfers.complete(t.id, adminActor()),
-      );
+      const completed = await withTestTenant(async () => transfers.complete(t.id, adminActor()));
       expect(completed.status).toBe('COMPLETED');
     });
 
@@ -421,11 +395,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
       );
 
       const charged = await withTestTenant(async () =>
-        staffMeals.charge(
-          account.id,
-          { amount: 5, notes: 'lunch' } as any,
-          adminActor(),
-        ),
+        staffMeals.charge(account.id, { amount: 5, notes: 'lunch' } as any, adminActor()),
       );
       expect(Number(charged.balance)).toBe(45);
     });
@@ -438,10 +408,7 @@ describe('integration:m63-food-service/inventory-recipes', () => {
     it('non-admin create → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          staffMeals.create(
-            { employeeId: TEST_ADMIN_EMPLOYEE_ID } as any,
-            studentActor(),
-          ),
+          staffMeals.create({ employeeId: TEST_ADMIN_EMPLOYEE_ID } as any, studentActor()),
         ),
       ).rejects.toThrow();
     });

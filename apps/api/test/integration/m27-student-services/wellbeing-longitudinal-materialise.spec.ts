@@ -171,7 +171,12 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
     studentId: string,
     academicYear: string,
     domain: string,
-  ): Promise<{ avg_score: string; trend: string; checkin_count: number; flagged_count: number } | null> {
+  ): Promise<{
+    avg_score: string;
+    trend: string;
+    checkin_count: number;
+    flagged_count: number;
+  } | null> {
     const rows = (await rawClient.$queryRawUnsafe(
       `SELECT avg_score::text AS avg_score, trend, checkin_count, flagged_count
          FROM ${TEST_SCHEMA}.svc_wellbeing_longitudinal
@@ -234,9 +239,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         numericResponse: 3,
       });
 
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
       let row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       expect(Number(row!.avg_score)).toBeCloseTo(3.0, 1);
 
@@ -288,9 +291,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         numericResponse: 1,
       });
 
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
       const row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       // Only the inside-window check-in contributes.
       expect(Number(row!.avg_score)).toBeCloseTo(5.0, 1);
@@ -369,9 +370,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         schoolId: TEST_SCHOOL_B_ID,
       });
 
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
       const aRow = await readLongitudinal(studentA, '2025-2026', 'EMOTIONAL');
       const bRow = await readLongitudinal(studentB, '2025-2026', 'EMOTIONAL');
       expect(aRow).not.toBeNull();
@@ -394,10 +393,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
     // We work around it here by stamping the synthetic prior-year row at
     // the lookup string the service actually queries — this still exercises
     // the IMPROVING / DECLINING branches in computeTrend.
-    async function seedPriorYearRow(
-      studentId: string,
-      avgScore: number,
-    ): Promise<void> {
+    async function seedPriorYearRow(studentId: string, avgScore: number): Promise<void> {
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.svc_wellbeing_longitudinal
            (id, student_id, school_id, academic_year, domain, avg_score, trend,
@@ -421,9 +417,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         completedAtIso: '2025-09-15T09:00:00Z',
         numericResponse: 5,
       });
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
 
       const row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       expect(row!.trend).toBe('IMPROVING');
@@ -439,9 +433,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         completedAtIso: '2025-09-15T09:00:00Z',
         numericResponse: 1,
       });
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
 
       const row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       expect(row!.trend).toBe('DECLINING');
@@ -457,9 +449,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         completedAtIso: '2025-09-15T09:00:00Z',
         numericResponse: 3,
       });
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
 
       const row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       expect(row!.trend).toBe('STABLE');
@@ -488,9 +478,7 @@ describe('integration:m27-student-services/wellbeing-longitudinal-materialise', 
         completedAtIso: '2025-09-15T09:00:00Z',
         numericResponse: 5,
       });
-      await withTestTenant(async () =>
-        longitudinal.materialise('2025-2026', adminActor()),
-      );
+      await withTestTenant(async () => longitudinal.materialise('2025-2026', adminActor()));
 
       const row = await readLongitudinal(studentId, '2025-2026', 'EMOTIONAL');
       // Cross-school prior row ignored → no prior row in this school →

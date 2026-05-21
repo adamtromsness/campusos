@@ -77,7 +77,8 @@ describe('integration:m86-procurement/contract-expiry-worker', () => {
     const id = generateId();
     const school = opts.school ?? TEST_SCHOOL_ID;
     const vendor =
-      opts.vendorId ?? (school === TEST_SCHOOL_B_ID ? TEST_SUPPLIER_B_SCHOOL_ID : TEST_SUPPLIER_A_ID);
+      opts.vendorId ??
+      (school === TEST_SCHOOL_B_ID ? TEST_SUPPLIER_B_SCHOOL_ID : TEST_SUPPLIER_A_ID);
     const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const endDate = new Date(Date.now() + opts.daysUntilEnd * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -167,9 +168,24 @@ describe('integration:m86-procurement/contract-expiry-worker', () => {
     });
 
     it('flips multiple eligible contracts in one tick', async () => {
-      await seedContract({ status: 'ACTIVE', daysUntilEnd: 10, reminderDays: 60, contractNumber: 'A' + generateId() });
-      await seedContract({ status: 'ACTIVE', daysUntilEnd: 20, reminderDays: 60, contractNumber: 'B' + generateId() });
-      await seedContract({ status: 'ACTIVE', daysUntilEnd: 100, reminderDays: 10, contractNumber: 'C' + generateId() }); // outside window
+      await seedContract({
+        status: 'ACTIVE',
+        daysUntilEnd: 10,
+        reminderDays: 60,
+        contractNumber: 'A' + generateId(),
+      });
+      await seedContract({
+        status: 'ACTIVE',
+        daysUntilEnd: 20,
+        reminderDays: 60,
+        contractNumber: 'B' + generateId(),
+      });
+      await seedContract({
+        status: 'ACTIVE',
+        daysUntilEnd: 100,
+        reminderDays: 10,
+        contractNumber: 'C' + generateId(),
+      }); // outside window
       const count = await worker.tickForSchool(TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN);
       expect(count).toBe(2);
     });

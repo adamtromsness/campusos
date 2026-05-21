@@ -161,10 +161,7 @@ describe('integration:m63-food-service/controllers', () => {
       expect(Array.isArray(allergen)).toBe(true);
 
       const created = await withTestTenant(async () =>
-        ctl.createItem(
-          { name: 'Ctl Item', category: 'SIDE', allergenCodes: [] } as any,
-          req,
-        ),
+        ctl.createItem({ name: 'Ctl Item', category: 'SIDE', allergenCodes: [] } as any, req),
       );
       const patched = await withTestTenant(async () =>
         ctl.patchItem(created.id, { name: 'Renamed Item' } as any, req),
@@ -183,16 +180,18 @@ describe('integration:m63-food-service/controllers', () => {
           req,
         ),
       );
-      const list = await withTestTenant(async () =>
-        ctl.listDailyMenus('2026-09-01', '2026-09-30'),
-      );
+      const list = await withTestTenant(async () => ctl.listDailyMenus('2026-09-01', '2026-09-30'));
       expect(list.map((d: any) => d.id)).toContain(dm.id);
 
       const fetched = await withTestTenant(async () => ctl.getDailyMenu('2026-09-15', 'LUNCH'));
       expect(fetched?.id).toBe(dm.id);
 
       await withTestTenant(async () =>
-        ctl.addDailyMenuItem(dm.id, { menuItemId: TEST_MENU_ITEM_ID, quantityPrepared: 100 } as any, req),
+        ctl.addDailyMenuItem(
+          dm.id,
+          { menuItemId: TEST_MENU_ITEM_ID, quantityPrepared: 100 } as any,
+          req,
+        ),
       );
 
       const gen = await withTestTenant(async () =>
@@ -269,10 +268,7 @@ describe('integration:m63-food-service/controllers', () => {
   describe('FoodServiceAdvancedController', () => {
     it('recipe endpoints', async () => {
       const r = await withTestTenant(async () =>
-        advCtl.createRecipe(
-          { name: 'Adv Recipe', category: 'SIDE', servingYield: 6 } as any,
-          req,
-        ),
+        advCtl.createRecipe({ name: 'Adv Recipe', category: 'SIDE', servingYield: 6 } as any, req),
       );
       const list = await withTestTenant(async () => advCtl.listRecipes());
       expect(list.map((x: any) => x.id)).toContain(r.id);
@@ -303,10 +299,7 @@ describe('integration:m63-food-service/controllers', () => {
       expect(gPatched.name).toBe('Renamed Group');
 
       const item = await withTestTenant(async () =>
-        advCtl.createInventoryItem(
-          { name: 'Adv Item', unit: 'KG', category: 'GRAIN' } as any,
-          req,
-        ),
+        advCtl.createInventoryItem({ name: 'Adv Item', unit: 'KG', category: 'GRAIN' } as any, req),
       );
       const items = await withTestTenant(async () => advCtl.listInventoryItems());
       expect(items.map((x: any) => x.id)).toContain(item.id);
@@ -317,10 +310,7 @@ describe('integration:m63-food-service/controllers', () => {
 
       // Receive + listLevels + listTransactions
       await withTestTenant(async () =>
-        advCtl.receive(
-          { groupId: g.id, itemId: item.id, quantity: 50 } as any,
-          req,
-        ),
+        advCtl.receive({ groupId: g.id, itemId: item.id, quantity: 50 } as any, req),
       );
       const levels = await withTestTenant(async () => advCtl.listInventoryLevels(g.id));
       expect(levels.length).toBe(1);
@@ -329,10 +319,7 @@ describe('integration:m63-food-service/controllers', () => {
 
       // Usage + waste + stocktake
       await withTestTenant(async () =>
-        advCtl.usage(
-          { groupId: g.id, itemId: item.id, quantity: 5 } as any,
-          req,
-        ),
+        advCtl.usage({ groupId: g.id, itemId: item.id, quantity: 5 } as any, req),
       );
       await withTestTenant(async () =>
         advCtl.waste(

@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { GroupService } from '@modules/m103-groups/groups/group.service';
@@ -11,20 +8,9 @@ import { GroupAnnouncementService } from '@modules/m103-groups/groups/group-anno
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
-import {
-  resetGroupsAndStudents,
-  ensureGroupsSeed,
-  TEST_GROUP_OPEN_A_ID,
-} from '../fixtures/groups';
+import { withTestTenant, TEST_SCHEMA } from '../helpers/tenant-context';
+import { adminActor, studentActor, parentActor } from '../helpers/actor';
+import { resetGroupsAndStudents, ensureGroupsSeed, TEST_GROUP_OPEN_A_ID } from '../fixtures/groups';
 import { ensureClubsSeed } from '../fixtures/clubs';
 
 /**
@@ -163,19 +149,13 @@ describe('integration:m103-groups/announcements', () => {
 
     // Non-member (student) — assertCanRead requires ACTIVE membership
     await expect(
-      withTestTenant(async () =>
-        announcements.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor()),
-      ),
+      withTestTenant(async () => announcements.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('listForGroup: active member can see; suspended member cannot', async () => {
     await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     // Join student
     const m = await withTestTenant(async () =>
@@ -192,19 +172,13 @@ describe('integration:m103-groups/announcements', () => {
       memberships.suspend(m.id, { reason: 'TOS' } as any, adminActor()),
     );
     await expect(
-      withTestTenant(async () =>
-        announcements.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor()),
-      ),
+      withTestTenant(async () => announcements.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('listForGroup: actor without personId → []', async () => {
     await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     const list = await withTestTenant(async () =>
       announcements.listForGroup(TEST_GROUP_OPEN_A_ID, {
@@ -217,11 +191,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('getById: admin reads existing', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     const got = await withTestTenant(async () => announcements.getById(dto.id, adminActor()));
     expect(got.id).toBe(dto.id);
@@ -248,11 +218,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('patch: admin updates fields', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     const patched = await withTestTenant(async () =>
       announcements.patch(
@@ -273,11 +239,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('patch: no-op input returns existing DTO', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     const noop = await withTestTenant(async () =>
       announcements.patch(dto.id, {} as any, adminActor()),
@@ -299,11 +261,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('patch: non-author non-manager → ForbiddenException', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     // join student as ACTIVE member but not OWNER/ADMIN
     await withTestTenant(async () =>
@@ -318,11 +276,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('markRead: idempotent ON CONFLICT DO NOTHING', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     const r1 = await withTestTenant(async () => announcements.markRead(dto.id, adminActor()));
     expect(r1.ok).toBe(true);
@@ -357,11 +311,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('markRead: non-member of OPEN group → ForbiddenException', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     await expect(
       withTestTenant(async () => announcements.markRead(dto.id, studentActor())),
@@ -370,11 +320,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('remove: admin deletes; cascades reads', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     await withTestTenant(async () => announcements.markRead(dto.id, adminActor()));
     const r = await withTestTenant(async () => announcements.remove(dto.id, adminActor()));
@@ -396,11 +342,7 @@ describe('integration:m103-groups/announcements', () => {
 
   it('remove: non-author non-manager → ForbiddenException', async () => {
     const dto = await withTestTenant(async () =>
-      announcements.create(
-        TEST_GROUP_OPEN_A_ID,
-        { title: 'X', body: 'Y' } as any,
-        adminActor(),
-      ),
+      announcements.create(TEST_GROUP_OPEN_A_ID, { title: 'X', body: 'Y' } as any, adminActor()),
     );
     await withTestTenant(async () =>
       memberships.joinGroup(TEST_GROUP_OPEN_A_ID, {} as any, studentActor()),

@@ -24,12 +24,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  parentActor,
-  studentActor,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, parentActor, studentActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { resetEventsTables } from '../fixtures/events';
 import {
   resetAthleticsTables,
@@ -37,10 +32,7 @@ import {
   TEST_ATH_ROSTER_A_ID,
   TEST_ATH_SEASON_A_ID,
 } from '../fixtures/athletics';
-import {
-  seedStudent,
-  cleanupSeededIds,
-} from '../m20-sis/sis-helpers';
+import { seedStudent, cleanupSeededIds } from '../m20-sis/sis-helpers';
 
 /**
  * Wave 7 — m101-events event-lifecycle suite.
@@ -90,14 +82,16 @@ describe('integration:m101-events/event-lifecycle', () => {
     return new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
   }
 
-  async function seedEventDirect(opts: {
-    schoolId?: string;
-    status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
-    title?: string;
-    eventType?: string;
-    totalCapacity?: number | null;
-    linkedGameId?: string | null;
-  } = {}): Promise<string> {
+  async function seedEventDirect(
+    opts: {
+      schoolId?: string;
+      status?: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+      title?: string;
+      eventType?: string;
+      totalCapacity?: number | null;
+      linkedGameId?: string | null;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.evt_events
@@ -290,9 +284,7 @@ describe('integration:m101-events/event-lifecycle', () => {
       expect(types).toContain('OFFICIAL');
 
       // Outbox enqueued
-      const outRows = await rawClient.$queryRawUnsafe<
-        Array<{ topic: string; envelope: string }>
-      >(
+      const outRows = await rawClient.$queryRawUnsafe<Array<{ topic: string; envelope: string }>>(
         `SELECT topic, envelope::text AS envelope FROM platform.platform_outbox
          WHERE topic = 'evt.athletic_event.created' AND tenant_id = $1::uuid`,
         TEST_SCHOOL_ID,
@@ -518,11 +510,7 @@ describe('integration:m101-events/event-lifecycle', () => {
     it('missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          events.patch(
-            '00000000-0000-0000-0000-000000000000',
-            { title: 'X' } as any,
-            adminActor(),
-          ),
+          events.patch('00000000-0000-0000-0000-000000000000', { title: 'X' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -549,9 +537,7 @@ describe('integration:m101-events/event-lifecycle', () => {
       const out = await withTestTenant(async () => events.complete(id, adminActor()));
       expect(out.status).toBe('COMPLETED');
 
-      const rows = await rawClient.$queryRawUnsafe<
-        Array<{ topic: string; envelope: string }>
-      >(
+      const rows = await rawClient.$queryRawUnsafe<Array<{ topic: string; envelope: string }>>(
         `SELECT topic, envelope::text AS envelope FROM platform.platform_outbox
          WHERE topic = 'evt.event.completed' AND tenant_id = $1::uuid`,
         TEST_SCHOOL_ID,
@@ -608,9 +594,7 @@ describe('integration:m101-events/event-lifecycle', () => {
       expect(tier.name).toBe('GA');
       expect(tier.quantity).toBe(100);
 
-      const updated = await withTestTenant(async () =>
-        events.getById(eventId, adminActor()),
-      );
+      const updated = await withTestTenant(async () => events.getById(eventId, adminActor()));
       expect(updated.totalTierQuantity).toBe(100);
     });
 
@@ -673,11 +657,7 @@ describe('integration:m101-events/event-lifecycle', () => {
       const eventId = await seedEventDirect({ status: 'DRAFT' });
       await expect(
         withTestTenant(async () =>
-          tiers.create(
-            eventId,
-            { name: 'X', price: 5, quantity: 5 } as any,
-            studentActor(),
-          ),
+          tiers.create(eventId, { name: 'X', price: 5, quantity: 5 } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -714,9 +694,7 @@ describe('integration:m101-events/event-lifecycle', () => {
         tier.id,
       );
       await expect(
-        withTestTenant(async () =>
-          tiers.patch(tier.id, { quantity: 40 } as any, adminActor()),
-        ),
+        withTestTenant(async () => tiers.patch(tier.id, { quantity: 40 } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -726,20 +704,14 @@ describe('integration:m101-events/event-lifecycle', () => {
         tiers.create(eventId, { name: 'A', price: 5, quantity: 10 } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          tiers.patch(tier.id, { quantity: 100 } as any, adminActor()),
-        ),
+        withTestTenant(async () => tiers.patch(tier.id, { quantity: 100 } as any, adminActor())),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('patch: missing tier → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          tiers.patch(
-            '00000000-0000-0000-0000-000000000000',
-            { price: 5 } as any,
-            adminActor(),
-          ),
+          tiers.patch('00000000-0000-0000-0000-000000000000', { price: 5 } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import {
-  BadRequestException,
-  HttpException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { DlqService } from '@shared/dlq/dlq.service';
 import { DlqController } from '@shared/dlq/dlq.controller';
@@ -78,13 +74,15 @@ describe('integration:shared/dlq', () => {
     producer.failWith = null;
   });
 
-  async function seedDlqRow(opts: {
-    consumerGroup?: string;
-    topic?: string;
-    eventType?: string;
-    eventId?: string;
-    olderThanMinutes?: number;
-  } = {}): Promise<string> {
+  async function seedDlqRow(
+    opts: {
+      consumerGroup?: string;
+      topic?: string;
+      eventType?: string;
+      eventId?: string;
+      olderThanMinutes?: number;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     const eventId = opts.eventId ?? generateId();
     const envelope = {

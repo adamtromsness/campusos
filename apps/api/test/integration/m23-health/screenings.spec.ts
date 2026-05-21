@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -53,13 +49,7 @@ describe('integration:m23-health/screenings', () => {
     const guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     const outbox = new OutboxService();
     accessLog = new HealthAccessLogService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     screenings = new ScreeningService(tenantPrisma, accessLog, records);
     referrals = new ScreeningReferralService(tenantPrisma, permCheck);
   });
@@ -78,9 +68,7 @@ describe('integration:m23-health/screenings', () => {
       `DELETE FROM ${TEST_SCHEMA}.hlth_screenings WHERE student_id IN
          (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'SCR-%')`,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'SCR-%'`,
     );
@@ -308,9 +296,7 @@ describe('integration:m23-health/screenings', () => {
     });
 
     it('limit clamp at 500', async () => {
-      const r = await withTestTenant(async () =>
-        screenings.list({ limit: 9999 }, adminActor()),
-      );
+      const r = await withTestTenant(async () => screenings.list({ limit: 9999 }, adminActor()));
       expect(r.length).toBeLessThanOrEqual(500);
     });
 
@@ -381,9 +367,7 @@ describe('integration:m23-health/screenings', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          screenings.update(r.id, { result: 'PASS' }, teacherActor()),
-        ),
+        withTestTenant(async () => screenings.update(r.id, { result: 'PASS' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -549,14 +533,10 @@ describe('integration:m23-health/screenings', () => {
       const all = await withTestTenant(async () => referrals.list({}));
       expect(all.find((r) => r.id === refId)).toBeDefined();
 
-      const referred = await withTestTenant(async () =>
-        referrals.list({ status: 'REFERRED' }),
-      );
+      const referred = await withTestTenant(async () => referrals.list({ status: 'REFERRED' }));
       expect(referred.every((r) => r.status === 'REFERRED')).toBe(true);
 
-      const vision = await withTestTenant(async () =>
-        referrals.list({ referralType: 'VISION' }),
-      );
+      const vision = await withTestTenant(async () => referrals.list({ referralType: 'VISION' }));
       expect(vision.every((r) => r.referralType === 'VISION')).toBe(true);
 
       const dto = await withTestTenant(async () => referrals.getById(refId));
@@ -585,9 +565,9 @@ describe('integration:m23-health/screenings', () => {
 
     it('cross-school isolation: referral from School A invisible from School B', async () => {
       const refId = await seedReferral();
-      await expect(
-        withTestTenantB(async () => referrals.getById(refId)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => referrals.getById(refId))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -643,11 +623,7 @@ describe('integration:m23-health/screenings', () => {
       const id = await seedReferral();
       await expect(
         withTestTenant(async () =>
-          referrals.patch(
-            id,
-            { status: 'FOLLOW_UP_COMPLETE', followUpDate: null },
-            adminActor(),
-          ),
+          referrals.patch(id, { status: 'FOLLOW_UP_COMPLETE', followUpDate: null }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -691,9 +667,7 @@ describe('integration:m23-health/screenings', () => {
         ),
       );
       // Yesterday relative to today's runtime.
-      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const r = await withTestTenant(async () =>
         referrals.createFromScreening(
           s.id,

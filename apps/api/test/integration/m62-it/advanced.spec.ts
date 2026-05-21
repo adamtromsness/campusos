@@ -309,14 +309,20 @@ describe('integration:m62-it/advanced', () => {
       )) as Array<{ topic: string }>;
       expect(outbox.length).toBeGreaterThan(0);
 
-      const list = await withTestTenant(async () => remote.listForAsset(TEST_ASSET_ID, adminActor()));
+      const list = await withTestTenant(async () =>
+        remote.listForAsset(TEST_ASSET_ID, adminActor()),
+      );
       expect(list.map((x) => x.id)).toContain(action.id);
 
       const fetched = await withTestTenant(async () => remote.getById(action.id, adminActor()));
       expect(fetched.id).toBe(action.id);
 
       const sent = await withTestTenant(async () =>
-        remote.updateStatus(action.id, { status: 'SENT', mdmCommandRef: 'cmd-001' } as any, adminActor()),
+        remote.updateStatus(
+          action.id,
+          { status: 'SENT', mdmCommandRef: 'cmd-001' } as any,
+          adminActor(),
+        ),
       );
       expect(sent.status).toBe('SENT');
     });
@@ -355,7 +361,9 @@ describe('integration:m62-it/advanced', () => {
       const items = await withTestTenant(async () => inventory.listItems(audit.id, adminActor()));
       expect(items.length).toBe(1);
 
-      const completed = await withTestTenant(async () => inventory.complete(audit.id, adminActor()));
+      const completed = await withTestTenant(async () =>
+        inventory.complete(audit.id, adminActor()),
+      );
       expect(completed.status).toBe('COMPLETED');
 
       const report = await withTestTenant(async () => inventory.report(audit.id, adminActor()));
@@ -379,7 +387,9 @@ describe('integration:m62-it/advanced', () => {
       );
       expect(r.newExpiryDate).toContain('2028-12-31');
 
-      const list = await withTestTenant(async () => renewals.listForLicence(TEST_LICENCE_ID, adminActor()));
+      const list = await withTestTenant(async () =>
+        renewals.listForLicence(TEST_LICENCE_ID, adminActor()),
+      );
       expect(list.map((x) => x.id)).toContain(r.id);
     });
   });
@@ -417,7 +427,9 @@ describe('integration:m62-it/advanced', () => {
       );
       expect(r2.flaggedActivity).toBe(true);
 
-      const list = await withTestTenant(async () => usage.listForAsset(TEST_ASSET_ID, adminActor()));
+      const list = await withTestTenant(async () =>
+        usage.listForAsset(TEST_ASSET_ID, adminActor()),
+      );
       expect(list.length).toBe(2);
 
       const flagged = await withTestTenant(async () => usage.listFlagged(adminActor()));

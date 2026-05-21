@@ -41,11 +41,7 @@ import {
   TEST_GROUP_OPEN_A_OWNER_MEMBER_ID,
   TEST_GROUP_APPROVAL_A_OWNER_MEMBER_ID,
 } from '../fixtures/groups';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_CLASS_ID,
-  TEST_SIS_CLASS_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_CLASS_ID, TEST_SIS_CLASS_B_ID } from '../fixtures/sis';
 import { TEST_ACTIVITY_A_ID } from '../fixtures/clubs';
 import { ensureClubsSeed } from '../fixtures/clubs';
 
@@ -290,10 +286,7 @@ describe('integration:m103-groups/groups', () => {
     it('create: non-admin non-staff (student) cannot create SCHOOL group', async () => {
       await expect(
         withTestTenant(async () =>
-          groups.create(
-            { name: 'Stu Group', scopeType: 'SCHOOL' } as any,
-            studentActor(),
-          ),
+          groups.create({ name: 'Stu Group', scopeType: 'SCHOOL' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -301,10 +294,7 @@ describe('integration:m103-groups/groups', () => {
     it('create: non-admin non-staff (student) cannot create CUSTOM group', async () => {
       await expect(
         withTestTenant(async () =>
-          groups.create(
-            { name: 'Stu Custom', scopeType: 'CUSTOM' } as any,
-            studentActor(),
-          ),
+          groups.create({ name: 'Stu Custom', scopeType: 'CUSTOM' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -313,7 +303,11 @@ describe('integration:m103-groups/groups', () => {
       await expect(
         withTestTenant(async () =>
           groups.create(
-            { name: 'Stu Year', scopeType: 'YEAR_GROUP', scopeId: TEST_SIS_ACADEMIC_YEAR_ID } as any,
+            {
+              name: 'Stu Year',
+              scopeType: 'YEAR_GROUP',
+              scopeId: TEST_SIS_ACADEMIC_YEAR_ID,
+            } as any,
             studentActor(),
           ),
         ),
@@ -322,10 +316,7 @@ describe('integration:m103-groups/groups', () => {
 
     it('create: non-admin STAFF can create SCHOOL group', async () => {
       const dto = await withTestTenant(async () =>
-        groups.create(
-          { name: 'Teacher School Group', scopeType: 'SCHOOL' } as any,
-          teacherActor(),
-        ),
+        groups.create({ name: 'Teacher School Group', scopeType: 'SCHOOL' } as any, teacherActor()),
       );
       expect(dto.name).toBe('Teacher School Group');
     });
@@ -472,7 +463,9 @@ describe('integration:m103-groups/groups', () => {
 
     it('assertOwner: caller not owner → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () => groups.assertOwner(TEST_GROUP_OPEN_A_ID, TEST_STUDENT_ACCOUNT_ID)),
+        withTestTenant(async () =>
+          groups.assertOwner(TEST_GROUP_OPEN_A_ID, TEST_STUDENT_ACCOUNT_ID),
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -825,9 +818,7 @@ describe('integration:m103-groups/groups', () => {
 
     it('loadMember: missing → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          memberships.loadMember('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => memberships.loadMember('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -993,9 +984,7 @@ describe('integration:m103-groups/groups', () => {
       expect(list.length).toBe(1);
 
       await expect(
-        withTestTenant(async () =>
-          invitations.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor()),
-        ),
+        withTestTenant(async () => invitations.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -1200,13 +1189,13 @@ describe('integration:m103-groups/groups', () => {
       );
       expect(t.status).toBe('PENDING');
 
-      const accepted = await withTestTenant(async () =>
-        transfers.accept(t.id, studentActor()),
-      );
+      const accepted = await withTestTenant(async () => transfers.accept(t.id, studentActor()));
       expect(accepted.status).toBe('ACCEPTED');
 
       // Verify role swap landed: admin OWNER row demoted to ADMIN; student promoted to OWNER
-      const rows = await rawClient.$queryRawUnsafe<Array<{ id: string; person_id: string; member_role: string }>>(
+      const rows = await rawClient.$queryRawUnsafe<
+        Array<{ id: string; person_id: string; member_role: string }>
+      >(
         `SELECT id::text AS id, person_id::text AS person_id, member_role FROM ${TEST_SCHEMA}.grp_members WHERE group_id = $1::uuid ORDER BY member_role`,
         TEST_GROUP_OPEN_A_ID,
       );
@@ -1220,11 +1209,7 @@ describe('integration:m103-groups/groups', () => {
       const memberId = await ensureStudentMember();
       await expect(
         withTestTenant(async () =>
-          transfers.initiate(
-            TEST_GROUP_OPEN_A_ID,
-            { toMemberId: memberId } as any,
-            studentActor(),
-          ),
+          transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -1275,11 +1260,7 @@ describe('integration:m103-groups/groups', () => {
       );
       await expect(
         withTestTenant(async () =>
-          transfers.initiate(
-            TEST_GROUP_OPEN_A_ID,
-            { toMemberId: memberId } as any,
-            adminActor(),
-          ),
+          transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -1287,19 +1268,11 @@ describe('integration:m103-groups/groups', () => {
     it('initiate: duplicate PENDING transfer → BadRequestException', async () => {
       const memberId = await ensureStudentMember();
       await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          transfers.initiate(
-            TEST_GROUP_OPEN_A_ID,
-            { toMemberId: memberId } as any,
-            adminActor(),
-          ),
+          transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -1307,11 +1280,7 @@ describe('integration:m103-groups/groups', () => {
     it('accept: not recipient → ForbiddenException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       // Admin tries to accept its own transfer
       await expect(
@@ -1322,11 +1291,7 @@ describe('integration:m103-groups/groups', () => {
     it('accept: expired transfer → BadRequestException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       // Roll BOTH initiated_at and expires_at backwards so the check
       // constraint (expires_at > initiated_at) is preserved.
@@ -1345,11 +1310,7 @@ describe('integration:m103-groups/groups', () => {
     it('accept: not pending → BadRequestException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       await withTestTenant(async () => transfers.cancel(t.id, adminActor()));
       await expect(
@@ -1368,11 +1329,7 @@ describe('integration:m103-groups/groups', () => {
     it('decline: recipient declines', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       const declined = await withTestTenant(async () => transfers.decline(t.id, studentActor()));
       expect(declined.status).toBe('DECLINED');
@@ -1381,11 +1338,7 @@ describe('integration:m103-groups/groups', () => {
     it('decline: not recipient → ForbiddenException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => transfers.decline(t.id, adminActor())),
@@ -1403,11 +1356,7 @@ describe('integration:m103-groups/groups', () => {
     it('decline: non-pending → BadRequestException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       await withTestTenant(async () => transfers.cancel(t.id, adminActor()));
       await expect(
@@ -1418,11 +1367,7 @@ describe('integration:m103-groups/groups', () => {
     it('cancel: initiator can cancel', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       const cancelled = await withTestTenant(async () => transfers.cancel(t.id, adminActor()));
       expect(cancelled.status).toBe('CANCELLED');
@@ -1431,11 +1376,7 @@ describe('integration:m103-groups/groups', () => {
     it('cancel: non-initiator non-admin → ForbiddenException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       // student is the recipient, not the initiator
       await expect(
@@ -1446,11 +1387,7 @@ describe('integration:m103-groups/groups', () => {
     it('cancel: non-pending → BadRequestException', async () => {
       const memberId = await ensureStudentMember();
       const t = await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       await withTestTenant(async () => transfers.decline(t.id, studentActor()));
       await expect(
@@ -1469,11 +1406,7 @@ describe('integration:m103-groups/groups', () => {
     it('list: admin sees all; non-member returns []', async () => {
       const memberId = await ensureStudentMember();
       await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       const list = await withTestTenant(async () =>
         transfers.list(TEST_GROUP_OPEN_A_ID, adminActor()),
@@ -1489,11 +1422,7 @@ describe('integration:m103-groups/groups', () => {
     it('listMine: returns pending transfers awaiting me', async () => {
       const memberId = await ensureStudentMember();
       await withTestTenant(async () =>
-        transfers.initiate(
-          TEST_GROUP_OPEN_A_ID,
-          { toMemberId: memberId } as any,
-          adminActor(),
-        ),
+        transfers.initiate(TEST_GROUP_OPEN_A_ID, { toMemberId: memberId } as any, adminActor()),
       );
       const mine = await withTestTenant(async () => transfers.listMine(studentActor()));
       expect(mine.length).toBe(1);
@@ -1547,20 +1476,14 @@ describe('integration:m103-groups/groups', () => {
       // Group not in school → assertGroupInCurrentSchool throws Forbidden first
       await expect(
         withTestTenant(async () =>
-          analytics.recompute(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          analytics.recompute('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('recompute: cross-school group → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analytics.recompute(TEST_GROUP_B_ID, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => analytics.recompute(TEST_GROUP_B_ID, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -1587,17 +1510,13 @@ describe('integration:m103-groups/groups', () => {
 
     it('listForGroup: non-manager → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analytics.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor()),
-        ),
+        withTestTenant(async () => analytics.listForGroup(TEST_GROUP_OPEN_A_ID, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('listForGroup: cross-school → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analytics.listForGroup(TEST_GROUP_B_ID, adminActor()),
-        ),
+        withTestTenant(async () => analytics.listForGroup(TEST_GROUP_B_ID, adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

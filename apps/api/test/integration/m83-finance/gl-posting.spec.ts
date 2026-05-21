@@ -11,11 +11,7 @@ import { generateId } from '@campusos/database';
 import { PostingService } from '@modules/m83-finance/posting.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  withTestTenantB,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, withTestTenantB, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -183,7 +179,9 @@ describe('integration:m83-finance/gl-posting', () => {
 
     it('rejects an empty entry list', async () => {
       await expect(
-        withTestTenant(async () => posting.createDraft(adminActor(), balancedInput({ entries: [] }))),
+        withTestTenant(async () =>
+          posting.createDraft(adminActor(), balancedInput({ entries: [] })),
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -567,9 +565,7 @@ describe('integration:m83-finance/gl-posting', () => {
       const draft = await withTestTenant(async () =>
         posting.createDraft(adminActor(), balancedInput()),
       );
-      const matched = await withTestTenant(async () =>
-        posting.list({ periodId: TEST_PERIOD_ID }),
-      );
+      const matched = await withTestTenant(async () => posting.list({ periodId: TEST_PERIOD_ID }));
       expect(matched.find((b) => b.id === draft.id)).toBeDefined();
       const unmatched = await withTestTenant(async () =>
         posting.list({ periodId: '00000000-0000-0000-0000-000000000000' }),
@@ -588,9 +584,7 @@ describe('integration:m83-finance/gl-posting', () => {
 
     it('getById for a missing batch → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          posting.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => posting.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -598,9 +592,9 @@ describe('integration:m83-finance/gl-posting', () => {
       const bDraft = await withTestTenantB(async () =>
         posting.createDraft(adminActor(), balancedInput({ batchNumber: 'JB-B-CROSS' })),
       );
-      await expect(
-        withTestTenant(async () => posting.getById(bDraft.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => posting.getById(bDraft.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -716,9 +710,11 @@ describe('integration:m83-finance/gl-posting', () => {
       // caught.meta.code (P2010 wrapper) or in caught.message.
       const sqlstate = caught?.meta?.code ?? '';
       const message = caught?.message ?? '';
-      expect(sqlstate === '23001' || message.includes('23001') || message.toLowerCase().includes('immutable')).toBe(
-        true,
-      );
+      expect(
+        sqlstate === '23001' ||
+          message.includes('23001') ||
+          message.toLowerCase().includes('immutable'),
+      ).toBe(true);
     });
 
     it('UPDATE on fin_gl_entries.account_id → SQLSTATE 23001', async () => {

@@ -63,12 +63,8 @@ describe('integration:m20-sis/custom-fields', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_custom_field_values`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_custom_field_definitions`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_custom_field_values`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_custom_field_definitions`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -101,9 +97,7 @@ describe('integration:m20-sis/custom-fields', () => {
       expect(def.fieldName).toBe('favourite_subject');
       expect(def.schoolId).toBe(TEST_SCHOOL_ID);
 
-      const list = await withTestTenant(async () =>
-        service.listDefinitions('STUDENT', {}),
-      );
+      const list = await withTestTenant(async () => service.listDefinitions('STUDENT', {}));
       expect(list.map((r) => r.id)).toContain(def.id);
     });
 
@@ -237,7 +231,13 @@ describe('integration:m20-sis/custom-fields', () => {
       const patched = await withTestTenant(async () =>
         service.patchDefinition(
           def.id,
-          { fieldLabel: 'New Label', isRequired: true, sortOrder: 5, isVisibleToParent: true, isActive: false } as any,
+          {
+            fieldLabel: 'New Label',
+            isRequired: true,
+            sortOrder: 5,
+            isVisibleToParent: true,
+            isActive: false,
+          } as any,
           adminActor(),
         ),
       );
@@ -314,9 +314,7 @@ describe('integration:m20-sis/custom-fields', () => {
       await withTestTenant(async () =>
         service.patchDefinition(inactive.id, { isActive: false } as any, adminActor()),
       );
-      const defaultList = await withTestTenant(async () =>
-        service.listDefinitions('STUDENT', {}),
-      );
+      const defaultList = await withTestTenant(async () => service.listDefinitions('STUDENT', {}));
       expect(defaultList.map((r) => r.id)).toContain(active.id);
       expect(defaultList.map((r) => r.id)).not.toContain(inactive.id);
 
@@ -414,9 +412,7 @@ describe('integration:m20-sis/custom-fields', () => {
             {
               entityType: 'STUDENT',
               entityId: s.studentId,
-              values: [
-                { definitionId: '00000000-0000-0000-0000-000000000000', value: 'x' },
-              ],
+              values: [{ definitionId: '00000000-0000-0000-0000-000000000000', value: 'x' }],
             } as any,
             adminActor(),
           ),
@@ -450,7 +446,12 @@ describe('integration:m20-sis/custom-fields', () => {
       const s = await trackedStudent();
       const def = await withTestTenant(async () =>
         service.createDefinition(
-          { entityType: 'STUDENT', fieldName: 'inact', fieldLabel: 'Inact', fieldType: 'TEXT' } as any,
+          {
+            entityType: 'STUDENT',
+            fieldName: 'inact',
+            fieldLabel: 'Inact',
+            fieldType: 'TEXT',
+          } as any,
           adminActor(),
         ),
       );
@@ -638,15 +639,16 @@ describe('integration:m20-sis/custom-fields', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          service.upsertValues(
-            {
-              entityType: 'STUDENT',
-              entityId: s.studentId,
-              values: [{ definitionId: def.id, value: 'x' }],
-            } as any,
-            parentActor(),
-          ),
+        withTestTenant(
+          async () =>
+            service.upsertValues(
+              {
+                entityType: 'STUDENT',
+                entityId: s.studentId,
+                values: [{ definitionId: def.id, value: 'x' }],
+              } as any,
+              parentActor(),
+            ),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);

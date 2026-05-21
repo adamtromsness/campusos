@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -167,9 +163,9 @@ describe('integration:m27-student-services/survey-template', () => {
 
     it('getById cross-school → NotFound', async () => {
       const t = await withTestTenant(async () => service.create(baseInput(), adminActor()));
-      await expect(
-        withTestTenantB(async () => service.getById(t.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => service.getById(t.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('listQuestions returns sorted by sort_order', async () => {
@@ -210,9 +206,7 @@ describe('integration:m27-student-services/survey-template', () => {
       const a = await withTestTenant(async () => service.create(baseInput(), adminActor()));
       const b = await withTestTenant(async () => service.create(baseInput(), adminActor()));
       await expect(
-        withTestTenant(async () =>
-          service.patch(b.id, { name: a.name }, adminActor()),
-        ),
+        withTestTenant(async () => service.patch(b.id, { name: a.name }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -377,9 +371,7 @@ describe('integration:m27-student-services/survey-template', () => {
 
     it('inactive template → BadRequest', async () => {
       const t = await withTestTenant(async () => service.create(baseInput(), adminActor()));
-      await withTestTenant(async () =>
-        service.patch(t.id, { isActive: false }, adminActor()),
-      );
+      await withTestTenant(async () => service.patch(t.id, { isActive: false }, adminActor()));
       await expect(
         withTestTenant(async () => service.loadActiveOrFail(t.id)),
       ).rejects.toBeInstanceOf(BadRequestException);

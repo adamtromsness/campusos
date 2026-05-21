@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -11,11 +7,7 @@ import { InterventionService } from '@modules/m27-student-services/counselling/i
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -174,9 +166,7 @@ describe('integration:m27-student-services/intervention', () => {
     it('admin creates an intervention; admin bypasses caseload check', async () => {
       const studentId = await seedStudent();
       const tierId = await seedTier(studentId);
-      const r = await withTestTenant(async () =>
-        service.create(tierId, baseInput(), adminActor()),
-      );
+      const r = await withTestTenant(async () => service.create(tierId, baseInput(), adminActor()));
       expect(r.status).toBe('ACTIVE');
       expect(r.interventionName).toBe('Daily Reading Practice');
     });
@@ -198,9 +188,7 @@ describe('integration:m27-student-services/intervention', () => {
       const tierId = await seedTier(studentId);
       // No caseload row for officer
       await expect(
-        withTestTenant(async () =>
-          service.create(tierId, baseInput(), officerActor()),
-        ),
+        withTestTenant(async () => service.create(tierId, baseInput(), officerActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -208,24 +196,16 @@ describe('integration:m27-student-services/intervention', () => {
       const studentId = await seedStudent();
       const tierId = await seedTier(studentId);
       await expect(
-        withTestTenant(async () =>
-          service.create(tierId, baseInput(), officerActor()),
-        ),
+        withTestTenant(async () => service.create(tierId, baseInput(), officerActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          service.create(tierId, baseInput(), teacherActor()),
-        ),
+        withTestTenant(async () => service.create(tierId, baseInput(), teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          service.create(tierId, baseInput(), studentActor()),
-        ),
+        withTestTenant(async () => service.create(tierId, baseInput(), studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          service.create(tierId, baseInput(), parentActor()),
-        ),
+        withTestTenant(async () => service.create(tierId, baseInput(), parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -245,9 +225,7 @@ describe('integration:m27-student-services/intervention', () => {
 
     it('missing tier → BadRequest', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.create(generateId(), baseInput(), adminActor()),
-        ),
+        withTestTenant(async () => service.create(generateId(), baseInput(), adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -295,20 +273,14 @@ describe('integration:m27-student-services/intervention', () => {
     async function seedIntervention(): Promise<string> {
       const studentId = await seedStudent();
       const tierId = await seedTier(studentId);
-      const r = await withTestTenant(async () =>
-        service.create(tierId, baseInput(), adminActor()),
-      );
+      const r = await withTestTenant(async () => service.create(tierId, baseInput(), adminActor()));
       return r.id;
     }
 
     it('admin patches frequency + description', async () => {
       const id = await seedIntervention();
       const updated = await withTestTenant(async () =>
-        service.patch(
-          id,
-          { frequency: 'WEEKLY', description: 'Updated' },
-          adminActor(),
-        ),
+        service.patch(id, { frequency: 'WEEKLY', description: 'Updated' }, adminActor()),
       );
       expect(updated.frequency).toBe('WEEKLY');
       expect(updated.description).toBe('Updated');
@@ -331,9 +303,7 @@ describe('integration:m27-student-services/intervention', () => {
     it('patch as non-counsellor → Forbidden', async () => {
       const id = await seedIntervention();
       await expect(
-        withTestTenant(async () =>
-          service.patch(id, { frequency: 'x' }, teacherActor()),
-        ),
+        withTestTenant(async () => service.patch(id, { frequency: 'x' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -342,9 +312,7 @@ describe('integration:m27-student-services/intervention', () => {
     async function seedIntervention(): Promise<string> {
       const studentId = await seedStudent();
       const tierId = await seedTier(studentId);
-      const r = await withTestTenant(async () =>
-        service.create(tierId, baseInput(), adminActor()),
-      );
+      const r = await withTestTenant(async () => service.create(tierId, baseInput(), adminActor()));
       return r.id;
     }
 
@@ -383,9 +351,7 @@ describe('integration:m27-student-services/intervention', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        service.listProgress(id, adminActor()),
-      );
+      const list = await withTestTenant(async () => service.listProgress(id, adminActor()));
       expect(list.length).toBe(2);
     });
 

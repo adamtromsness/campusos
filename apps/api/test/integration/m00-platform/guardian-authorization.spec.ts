@@ -486,9 +486,9 @@ describe('integration:m00-platform/guardian-authorization', () => {
         studentId,
       );
       await withTestTenant(async () =>
-        expect(
-          await service.canAuthorizePayment(guardianPersonId, studentId, accountId),
-        ).toBe(true),
+        expect(await service.canAuthorizePayment(guardianPersonId, studentId, accountId)).toBe(
+          true,
+        ),
       );
     });
 
@@ -522,9 +522,9 @@ describe('integration:m00-platform/guardian-authorization', () => {
         studentId,
       );
       await withTestTenant(async () =>
-        expect(
-          await service.canAuthorizePayment(guardianPersonId, studentId, accountId),
-        ).toBe(false),
+        expect(await service.canAuthorizePayment(guardianPersonId, studentId, accountId)).toBe(
+          false,
+        ),
       );
     });
 
@@ -545,9 +545,9 @@ describe('integration:m00-platform/guardian-authorization', () => {
         'GA-TEST-FA-' + accountId,
       );
       await withTestTenant(async () =>
-        expect(
-          await service.canAuthorizePayment(guardianPersonId, studentId, accountId),
-        ).toBe(false),
+        expect(await service.canAuthorizePayment(guardianPersonId, studentId, accountId)).toBe(
+          false,
+        ),
       );
     });
   });
@@ -610,7 +610,9 @@ describe('integration:m00-platform/guardian-authorization', () => {
         custodyArrangement: 'JOINT',
       });
       await withTestTenant(async () =>
-        expect(await service.canViewCommunications(guardianPersonIds[0]!, studentId)).toBe(expected),
+        expect(await service.canViewCommunications(guardianPersonIds[0]!, studentId)).toBe(
+          expected,
+        ),
       );
     });
 
@@ -751,9 +753,7 @@ describe('integration:m00-platform/guardian-authorization', () => {
         custodyArrangement: null,
         omitRelationship: true,
       });
-      const link = await withTestTenant(async () =>
-        service.resolveLink(generateId(), studentId),
-      );
+      const link = await withTestTenant(async () => service.resolveLink(generateId(), studentId));
       expect(link).toBeNull();
     });
   });

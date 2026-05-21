@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -138,9 +134,7 @@ describe('integration:m84-payments/billing-config', () => {
 
     it('non-admin cannot create category', async () => {
       await expect(
-        withTestTenant(async () =>
-          feeSchedule.createCategory({ name: 'x' }, teacherActor()),
-        ),
+        withTestTenant(async () => feeSchedule.createCategory({ name: 'x' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -325,9 +319,7 @@ describe('integration:m84-payments/billing-config', () => {
       expect(r.discountType).toBe('SIBLING');
       expect(r.siblingOrder).toBe(2);
 
-      const list = await withTestTenant(async () =>
-        discountRules.list({}, adminActor()),
-      );
+      const list = await withTestTenant(async () => discountRules.list({}, adminActor()));
       expect(list.find((x) => x.id === r.id)).toBeDefined();
 
       const got = await withTestTenant(async () => discountRules.getById(r.id, adminActor()));
@@ -426,17 +418,13 @@ describe('integration:m84-payments/billing-config', () => {
           adminActor(),
         ),
       );
-      const u = await withTestTenant(async () =>
-        discountRules.update(r.id, {}, adminActor()),
-      );
+      const u = await withTestTenant(async () => discountRules.update(r.id, {}, adminActor()));
       expect(u.id).toBe(r.id);
     });
 
     it('update missing rule → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          discountRules.update(generateId(), { value: 5 }, adminActor()),
-        ),
+        withTestTenant(async () => discountRules.update(generateId(), { value: 5 }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -480,9 +468,7 @@ describe('integration:m84-payments/billing-config', () => {
       expect(earlyOnly.find((x) => x.id === r1.id)).toBeDefined();
 
       // Default — inactive rule hidden
-      const active = await withTestTenant(async () =>
-        discountRules.list({}, adminActor()),
-      );
+      const active = await withTestTenant(async () => discountRules.list({}, adminActor()));
       expect(active.find((x) => x.id === r2.id)).toBeUndefined();
 
       // Include inactive
@@ -558,7 +544,7 @@ describe('integration:m84-payments/billing-config', () => {
       expect(got.id).toBe(a);
     });
 
-    it('parent getById on someone else\'s account → NotFound', async () => {
+    it("parent getById on someone else's account → NotFound", async () => {
       const a = await seedFamilyAccount({ holderId: TEST_OFFICER_PERSON_ID });
       await expect(
         withTestTenant(async () => familyAccounts.getById(a, parentActor())),
@@ -580,9 +566,7 @@ describe('integration:m84-payments/billing-config', () => {
 
     it('listStudents echoes the account students slice', async () => {
       const a = await seedFamilyAccount();
-      const list = await withTestTenant(async () =>
-        familyAccounts.listStudents(a, adminActor()),
-      );
+      const list = await withTestTenant(async () => familyAccounts.listStudents(a, adminActor()));
       expect(Array.isArray(list)).toBe(true);
     });
 
@@ -635,9 +619,7 @@ describe('integration:m84-payments/billing-config', () => {
       expect(pm.cardLastFour).toBe('4242');
       expect(pm.isDefault).toBe(true);
 
-      const list = await withTestTenant(async () =>
-        savedPm.listForFamily(fa, adminActor()),
-      );
+      const list = await withTestTenant(async () => savedPm.listForFamily(fa, adminActor()));
       expect(list.find((x) => x.id === pm.id)).toBeDefined();
 
       const got = await withTestTenant(async () => savedPm.getById(pm.id, adminActor()));
@@ -669,9 +651,7 @@ describe('integration:m84-payments/billing-config', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        savedPm.listForFamily(fa, adminActor()),
-      );
+      const list = await withTestTenant(async () => savedPm.listForFamily(fa, adminActor()));
       const first = list.find((x) => x.id === pm1.id);
       expect(first!.isDefault).toBe(false);
     });
@@ -719,9 +699,7 @@ describe('integration:m84-payments/billing-config', () => {
         withTestTenant(async () => savedPm.getById(pm.id, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
 
-      const list = await withTestTenant(async () =>
-        savedPm.listForFamily(fa, adminActor()),
-      );
+      const list = await withTestTenant(async () => savedPm.listForFamily(fa, adminActor()));
       expect(list.find((x) => x.id === pm.id)).toBeUndefined();
     });
 
@@ -737,18 +715,14 @@ describe('integration:m84-payments/billing-config', () => {
         ),
       );
       expect(pm.id).toBeTruthy();
-      const list = await withTestTenant(async () =>
-        savedPm.listForFamily(fa, parentActor()),
-      );
+      const list = await withTestTenant(async () => savedPm.listForFamily(fa, parentActor()));
       expect(list.find((x) => x.id === pm.id)).toBeDefined();
     });
 
-    it('parent cannot access another family\'s methods → NotFound', async () => {
+    it("parent cannot access another family's methods → NotFound", async () => {
       const fa = await seedFamilyAccount({ holderId: generateId() });
       await expect(
-        withTestTenant(async () =>
-          savedPm.listForFamily(fa, parentActor()),
-        ),
+        withTestTenant(async () => savedPm.listForFamily(fa, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -758,9 +732,7 @@ describe('integration:m84-payments/billing-config', () => {
       // STAFF without isSchoolAdmin and without personId-match: actor.personId
       // is set but personType is STAFF so the existence SELECT returns 0.
       await expect(
-        withTestTenant(async () =>
-          savedPm.listForFamily(fa, teacherActor()),
-        ),
+        withTestTenant(async () => savedPm.listForFamily(fa, teacherActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -820,13 +792,9 @@ describe('integration:m84-payments/billing-config', () => {
       );
       await withTestTenant(async () => invoices.send(i2.id, adminActor()));
       // Pay the i1 balance exactly — PaymentAllocationService then
-       // redistributes that paid $100 across i1 and i2.
-       const p = await withTestTenant(async () =>
-        payments.pay(
-          i1.id,
-          { amount: 100, paymentMethod: 'CHEQUE' },
-          adminActor(),
-        ),
+      // redistributes that paid $100 across i1 and i2.
+      const p = await withTestTenant(async () =>
+        payments.pay(i1.id, { amount: 100, paymentMethod: 'CHEQUE' }, adminActor()),
       );
       return { paymentId: p.id, familyAccountId: fa, invoiceA: i1.id, invoiceB: i2.id };
     }
@@ -882,7 +850,7 @@ describe('integration:m84-payments/billing-config', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('allocate to a different family\'s invoice → BadRequest', async () => {
+    it("allocate to a different family's invoice → BadRequest", async () => {
       const { paymentId, invoiceA } = await seedTwoInvoicesAndPayment();
       // Make a second family + invoice
       const fa2 = await seedFamilyAccount({ holderId: TEST_OFFICER_PERSON_ID });
@@ -951,9 +919,7 @@ describe('integration:m84-payments/billing-config', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          allocations.listForPayment(generateId(), teacherActor()),
-        ),
+        withTestTenant(async () => allocations.listForPayment(generateId(), teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

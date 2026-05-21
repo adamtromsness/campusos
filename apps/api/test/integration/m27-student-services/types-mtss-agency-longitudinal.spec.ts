@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -78,9 +74,7 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
     // svc_referral_activity is IMMUTABLE — TRUNCATE bypasses BEFORE ROW
     // triggers. We need to wipe activities first to allow svc_referrals
     // deletion (the FK CASCADE would otherwise try a DELETE on activities).
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.svc_referral_activity CASCADE`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity CASCADE`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.svc_referrals WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -249,9 +243,7 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
       const a = await withTestTenant(async () => types.create(baseType(), adminActor()));
       const b = await withTestTenant(async () => types.create(baseType(), adminActor()));
       await expect(
-        withTestTenant(async () =>
-          types.patch(b.id, { name: a.name }, adminActor()),
-        ),
+        withTestTenant(async () => types.patch(b.id, { name: a.name }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -260,9 +252,7 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
       const inactive = await withTestTenant(async () =>
         types.create(baseType({ name: 'TST-Inactive-' + generateId().slice(-6) }), adminActor()),
       );
-      await withTestTenant(async () =>
-        types.patch(inactive.id, { isActive: false }, adminActor()),
-      );
+      await withTestTenant(async () => types.patch(inactive.id, { isActive: false }, adminActor()));
       const list = await withTestTenant(async () => types.list());
       expect(list.find((t) => t.id === active.id)).toBeDefined();
       expect(list.find((t) => t.id === inactive.id)).toBeUndefined();
@@ -271,17 +261,17 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
     });
 
     it('getById missing → NotFound', async () => {
-      await expect(
-        withTestTenant(async () => types.getById(generateId())),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => types.getById(generateId()))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('assertActive: inactive type → BadRequest', async () => {
       const t = await withTestTenant(async () => types.create(baseType(), adminActor()));
       await withTestTenant(async () => types.patch(t.id, { isActive: false }, adminActor()));
-      await expect(
-        withTestTenant(async () => types.assertActive(t.id)),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => types.assertActive(t.id))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('assertActive: active type returns the dto', async () => {
@@ -522,13 +512,9 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
 
       it('CONTACTED → ACTIVE_SERVICE without consent → BadRequest (CONSENT GATE)', async () => {
         const id = await seed();
-        await withTestTenant(async () =>
-          agency.patch(id, { status: 'CONTACTED' }, adminActor()),
-        );
+        await withTestTenant(async () => agency.patch(id, { status: 'CONTACTED' }, adminActor()));
         await expect(
-          withTestTenant(async () =>
-            agency.patch(id, { status: 'ACTIVE_SERVICE' }, adminActor()),
-          ),
+          withTestTenant(async () => agency.patch(id, { status: 'ACTIVE_SERVICE' }, adminActor())),
         ).rejects.toThrow(/consent_obtained=true/);
       });
 
@@ -546,21 +532,15 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
       it('illegal transition REFERRED → ACTIVE_SERVICE → BadRequest', async () => {
         const id = await seed();
         await expect(
-          withTestTenant(async () =>
-            agency.patch(id, { status: 'ACTIVE_SERVICE' }, adminActor()),
-          ),
+          withTestTenant(async () => agency.patch(id, { status: 'ACTIVE_SERVICE' }, adminActor())),
         ).rejects.toThrow(/Illegal transition/);
       });
 
       it('DISCHARGED is terminal — further status changes rejected', async () => {
         const id = await seed();
-        await withTestTenant(async () =>
-          agency.patch(id, { status: 'DISCHARGED' }, adminActor()),
-        );
+        await withTestTenant(async () => agency.patch(id, { status: 'DISCHARGED' }, adminActor()));
         await expect(
-          withTestTenant(async () =>
-            agency.patch(id, { status: 'CONTACTED' }, adminActor()),
-          ),
+          withTestTenant(async () => agency.patch(id, { status: 'CONTACTED' }, adminActor())),
         ).rejects.toThrow(/Illegal transition/);
       });
 
@@ -572,9 +552,7 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
 
       it('patch missing → NotFound', async () => {
         await expect(
-          withTestTenant(async () =>
-            agency.patch(generateId(), { notes: 'x' }, adminActor()),
-          ),
+          withTestTenant(async () => agency.patch(generateId(), { notes: 'x' }, adminActor())),
         ).rejects.toBeInstanceOf(NotFoundException);
       });
 

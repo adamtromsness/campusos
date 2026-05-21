@@ -56,21 +56,11 @@ describe('integration:m20-sis/graduation-workers', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_grades`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_assignments`);
     await rawClient.$executeRawUnsafe(

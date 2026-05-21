@@ -15,18 +15,12 @@ import { RidershipService } from '@modules/m61-transport/ridership.service';
 import { RunLogService } from '@modules/m61-transport/run-log.service';
 import { NoShowService } from '@modules/m61-transport/no-show.service';
 import { DelayReportService } from '@modules/m61-transport/delay-report.service';
-import {
-  type ActorContextService,
-  type ResolvedActor,
-} from '@modules/m00-platform';
+import { type ActorContextService, type ResolvedActor } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   TEST_ADMIN_ACCOUNT_ID,
@@ -238,9 +232,7 @@ describe('integration:m61-transport/transport-controller', () => {
     );
     expect(cred.credentialType).toBe('CDL');
 
-    const credList = await withTestTenant(async () =>
-      ctl.listDriverCreds(TEST_ADMIN_EMPLOYEE_ID),
-    );
+    const credList = await withTestTenant(async () => ctl.listDriverCreds(TEST_ADMIN_EMPLOYEE_ID));
     expect(credList.map((c: any) => c.id)).toContain(cred.id);
 
     const patched = await withTestTenant(async () =>
@@ -337,11 +329,7 @@ describe('integration:m61-transport/transport-controller', () => {
     );
 
     const resolved = await withTestTenant(async () =>
-      ctl.resolveNoShow(
-        alertId,
-        { resolution: 'FALSE_ALARM', resolutionNotes: 'OK' } as any,
-        req,
-      ),
+      ctl.resolveNoShow(alertId, { resolution: 'FALSE_ALARM', resolutionNotes: 'OK' } as any, req),
     );
     expect(resolved.resolution).toBe('FALSE_ALARM');
   });

@@ -139,9 +139,7 @@ export class PollService {
       throw new BadRequestException('A poll must have at least 2 options');
     }
     if (input.options.length > MAX_POLL_OPTIONS) {
-      throw new BadRequestException(
-        `A poll cannot have more than ${MAX_POLL_OPTIONS} options`,
-      );
+      throw new BadRequestException(`A poll cannot have more than ${MAX_POLL_OPTIONS} options`);
     }
     if (input.closesAt && new Date(input.closesAt).getTime() <= Date.now()) {
       throw new BadRequestException('closesAt must be in the future');

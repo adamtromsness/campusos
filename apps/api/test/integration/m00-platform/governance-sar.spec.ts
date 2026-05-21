@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -695,13 +691,9 @@ describe('integration:m00-platform/governance-sar', () => {
 
     it('COMPLETED is terminal — further updates rejected with BadRequestException', async () => {
       const id = await seedSar();
-      await withTestTenant(async () =>
-        service.update(adminActor(), id, { status: 'COMPLETED' }),
-      );
+      await withTestTenant(async () => service.update(adminActor(), id, { status: 'COMPLETED' }));
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), id, { status: 'IN_PROGRESS' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), id, { status: 'IN_PROGRESS' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -711,9 +703,7 @@ describe('integration:m00-platform/governance-sar', () => {
         service.update(adminActor(), id, { status: 'DENIED', denialReason: 'x' }),
       );
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), id, { notes: 'changed mind' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), id, { notes: 'changed mind' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

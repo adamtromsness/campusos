@@ -324,19 +324,11 @@ describe('integration:m22-scheduling/exam-scheduling', () => {
       );
       sessionIds.push(session.id);
       await withTestTenant(async () =>
-        service.addRoom(
-          session.id,
-          { roomId: roomAId, capacity: 25 } as any,
-          adminActor(),
-        ),
+        service.addRoom(session.id, { roomId: roomAId, capacity: 25 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          service.addRoom(
-            session.id,
-            { roomId: roomAId, capacity: 5 } as any,
-            adminActor(),
-          ),
+          service.addRoom(session.id, { roomId: roomAId, capacity: 5 } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -675,9 +667,7 @@ describe('integration:m22-scheduling/exam-scheduling', () => {
 
     it('getSession unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getSession('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getSession('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -726,9 +716,7 @@ describe('integration:m22-scheduling/exam-scheduling', () => {
       await withTestTenant(async () =>
         service.addRoom(session.id, { roomId: roomAId, capacity: 30 } as any, adminActor()),
       );
-      const conflicts = await withTestTenant(async () =>
-        service.findRoomConflicts(session.id),
-      );
+      const conflicts = await withTestTenant(async () => service.findRoomConflicts(session.id));
       expect(conflicts).toEqual([]);
     });
 

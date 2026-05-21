@@ -20,11 +20,7 @@ import {
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   parentActor,
@@ -46,7 +42,9 @@ describe('integration:m101-events/controllers', () => {
   let rawClient: PrismaClient;
   let ctl: EventsController;
   let actorStub: SwitchingActorContext;
-  let req: { user: { sub: string; personId: string; email: string; displayName: string; sessionId: string } };
+  let req: {
+    user: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
+  };
 
   beforeAll(async () => {
     tenantPrisma = new TenantPrismaService();
@@ -105,11 +103,13 @@ describe('integration:m101-events/controllers', () => {
     return new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
   }
 
-  async function seedEventDirect(opts: {
-    schoolId?: string;
-    eventType?: string;
-    status?: string;
-  } = {}): Promise<string> {
+  async function seedEventDirect(
+    opts: {
+      schoolId?: string;
+      eventType?: string;
+      status?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.evt_events
@@ -169,11 +169,7 @@ describe('integration:m101-events/controllers', () => {
     it('tier endpoints: listTiers + createTier + patchTier', async () => {
       const id = await seedEventDirect({ status: 'DRAFT' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       expect(tier.name).toBe('GA');
 
@@ -192,18 +188,10 @@ describe('integration:m101-events/controllers', () => {
       vi.stubEnv('STRIPE_DEV_AUTO_CONFIRM', '');
       const id = await seedEventDirect({ status: 'ON_SALE' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       const ord = await withTestTenant(async () =>
-        ctl.purchase(
-          id,
-          { lines: [{ tierId: tier.id, quantity: 2 }] } as any,
-          req as any,
-        ),
+        ctl.purchase(id, { lines: [{ tierId: tier.id, quantity: 2 }] } as any, req as any),
       );
       expect(ord.status).toBe('PENDING');
 
@@ -226,18 +214,10 @@ describe('integration:m101-events/controllers', () => {
       vi.stubEnv('STRIPE_DEV_AUTO_CONFIRM', '');
       const id = await seedEventDirect({ status: 'ON_SALE' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       const ord = await withTestTenant(async () =>
-        ctl.purchase(
-          id,
-          { lines: [{ tierId: tier.id, quantity: 1 }] } as any,
-          req as any,
-        ),
+        ctl.purchase(id, { lines: [{ tierId: tier.id, quantity: 1 }] } as any, req as any),
       );
       const cancelled = await withTestTenant(async () =>
         ctl.cancelOrder(ord.id, { cancellationReason: 'x' } as any, req as any),
@@ -249,25 +229,13 @@ describe('integration:m101-events/controllers', () => {
       vi.stubEnv('STRIPE_DEV_AUTO_CONFIRM', 'true');
       const id = await seedEventDirect({ status: 'ON_SALE' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       const ord = await withTestTenant(async () =>
-        ctl.purchase(
-          id,
-          { lines: [{ tierId: tier.id, quantity: 1 }] } as any,
-          req as any,
-        ),
+        ctl.purchase(id, { lines: [{ tierId: tier.id, quantity: 1 }] } as any, req as any),
       );
       const refund = await withTestTenant(async () =>
-        ctl.issueRefund(
-          ord.id,
-          { refundAmount: 10, reason: 'requested' } as any,
-          req as any,
-        ),
+        ctl.issueRefund(ord.id, { refundAmount: 10, reason: 'requested' } as any, req as any),
       );
       expect(refund.refundAmount).toBe(10);
 
@@ -279,24 +247,13 @@ describe('integration:m101-events/controllers', () => {
       vi.stubEnv('STRIPE_DEV_AUTO_CONFIRM', 'true');
       const id = await seedEventDirect({ status: 'ON_SALE' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       const ord = await withTestTenant(async () =>
-        ctl.purchase(
-          id,
-          { lines: [{ tierId: tier.id, quantity: 1 }] } as any,
-          req as any,
-        ),
+        ctl.purchase(id, { lines: [{ tierId: tier.id, quantity: 1 }] } as any, req as any),
       );
       const result = await withTestTenant(async () =>
-        ctl.gateScan(
-          { qrCodeToken: ord.tickets[0]!.qrCodeToken } as any,
-          req as any,
-        ),
+        ctl.gateScan({ qrCodeToken: ord.tickets[0]!.qrCodeToken } as any, req as any),
       );
       expect(result.scanResult).toBe('VALID');
     });
@@ -333,16 +290,11 @@ describe('integration:m101-events/controllers', () => {
         eventId,
       );
       const gate = await withTestTenant(async () =>
-        ctl.seasonPassGate(
-          { passId: pass.id, eventId } as any,
-          req as any,
-        ),
+        ctl.seasonPassGate({ passId: pass.id, eventId } as any, req as any),
       );
       expect(gate.admitted).toBe(true);
 
-      const revoked = await withTestTenant(async () =>
-        ctl.revokeSeasonPass(pass.id, req as any),
-      );
+      const revoked = await withTestTenant(async () => ctl.revokeSeasonPass(pass.id, req as any));
       expect(revoked.status).toBe('REVOKED');
     });
   });
@@ -363,10 +315,7 @@ describe('integration:m101-events/controllers', () => {
       expect(list.length).toBe(1);
 
       const gate = await withTestTenant(async () =>
-        ctl.compGate(
-          { eventId, personId: TEST_ADMIN_PERSON_ID } as any,
-          req as any,
-        ),
+        ctl.compGate({ eventId, personId: TEST_ADMIN_PERSON_ID } as any, req as any),
       );
       expect(gate.admitted).toBe(true);
 
@@ -411,18 +360,10 @@ describe('integration:m101-events/controllers', () => {
       vi.stubEnv('STRIPE_DEV_AUTO_CONFIRM', 'true');
       const id = await seedEventDirect({ status: 'ON_SALE' });
       const tier = await withTestTenant(async () =>
-        ctl.createTier(
-          id,
-          { name: 'GA', price: 10, quantity: 50 } as any,
-          req as any,
-        ),
+        ctl.createTier(id, { name: 'GA', price: 10, quantity: 50 } as any, req as any),
       );
       await withTestTenant(async () =>
-        ctl.purchase(
-          id,
-          { lines: [{ tierId: tier.id, quantity: 2 }] } as any,
-          req as any,
-        ),
+        ctl.purchase(id, { lines: [{ tierId: tier.id, quantity: 2 }] } as any, req as any),
       );
       const report = await withTestTenant(async () => ctl.revenueForEvent(id, req as any));
       expect(report.grossTicketSales).toBe(20);
@@ -431,7 +372,9 @@ describe('integration:m101-events/controllers', () => {
       // the future. Pass a forward-looking `to` so the event falls in
       // the window.
       const to = dateFuture(30);
-      const summary = await withTestTenant(async () => ctl.revenueSummary(req as any, undefined, to));
+      const summary = await withTestTenant(async () =>
+        ctl.revenueSummary(req as any, undefined, to),
+      );
       expect(summary.totals.grossRevenue).toBeGreaterThan(0);
     });
   });

@@ -9,10 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { CurriculumMapService, UnitService } from '@modules/m25-curriculum/maps.service';
-import {
-  FrameworkService,
-  StandardService,
-} from '@modules/m25-curriculum/frameworks.service';
+import { FrameworkService, StandardService } from '@modules/m25-curriculum/frameworks.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
@@ -328,9 +325,7 @@ describe('integration:m25-curriculum/maps-crud', () => {
 
     it('PUBLISHED → ARCHIVED stamps archived_at', async () => {
       const id = await seedMap();
-      await withTestTenant(async () =>
-        mapService.patch(id, { status: 'PUBLISHED' }, adminActor()),
-      );
+      await withTestTenant(async () => mapService.patch(id, { status: 'PUBLISHED' }, adminActor()));
       const dto = await withTestTenant(async () =>
         mapService.patch(id, { status: 'ARCHIVED' }, adminActor()),
       );
@@ -341,9 +336,7 @@ describe('integration:m25-curriculum/maps-crud', () => {
     it('cross-school: patching from School B context → NotFoundException', async () => {
       const id = await seedMap();
       await expect(
-        withTestTenantB(async () =>
-          mapService.patch(id, { title: 'hijack' }, adminActor()),
-        ),
+        withTestTenantB(async () => mapService.patch(id, { title: 'hijack' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -415,9 +408,7 @@ describe('integration:m25-curriculum/maps-crud', () => {
     it('non-writer (teacher with no tch-008:write) → ForbiddenException', async () => {
       const mapId = await seedMap(TEST_SCHOOL_ID, TEST_SIS_ACADEMIC_YEAR_ID);
       await expect(
-        withTestTenant(async () =>
-          unitService.create(mapId, { title: 'denied' }, teacherActor()),
-        ),
+        withTestTenant(async () => unitService.create(mapId, { title: 'denied' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -458,10 +449,7 @@ describe('integration:m25-curriculum/maps-crud', () => {
     }
 
     it('swaps sequence_order via two-phase renumber', async () => {
-      const { mapId, u1, u2 } = await seedMapWithUnits(
-        TEST_SCHOOL_ID,
-        TEST_SIS_ACADEMIC_YEAR_ID,
-      );
+      const { mapId, u1, u2 } = await seedMapWithUnits(TEST_SCHOOL_ID, TEST_SIS_ACADEMIC_YEAR_ID);
       const list = await withTestTenant(async () =>
         unitService.reorder(
           mapId,

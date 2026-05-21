@@ -19,15 +19,8 @@ import {
   TEST_SCHOOL_ID,
   TEST_SUBDOMAIN,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  TEST_TEACHER_EMPLOYEE_ID,
-} from '../helpers/actor';
-import {
-  TEST_SIS_CLASS_ID,
-  TEST_SIS_TERM_ID,
-} from '../fixtures/sis';
+import { adminActor, teacherActor, TEST_TEACHER_EMPLOYEE_ID } from '../helpers/actor';
+import { TEST_SIS_CLASS_ID, TEST_SIS_TERM_ID } from '../fixtures/sis';
 import {
   seedStudent,
   enrollStudent,
@@ -174,9 +167,7 @@ describe('integration:m21-classroom/gradebook-snapshot', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_gradebook_snapshots`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_gradebook_snapshots`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_grades`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_submissions`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_assignments`);
@@ -287,7 +278,12 @@ describe('integration:m21-classroom/gradebook-snapshot', () => {
       await worker.flushAllForTest();
 
       const snap = await rawClient.$queryRawUnsafe<
-        Array<{ current_average: string; letter_grade: string; assignments_graded: number; assignments_total: number }>
+        Array<{
+          current_average: string;
+          letter_grade: string;
+          assignments_graded: number;
+          assignments_total: number;
+        }>
       >(
         `SELECT current_average::text AS current_average, letter_grade,
                 assignments_graded, assignments_total

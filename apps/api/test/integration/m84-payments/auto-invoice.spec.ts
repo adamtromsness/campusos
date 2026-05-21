@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -17,11 +13,7 @@ import {
   TEST_SCHOOL_B_ID,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  TEST_PARENT_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, teacherActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
 import { resetFinanceAdvancedTables } from '../helpers/reset';
 import { TEST_ACADEMIC_YEAR_ID } from '../fixtures/finance';
 
@@ -59,10 +51,7 @@ describe('integration:m84-payments/auto-invoice', () => {
     );
   });
 
-  async function seedFamily(opts?: {
-    schoolId?: string;
-    holderId?: string;
-  }): Promise<string> {
+  async function seedFamily(opts?: { schoolId?: string; holderId?: string }): Promise<string> {
     const id = generateId();
     await rawClient.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.pay_family_accounts
@@ -186,9 +175,7 @@ describe('integration:m84-payments/auto-invoice', () => {
       expect(r.triggerType).toBe('DATE_OF_MONTH');
       expect(r.triggerDayOfMonth).toBe(15);
 
-      const list = await withTestTenant(async () =>
-        service.listRules(false, adminActor()),
-      );
+      const list = await withTestTenant(async () => service.listRules(false, adminActor()));
       expect(list.find((x) => x.id === r.id)).toBeDefined();
 
       const got = await withTestTenant(async () => service.getRuleById(r.id, adminActor()));
@@ -271,13 +258,9 @@ describe('integration:m84-payments/auto-invoice', () => {
           adminActor(),
         ),
       );
-      const active = await withTestTenant(async () =>
-        service.listRules(false, adminActor()),
-      );
+      const active = await withTestTenant(async () => service.listRules(false, adminActor()));
       expect(active.find((x) => x.id === r.id)).toBeUndefined();
-      const all = await withTestTenant(async () =>
-        service.listRules(true, adminActor()),
-      );
+      const all = await withTestTenant(async () => service.listRules(true, adminActor()));
       expect(all.find((x) => x.id === r.id)).toBeDefined();
     });
 
@@ -325,9 +308,7 @@ describe('integration:m84-payments/auto-invoice', () => {
           adminActor(),
         ),
       );
-      const u = await withTestTenant(async () =>
-        service.updateRule(r.id, {}, adminActor()),
-      );
+      const u = await withTestTenant(async () => service.updateRule(r.id, {}, adminActor()));
       expect(u.id).toBe(r.id);
     });
 
@@ -371,7 +352,10 @@ describe('integration:m84-payments/auto-invoice', () => {
   // ─── Generation ──────────────────────────────────────────────
 
   describe('Generation', () => {
-    async function seedFamilyWithStudents(grade: string, count: number): Promise<{
+    async function seedFamilyWithStudents(
+      grade: string,
+      count: number,
+    ): Promise<{
       familyId: string;
       studentIds: string[];
     }> {
@@ -400,17 +384,13 @@ describe('integration:m84-payments/auto-invoice', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          service.triggerRule(r.id, {}, adminActor()),
-        ),
+        withTestTenant(async () => service.triggerRule(r.id, {}, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('triggerRule by non-admin → Forbidden', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.triggerRule(generateId(), {}, teacherActor()),
-        ),
+        withTestTenant(async () => service.triggerRule(generateId(), {}, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -514,11 +494,7 @@ describe('integration:m84-payments/auto-invoice', () => {
         ),
       );
       const run = await withTestTenant(async () =>
-        service.triggerRule(
-          rule.id,
-          { academicYearId: TEST_ACADEMIC_YEAR_ID },
-          adminActor(),
-        ),
+        service.triggerRule(rule.id, { academicYearId: TEST_ACADEMIC_YEAR_ID }, adminActor()),
       );
       expect(run.status).toBe('COMPLETED');
       expect(run.invoicesCreated).toBe(1);
@@ -614,9 +590,7 @@ describe('integration:m84-payments/auto-invoice', () => {
 
     it('listRuns returns recent runs', async () => {
       const runId = await seedCompletedRun();
-      const list = await withTestTenant(async () =>
-        service.listRuns({}, adminActor()),
-      );
+      const list = await withTestTenant(async () => service.listRuns({}, adminActor()));
       expect(list.find((r) => r.id === runId)).toBeDefined();
     });
 

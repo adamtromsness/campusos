@@ -48,12 +48,8 @@ describe('integration:m21-classroom/class-moments', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_class_moment_reactions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_class_moment_photos`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_class_moment_reactions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_class_moment_photos`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_class_moments`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
     await cleanupSeededIds(rawClient, {
@@ -208,11 +204,7 @@ describe('integration:m21-classroom/class-moments', () => {
       }
       await enrollStudent(rawClient, studentId);
       await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'a' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'a' }] } as any, adminActor()),
       );
       const list = await withTestTenant(
         async () => service.listForClass(TEST_SIS_CLASS_ID, studentActor()),
@@ -223,10 +215,9 @@ describe('integration:m21-classroom/class-moments', () => {
 
     it('non-enrolled student → NotFoundException', async () => {
       await expect(
-        withTestTenant(
-          async () => service.listForClass(TEST_SIS_CLASS_ID, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.listForClass(TEST_SIS_CLASS_ID, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -241,11 +232,7 @@ describe('integration:m21-classroom/class-moments', () => {
       guardianIds.push(gid);
       await linkStudentGuardian(rawClient, s.studentId, gid);
       await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'p' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'p' }] } as any, adminActor()),
       );
       const list = await withTestTenant(
         async () => service.listForClass(TEST_SIS_CLASS_ID, parentActor()),
@@ -258,11 +245,7 @@ describe('integration:m21-classroom/class-moments', () => {
   describe('delete', () => {
     it('admin can delete any moment', async () => {
       const m = await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'd1' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'd1' }] } as any, adminActor()),
       );
       await withTestTenant(async () => service.delete(m.id, adminActor()));
       await expect(
@@ -274,11 +257,7 @@ describe('integration:m21-classroom/class-moments', () => {
       await assignTeacherToClass(rawClient, TEST_SIS_CLASS_ID, TEST_TEACHER_EMPLOYEE_ID);
       // Admin posts; non-poster teacher tries to delete
       const m = await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'd2' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'd2' }] } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () => service.delete(m.id, teacherActor())),
@@ -297,11 +276,7 @@ describe('integration:m21-classroom/class-moments', () => {
   describe('react / unreact', () => {
     it('admin can react to a moment + unreact', async () => {
       const m = await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'r' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'r' }] } as any, adminActor()),
       );
       const reacted = await withTestTenant(async () =>
         service.react(m.id, { reactionType: 'LIKE' } as any, adminActor()),
@@ -314,11 +289,7 @@ describe('integration:m21-classroom/class-moments', () => {
 
     it('invalid reactionType → BadRequestException', async () => {
       const m = await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'r' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'r' }] } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
@@ -329,11 +300,7 @@ describe('integration:m21-classroom/class-moments', () => {
 
     it('react upsert: changing reaction type updates the existing row', async () => {
       const m = await withTestTenant(async () =>
-        service.create(
-          TEST_SIS_CLASS_ID,
-          { photos: [{ s3Key: 'r' }] } as any,
-          adminActor(),
-        ),
+        service.create(TEST_SIS_CLASS_ID, { photos: [{ s3Key: 'r' }] } as any, adminActor()),
       );
       const first = await withTestTenant(async () =>
         service.react(m.id, { reactionType: 'LIKE' } as any, adminActor()),

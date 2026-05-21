@@ -17,11 +17,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import {
   resetTransportTables,
   ensureTransportSeed,
@@ -94,15 +90,11 @@ describe('integration:m61-transport/gps-fleet-controller', () => {
 
   it('positions — ingest + getLatest + history', async () => {
     const pos = await withTestTenant(async () =>
-      ctl.ingestPosition(
-        req,
-        TEST_VEHICLE_ID,
-        {
-          latitude: 33.5,
-          longitude: -84.5,
-          speedKph: 35,
-        } as any,
-      ),
+      ctl.ingestPosition(req, TEST_VEHICLE_ID, {
+        latitude: 33.5,
+        longitude: -84.5,
+        speedKph: 35,
+      } as any),
     );
     expect(pos.vehicleId).toBe(TEST_VEHICLE_ID);
 
@@ -181,20 +173,20 @@ describe('integration:m61-transport/gps-fleet-controller', () => {
 
     // Position inside the geofence
     await withTestTenant(async () =>
-      ctl.ingestPosition(
-        req,
-        TEST_VEHICLE_ID,
-        { latitude: 33.5, longitude: -84.5, speedKph: 10 } as any,
-      ),
+      ctl.ingestPosition(req, TEST_VEHICLE_ID, {
+        latitude: 33.5,
+        longitude: -84.5,
+        speedKph: 10,
+      } as any),
     );
 
     // Move away — outside the 200m radius
     await withTestTenant(async () =>
-      ctl.ingestPosition(
-        req,
-        TEST_VEHICLE_ID,
-        { latitude: 34.0, longitude: -85.0, speedKph: 50 } as any,
-      ),
+      ctl.ingestPosition(req, TEST_VEHICLE_ID, {
+        latitude: 34.0,
+        longitude: -85.0,
+        speedKph: 50,
+      } as any),
     );
 
     const events = await withTestTenant(async () =>

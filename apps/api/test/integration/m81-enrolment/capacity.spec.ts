@@ -19,10 +19,7 @@ import {
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
 import { adminActor, parentActor, TEST_PARENT_PERSON_ID } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 4 — m81-enrolment CapacitySummaryService DB-backed integration tests.
@@ -59,10 +56,7 @@ describe('integration:m81-enrolment/capacity', () => {
     kafka = makeRecordingKafka();
     outbox = new OutboxService();
     capacity = new CapacitySummaryService();
-    onboarding = new OnboardingService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    onboarding = new OnboardingService(tenantPrisma, kafka as unknown as KafkaProducerService);
     appService = new ApplicationService(
       tenantPrisma,
       kafka as unknown as KafkaProducerService,
@@ -84,31 +78,17 @@ describe('integration:m81-enrolment/capacity', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
 
     periodAId = generateId();
     await rawClient.$executeRawUnsafe(
@@ -306,9 +286,7 @@ describe('integration:m81-enrolment/capacity', () => {
   describe('application status pipeline recomputes capacity', () => {
     it('submitting an application increments applications_received', async () => {
       await seedCapacity(periodAId, '5', 30);
-      await withTestTenant(async () =>
-        appService.create(buildAppPayload(), adminActor()),
-      );
+      await withTestTenant(async () => appService.create(buildAppPayload(), adminActor()));
       const sum = await readSummary(periodAId, '5');
       expect(sum!.applications_received).toBe(1);
       expect(sum!.waitlisted).toBe(0);
@@ -320,11 +298,7 @@ describe('integration:m81-enrolment/capacity', () => {
         appService.create(buildAppPayload(), adminActor()),
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'WAITLISTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'WAITLISTED' } as any, adminActor()),
       );
       const sum = await readSummary(periodAId, '5');
       expect(sum!.waitlisted).toBe(1);
@@ -337,19 +311,11 @@ describe('integration:m81-enrolment/capacity', () => {
         { personId: TEST_PARENT_PERSON_ID },
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'ACCEPTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          dto.id,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(dto.id, { responseDeadline: deadline } as any, adminActor()),
       );
       let sum = await readSummary(periodAId, '5');
       expect(sum!.offers_issued).toBe(1);
@@ -358,11 +324,7 @@ describe('integration:m81-enrolment/capacity', () => {
 
       await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       sum = await readSummary(periodAId, '5');
@@ -417,9 +379,7 @@ describe('integration:m81-enrolment/capacity', () => {
       await seedCapacity(periodAId, '5', 30);
       await seedCapacity(periodBId, '5', 50);
       // App in A
-      await withTestTenant(async () =>
-        appService.create(buildAppPayload(), adminActor()),
-      );
+      await withTestTenant(async () => appService.create(buildAppPayload(), adminActor()));
       // recompute B from a clean slate
       await withTestTenantB(async () => {
         await tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -442,10 +402,7 @@ describe('integration:m81-enrolment/capacity', () => {
       // applications_received column matches the source-of-truth count.
       for (let i = 0; i < 3; i++) {
         await withTestTenant(async () =>
-          appService.create(
-            buildAppPayload({ firstName: 'A' + i }),
-            adminActor(),
-          ),
+          appService.create(buildAppPayload({ firstName: 'A' + i }), adminActor()),
         );
       }
       const sum = await readSummary(periodAId, '5');

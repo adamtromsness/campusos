@@ -35,19 +35,13 @@ import { AudienceFanOutWorker } from '@modules/m40-communications/announcements/
 import { NotificationDeliveryWorker } from '@modules/m40-communications/notifications/notification-delivery.worker';
 import { PushCampaignWorker } from '@modules/m40-communications/push/push-campaign.worker';
 
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SUBDOMAIN,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SUBDOMAIN } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_TEACHER_ACCOUNT_ID,
   TEST_PARENT_ACCOUNT_ID,
 } from '../helpers/actor';
-import {
-  TEST_THREAD_TYPE_DIRECT_ID,
-} from '../fixtures/communications';
+import { TEST_THREAD_TYPE_DIRECT_ID } from '../fixtures/communications';
 
 /**
  * Wave 5 — m40-communications consumers + workers spec.
@@ -171,9 +165,7 @@ describe('integration:m40-communications/consumers-workers', () => {
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_messages`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_thread_participants`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_threads`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_audiences`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcement_reads`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_announcements`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_translations`);
@@ -184,24 +176,16 @@ describe('integration:m40-communications/consumers-workers', () => {
       TEST_PARENT_ACCOUNT_ID,
       TEST_TEACHER_ACCOUNT_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_broadcast_analytics`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_push_analytics_contributions`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_push_analytics`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_push_analytics`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_push_campaigns WHERE title LIKE 'IT-%'`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_contributions`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_contributions`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_rules WHERE name LIKE 'IT-%'`,
     );
@@ -327,9 +311,7 @@ describe('integration:m40-communications/consumers-workers', () => {
       );
       expect(rows.map((r) => r.recipient_id)).toContain(TEST_TEACHER_ACCOUNT_ID);
       // Idempotency claimed
-      expect(
-        await idempotency.isClaimed('message-notification-consumer', eventId),
-      ).toBe(true);
+      expect(await idempotency.isClaimed('message-notification-consumer', eventId)).toBe(true);
       // Redelivery is a no-op
       await (messageConsumer as any).handle(msg);
     });

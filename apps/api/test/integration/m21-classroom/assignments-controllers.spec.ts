@@ -231,9 +231,7 @@ describe('integration:m21-classroom/assignments-controllers', () => {
       );
       expect(list.map((a) => a.id)).toContain(created.id);
 
-      await withTestTenant(async () =>
-        assignmentController.remove(created.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => assignmentController.remove(created.id, fakeAdminReq()));
       const listAfter = await withTestTenant(async () =>
         assignmentController.listForClass(TEST_SIS_CLASS_ID, {} as any, fakeAdminReq()),
       );
@@ -331,11 +329,7 @@ describe('integration:m21-classroom/assignments-controllers', () => {
       expect(listAll.map((r) => r.id)).toContain(created.id);
 
       const updated = await withTestTenant(async () =>
-        rubricController.update(
-          created.id,
-          { title: 'Renamed Rubric' } as any,
-          fakeAdminReq(),
-        ),
+        rubricController.update(created.id, { title: 'Renamed Rubric' } as any, fakeAdminReq()),
       );
       expect(updated.title).toBe('Renamed Rubric');
 
@@ -354,9 +348,7 @@ describe('integration:m21-classroom/assignments-controllers', () => {
         rubricController.create(
           {
             title: 'Scoring Rubric',
-            criteria: [
-              { criterionName: 'Quality', weight: 100, maxPoints: 10, sortOrder: 0 },
-            ],
+            criteria: [{ criterionName: 'Quality', weight: 100, maxPoints: 10, sortOrder: 0 }],
           } as any,
           fakeAdminReq(),
         ),
@@ -559,9 +551,7 @@ describe('integration:m21-classroom/assignments-controllers', () => {
             classId: TEST_SIS_CLASS_ID,
             title: 'Poll',
             assessmentType: 'POLL',
-            questions: [
-              { questionId: 'q1', prompt: 'Favorite color?', responseType: 'TEXT' },
-            ],
+            questions: [{ questionId: 'q1', prompt: 'Favorite color?', responseType: 'TEXT' }],
           } as any,
           fakeAdminReq(),
         ),

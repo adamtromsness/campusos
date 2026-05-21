@@ -268,9 +268,7 @@ describe('integration:m83-finance/budget-management', () => {
 
     it('patch as non-admin → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          budgets.patch(officerActor(), TEST_BUDGET_ID, { name: 'X' }),
-        ),
+        withTestTenant(async () => budgets.patch(officerActor(), TEST_BUDGET_ID, { name: 'X' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -410,7 +408,13 @@ describe('integration:m83-finance/budget-management', () => {
         deptBudgets.create(adminActor(), {
           academicYearId: TEST_ACADEMIC_YEAR_ID,
           department,
-          budgetCategory: category as 'PERSONNEL' | 'SUPPLIES' | 'EQUIPMENT' | 'CONTRACTED_SERVICES' | 'TRAVEL' | 'OTHER',
+          budgetCategory: category as
+            | 'PERSONNEL'
+            | 'SUPPLIES'
+            | 'EQUIPMENT'
+            | 'CONTRACTED_SERVICES'
+            | 'TRAVEL'
+            | 'OTHER',
           allocatedAmount: allocated,
         }),
       );
@@ -567,10 +571,7 @@ describe('integration:m83-finance/budget-management', () => {
   // BudgetTransferService — KEYSTONE atomic transfer + outbox-in-tx
   // ────────────────────────────────────────────────────────────────────
   describe('BudgetTransferService', () => {
-    async function seedTwoBudgets(
-      a = 5000,
-      b = 5000,
-    ): Promise<{ fromId: string; toId: string }> {
+    async function seedTwoBudgets(a = 5000, b = 5000): Promise<{ fromId: string; toId: string }> {
       const from = await withTestTenant(async () =>
         deptBudgets.create(adminActor(), {
           academicYearId: TEST_ACADEMIC_YEAR_ID,
@@ -839,9 +840,8 @@ describe('integration:m83-finance/budget-management', () => {
         const eventId1 = envelope1.event_id;
 
         // Re-derive the deterministic id from the same input
-        const { deterministicBudgetTransferApprovedEventId } = await import(
-          '@modules/m83-finance/event-ids-advanced'
-        );
+        const { deterministicBudgetTransferApprovedEventId } =
+          await import('@modules/m83-finance/event-ids-advanced');
         const expected = deterministicBudgetTransferApprovedEventId(created.id);
         expect(eventId1).toBe(expected);
       });
@@ -951,15 +951,11 @@ describe('integration:m83-finance/budget-management', () => {
         );
         await withTestTenant(async () => transfers.approve(adminActor(), t1.id));
 
-        const approved = await withTestTenant(async () =>
-          transfers.list(adminActor(), 'APPROVED'),
-        );
+        const approved = await withTestTenant(async () => transfers.list(adminActor(), 'APPROVED'));
         expect(approved.find((row) => row.id === t1.id)).toBeDefined();
         expect(approved.find((row) => row.id === t2.id)).toBeUndefined();
 
-        const pending = await withTestTenant(async () =>
-          transfers.list(adminActor(), 'PENDING'),
-        );
+        const pending = await withTestTenant(async () => transfers.list(adminActor(), 'PENDING'));
         expect(pending.find((row) => row.id === t2.id)).toBeDefined();
         expect(pending.find((row) => row.id === t1.id)).toBeUndefined();
       });

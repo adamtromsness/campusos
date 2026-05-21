@@ -95,11 +95,7 @@ describe('integration:m65-facilities/pm-lifecycle', () => {
     it('patch assignedToId', async () => {
       const wo = await makeWO();
       const patched = await withTestTenant(async () =>
-        workOrders.patch(
-          wo.id,
-          { assignedToId: TEST_ADMIN_EMPLOYEE_ID } as any,
-          adminActor(),
-        ),
+        workOrders.patch(wo.id, { assignedToId: TEST_ADMIN_EMPLOYEE_ID } as any, adminActor()),
       );
       expect(patched.assignedToId).toBe(TEST_ADMIN_EMPLOYEE_ID);
     });
@@ -164,7 +160,11 @@ describe('integration:m65-facilities/pm-lifecycle', () => {
       expect(items.length).toBe(3);
 
       const patched = await withTestTenant(async () =>
-        plans.patch(plan.id, { description: 'Updated description', frequencyMonths: 6 } as any, adminActor()),
+        plans.patch(
+          plan.id,
+          { description: 'Updated description', frequencyMonths: 6 } as any,
+          adminActor(),
+        ),
       );
       expect(patched.id).toBe(plan.id);
 
@@ -179,9 +179,7 @@ describe('integration:m65-facilities/pm-lifecycle', () => {
       expect(gen.created).toBeGreaterThan(0);
 
       // Task list/getById/patch
-      const taskList = await withTestTenant(async () =>
-        tasks.list({ planId: plan.id }),
-      );
+      const taskList = await withTestTenant(async () => tasks.list({ planId: plan.id }));
       expect(taskList.length).toBe(gen.created);
 
       const firstTask = taskList[0]!;
@@ -220,9 +218,7 @@ describe('integration:m65-facilities/pm-lifecycle', () => {
           adminActor(),
         ),
       );
-      const scheduled = await withTestTenant(async () =>
-        tasks.list({ status: 'SCHEDULED' }),
-      );
+      const scheduled = await withTestTenant(async () => tasks.list({ status: 'SCHEDULED' }));
       expect(scheduled.length).toBeGreaterThan(0);
     });
 
@@ -237,11 +233,7 @@ describe('integration:m65-facilities/pm-lifecycle', () => {
       );
       expect(gen.firstId).not.toBeNull();
       await withTestTenant(async () =>
-        tasks.patch(
-          gen.firstId!,
-          { assignedTo: TEST_ADMIN_EMPLOYEE_ID } as any,
-          adminActor(),
-        ),
+        tasks.patch(gen.firstId!, { assignedTo: TEST_ADMIN_EMPLOYEE_ID } as any, adminActor()),
       );
       const list = await withTestTenant(async () =>
         tasks.list({ assignedTo: TEST_ADMIN_EMPLOYEE_ID }),

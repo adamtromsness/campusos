@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import type { ResolvedActor } from '@modules/m00-platform';
@@ -13,11 +9,7 @@ import { SessionNoteService } from '@modules/m27-student-services/counselling/se
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -153,10 +145,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
     return studentId;
   }
 
-  async function seedCaseload(
-    studentId: string,
-    counselorEmployeeId: string,
-  ): Promise<string> {
+  async function seedCaseload(studentId: string, counselorEmployeeId: string): Promise<string> {
     const caseloadId = generateId();
     createdCaseloadIds.push(caseloadId);
     await rawClient.$executeRawUnsafe(
@@ -264,7 +253,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       expect(dto.primaryCaseloadId).toBeNull();
     });
 
-    it('non-admin counsellor creating on a DIFFERENT counsellor\'s calendar → Forbidden', async () => {
+    it("non-admin counsellor creating on a DIFFERENT counsellor's calendar → Forbidden", async () => {
       await grantOfficerCounsellor();
       await expect(
         withTestTenant(async () =>
@@ -366,7 +355,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       expect(dto.notes).toBe('productive session');
     });
 
-    it('non-admin counsellor cannot patch a different counsellor\'s session → Forbidden', async () => {
+    it("non-admin counsellor cannot patch a different counsellor's session → Forbidden", async () => {
       const sessionId = await createForAdmin();
       await grantOfficerCounsellor();
       await expect(
@@ -520,7 +509,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       expect(completed.map((r) => r.id)).toContain(dto.id);
     });
 
-    it('loadOrFail with non-admin actor reading another counsellor\'s session → NotFound (don\'t-leak)', async () => {
+    it("loadOrFail with non-admin actor reading another counsellor's session → NotFound (don't-leak)", async () => {
       const dto = await withTestTenant(async () =>
         sessions.create(
           {
@@ -590,7 +579,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('non-admin counsellor cannot add participant to another counsellor\'s session', async () => {
+    it("non-admin counsellor cannot add participant to another counsellor's session", async () => {
       const studentId = await seedStudent('PartFor');
       const group = await withTestTenant(async () =>
         sessions.create(
@@ -751,11 +740,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       const otherStudent = await seedStudent('NotInSess');
       await expect(
         withTestTenant(async () =>
-          notes.create(
-            sessionId,
-            { studentId: otherStudent, notesText: 'x' } as any,
-            adminActor(),
-          ),
+          notes.create(sessionId, { studentId: otherStudent, notesText: 'x' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -848,7 +833,7 @@ describe('integration:m27-student-services/counselling-sessions', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('non-admin counsellor cannot patch a note on another counsellor\'s session', async () => {
+    it("non-admin counsellor cannot patch a note on another counsellor's session", async () => {
       const { sessionId, studentId } = await setupAdminSessionWithStudent();
       const note = await withTestTenant(async () =>
         notes.create(sessionId, { studentId, notesText: 'admin owned' } as any, adminActor()),
@@ -873,8 +858,9 @@ describe('integration:m27-student-services/counselling-sessions', () => {
     });
 
     it('no unlock surface exists on SessionNoteService', () => {
-      const methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(notes))
-        .filter((n) => typeof (notes as any)[n] === 'function');
+      const methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(notes)).filter(
+        (n) => typeof (notes as any)[n] === 'function',
+      );
       expect(methodNames).not.toContain('unlock');
     });
   });

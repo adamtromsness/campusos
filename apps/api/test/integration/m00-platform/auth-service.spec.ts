@@ -91,9 +91,9 @@ describe('integration:m00-platform/auth-service', () => {
     });
 
     it('verifyToken returns null on a token signed with a different secret', () => {
-      const wrongSecretAuth = new (auth.constructor as new (
-        prisma: PrismaClient,
-      ) => AuthService)(prisma);
+      const wrongSecretAuth = new (auth.constructor as new (prisma: PrismaClient) => AuthService)(
+        prisma,
+      );
       // Force a different secret by reaching in (the test's purpose is to
       // confirm bad signatures fail; the env-default secret is shared
       // within one process so we forge a token signed manually).
@@ -130,9 +130,7 @@ describe('integration:m00-platform/auth-service', () => {
     });
 
     it('returns null for an unknown email', async () => {
-      const result = await auth.authenticateByEmail(
-        'nonexistent-' + generateId() + '@example.com',
-      );
+      const result = await auth.authenticateByEmail('nonexistent-' + generateId() + '@example.com');
       expect(result).toBeNull();
     });
 

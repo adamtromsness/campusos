@@ -17,11 +17,7 @@ import { type ActorContextService, type ResolvedActor } from '@modules/m00-platf
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -207,7 +203,9 @@ describe('integration:m103-groups/controllers', () => {
     });
 
     it('listMembers + listMyMemberships', async () => {
-      const list = await withTestTenant(async () => ctl.listMembers(TEST_GROUP_OPEN_A_ID, adminReq()));
+      const list = await withTestTenant(async () =>
+        ctl.listMembers(TEST_GROUP_OPEN_A_ID, adminReq()),
+      );
       expect(list.length).toBe(1);
       const mine = await withTestTenant(async () => ctl.listMyMemberships(adminReq()));
       expect(mine.length).toBeGreaterThanOrEqual(3);
@@ -227,11 +225,7 @@ describe('integration:m103-groups/controllers', () => {
       await ensureStudentInSchoolA();
       actorStub.current = adminActor();
       const m = await withTestTenant(async () =>
-        ctl.invite(
-          TEST_GROUP_OPEN_A_ID,
-          { personId: TEST_STUDENT_ACCOUNT_ID } as any,
-          adminReq(),
-        ),
+        ctl.invite(TEST_GROUP_OPEN_A_ID, { personId: TEST_STUDENT_ACCOUNT_ID } as any, adminReq()),
       );
       expect(m.status).toBe('INVITED');
       actorStub.current = studentActor();
@@ -243,11 +237,7 @@ describe('integration:m103-groups/controllers', () => {
       await ensureStudentInSchoolA();
       actorStub.current = adminActor();
       const m = await withTestTenant(async () =>
-        ctl.invite(
-          TEST_GROUP_OPEN_A_ID,
-          { personId: TEST_STUDENT_ACCOUNT_ID } as any,
-          adminReq(),
-        ),
+        ctl.invite(TEST_GROUP_OPEN_A_ID, { personId: TEST_STUDENT_ACCOUNT_ID } as any, adminReq()),
       );
       actorStub.current = studentActor();
       const r = await withTestTenant(async () => ctl.declineInvite(m.id, studentReq()));

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { ActivityService } from '@modules/m64-clubs/activities/activity.service';
@@ -19,12 +15,7 @@ import {
   TEST_SCHEMA,
   TEST_SCHOOL_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, teacherActor, studentActor, parentActor } from '../helpers/actor';
 import { seedStudent } from '../m20-sis/sis-helpers';
 import {
   resetClubsAndStudents,
@@ -37,10 +28,7 @@ import {
   TEST_PROGRAMME_A_ID,
   TEST_PROGRAMME_B_ID,
 } from '../fixtures/clubs';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 7 — m64-clubs core suite. Covers ActivityService (types,
@@ -182,10 +170,7 @@ describe('integration:m64-clubs/clubs', () => {
 
     it('createType: admin succeeds', async () => {
       const dto = await withTestTenant(async () =>
-        activities.createType(
-          { name: 'Robotics', category: 'ACADEMIC' } as any,
-          adminActor(),
-        ),
+        activities.createType({ name: 'Robotics', category: 'ACADEMIC' } as any, adminActor()),
       );
       expect(dto.name).toBe('Robotics');
       expect(dto.schoolId).toBe(TEST_SCHOOL_ID);
@@ -194,10 +179,7 @@ describe('integration:m64-clubs/clubs', () => {
     it('createType: duplicate name same school → BadRequestException', async () => {
       await expect(
         withTestTenant(async () =>
-          activities.createType(
-            { name: 'Soccer', category: 'SPORT' } as any,
-            adminActor(),
-          ),
+          activities.createType({ name: 'Soccer', category: 'SPORT' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -205,10 +187,7 @@ describe('integration:m64-clubs/clubs', () => {
     it('createType: student → ForbiddenException', async () => {
       await expect(
         withTestTenant(async () =>
-          activities.createType(
-            { name: 'X', category: 'OTHER' } as any,
-            studentActor(),
-          ),
+          activities.createType({ name: 'X', category: 'OTHER' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -225,7 +204,11 @@ describe('integration:m64-clubs/clubs', () => {
       expect(all.map((a) => a.id)).not.toContain(TEST_ACTIVITY_B_ID);
 
       const filtered = await withTestTenant(async () =>
-        activities.list({ category: 'SPORT', status: 'ACTIVE', academicYearId: TEST_SIS_ACADEMIC_YEAR_ID }),
+        activities.list({
+          category: 'SPORT',
+          status: 'ACTIVE',
+          academicYearId: TEST_SIS_ACADEMIC_YEAR_ID,
+        }),
       );
       expect(filtered.map((a) => a.id)).toContain(TEST_ACTIVITY_A_ID);
     });
@@ -279,7 +262,13 @@ describe('integration:m64-clubs/clubs', () => {
       const dto = await withTestTenant(async () =>
         activities.patch(
           TEST_ACTIVITY_A_ID,
-          { name: 'Renamed Soccer', status: 'INACTIVE', description: 'Updated', meetingLocation: 'Gym B', maxParticipants: 25 } as any,
+          {
+            name: 'Renamed Soccer',
+            status: 'INACTIVE',
+            description: 'Updated',
+            meetingLocation: 'Gym B',
+            maxParticipants: 25,
+          } as any,
           adminActor(),
         ),
       );
@@ -612,7 +601,13 @@ describe('integration:m64-clubs/clubs', () => {
       const patched = await withTestTenant(async () =>
         schedules.patch(
           created.id,
-          { dayOfWeek: 2, startTime: '16:00', endTime: '17:00', location: 'Field B', isActive: false } as any,
+          {
+            dayOfWeek: 2,
+            startTime: '16:00',
+            endTime: '17:00',
+            location: 'Field B',
+            isActive: false,
+          } as any,
           adminActor(),
         ),
       );
@@ -844,17 +839,13 @@ describe('integration:m64-clubs/clubs', () => {
 
     it('leaderboard: student → ForbiddenException (MAJOR 6)', async () => {
       await expect(
-        withTestTenant(async () =>
-          programmes.getLeaderboard(TEST_PROGRAMME_A_ID, studentActor()),
-        ),
+        withTestTenant(async () => programmes.getLeaderboard(TEST_PROGRAMME_A_ID, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('leaderboard: parent → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          programmes.getLeaderboard(TEST_PROGRAMME_A_ID, parentActor()),
-        ),
+        withTestTenant(async () => programmes.getLeaderboard(TEST_PROGRAMME_A_ID, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

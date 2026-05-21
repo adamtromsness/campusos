@@ -17,6 +17,7 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 - 0 unjustified test skips
 
 **Build health:**
+
 - `pnpm --filter @campusos/api build` — 0 errors
 - `pnpm --filter @campusos/api test:integration` — 7543 passing, 0 failures
 - `tsc --noEmit` — 0 production errors
@@ -26,6 +27,7 @@ Switch runtime `DATABASE_URL` to `campusos_app` role (non-owner DML).
 REVOKE DDL + LOGIN role exist in `provision-tenant.ts`. Ops config change.
 
 **References:**
+
 - Wave review docs: `docs/reviews/WAVE{N}-FINAL-VERIFICATION.md`
 - Test strategy: `docs/campusos-test-strategy-v3.html`
 - Phase 2 completion report: `docs/reviews/campusos-phase2-completion-report.html`
@@ -215,6 +217,7 @@ Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Su
 ## Design Documents (authoritative references)
 
 **Frozen specs** (`docs/architecture/`):
+
 - `campusos-erd-v11.html` — ~840 tables with columns, constraints, indexes, partitioning, Kafka events, ADR refs
 - `campusos-architecture-review-v10.html` — system architecture, multi-tenancy, IAM, events, scalability, security
 - `campusos-function-library-v11.html` — 165 functions × 3 tiers = 495 permission codes
@@ -225,16 +228,19 @@ Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Su
 **Reviews** (`docs/reviews/`): handoffs/, architectural reviews, codex/adversarial/peer reviews, phase2-completion-report.
 
 **Operations** (`docs/operations/`):
+
 - `kafka-operations-runbook.md` — consumer retry policy, DLQ shape, replay, escalation SLAs
 - `kafka-topic-registry.md` — every Kafka topic (~110 across 38 modules)
 - `migration-orchestration.md` — tenant migration authoring (splitter, idempotency, expand/contract, rollout sequencing)
 - `procurement-integration-test-harness.md`
 
 **Policies** (`docs/policies/`):
+
 - `ai-data-policy.md` — categorical exclusions (health, behaviour, counselling, wellbeing, mandatory reports, banned persons, HR, financial, DPO, verification docs never sent to AI even with consent); PII pseudonym-map; zero-retention + training opt-out + EU/US region pinning; 90-day pseudonymisation of inference logs
 - `retention-pseudonymisation-matrix.md` — per-record-class retention + lawful basis + pseudonymisation across 36 record classes
 
 **Other** (`docs/`):
+
 - `campusos-test-coverage-plan.html` — per-tier targets (Financial ≥95%, Auth+IAM ≥95%, Core ≥80%, Operational ≥80%)
 - `campusos-phase3-roadmap.html`, `campusos-hardening-cycles.html`, `campusos-restructure-plan.html`, `design-hub/index.html`
 

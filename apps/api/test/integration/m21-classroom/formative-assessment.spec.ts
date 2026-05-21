@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -23,10 +19,7 @@ import {
   TEST_STUDENT_PERSON_ID,
   TEST_TEACHER_EMPLOYEE_ID,
 } from '../helpers/actor';
-import {
-  TEST_SIS_CLASS_ID,
-  TEST_SIS_CLASS_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_CLASS_ID, TEST_SIS_CLASS_B_ID } from '../fixtures/sis';
 import {
   seedStudent,
   enrollStudent,
@@ -115,12 +108,8 @@ describe('integration:m21-classroom/formative-assessment', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_formative_responses`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_formative_assessments`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_formative_responses`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_formative_assessments`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_enrollments`);
     await cleanupSeededIds(rawClient, {
@@ -171,9 +160,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
           classId: TEST_SIS_CLASS_ID,
           title: opts.title ?? 'Exit Ticket Q1',
           assessmentType: (opts.type ?? 'EXIT_TICKET') as any,
-          questions: [
-            { questionId: 'q1', prompt: 'How did it go?', responseType: 'TEXT' },
-          ],
+          questions: [{ questionId: 'q1', prompt: 'How did it go?', responseType: 'TEXT' }],
         } as any,
         adminActor(),
       ),
@@ -383,7 +370,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('non-author teacher cannot activate someone else\'s assessment → ForbiddenException', async () => {
+    it("non-author teacher cannot activate someone else's assessment → ForbiddenException", async () => {
       const draft = await createDraft();
       await expect(
         withTestTenant(async () => service.activate(draft.id, teacherActor())),
@@ -411,11 +398,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
 
       const dto = await withTestTenant(
         async () =>
-          service.submitResponse(
-            draft.id,
-            { responses: { q1: 'Yes' } } as any,
-            studentActor(),
-          ),
+          service.submitResponse(draft.id, { responses: { q1: 'Yes' } } as any, studentActor()),
         { personId: TEST_STUDENT_PERSON_ID },
       );
       expect(dto.studentId).toBe(sid);
@@ -513,9 +496,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
             classId: TEST_SIS_CLASS_ID,
             title: 'Two answers',
             assessmentType: 'POLL',
-            questions: [
-              { questionId: 'q1', prompt: 'Pick A or B', responseType: 'TEXT' },
-            ],
+            questions: [{ questionId: 'q1', prompt: 'Pick A or B', responseType: 'TEXT' }],
           } as any,
           adminActor(),
         ),
@@ -537,9 +518,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
         JSON.stringify({ q1: 'A' }),
       );
 
-      const results = await withTestTenant(async () =>
-        service.getResults(draft.id, adminActor()),
-      );
+      const results = await withTestTenant(async () => service.getResults(draft.id, adminActor()));
       expect(results.totalResponses).toBe(2);
       const q1Summary = results.questionSummaries.find((s) => s.questionId === 'q1')!;
       expect(q1Summary.responseCounts.A).toBe(2);
@@ -589,9 +568,7 @@ describe('integration:m21-classroom/formative-assessment', () => {
 
     it('getById phantom → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => service.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

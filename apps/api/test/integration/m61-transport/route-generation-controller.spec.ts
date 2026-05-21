@@ -15,16 +15,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
-import {
-  resetTransportTables,
-  ensureTransportSeed,
-  TEST_ROUTE_ID,
-} from '../fixtures/transport';
+import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
+import { resetTransportTables, ensureTransportSeed, TEST_ROUTE_ID } from '../fixtures/transport';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
 
 class StubActorContext {
@@ -181,10 +173,7 @@ describe('integration:m61-transport/route-generation-controller', () => {
   it('generation requests — queue + list + get + cancel', async () => {
     // Need a constraint first
     const c = await withTestTenant(async () =>
-      ctl.createConstraint(
-        { constraintName: 'For-Gen', maxRideTimeMinutes: 40 } as any,
-        req,
-      ),
+      ctl.createConstraint({ constraintName: 'For-Gen', maxRideTimeMinutes: 40 } as any, req),
     );
 
     const queued = await withTestTenant(async () =>
@@ -202,18 +191,13 @@ describe('integration:m61-transport/route-generation-controller', () => {
     const fetched = await withTestTenant(async () => ctl.getGenerationRequest(queued.id));
     expect(fetched.id).toBe(queued.id);
 
-    const cancelled = await withTestTenant(async () =>
-      ctl.cancelGenerationRequest(queued.id, req),
-    );
+    const cancelled = await withTestTenant(async () => ctl.cancelGenerationRequest(queued.id, req));
     expect(cancelled.status).toBe('CANCELLED');
   });
 
   it('generation requests — add manual candidate + complete', async () => {
     const c = await withTestTenant(async () =>
-      ctl.createConstraint(
-        { constraintName: 'Manual-Gen', maxRideTimeMinutes: 40 } as any,
-        req,
-      ),
+      ctl.createConstraint({ constraintName: 'Manual-Gen', maxRideTimeMinutes: 40 } as any, req),
     );
     const queued = await withTestTenant(async () =>
       ctl.queueGenerationRequest(
@@ -273,10 +257,7 @@ describe('integration:m61-transport/route-generation-controller', () => {
 
   it('generation requests — approve + reject candidates', async () => {
     const c = await withTestTenant(async () =>
-      ctl.createConstraint(
-        { constraintName: 'Approve-Gen', maxRideTimeMinutes: 40 } as any,
-        req,
-      ),
+      ctl.createConstraint({ constraintName: 'Approve-Gen', maxRideTimeMinutes: 40 } as any, req),
     );
     const queued = await withTestTenant(async () =>
       ctl.queueGenerationRequest(

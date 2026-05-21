@@ -3,10 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { AlumniController } from '@modules/m102-alumni/alumni.controller';
-import {
-  AlumniProfileService,
-  AlumniTagService,
-} from '@modules/m102-alumni/profile.service';
+import { AlumniProfileService, AlumniTagService } from '@modules/m102-alumni/profile.service';
 import {
   CampaignService,
   DonationService,
@@ -26,11 +23,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import { RedisService } from '@shared/cache/redis.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   parentActor,
@@ -58,7 +51,9 @@ describe('integration:m102-alumni/controllers', () => {
   let rawClient: PrismaClient;
   let ctl: AlumniController;
   let actorStub: SwitchingActorContext;
-  let req: { user: { sub: string; personId: string; email: string; displayName: string; sessionId: string } };
+  let req: {
+    user: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
+  };
   const seededPersonIds: string[] = [];
 
   beforeAll(async () => {
@@ -124,10 +119,7 @@ describe('integration:m102-alumni/controllers', () => {
       await ensureIamPerson(rawClient, personId, { firstName: 'A', lastName: 'B' });
 
       const created = await withTestTenant(async () =>
-        ctl.createProfile(
-          { personId, graduationYear: 2020 } as any,
-          req as any,
-        ),
+        ctl.createProfile({ personId, graduationYear: 2020 } as any, req as any),
       );
       expect(created.id).toBeTruthy();
 
@@ -239,11 +231,7 @@ describe('integration:m102-alumni/controllers', () => {
       );
       await withTestTenant(async () => ctl.activateCampaign(c.id, req as any));
       const d = await withTestTenant(async () =>
-        ctl.donate(
-          c.id,
-          { donorAlumniId: p.id, amount: 100, currency: 'USD' } as any,
-          req as any,
-        ),
+        ctl.donate(c.id, { donorAlumniId: p.id, amount: 100, currency: 'USD' } as any, req as any),
       );
       expect(d.amount).toBe(100);
 
@@ -288,7 +276,9 @@ describe('integration:m102-alumni/controllers', () => {
           req as any,
         ),
       );
-      const list = await withTestTenant(async () => ctl.listReunions(req as any, '2010', undefined));
+      const list = await withTestTenant(async () =>
+        ctl.listReunions(req as any, '2010', undefined),
+      );
       expect(list.length).toBe(1);
       const got = await withTestTenant(async () => ctl.getReunion(r.id, req as any));
       expect(got.id).toBe(r.id);
@@ -300,10 +290,7 @@ describe('integration:m102-alumni/controllers', () => {
 
     it('createEvent + listEvents + getEvent + patchEvent + deleteEvent', async () => {
       const created = await withTestTenant(async () =>
-        ctl.createEvent(
-          { title: 'Homecoming', eventDate: dateFuture(60) } as any,
-          req as any,
-        ),
+        ctl.createEvent({ title: 'Homecoming', eventDate: dateFuture(60) } as any, req as any),
       );
       const list = await withTestTenant(async () => ctl.listEvents(req as any));
       expect(list.length).toBe(1);

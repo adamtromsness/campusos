@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-import { StoreService, ProductService, InventoryService } from '@modules/m67-store/products/products.service';
+import {
+  StoreService,
+  ProductService,
+  InventoryService,
+} from '@modules/m67-store/products/products.service';
 import { InventoryAdjustmentService } from '@modules/m67-store/inventory/inventory-adjustment.service';
 import { PriceScheduleService } from '@modules/m67-store/inventory/price-schedule.service';
 import { CategoryHierarchyService } from '@modules/m67-store/categories/category-hierarchy.service';
@@ -98,9 +102,7 @@ describe('integration:m67-store/inventory', () => {
       const dto = await withTestTenant(async () => storeService.getById(TEST_STORE_STUDENT_ID));
       expect(dto.name).toBe('Demo Student Store');
       await expect(
-        withTestTenant(async () =>
-          storeService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => storeService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -228,15 +230,11 @@ describe('integration:m67-store/inventory', () => {
     });
 
     it('getById returns product + inventory; missing → NotFoundException', async () => {
-      const dto = await withTestTenant(async () =>
-        productService.getById(TEST_PRODUCT_A_ID),
-      );
+      const dto = await withTestTenant(async () => productService.getById(TEST_PRODUCT_A_ID));
       expect(dto.name).toBe('Test T-Shirt');
       expect(dto.inventory).toHaveLength(1);
       await expect(
-        withTestTenant(async () =>
-          productService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => productService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -360,9 +358,7 @@ describe('integration:m67-store/inventory', () => {
         } as any),
       );
       expect(
-        (kafka as unknown as RecordingKafkaProducer).callsForTopic(
-          'str.inventory.reorder_needed',
-        ),
+        (kafka as unknown as RecordingKafkaProducer).callsForTopic('str.inventory.reorder_needed'),
       ).toHaveLength(0);
     });
 

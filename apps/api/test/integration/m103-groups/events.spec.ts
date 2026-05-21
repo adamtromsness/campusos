@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { GroupService } from '@modules/m103-groups/groups/group.service';
@@ -13,11 +9,7 @@ import { GroupMeetupService } from '@modules/m103-groups/events/meetup.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  withTestTenantB,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, withTestTenantB, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   studentActor,
@@ -350,20 +342,14 @@ describe('integration:m103-groups/events', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          events.patch(dto.id, { title: 'X' } as any, studentActor()),
-        ),
+        withTestTenant(async () => events.patch(dto.id, { title: 'X' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('patch: missing → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          events.patch(
-            '00000000-0000-0000-0000-000000000000',
-            { title: 'X' } as any,
-            adminActor(),
-          ),
+          events.patch('00000000-0000-0000-0000-000000000000', { title: 'X' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -443,9 +429,7 @@ describe('integration:m103-groups/events', () => {
       );
       // student also tries to go (cap = 1)
       await expect(
-        withTestTenant(async () =>
-          events.rsvp(dto.id, { status: 'GOING' } as any, studentActor()),
-        ),
+        withTestTenant(async () => events.rsvp(dto.id, { status: 'GOING' } as any, studentActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -492,9 +476,7 @@ describe('integration:m103-groups/events', () => {
         deadline.toISOString(),
       );
       await expect(
-        withTestTenant(async () =>
-          events.rsvp(id, { status: 'GOING' } as any, adminActor()),
-        ),
+        withTestTenant(async () => events.rsvp(id, { status: 'GOING' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -510,9 +492,7 @@ describe('integration:m103-groups/events', () => {
         startsAt.toISOString(),
       );
       await expect(
-        withTestTenant(async () =>
-          events.rsvp(id, { status: 'GOING' } as any, adminActor()),
-        ),
+        withTestTenant(async () => events.rsvp(id, { status: 'GOING' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -543,10 +523,14 @@ describe('integration:m103-groups/events', () => {
       );
       await expect(
         withTestTenant(async () =>
-          events.rsvp(dto.id, { status: 'GOING' } as any, {
-            ...adminActor(),
-            personId: null,
-          } as any),
+          events.rsvp(
+            dto.id,
+            { status: 'GOING' } as any,
+            {
+              ...adminActor(),
+              personId: null,
+            } as any,
+          ),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -752,9 +736,7 @@ describe('integration:m103-groups/events', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          meetups.patch(dto.id, { maxAttendees: 0 } as any, adminActor()),
-        ),
+        withTestTenant(async () => meetups.patch(dto.id, { maxAttendees: 0 } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -782,9 +764,7 @@ describe('integration:m103-groups/events', () => {
         memberships.joinGroup(TEST_GROUP_OPEN_A_ID, {} as any, studentActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          meetups.patch(dto.id, { title: 'Y' } as any, studentActor()),
-        ),
+        withTestTenant(async () => meetups.patch(dto.id, { title: 'Y' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

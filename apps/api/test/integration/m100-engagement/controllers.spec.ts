@@ -13,11 +13,7 @@ import { type ActorContextService, type ResolvedActor } from '@modules/m00-platf
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   parentActor,
@@ -237,9 +233,7 @@ describe('integration:m100-engagement/controllers', () => {
       );
       expect(byTeacher.length).toBe(2);
 
-      const single = await withTestTenant(async () =>
-        ctl.getSlot(adminReq(), generated[0]!.id),
-      );
+      const single = await withTestTenant(async () => ctl.getSlot(adminReq(), generated[0]!.id));
       expect(single.id).toBe(generated[0]!.id);
 
       const patched = await withTestTenant(async () =>
@@ -346,9 +340,7 @@ describe('integration:m100-engagement/controllers', () => {
       const created = await withTestTenant(async () =>
         ctl.createSurvey(adminReq(), {
           title: 'Sat',
-          questions: [
-            { id: 'q1', question_text: 'Rate', question_type: 'RATING_1_5' },
-          ],
+          questions: [{ id: 'q1', question_text: 'Rate', question_type: 'RATING_1_5' }],
         } as any),
       );
       expect(created.status).toBe('DRAFT');

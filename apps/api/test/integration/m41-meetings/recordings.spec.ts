@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { MeetingService } from '@modules/m41-meetings/meetings/meeting.service';
@@ -123,17 +119,13 @@ describe('integration:m41-meetings/recordings', () => {
 
     it('duplicate recording for same meeting → rejected (UNIQUE constraint)', async () => {
       const meetingId = await createMeetingWithTeacher();
-      await withTestTenant(async () =>
-        recordingService.create(meetingId, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => recordingService.create(meetingId, {} as any, adminActor()));
       // UNIQUE(meeting_id) on mtg_recordings blocks the second insert.
       // The service translates the pg 23505 code into BadRequestException;
       // Prisma may surface the wrapped variant. Either way the duplicate
       // is rejected and the DB stays at one row.
       await expect(
-        withTestTenant(async () =>
-          recordingService.create(meetingId, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => recordingService.create(meetingId, {} as any, adminActor())),
       ).rejects.toThrow();
       const cnt = await rawClient.$queryRawUnsafe<Array<{ c: number }>>(
         `SELECT count(*)::int AS c FROM ${TEST_SCHEMA}.mtg_recordings WHERE meeting_id = $1::uuid`,
@@ -145,9 +137,7 @@ describe('integration:m41-meetings/recordings', () => {
     it('non-organiser non-admin → ForbiddenException', async () => {
       const meetingId = await createMeetingWithTeacher();
       await expect(
-        withTestTenant(async () =>
-          recordingService.create(meetingId, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => recordingService.create(meetingId, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -167,11 +157,7 @@ describe('integration:m41-meetings/recordings', () => {
     it('includes consents array and total participant count', async () => {
       const meetingId = await createMeetingWithTeacher();
       await withTestTenant(async () =>
-        recordingService.create(
-          meetingId,
-          { s3Key: 's3://here' } as any,
-          adminActor(),
-        ),
+        recordingService.create(meetingId, { s3Key: 's3://here' } as any, adminActor()),
       );
       const dto = await withTestTenant(async () =>
         recordingService.getForMeeting(meetingId, adminActor()),
@@ -184,13 +170,9 @@ describe('integration:m41-meetings/recordings', () => {
 
     it('non-participant non-admin → NotFoundException', async () => {
       const meetingId = await createMeetingWithTeacher();
-      await withTestTenant(async () =>
-        recordingService.create(meetingId, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => recordingService.create(meetingId, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          recordingService.getForMeeting(meetingId, parentActor()),
-        ),
+        withTestTenant(async () => recordingService.getForMeeting(meetingId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -226,27 +208,15 @@ describe('integration:m41-meetings/recordings', () => {
     it('all participants consent → consent_confirmed flips to true atomically + signedUrl exposed', async () => {
       const meetingId = await createMeetingWithTeacher();
       const rec = await withTestTenant(async () =>
-        recordingService.create(
-          meetingId,
-          { s3Key: 's3://full' } as any,
-          adminActor(),
-        ),
+        recordingService.create(meetingId, { s3Key: 's3://full' } as any, adminActor()),
       );
       // Teacher consents
       await withTestTenant(async () =>
-        recordingService.giveConsent(
-          rec.id,
-          { consentGiven: true } as any,
-          teacherActor(),
-        ),
+        recordingService.giveConsent(rec.id, { consentGiven: true } as any, teacherActor()),
       );
       // Admin (the organiser/HOST participant) also consents
       await withTestTenant(async () =>
-        recordingService.giveConsent(
-          rec.id,
-          { consentGiven: true } as any,
-          adminActor(),
-        ),
+        recordingService.giveConsent(rec.id, { consentGiven: true } as any, adminActor()),
       );
       const after = await withTestTenant(async () =>
         recordingService.getForMeeting(meetingId, adminActor()),
@@ -293,18 +263,10 @@ describe('integration:m41-meetings/recordings', () => {
         recordingService.create(meetingId, {} as any, adminActor()),
       );
       await withTestTenant(async () =>
-        recordingService.giveConsent(
-          rec.id,
-          { consentGiven: true } as any,
-          teacherActor(),
-        ),
+        recordingService.giveConsent(rec.id, { consentGiven: true } as any, teacherActor()),
       );
       await withTestTenant(async () =>
-        recordingService.giveConsent(
-          rec.id,
-          { consentGiven: true } as any,
-          adminActor(),
-        ),
+        recordingService.giveConsent(rec.id, { consentGiven: true } as any, adminActor()),
       );
       const confirmed = await withTestTenant(async () =>
         recordingService.getForMeeting(meetingId, adminActor()),
@@ -313,11 +275,7 @@ describe('integration:m41-meetings/recordings', () => {
 
       // Teacher revokes consent
       await withTestTenant(async () =>
-        recordingService.giveConsent(
-          rec.id,
-          { consentGiven: false } as any,
-          teacherActor(),
-        ),
+        recordingService.giveConsent(rec.id, { consentGiven: false } as any, teacherActor()),
       );
       const revoked = await withTestTenant(async () =>
         recordingService.getForMeeting(meetingId, adminActor()),
@@ -333,11 +291,7 @@ describe('integration:m41-meetings/recordings', () => {
       // Parent is not on the roster
       await expect(
         withTestTenant(async () =>
-          recordingService.giveConsent(
-            rec.id,
-            { consentGiven: true } as any,
-            parentActor(),
-          ),
+          recordingService.giveConsent(rec.id, { consentGiven: true } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -360,25 +314,26 @@ describe('integration:m41-meetings/recordings', () => {
   // ────────────────────────────────────────────────────────────────────
   describe('cross-school isolation', () => {
     it('School A admin cannot create recording on a School B meeting', async () => {
-      const meetingId = await withTestTenantB(async () =>
-        (await meetingService.create(
-          {
-            meetingTypeId: TEST_MEETING_TYPE_B_ID,
-            title: 'B side',
-            scheduledAt: '2026-06-20T15:00:00Z',
-            durationMinutes: 30,
-          } as any,
-          adminActor(),
-        )).id,
+      const meetingId = await withTestTenantB(
+        async () =>
+          (
+            await meetingService.create(
+              {
+                meetingTypeId: TEST_MEETING_TYPE_B_ID,
+                title: 'B side',
+                scheduledAt: '2026-06-20T15:00:00Z',
+                durationMinutes: 30,
+              } as any,
+              adminActor(),
+            )
+          ).id,
       );
       // School A teacher actor on a School-B meeting: assertOrganiserOrAdmin
       // returns NotFoundException because the meeting row exists but
       // teacher is not its organiser and isSchoolAdmin won't bypass the
       // search anyway. The point is the call rejects.
       await expect(
-        withTestTenant(async () =>
-          recordingService.create(meetingId, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => recordingService.create(meetingId, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

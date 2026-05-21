@@ -68,17 +68,22 @@ describe('integration:m102-alumni/profiles-tags', () => {
     await resetAlumniTables(rawClient, { personIds: seededPersonIds.splice(0) });
   });
 
-  async function ensurePersonForActor(personId: string, personType: 'GUARDIAN' | 'STUDENT' | 'STAFF' = 'STAFF') {
+  async function ensurePersonForActor(
+    personId: string,
+    personType: 'GUARDIAN' | 'STUDENT' | 'STAFF' = 'STAFF',
+  ) {
     await ensureIamPerson(rawClient, personId, { personType });
   }
 
-  async function seedProfileDirect(opts: {
-    schoolId?: string;
-    personId?: string;
-    optedIn?: boolean;
-    graduationYear?: number;
-    employer?: string;
-  } = {}): Promise<string> {
+  async function seedProfileDirect(
+    opts: {
+      schoolId?: string;
+      personId?: string;
+      optedIn?: boolean;
+      graduationYear?: number;
+      employer?: string;
+    } = {},
+  ): Promise<string> {
     const generated = opts.personId === undefined;
     const personId = opts.personId ?? generateId();
     if (generated) seededPersonIds.push(personId);
@@ -133,10 +138,7 @@ describe('integration:m102-alumni/profiles-tags', () => {
       await ensureIamPerson(rawClient, otherPerson);
       await expect(
         withTestTenant(async () =>
-          profiles.create(
-            { personId: otherPerson, graduationYear: 2020 } as any,
-            parentActor(),
-          ),
+          profiles.create({ personId: otherPerson, graduationYear: 2020 } as any, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -259,7 +261,7 @@ describe('integration:m102-alumni/profiles-tags', () => {
       expect(out.isOptedIn).toBe(false);
     });
 
-    it('non-admin non-owner gets NotFoundException (don\'t-leak-existence)', async () => {
+    it("non-admin non-owner gets NotFoundException (don't-leak-existence)", async () => {
       await ensurePersonForActor(TEST_PARENT_PERSON_ID, 'GUARDIAN');
       const otherId = await seedProfileDirect();
       await expect(
@@ -280,9 +282,7 @@ describe('integration:m102-alumni/profiles-tags', () => {
 
     it('empty body — returns current state', async () => {
       const id = await seedProfileDirect({ employer: 'Init' });
-      const out = await withTestTenant(async () =>
-        profiles.patch(id, {} as any, adminActor()),
-      );
+      const out = await withTestTenant(async () => profiles.patch(id, {} as any, adminActor()));
       expect(out.id).toBe(id);
       expect(out.currentEmployer).toBe('Init');
     });

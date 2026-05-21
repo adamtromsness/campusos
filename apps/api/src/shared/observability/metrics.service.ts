@@ -47,7 +47,10 @@ export class MetricsService {
     // load) AND with a check on the global registry (handles vitest
     // module isolation, where the static flag resets per file load
     // but `register` from prom-client is process-global).
-    if (!MetricsService.initialised && !register.getSingleMetric('process_cpu_user_seconds_total')) {
+    if (
+      !MetricsService.initialised &&
+      !register.getSingleMetric('process_cpu_user_seconds_total')
+    ) {
       collectDefaultMetrics({ register });
       MetricsService.initialised = true;
     } else {

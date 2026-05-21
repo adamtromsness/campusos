@@ -11,10 +11,7 @@ import {
   DamageReportService,
   RepairRecordService,
 } from '@modules/m62-it/assets.service';
-import {
-  LicenceService,
-  CredentialVaultService,
-} from '@modules/m62-it/licences.service';
+import { LicenceService, CredentialVaultService } from '@modules/m62-it/licences.service';
 import {
   MdmService,
   InfrastructureService,
@@ -222,7 +219,12 @@ describe('integration:m62-it/controllers', () => {
     it('damage + repair endpoints', async () => {
       const dmg = await withTestTenant(async () =>
         itCtl.createDamage(
-          { assetId: TEST_ASSET_ID, description: 'Test damage', severity: 'MINOR', photoS3Keys: [] } as any,
+          {
+            assetId: TEST_ASSET_ID,
+            description: 'Test damage',
+            severity: 'MINOR',
+            photoS3Keys: [],
+          } as any,
           req,
         ),
       );
@@ -378,9 +380,7 @@ describe('integration:m62-it/controllers', () => {
           req,
         ),
       );
-      const list = await withTestTenant(async () =>
-        advCtl.listRenewals(TEST_LICENCE_ID, req),
-      );
+      const list = await withTestTenant(async () => advCtl.listRenewals(TEST_LICENCE_ID, req));
       expect(list.map((x: any) => x.id)).toContain(r.id);
     });
 
@@ -484,7 +484,12 @@ describe('integration:m62-it/controllers', () => {
     it('infrastructure extension endpoints', async () => {
       const item = await withTestTenant(async () =>
         itCtl.createInfrastructure(
-          { itemName: 'Test UPS', itemType: 'UPS', location: 'Room A', warrantyExpiry: '2027-01-01' } as any,
+          {
+            itemName: 'Test UPS',
+            itemType: 'UPS',
+            location: 'Room A',
+            warrantyExpiry: '2027-01-01',
+          } as any,
           req,
         ),
       );

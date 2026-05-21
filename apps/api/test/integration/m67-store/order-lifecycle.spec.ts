@@ -1,20 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
-import {
-  OrderService,
-  ApprovalService,
-} from '@modules/m67-store/orders/orders.service';
-import {
-  StoreService,
-  ProductService,
-} from '@modules/m67-store/products/products.service';
+import { OrderService, ApprovalService } from '@modules/m67-store/orders/orders.service';
+import { StoreService, ProductService } from '@modules/m67-store/products/products.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
@@ -546,12 +536,14 @@ describe('integration:m67-store/order-lifecycle', () => {
 
     it('cross-school fulfil → NotFoundException', async () => {
       const schoolBOrder = await withTestTenantB(async () =>
-        orderService.create(adminActor(), {
-          storeId: TEST_STORE_B_STUDENT_ID,
-          orderType: 'PARENT',
-          shippingMethod: 'PICKUP',
-          lines: [],
-        } as any).catch(() => null),
+        orderService
+          .create(adminActor(), {
+            storeId: TEST_STORE_B_STUDENT_ID,
+            orderType: 'PARENT',
+            shippingMethod: 'PICKUP',
+            lines: [],
+          } as any)
+          .catch(() => null),
       );
       // School B order may fail to create due to missing seeded inventory.
       // Instead, INSERT a raw order on School B store and verify fulfil from

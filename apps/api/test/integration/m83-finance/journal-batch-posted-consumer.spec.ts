@@ -8,16 +8,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { IdempotencyService, KafkaConsumerService } from '@shared/kafka';
 import type { ConsumedMessage } from '@shared/kafka';
 
-import {
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-  TEST_SUBDOMAIN,
-} from '../helpers/tenant-context';
-import {
-  TEST_COA_CASH_ID,
-  TEST_COA_REVENUE_ID,
-  TEST_COA_SUPPLIES_ID,
-} from '../fixtures/finance';
+import { TEST_SCHOOL_ID, TEST_SCHEMA, TEST_SUBDOMAIN } from '../helpers/tenant-context';
+import { TEST_COA_CASH_ID, TEST_COA_REVENUE_ID, TEST_COA_SUPPLIES_ID } from '../fixtures/finance';
 
 const CONSUMER_GROUP = 'journal-batch-posted-consumer';
 const TOPIC = 'dev.fin.journal_batch.posted';
@@ -230,7 +222,8 @@ describe('integration:m83-finance/journal-batch-posted-consumer', () => {
 
     it('MAX_BATCH_LINES exceeded → throws (no DB writes, event remains unclaimed)', async () => {
       // Build a payload with > 1000 lines
-      const lines: Array<{ accountId: string; debit: number; credit: number; lineOrder: number }> = [];
+      const lines: Array<{ accountId: string; debit: number; credit: number; lineOrder: number }> =
+        [];
       for (let i = 0; i < 1001; i++) {
         lines.push({
           accountId: TEST_COA_SUPPLIES_ID,

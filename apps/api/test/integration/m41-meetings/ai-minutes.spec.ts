@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { AIMinutesService } from '@modules/m41-meetings/meetings/ai-minutes.service';
@@ -18,11 +14,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, studentActor, parentActor } from '../helpers/actor';
 import { TEST_MEETING_TYPE_ID, TEST_MEETING_TYPE_B_ID } from '../fixtures/meetings';
 
 /**
@@ -55,9 +47,7 @@ describe('integration:m41-meetings/ai-minutes', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_ai_minutes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_ai_minutes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.mtg_meetings WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -214,9 +204,7 @@ describe('integration:m41-meetings/ai-minutes', () => {
     it('STUDENT cannot read → ForbiddenException', async () => {
       const meetingId = await createMeeting();
       await expect(
-        withTestTenant(async () =>
-          aiService.getForMeeting(meetingId, studentActor()),
-        ),
+        withTestTenant(async () => aiService.getForMeeting(meetingId, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

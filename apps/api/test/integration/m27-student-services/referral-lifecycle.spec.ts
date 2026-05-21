@@ -1,18 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { ReferralService } from '@modules/m27-student-services/referrals/referral.service';
 import { ReferralTypeService } from '@modules/m27-student-services/referrals/referral-type.service';
 import { ReferralActivityService } from '@modules/m27-student-services/referrals/referral-activity.service';
-import {
-  CrisisEscalationService,
-} from '@modules/m27-student-services/referrals/crisis-escalation.service';
+import { CrisisEscalationService } from '@modules/m27-student-services/referrals/crisis-escalation.service';
 import { deterministicReferralEscalatedEventId } from '@modules/m27-student-services/referrals/event-ids';
 import { CaseloadService } from '@modules/m27-student-services/caseload/caseload.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
@@ -20,11 +14,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -105,9 +95,7 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
   beforeEach(async () => {
     kafka.reset();
     // svc_referral_activity is IMMUTABLE — TRUNCATE bypasses trigger
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.svc_referral_activity`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.svc_referrals WHERE student_id IN (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'REF-TEST-%')`,
     );
@@ -316,7 +304,11 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       expect(started.status).toBe('IN_PROGRESS');
 
       const completed = await withTestTenant(async () =>
-        service.complete(id, { outcome: 'Issue resolved through counselling sessions.' }, officerActor()),
+        service.complete(
+          id,
+          { outcome: 'Issue resolved through counselling sessions.' },
+          officerActor(),
+        ),
       );
       expect(completed.status).toBe('COMPLETED');
       expect(completed.outcome).toContain('Issue resolved');
@@ -364,9 +356,7 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       const id = await createReferral();
       await grantCounsellorScope(TEST_OFFICER_ACCOUNT_ID);
       await expect(
-        withTestTenant(async () =>
-          service.complete(id, { outcome: 'x' }, officerActor()),
-        ),
+        withTestTenant(async () => service.complete(id, { outcome: 'x' }, officerActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -377,9 +367,7 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
         service.decline(id, { reason: 'Not appropriate' }, officerActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          service.decline(id, { reason: 'again' }, officerActor()),
-        ),
+        withTestTenant(async () => service.decline(id, { reason: 'again' }, officerActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -423,7 +411,11 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       await grantCounsellorScope(TEST_OFFICER_ACCOUNT_ID);
       await expect(
         withTestTenant(async () =>
-          service.triage(missing, { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID }, officerActor()),
+          service.triage(
+            missing,
+            { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID },
+            officerActor(),
+          ),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
@@ -433,14 +425,10 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
         withTestTenant(async () => service.start(missing, officerActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        withTestTenant(async () =>
-          service.complete(missing, { outcome: 'x' }, officerActor()),
-        ),
+        withTestTenant(async () => service.complete(missing, { outcome: 'x' }, officerActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        withTestTenant(async () =>
-          service.decline(missing, { reason: 'x' }, officerActor()),
-        ),
+        withTestTenant(async () => service.decline(missing, { reason: 'x' }, officerActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -453,7 +441,10 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       const studentId = await seedStudent();
       const typeId = await seedReferralType({ defaultPriority: priority });
       const result = await withTestTenant(async () =>
-        service.create({ studentId, referralTypeId: typeId, reason: 'crisis signal' }, officerActor()),
+        service.create(
+          { studentId, referralTypeId: typeId, reason: 'crisis signal' },
+          officerActor(),
+        ),
       );
       return result.id;
     }
@@ -494,9 +485,7 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       expect(envelope.payload.previousPriority).toBe('MEDIUM');
       expect(envelope.payload.newPriority).toBe('URGENT');
       expect(envelope.payload.activityId).toBe(escalated!.id);
-      expect(envelope.event_id).toBe(
-        deterministicReferralEscalatedEventId(id, escalated!.id),
-      );
+      expect(envelope.event_id).toBe(deterministicReferralEscalatedEventId(id, escalated!.id));
     });
 
     it('TRIAGED referral can be escalated (status → ACCEPTED)', async () => {
@@ -584,9 +573,9 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       ['parent', parentActor],
     ])('non-staff %s cannot escalate', async (_label, actor) => {
       const id = await createReferralAtPriority('MEDIUM');
-      await expect(
-        withTestTenant(async () => crisis.escalate(id, actor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => crisis.escalate(id, actor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('STAFF without employeeId cannot escalate', async () => {
@@ -631,7 +620,11 @@ describe('integration:m27-student-services/referral-lifecycle', () => {
       );
       await grantCounsellorScope(TEST_OFFICER_ACCOUNT_ID);
       await withTestTenant(async () =>
-        service.triage(result.id, { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID }, officerActor()),
+        service.triage(
+          result.id,
+          { assignedCounselorId: TEST_OFFICER_EMPLOYEE_ID },
+          officerActor(),
+        ),
       );
 
       const acts = await withTestTenant(async () => activity.listForReferral(result.id));

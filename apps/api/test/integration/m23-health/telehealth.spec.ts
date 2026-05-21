@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -70,9 +66,7 @@ describe('integration:m23-health/telehealth', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'TH-%'`,
     );
@@ -192,9 +186,7 @@ describe('integration:m23-health/telehealth', () => {
 
     it('non-nurse → Forbidden on create/patch', async () => {
       await expect(
-        withTestTenant(async () =>
-          providers.create({ providerName: 'X' }, teacherActor()),
-        ),
+        withTestTenant(async () => providers.create({ providerName: 'X' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -227,9 +219,7 @@ describe('integration:m23-health/telehealth', () => {
       const ok = await withTestTenant(async () => providers.loadActiveOrFail(p.id));
       expect(ok.id).toBe(p.id);
 
-      await withTestTenant(async () =>
-        providers.patch(p.id, { isActive: false }, adminActor()),
-      );
+      await withTestTenant(async () => providers.patch(p.id, { isActive: false }, adminActor()));
       await expect(
         withTestTenant(async () => providers.loadActiveOrFail(p.id)),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -243,9 +233,9 @@ describe('integration:m23-health/telehealth', () => {
       const p = await withTestTenant(async () =>
         providers.create({ providerName: 'A Clinic' }, adminActor()),
       );
-      await expect(
-        withTestTenantB(async () => providers.getById(p.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => providers.getById(p.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -322,10 +312,7 @@ describe('integration:m23-health/telehealth', () => {
     it('list filters by studentId + status + limit clamp', async () => {
       const { studentId, providerId } = await setup();
       await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const filtered = await withTestTenant(async () =>
         sessions.list({ studentId, status: 'SCHEDULED', limit: 9999 }, adminActor()),
@@ -337,10 +324,7 @@ describe('integration:m23-health/telehealth', () => {
     it('getById returns session + audit row', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const r = await withTestTenant(async () => sessions.getById(s.id, adminActor()));
       expect(r.id).toBe(s.id);
@@ -355,10 +339,7 @@ describe('integration:m23-health/telehealth', () => {
     it('patch: SCHEDULED → IN_PROGRESS → COMPLETED stamps completed_at', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const inProg = await withTestTenant(async () =>
         sessions.patch(s.id, { status: 'IN_PROGRESS' }, adminActor()),
@@ -374,15 +355,10 @@ describe('integration:m23-health/telehealth', () => {
     it('patch CANCELLED requires cancellationReason; otherwise BadRequest', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          sessions.patch(s.id, { status: 'CANCELLED' }, adminActor()),
-        ),
+        withTestTenant(async () => sessions.patch(s.id, { status: 'CANCELLED' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       const cancelled = await withTestTenant(async () =>
@@ -400,18 +376,11 @@ describe('integration:m23-health/telehealth', () => {
     it('patch terminal state → BadRequest', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
-      await withTestTenant(async () =>
-        sessions.patch(s.id, { status: 'COMPLETED' }, adminActor()),
-      );
+      await withTestTenant(async () => sessions.patch(s.id, { status: 'COMPLETED' }, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          sessions.patch(s.id, { status: 'IN_PROGRESS' }, adminActor()),
-        ),
+        withTestTenant(async () => sessions.patch(s.id, { status: 'IN_PROGRESS' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -426,24 +395,16 @@ describe('integration:m23-health/telehealth', () => {
     it('empty patch returns existing', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
-      const r = await withTestTenant(async () =>
-        sessions.patch(s.id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => sessions.patch(s.id, {}, adminActor()));
       expect(r.id).toBe(s.id);
     });
 
     it('patch meetingUrl + sessionNotesS3Key without status change', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const r = await withTestTenant(async () =>
         sessions.patch(
@@ -461,10 +422,7 @@ describe('integration:m23-health/telehealth', () => {
     it('recordConsent stamps consent_received_at', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const r = await withTestTenant(async () =>
         sessions.recordConsent(s.id, generateId(), adminActor()),
@@ -475,19 +433,14 @@ describe('integration:m23-health/telehealth', () => {
 
     it('recordConsent missing → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          sessions.recordConsent(generateId(), null, adminActor()),
-        ),
+        withTestTenant(async () => sessions.recordConsent(generateId(), null, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('uploadDocument writes hlth_telehealth_documents + listDocuments returns it', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       const d = await withTestTenant(async () =>
         sessions.uploadDocument(
@@ -501,9 +454,7 @@ describe('integration:m23-health/telehealth', () => {
         ),
       );
       expect(d.documentType).toBe('SESSION_NOTES');
-      const list = await withTestTenant(async () =>
-        sessions.listDocuments(s.id, adminActor()),
-      );
+      const list = await withTestTenant(async () => sessions.listDocuments(s.id, adminActor()));
       expect(list.find((x) => x.id === d.id)).toBeDefined();
     });
 
@@ -522,10 +473,7 @@ describe('integration:m23-health/telehealth', () => {
     it('non-nurse read scope → Forbidden on list/getById', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       await expect(
         withTestTenant(async () => sessions.list({}, teacherActor())),
@@ -562,10 +510,7 @@ describe('integration:m23-health/telehealth', () => {
     it('cross-school: School A session invisible from School B', async () => {
       const { studentId, providerId } = await setup();
       const s = await withTestTenant(async () =>
-        sessions.schedule(
-          { studentId, providerId, scheduledAt: futureIso() },
-          adminActor(),
-        ),
+        sessions.schedule({ studentId, providerId, scheduledAt: futureIso() }, adminActor()),
       );
       await expect(
         withTestTenantB(async () => sessions.getById(s.id, adminActor())),

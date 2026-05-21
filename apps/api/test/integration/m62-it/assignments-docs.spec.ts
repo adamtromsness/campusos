@@ -11,11 +11,7 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { resetItTables, ensureItSeed, TEST_ASSET_ID, TEST_LICENCE_ID } from '../fixtures/it';
 
@@ -116,9 +112,7 @@ describe('integration:m62-it/assignments-docs', () => {
       );
       expect(doc.documentType).toBe('INVOICE');
 
-      const list = await withTestTenant(async () =>
-        docs.listForAsset(TEST_ASSET_ID, adminActor()),
-      );
+      const list = await withTestTenant(async () => docs.listForAsset(TEST_ASSET_ID, adminActor()));
       expect(list.map((d) => d.id)).toContain(doc.id);
     });
 

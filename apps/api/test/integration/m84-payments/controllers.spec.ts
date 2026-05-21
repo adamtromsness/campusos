@@ -37,11 +37,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 import type { RedisService } from '@shared/cache';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_ADMIN_PERSON_ID,
@@ -222,10 +218,7 @@ describe('integration:m84-payments/controllers', () => {
       const fakeId = generateId();
       await expect(
         withTestTenant(() =>
-          invoiceCtrl.generateFromSchedule(
-            { feeScheduleId: fakeId } as any,
-            req(),
-          ),
+          invoiceCtrl.generateFromSchedule({ feeScheduleId: fakeId } as any, req()),
         ),
       ).rejects.toBeDefined();
     });
@@ -258,11 +251,7 @@ describe('integration:m84-payments/controllers', () => {
       );
       await withTestTenant(() => invoiceCtrl.send(inv.id, req()));
       const payment = await withTestTenant(() =>
-        paymentCtrl.pay(
-          inv.id,
-          { amount: 50, paymentMethod: 'CASH' } as any,
-          req(),
-        ),
+        paymentCtrl.pay(inv.id, { amount: 50, paymentMethod: 'CASH' } as any, req()),
       );
       expect(payment.id).toBeTruthy();
     });
@@ -304,9 +293,7 @@ describe('integration:m84-payments/controllers', () => {
 
     it('deposit + transfer + updateSettings on missing → throws', async () => {
       await expect(
-        withTestTenant(() =>
-          lunchCtrl.deposit(generateId(), { amount: 10 } as any, req()),
-        ),
+        withTestTenant(() => lunchCtrl.deposit(generateId(), { amount: 10 } as any, req())),
       ).rejects.toBeDefined();
       await expect(
         withTestTenant(() =>
@@ -459,9 +446,7 @@ describe('integration:m84-payments/controllers', () => {
     it('listAutoRules + listGenerationRuns smoke', async () => {
       const auto = await withTestTenant(() => billingCfgCtrl.listAutoRules('true', req()));
       expect(Array.isArray(auto)).toBe(true);
-      const runs = await withTestTenant(() =>
-        billingCfgCtrl.listGenerationRuns({} as any, req()),
-      );
+      const runs = await withTestTenant(() => billingCfgCtrl.listGenerationRuns({} as any, req()));
       expect(Array.isArray(runs)).toBe(true);
     });
 
@@ -567,9 +552,7 @@ describe('integration:m84-payments/controllers', () => {
       ).rejects.toBeDefined();
 
       await expect(
-        withTestTenant(() =>
-          aidCtrl.updateApplication(generateId(), {} as any, req()),
-        ),
+        withTestTenant(() => aidCtrl.updateApplication(generateId(), {} as any, req())),
       ).rejects.toBeDefined();
 
       await expect(
@@ -732,9 +715,7 @@ describe('integration:m84-payments/controllers', () => {
 
     it('savedPaymentMethods: list + create + remove', async () => {
       const fa = await seedFamilyAccount();
-      const list = await withTestTenant(() =>
-        billingOpsCtrl.listSavedPaymentMethods(fa, req()),
-      );
+      const list = await withTestTenant(() => billingOpsCtrl.listSavedPaymentMethods(fa, req()));
       expect(Array.isArray(list)).toBe(true);
 
       const pm = await withTestTenant(() =>

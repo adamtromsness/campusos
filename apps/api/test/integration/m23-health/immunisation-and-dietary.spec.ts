@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -57,13 +53,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
     const guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     const outbox = new OutboxService();
     accessLog = new HealthAccessLogService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     kafka = new RecordingKafkaProducer();
     immunisation = new ImmunisationService(tenantPrisma, accessLog, records);
     requirement = new ImmunisationRequirementService(tenantPrisma, permCheck);
@@ -106,9 +96,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       `DELETE FROM ${TEST_SCHEMA}.hlth_student_health_records WHERE student_id IN
          (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'IM-%')`,
     );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'IM-%'`,
     );
@@ -138,10 +126,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
     );
   }
 
-  async function seedStudent(opts?: {
-    schoolId?: string;
-    grade?: string;
-  }): Promise<string> {
+  async function seedStudent(opts?: { schoolId?: string; grade?: string }): Promise<string> {
     const personId = generateId();
     const platformStudentId = generateId();
     const studentId = generateId();
@@ -240,15 +225,9 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       const studentId = await seedStudent();
       await seedHealthRecord(studentId);
       const r = await withTestTenant(async () =>
-        immunisation.create(
-          studentId,
-          { vaccineName: 'X', status: 'CURRENT' },
-          adminActor(),
-        ),
+        immunisation.create(studentId, { vaccineName: 'X', status: 'CURRENT' }, adminActor()),
       );
-      const u = await withTestTenant(async () =>
-        immunisation.update(r.id, {}, adminActor()),
-      );
+      const u = await withTestTenant(async () => immunisation.update(r.id, {}, adminActor()));
       expect(u.id).toBe(r.id);
     });
 
@@ -265,11 +244,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       await seedHealthRecord(studentId);
       await expect(
         withTestTenant(async () =>
-          immunisation.create(
-            studentId,
-            { vaccineName: 'X', status: 'CURRENT' },
-            teacherActor(),
-          ),
+          immunisation.create(studentId, { vaccineName: 'X', status: 'CURRENT' }, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -409,9 +384,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
         id,
       );
       await expect(
-        withTestTenant(async () =>
-          requirement.patch(id, { requiredDoses: 2 }, adminActor()),
-        ),
+        withTestTenant(async () => requirement.patch(id, { requiredDoses: 2 }, adminActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -500,9 +473,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
 
     it('admin getForStudent returns the row', async () => {
       const { studentId } = await seedComplianceFixtures();
-      const r = await withTestTenant(async () =>
-        compliance.getForStudent(studentId, adminActor()),
-      );
+      const r = await withTestTenant(async () => compliance.getForStudent(studentId, adminActor()));
       expect(r.studentId).toBe(studentId);
     });
 
@@ -524,9 +495,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
 
     it('getForStudent missing → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          compliance.getForStudent(generateId(), adminActor()),
-        ),
+        withTestTenant(async () => compliance.getForStudent(generateId(), adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -561,9 +530,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       );
 
       kafka.reset();
-      const r = await withTestTenant(async () =>
-        compliance.runManually(null, adminActor()),
-      );
+      const r = await withTestTenant(async () => compliance.runManually(null, adminActor()));
       expect(r.computed).toBeGreaterThanOrEqual(1);
       expect(r.newlyNonCompliant).toBeGreaterThanOrEqual(1);
       expect(kafka.callsForTopic('hlth.immunisation.noncompliant').length).toBeGreaterThanOrEqual(
@@ -682,9 +649,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       );
       expect(u.posAllergenAlert).toBe(false);
 
-      const got = await withTestTenant(async () =>
-        dietary.getForStudent(studentId, adminActor()),
-      );
+      const got = await withTestTenant(async () => dietary.getForStudent(studentId, adminActor()));
       expect(got!.id).toBe(p.id);
 
       const audit = (await rawClient.$queryRawUnsafe(
@@ -696,9 +661,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
 
     it('create duplicate dietary profile → BadRequest', async () => {
       const studentId = await seedStudent();
-      await withTestTenant(async () =>
-        dietary.create(studentId, {}, adminActor()),
-      );
+      await withTestTenant(async () => dietary.create(studentId, {}, adminActor()));
       await expect(
         withTestTenant(async () => dietary.create(studentId, {}, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -706,17 +669,13 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
 
     it('create on non-existent student → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          dietary.create(generateId(), {}, adminActor()),
-        ),
+        withTestTenant(async () => dietary.create(generateId(), {}, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('getForStudent with no profile returns null', async () => {
       const studentId = await seedStudent();
-      const r = await withTestTenant(async () =>
-        dietary.getForStudent(studentId, adminActor()),
-      );
+      const r = await withTestTenant(async () => dietary.getForStudent(studentId, adminActor()));
       expect(r).toBeNull();
     });
 
@@ -744,9 +703,7 @@ describe('integration:m23-health/immunisation-and-dietary', () => {
       await withTestTenant(async () =>
         dietary.create(s2, { posAllergenAlert: false }, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        dietary.listAllergenAlerts(adminActor()),
-      );
+      const list = await withTestTenant(async () => dietary.listAllergenAlerts(adminActor()));
       expect(list.find((p) => p.studentId === s1)).toBeDefined();
       expect(list.find((p) => p.studentId === s2)).toBeUndefined();
     });

@@ -50,10 +50,7 @@ import { OutboxService } from '@shared/kafka/outbox.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 
@@ -342,22 +339,14 @@ describe('integration:m23-health/controllers', () => {
       expect(list.find((m: any) => m.id === med.id)).toBeDefined();
 
       const sched = await withTestTenant(() =>
-        medScheduleCtrl.create(
-          med.id,
-          { scheduledTime: '08:00', dayOfWeek: 1 } as any,
-          req(),
-        ),
+        medScheduleCtrl.create(med.id, { scheduledTime: '08:00', dayOfWeek: 1 } as any, req()),
       );
 
       const schedList = await withTestTenant(() => medScheduleCtrl.list(med.id, req()));
       expect(schedList.find((s: any) => s.id === sched.id)).toBeDefined();
 
       const admin = await withTestTenant(() =>
-        administrationCtrl.administer(
-          med.id,
-          { doseGiven: '90mcg' } as any,
-          req(),
-        ),
+        administrationCtrl.administer(med.id, { doseGiven: '90mcg' } as any, req()),
       );
 
       const adminList = await withTestTenant(() => administrationCtrl.list(med.id, req()));
@@ -374,10 +363,7 @@ describe('integration:m23-health/controllers', () => {
       const studentId = await seedStudent();
       await withTestTenant(() => healthRecordCtrl.create(studentId, {} as any, req()));
       const visit = await withTestTenant(() =>
-        nurseVisitCtrl.create(
-          { visitedPersonId: studentId, reason: 'headache' } as any,
-          req(),
-        ),
+        nurseVisitCtrl.create({ visitedPersonId: studentId, reason: 'headache' } as any, req()),
       );
       const list = await withTestTenant(() => nurseVisitCtrl.list({} as any, req()));
       expect(list.find((v: any) => v.id === visit.id)).toBeDefined();
@@ -554,9 +540,7 @@ describe('integration:m23-health/controllers', () => {
       expect(typeof captured.csv).toBe('string');
       expect(captured.headers['Content-Disposition']).toContain('immunisation-compliance');
 
-      const ran = await withTestTenant(() =>
-        healthAdvCtrl.runCompliance(req(), {} as any),
-      );
+      const ran = await withTestTenant(() => healthAdvCtrl.runCompliance(req(), {} as any));
       expect(typeof ran.computed).toBe('number');
     });
 

@@ -25,11 +25,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { adminActor, studentActor, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 
 /**
  * Wave 5 — m42-publications ScheduledPublishService +
@@ -90,9 +86,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
         `DELETE FROM ${TEST_SCHEMA}.pub_publication_analytics WHERE publication_id = ANY($1::uuid[])`,
         seededPubIds,
       );
-      await rawClient.$executeRawUnsafe(
-        `TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`,
-      );
+      await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.pub_publication_versions`);
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.pub_sections WHERE publication_id = ANY($1::uuid[])`,
         seededPubIds,
@@ -112,10 +106,12 @@ describe('integration:m42-publications/scheduled-publish', () => {
     );
   });
 
-  async function seedPublication(opts: {
-    schoolId?: string;
-    status?: string;
-  } = {}): Promise<string> {
+  async function seedPublication(
+    opts: {
+      schoolId?: string;
+      status?: string;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     seededPubIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -276,17 +272,13 @@ describe('integration:m42-publications/scheduled-publish', () => {
     it('cancel when no active schedule → NotFoundException', async () => {
       const pubId = await seedPublication();
       await expect(
-        withTestTenant(async () =>
-          scheduledService.cancel(adminActor(), pubId, {} as any),
-        ),
+        withTestTenant(async () => scheduledService.cancel(adminActor(), pubId, {} as any)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('cancel on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          scheduledService.cancel(adminActor(), generateId(), {} as any),
-        ),
+        withTestTenant(async () => scheduledService.cancel(adminActor(), generateId(), {} as any)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -302,9 +294,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
         TEST_ADMIN_ACCOUNT_ID,
       );
       await expect(
-        withTestTenant(async () =>
-          scheduledService.cancel(adminActor(), pubBId, {} as any),
-        ),
+        withTestTenant(async () => scheduledService.cancel(adminActor(), pubBId, {} as any)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -330,9 +320,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
         pubBId,
         TEST_ADMIN_ACCOUNT_ID,
       );
-      const list = await withTestTenant(async () =>
-        scheduledService.list(adminActor()),
-      );
+      const list = await withTestTenant(async () => scheduledService.list(adminActor()));
       const pubIds = list.map((s) => s.publicationId);
       expect(pubIds).toContain(pubAId);
       expect(pubIds).not.toContain(pubBId);
@@ -358,9 +346,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
 
     it('getById on phantom id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          scheduledService.getById(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => scheduledService.getById(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -388,9 +374,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
 
     it('getForPublication on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          scheduledService.getForPublication(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => scheduledService.getForPublication(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -401,9 +385,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
   describe('PublicationAnalyticsService.get / summary', () => {
     it('get returns zero shell when no analytics row exists', async () => {
       const pubId = await seedPublication();
-      const a = await withTestTenant(async () =>
-        analyticsService.get(adminActor(), pubId),
-      );
+      const a = await withTestTenant(async () => analyticsService.get(adminActor(), pubId));
       expect(a.publicationId).toBe(pubId);
       expect(a.totalViews).toBe(0);
       expect(a.uniqueViews).toBe(0);
@@ -411,9 +393,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
 
     it('get on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analyticsService.get(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => analyticsService.get(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -427,24 +407,18 @@ describe('integration:m42-publications/scheduled-publish', () => {
     it('non-admin non-collaborator → ForbiddenException', async () => {
       const pubId = await seedPublication();
       await expect(
-        withTestTenant(async () =>
-          analyticsService.get(studentActor(), pubId),
-        ),
+        withTestTenant(async () => analyticsService.get(studentActor(), pubId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('summary is admin-only — student → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analyticsService.summary(studentActor()),
-        ),
+        withTestTenant(async () => analyticsService.summary(studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('admin summary returns list (possibly empty)', async () => {
-      const list = await withTestTenant(async () =>
-        analyticsService.summary(adminActor()),
-      );
+      const list = await withTestTenant(async () => analyticsService.summary(adminActor()));
       expect(Array.isArray(list)).toBe(true);
     });
   });
@@ -576,9 +550,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
 
     it('setRecipientTotal upserts the row', async () => {
       const pubId = await seedPublication();
-      await withTestTenant(async () =>
-        analyticsService.setRecipientTotal(pubId, 42),
-      );
+      await withTestTenant(async () => analyticsService.setRecipientTotal(pubId, 42));
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT total_recipients FROM ${TEST_SCHEMA}.pub_publication_analytics WHERE publication_id = $1::uuid`,
         pubId,
@@ -588,9 +560,7 @@ describe('integration:m42-publications/scheduled-publish', () => {
 
     it('setRecipientTotal on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          analyticsService.setRecipientTotal(generateId(), 1),
-        ),
+        withTestTenant(async () => analyticsService.setRecipientTotal(generateId(), 1)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

@@ -103,16 +103,12 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
     });
 
     it('STAFF actor can create', async () => {
-      const s = await withTestTenant(async () =>
-        suppliers.create(officerActor(), baseSupplier()),
-      );
+      const s = await withTestTenant(async () => suppliers.create(officerActor(), baseSupplier()));
       expect(s.id).toBeTruthy();
     });
 
     it('STAFF teacher can create (any STAFF persona allowed)', async () => {
-      const s = await withTestTenant(async () =>
-        suppliers.create(teacherActor(), baseSupplier()),
-      );
+      const s = await withTestTenant(async () => suppliers.create(teacherActor(), baseSupplier()));
       expect(s.id).toBeTruthy();
     });
 
@@ -161,9 +157,7 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
     });
 
     it('list with includeInactive=true returns both', async () => {
-      const a = await withTestTenant(async () =>
-        suppliers.create(adminActor(), baseSupplier()),
-      );
+      const a = await withTestTenant(async () => suppliers.create(adminActor(), baseSupplier()));
       await rawClient.$executeRawUnsafe(
         `UPDATE ${TEST_SCHEMA}.fin_suppliers SET is_active = false WHERE id = $1::uuid`,
         a.id,
@@ -173,9 +167,7 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
     });
 
     it('getById returns supplier with contacts ordered (primary first)', async () => {
-      const s = await withTestTenant(async () =>
-        suppliers.create(adminActor(), baseSupplier()),
-      );
+      const s = await withTestTenant(async () => suppliers.create(adminActor(), baseSupplier()));
       // Seed contacts directly
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.fin_supplier_contacts (id, supplier_id, contact_name, email, is_primary)
@@ -198,18 +190,14 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
     });
 
     it('cross-school getById → NotFound', async () => {
-      const s = await withTestTenant(async () =>
-        suppliers.create(adminActor(), baseSupplier()),
+      const s = await withTestTenant(async () => suppliers.create(adminActor(), baseSupplier()));
+      await expect(withTestTenantB(async () => suppliers.getById(s.id))).rejects.toBeInstanceOf(
+        NotFoundException,
       );
-      await expect(
-        withTestTenantB(async () => suppliers.getById(s.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('cross-school list does not include other school suppliers', async () => {
-      const a = await withTestTenant(async () =>
-        suppliers.create(adminActor(), baseSupplier()),
-      );
+      const a = await withTestTenant(async () => suppliers.create(adminActor(), baseSupplier()));
       const listB = await withTestTenantB(async () => suppliers.list(true));
       expect(listB.find((s) => s.id === a.id)).toBeUndefined();
     });
@@ -218,9 +206,7 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
   describe('GrantService', () => {
     function baseGrant(overrides: Record<string, unknown> = {}) {
       const today = new Date().toISOString().slice(0, 10);
-      const oneYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const oneYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       return {
         fundId: TEST_FUND_ID,
         grantName: 'Title I Funding 2026',
@@ -288,16 +274,10 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
 
     it('list returns grants ordered by start_date DESC', async () => {
       const recent = await withTestTenant(async () =>
-        grants.create(
-          adminActor(),
-          baseGrant({ startDate: '2026-06-01', endDate: '2027-06-01' }),
-        ),
+        grants.create(adminActor(), baseGrant({ startDate: '2026-06-01', endDate: '2027-06-01' })),
       );
       const old = await withTestTenant(async () =>
-        grants.create(
-          adminActor(),
-          baseGrant({ startDate: '2025-01-01', endDate: '2026-01-01' }),
-        ),
+        grants.create(adminActor(), baseGrant({ startDate: '2025-01-01', endDate: '2026-01-01' })),
       );
       const list = await withTestTenant(async () => grants.list());
       const recentIdx = list.findIndex((g) => g.id === recent.id);
@@ -306,16 +286,16 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
     });
 
     it('getById missing → NotFound', async () => {
-      await expect(
-        withTestTenant(async () => grants.getById(generateId())),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => grants.getById(generateId()))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('cross-school getById → NotFound', async () => {
       const g = await withTestTenant(async () => grants.create(adminActor(), baseGrant()));
-      await expect(
-        withTestTenantB(async () => grants.getById(g.id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenantB(async () => grants.getById(g.id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     describe('patch', () => {
@@ -358,9 +338,7 @@ describe('integration:m83-finance/suppliers-and-grants', () => {
 
       it('partial: reportingDueDate + notes update', async () => {
         const id = await seed();
-        const future = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        const future = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const updated = await withTestTenant(async () =>
           grants.patch(adminActor(), id, {
             reportingDueDate: future,

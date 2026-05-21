@@ -584,7 +584,10 @@ export class ReferralService {
     // actor (admin's buildVisibility fragment is empty).
     const tenant = getCurrentTenant();
     const visibility = await this.buildVisibility(actor, 3);
-    const sql = SELECT_REFERRAL_BASE + 'WHERE r.id = $1::uuid AND r.school_id = $2::uuid ' + visibility.fragment;
+    const sql =
+      SELECT_REFERRAL_BASE +
+      'WHERE r.id = $1::uuid AND r.school_id = $2::uuid ' +
+      visibility.fragment;
     const params: unknown[] = [id, tenant.schoolId, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<ReferralRow[]>(sql, ...params);

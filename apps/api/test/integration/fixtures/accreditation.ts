@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 
 /**
  * Wave 7 — m85-accreditation fixtures.
@@ -53,9 +49,7 @@ export const TEST_PLATFORM_STANDARD_UNADOPTED_ID = '019e1000-aaaa-7777-8888-0000
  * once per suite via globalSetup; safe to call from per-spec beforeAll
  * fallbacks too (every INSERT is ON CONFLICT DO NOTHING).
  */
-export async function ensureAccreditationPlatformFixtures(
-  client: PrismaClient,
-): Promise<void> {
+export async function ensureAccreditationPlatformFixtures(client: PrismaClient): Promise<void> {
   // Primary framework + 3 standards (2 domains so summary tests can
   // assert a multi-domain rollup).
   await client.$executeRawUnsafe(

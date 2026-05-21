@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -31,10 +27,7 @@ import {
   TEST_PARENT_PERSON_ID,
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 5 — m81-enrolment OfferService deeper DB-backed coverage.
@@ -75,10 +68,7 @@ describe('integration:m81-enrolment/offers', () => {
     kafka = makeRecordingKafka();
     outbox = new OutboxService();
     capacity = new CapacitySummaryService();
-    onboarding = new OnboardingService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    onboarding = new OnboardingService(tenantPrisma, kafka as unknown as KafkaProducerService);
     appService = new ApplicationService(
       tenantPrisma,
       kafka as unknown as KafkaProducerService,
@@ -100,16 +90,10 @@ describe('integration:m81-enrolment/offers', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
@@ -120,27 +104,13 @@ describe('integration:m81-enrolment/offers', () => {
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_task_completions`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
     // Drop platform outbox rows from previous tests so the assertions can
     // tightly match "1 enr.student.enrolled row for this app".
     await rawClient.$executeRawUnsafe(
@@ -188,7 +158,9 @@ describe('integration:m81-enrolment/offers', () => {
     };
   }
 
-  async function seedAcceptedApp(opts: { byParent?: boolean; periodId?: string } = {}): Promise<string> {
+  async function seedAcceptedApp(
+    opts: { byParent?: boolean; periodId?: string } = {},
+  ): Promise<string> {
     const dto = opts.byParent
       ? await withTestTenant(
           async () =>
@@ -199,10 +171,7 @@ describe('integration:m81-enrolment/offers', () => {
           { personId: TEST_PARENT_PERSON_ID },
         )
       : await withTestTenant(async () =>
-          appService.create(
-            buildAppPayload({ enrollmentPeriodId: opts.periodId }),
-            adminActor(),
-          ),
+          appService.create(buildAppPayload({ enrollmentPeriodId: opts.periodId }), adminActor()),
         );
     await withTestTenant(async () =>
       appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
@@ -239,22 +208,14 @@ describe('integration:m81-enrolment/offers', () => {
       await expect(
         withTestTenant(
           async () =>
-            offerService.respond(
-              offer.id,
-              { familyResponse: 'ACCEPTED' } as any,
-              parentActor(),
-            ),
+            offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       // Admin verifies the conditions.
       const verified = await withTestTenant(async () =>
-        offerService.setConditionsMet(
-          offer.id,
-          { conditionsMet: true },
-          adminActor(),
-        ),
+        offerService.setConditionsMet(offer.id, { conditionsMet: true }, adminActor()),
       );
       expect(verified.conditionsMet).toBe(true);
       expect(verified.status).toBe('ISSUED');
@@ -262,11 +223,7 @@ describe('integration:m81-enrolment/offers', () => {
       // Now ACCEPT goes through.
       const accepted = await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(accepted.status).toBe('ACCEPTED');
@@ -286,11 +243,7 @@ describe('integration:m81-enrolment/offers', () => {
         ),
       );
       const failed = await withTestTenant(async () =>
-        offerService.setConditionsMet(
-          offer.id,
-          { conditionsMet: false },
-          adminActor(),
-        ),
+        offerService.setConditionsMet(offer.id, { conditionsMet: false }, adminActor()),
       );
       expect(failed.status).toBe('CONDITIONS_NOT_MET');
       expect(failed.conditionsMet).toBe(false);
@@ -298,11 +251,7 @@ describe('integration:m81-enrolment/offers', () => {
       await expect(
         withTestTenant(
           async () =>
-            offerService.respond(
-              offer.id,
-              { familyResponse: 'ACCEPTED' } as any,
-              parentActor(),
-            ),
+            offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -311,19 +260,11 @@ describe('integration:m81-enrolment/offers', () => {
     it('setConditionsMet on UNCONDITIONAL offer → BadRequest', async () => {
       const appId = await seedAcceptedApp();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          offerService.setConditionsMet(
-            offer.id,
-            { conditionsMet: true },
-            adminActor(),
-          ),
+          offerService.setConditionsMet(offer.id, { conditionsMet: true }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -342,28 +283,16 @@ describe('integration:m81-enrolment/offers', () => {
         ),
       );
       await withTestTenant(async () =>
-        offerService.setConditionsMet(
-          offer.id,
-          { conditionsMet: true },
-          adminActor(),
-        ),
+        offerService.setConditionsMet(offer.id, { conditionsMet: true }, adminActor()),
       );
       await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       await expect(
         withTestTenant(async () =>
-          offerService.setConditionsMet(
-            offer.id,
-            { conditionsMet: false },
-            adminActor(),
-          ),
+          offerService.setConditionsMet(offer.id, { conditionsMet: false }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -393,11 +322,7 @@ describe('integration:m81-enrolment/offers', () => {
       await expect(
         withTestTenant(
           async () =>
-            offerService.setConditionsMet(
-              offer.id,
-              { conditionsMet: true },
-              parentActor(),
-            ),
+            offerService.setConditionsMet(offer.id, { conditionsMet: true }, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -411,11 +336,7 @@ describe('integration:m81-enrolment/offers', () => {
     it('parent DEFERS → status stays ISSUED, family_response=DEFERRED, deferral_target_year_id persisted', async () => {
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const responded = await withTestTenant(
         async () =>
@@ -445,20 +366,12 @@ describe('integration:m81-enrolment/offers', () => {
     it('DEFERRED without deferralTargetYearId → BadRequest', async () => {
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await expect(
         withTestTenant(
           async () =>
-            offerService.respond(
-              offer.id,
-              { familyResponse: 'DEFERRED' } as any,
-              parentActor(),
-            ),
+            offerService.respond(offer.id, { familyResponse: 'DEFERRED' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -467,29 +380,17 @@ describe('integration:m81-enrolment/offers', () => {
     it('responding to an already-DECLINED offer → BadRequest (offer no longer ISSUED)', async () => {
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'DECLINED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'DECLINED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       await expect(
         withTestTenant(
           async () =>
-            offerService.respond(
-              offer.id,
-              { familyResponse: 'ACCEPTED' } as any,
-              parentActor(),
-            ),
+            offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -510,18 +411,10 @@ describe('integration:m81-enrolment/offers', () => {
     it('admin can respond on behalf of a parent (acting-as)', async () => {
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const responded = await withTestTenant(async () =>
-        offerService.respond(
-          offer.id,
-          { familyResponse: 'DECLINED' } as any,
-          adminActor(),
-        ),
+        offerService.respond(offer.id, { familyResponse: 'DECLINED' } as any, adminActor()),
       );
       expect(responded.status).toBe('DECLINED');
     });
@@ -534,19 +427,11 @@ describe('integration:m81-enrolment/offers', () => {
     it('enr.student.enrolled outbox row carries full payload', async () => {
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
 
@@ -577,19 +462,11 @@ describe('integration:m81-enrolment/offers', () => {
       // the offer-accept tx falls through cleanly.
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const accepted = await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(accepted.status).toBe('ACCEPTED');
@@ -624,24 +501,14 @@ describe('integration:m81-enrolment/offers', () => {
 
       const appId = await seedAcceptedApp({ byParent: true });
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
-      const progressRows = await rawClient.$queryRawUnsafe<
-        Array<{ tasks_total: number }>
-      >(
+      const progressRows = await rawClient.$queryRawUnsafe<Array<{ tasks_total: number }>>(
         `SELECT tasks_total FROM ${TEST_SCHEMA}.enr_student_onboarding_progress
           WHERE application_id = $1::uuid`,
         appId,
@@ -659,65 +526,44 @@ describe('integration:m81-enrolment/offers', () => {
       // Offer 1: parent's own
       const parentAppId = await seedAcceptedApp({ byParent: true });
       const parentOffer = await withTestTenant(async () =>
-        offerService.issue(
-          parentAppId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(parentAppId, { responseDeadline: deadline() } as any, adminActor()),
       );
       // Offer 2: admin-only (no guardian_person_id)
       const adminAppId = await seedAcceptedApp({ byParent: false });
       await withTestTenant(async () =>
-        offerService.issue(
-          adminAppId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(adminAppId, { responseDeadline: deadline() } as any, adminActor()),
       );
 
-      const parentList = await withTestTenant(
-        async () => offerService.list(parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const parentList = await withTestTenant(async () => offerService.list(parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(parentList).toHaveLength(1);
       expect(parentList[0]!.id).toBe(parentOffer.id);
 
-      const adminList = await withTestTenant(async () =>
-        offerService.list(adminActor()),
-      );
+      const adminList = await withTestTenant(async () => offerService.list(adminActor()));
       expect(adminList.length).toBeGreaterThanOrEqual(2);
     });
 
     it('STUDENT actor → empty list', async () => {
       const appId = await seedAcceptedApp();
       await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline() } as any, adminActor()),
       );
-      const list = await withTestTenant(
-        async () => offerService.list(studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => offerService.list(studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
+      });
       expect(list).toEqual([]);
     });
 
-    it('parent getById on someone else\'s offer → 404', async () => {
+    it("parent getById on someone else's offer → 404", async () => {
       const adminAppId = await seedAcceptedApp({ byParent: false });
       const adminOffer = await withTestTenant(async () =>
-        offerService.issue(
-          adminAppId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(adminAppId, { responseDeadline: deadline() } as any, adminActor()),
       );
       await expect(
-        withTestTenant(
-          async () => offerService.getById(adminOffer.id, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => offerService.getById(adminOffer.id, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -732,11 +578,7 @@ describe('integration:m81-enrolment/offers', () => {
     it('parent fetching own offer succeeds', async () => {
       const parentAppId = await seedAcceptedApp({ byParent: true });
       const parentOffer = await withTestTenant(async () =>
-        offerService.issue(
-          parentAppId,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(parentAppId, { responseDeadline: deadline() } as any, adminActor()),
       );
       const fetched = await withTestTenant(
         async () => offerService.getById(parentOffer.id, parentActor()),
@@ -800,11 +642,7 @@ describe('integration:m81-enrolment/offers', () => {
       const appId = await seedAcceptedApp();
       await expect(
         withTestTenant(async () =>
-          offerService.issue(
-            appId,
-            { responseDeadline: deadline() } as any,
-            teacherActor(),
-          ),
+          offerService.issue(appId, { responseDeadline: deadline() } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -829,18 +667,10 @@ describe('integration:m81-enrolment/offers', () => {
         appService.create(buildAppPayload({ firstName: 'WL' }), adminActor()),
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'WAITLISTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'WAITLISTED' } as any, adminActor()),
       );
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          dto.id,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(dto.id, { responseDeadline: deadline() } as any, adminActor()),
       );
       expect(offer.status).toBe('ISSUED');
     });
@@ -859,20 +689,15 @@ describe('integration:m81-enrolment/offers', () => {
         appService.updateStatus(bApp.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       await withTestTenantB(async () =>
-        offerService.issue(
-          bApp.id,
-          { responseDeadline: deadline() } as any,
-          adminActor(),
-        ),
+        offerService.issue(bApp.id, { responseDeadline: deadline() } as any, adminActor()),
       );
 
       // Parent in School A has no offers and the parent row-scope holds
       // even though the underlying SELECT does not constrain on school_id —
       // the guardian_person_id filter is the safety net.
-      const list = await withTestTenant(
-        async () => offerService.list(parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => offerService.list(parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(list).toEqual([]);
     });
   });

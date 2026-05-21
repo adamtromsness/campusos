@@ -1,24 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { Logger } from '@nestjs/common';
 
 import { SubstitutionService } from '@modules/m22-scheduling/substitution.service';
 import { CoverageService } from '@modules/m22-scheduling/coverage.service';
-import { CoverageConsumer, enumerateWeekdayDates, isoWeekdayIndex } from '@modules/m22-scheduling/coverage.consumer';
+import {
+  CoverageConsumer,
+  enumerateWeekdayDates,
+  isoWeekdayIndex,
+} from '@modules/m22-scheduling/coverage.consumer';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 import type { IdempotencyService } from '@shared/kafka/idempotency.service';
 
-import {
-  makeRecordingKafka,
-  RecordingKafkaProducer,
-} from '../helpers/recording-kafka';
+import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
 import {
   withTestTenant,
   withTestTenantB,
@@ -64,10 +61,7 @@ describe('integration:m22-scheduling/substitution', () => {
     await rawClient.$connect();
     kafka = makeRecordingKafka();
     substitutionService = new SubstitutionService(tenantPrisma);
-    coverageService = new CoverageService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    coverageService = new CoverageService(tenantPrisma, kafka as unknown as KafkaProducerService);
 
     // Stub consumer dependencies — the consumer SUBSCRIBE on onModuleInit
     // isn't necessary for testing the handler in isolation. We construct
@@ -252,9 +246,7 @@ describe('integration:m22-scheduling/substitution', () => {
         slotId: slotBId,
         coverageDate: '2027-03-16',
       });
-      const list = await withTestTenant(async () =>
-        coverageService.list({} as any, adminActor()),
-      );
+      const list = await withTestTenant(async () => coverageService.list({} as any, adminActor()));
       const ids = list.map((r) => r.id);
       expect(ids).toContain(id1);
       expect(ids).toContain(id2);
@@ -263,13 +255,16 @@ describe('integration:m22-scheduling/substitution', () => {
     it('non-admin without employeeId sees []', async () => {
       await seedCoverageRow();
       const result = await withTestTenant(async () =>
-        coverageService.list({} as any, {
-          accountId: '00000000-0000-0000-0000-000000000099',
-          personId: '00000000-0000-0000-0000-000000000099',
-          employeeId: null,
-          personType: 'STAFF',
-          isSchoolAdmin: false,
-        } as any),
+        coverageService.list(
+          {} as any,
+          {
+            accountId: '00000000-0000-0000-0000-000000000099',
+            personId: '00000000-0000-0000-0000-000000000099',
+            employeeId: null,
+            personType: 'STAFF',
+            isSchoolAdmin: false,
+          } as any,
+        ),
       );
       expect(result).toEqual([]);
     });
@@ -384,19 +379,11 @@ describe('integration:m22-scheduling/substitution', () => {
     it('assign on already-ASSIGNED → BadRequestException', async () => {
       const id = await seedCoverageRow();
       await withTestTenant(async () =>
-        coverageService.assign(
-          id,
-          { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any,
-          adminActor(),
-        ),
+        coverageService.assign(id, { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          coverageService.assign(
-            id,
-            { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any,
-            adminActor(),
-          ),
+          coverageService.assign(id, { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -430,15 +417,9 @@ describe('integration:m22-scheduling/substitution', () => {
     it('admin cancels ASSIGNED → CANCELLED, substitution row dropped', async () => {
       const id = await seedCoverageRow();
       await withTestTenant(async () =>
-        coverageService.assign(
-          id,
-          { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any,
-          adminActor(),
-        ),
+        coverageService.assign(id, { substituteId: TEST_ADMIN_EMPLOYEE_ID } as any, adminActor()),
       );
-      await withTestTenant(async () =>
-        coverageService.cancel(id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => coverageService.cancel(id, {} as any, adminActor()));
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT id FROM ${TEST_SCHEMA}.sch_substitution_timetable WHERE coverage_request_id = $1::uuid`,
         id,
@@ -448,33 +429,23 @@ describe('integration:m22-scheduling/substitution', () => {
 
     it('cancel already-CANCELLED → BadRequestException', async () => {
       const id = await seedCoverageRow();
-      await withTestTenant(async () =>
-        coverageService.cancel(id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => coverageService.cancel(id, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          coverageService.cancel(id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => coverageService.cancel(id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('cancel non-admin → ForbiddenException', async () => {
       const id = await seedCoverageRow();
       await expect(
-        withTestTenant(async () =>
-          coverageService.cancel(id, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => coverageService.cancel(id, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('cancel unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          coverageService.cancel(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          coverageService.cancel('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -507,9 +478,7 @@ describe('integration:m22-scheduling/substitution', () => {
 
     it('list returns substitutions', async () => {
       const { substitutionId } = await seedAssignedCoverage();
-      const list = await withTestTenant(async () =>
-        substitutionService.list({} as any),
-      );
+      const list = await withTestTenant(async () => substitutionService.list({} as any));
       const ids = list.map((r) => r.id);
       expect(ids).toContain(substitutionId);
     });
@@ -549,13 +518,7 @@ describe('integration:m22-scheduling/substitution', () => {
     it('enumerateWeekdayDates skips weekends', () => {
       // 2027-03-15 is Monday, 2027-03-21 is Sunday
       const dates = enumerateWeekdayDates('2027-03-15', '2027-03-21');
-      expect(dates).toEqual([
-        '2027-03-15',
-        '2027-03-16',
-        '2027-03-17',
-        '2027-03-18',
-        '2027-03-19',
-      ]);
+      expect(dates).toEqual(['2027-03-15', '2027-03-16', '2027-03-17', '2027-03-18', '2027-03-19']);
     });
 
     it('enumerateWeekdayDates handles start > end', () => {
@@ -748,19 +711,23 @@ describe('integration:m22-scheduling/substitution', () => {
       );
 
       await (localConsumer as any).handle(msg);
-      const firstCount = ((await rawClient.$queryRawUnsafe(
-        `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.sch_coverage_requests WHERE leave_request_id = $1::uuid`,
-        requestId,
-      )) as Array<{ count: number }>)[0]!.count;
+      const firstCount = (
+        (await rawClient.$queryRawUnsafe(
+          `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.sch_coverage_requests WHERE leave_request_id = $1::uuid`,
+          requestId,
+        )) as Array<{ count: number }>
+      )[0]!.count;
       expect(firstCount).toBeGreaterThan(0);
 
       // Re-deliver — IdempotencyService now reports claimed=true; the
       // wrapper drops the event before the DB is touched.
       await (localConsumer as any).handle(msg);
-      const secondCount = ((await rawClient.$queryRawUnsafe(
-        `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.sch_coverage_requests WHERE leave_request_id = $1::uuid`,
-        requestId,
-      )) as Array<{ count: number }>)[0]!.count;
+      const secondCount = (
+        (await rawClient.$queryRawUnsafe(
+          `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.sch_coverage_requests WHERE leave_request_id = $1::uuid`,
+          requestId,
+        )) as Array<{ count: number }>
+      )[0]!.count;
       expect(secondCount).toBe(firstCount);
     });
   });

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -232,14 +228,10 @@ describe('integration:m41-meetings/meeting-lifecycle', () => {
     it('admin sees all meetings; teacher (non-participant) sees none', async () => {
       const meeting = await createMeetingAsAdmin('Admin only');
 
-      const adminList = await withTestTenant(async () =>
-        meetingService.list({}, adminActor()),
-      );
+      const adminList = await withTestTenant(async () => meetingService.list({}, adminActor()));
       expect(adminList.map((m) => m.id)).toContain(meeting.id);
 
-      const teacherList = await withTestTenant(async () =>
-        meetingService.list({}, teacherActor()),
-      );
+      const teacherList = await withTestTenant(async () => meetingService.list({}, teacherActor()));
       expect(teacherList.map((m) => m.id)).not.toContain(meeting.id);
     });
 
@@ -256,9 +248,7 @@ describe('integration:m41-meetings/meeting-lifecycle', () => {
           adminActor(),
         ),
       );
-      const teacherList = await withTestTenant(async () =>
-        meetingService.list({}, teacherActor()),
-      );
+      const teacherList = await withTestTenant(async () => meetingService.list({}, teacherActor()));
       expect(teacherList.map((m) => m.id)).toContain(meeting.id);
 
       const fetched = await withTestTenant(async () =>
@@ -341,9 +331,7 @@ describe('integration:m41-meetings/meeting-lifecycle', () => {
 
     it('listParticipants returns the roster', async () => {
       const m = await createMeetingAsAdmin('participants');
-      const list = await withTestTenant(async () =>
-        meetingService.listParticipants(m.id),
-      );
+      const list = await withTestTenant(async () => meetingService.listParticipants(m.id));
       expect(list).toHaveLength(1); // organiser only
       expect(list[0]!.participantId).toBe(TEST_ADMIN_ACCOUNT_ID);
     });
@@ -571,19 +559,14 @@ describe('integration:m41-meetings/meeting-lifecycle', () => {
       await withTestTenant(async () =>
         meetingService.removeParticipant(teacherPart.id, adminActor()),
       );
-      const after = await withTestTenant(async () =>
-        meetingService.listParticipants(m.id),
-      );
+      const after = await withTestTenant(async () => meetingService.listParticipants(m.id));
       expect(after.map((p) => p.participantId)).not.toContain(TEST_TEACHER_ACCOUNT_ID);
     });
 
     it('removeParticipant on non-existent id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          meetingService.removeParticipant(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          meetingService.removeParticipant('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -644,15 +627,11 @@ describe('integration:m41-meetings/meeting-lifecycle', () => {
 
       // School A admin cannot getById
       await expect(
-        withTestTenant(async () =>
-          meetingService.getById(schoolBMeeting.id, adminActor()),
-        ),
+        withTestTenant(async () => meetingService.getById(schoolBMeeting.id, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // School A admin list excludes it
-      const aList = await withTestTenant(async () =>
-        meetingService.list({}, adminActor()),
-      );
+      const aList = await withTestTenant(async () => meetingService.list({}, adminActor()));
       expect(aList.map((m) => m.id)).not.toContain(schoolBMeeting.id);
 
       // School A admin cannot patch

@@ -132,9 +132,7 @@ describe('integration:m87-safety/controllers', () => {
     // teardown removes the fixture rows + the iam cache grant.
     // IMMUTABLE tables: inc_incident_timeline. TRUNCATE bypasses
     // the BEFORE-ROW prevent_mutation trigger.
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.inc_reunification_corrections WHERE reunification_record_id IN
          (SELECT id FROM ${TEST_SCHEMA}.inc_reunification_records)`,
@@ -356,14 +354,11 @@ describe('integration:m87-safety/controllers', () => {
   describe('IncidentsController — incident lifecycle', () => {
     it('POST /declare → returns dto with ACTIVE status + outbox row', async () => {
       const dto = await withTestTenant(() =>
-        controller.declare(
-          req(),
-          {
-            incidentTypeId: platformIncidentTypeId,
-            title: 'Sirens',
-            description: 'Tornado',
-          } as any,
-        ),
+        controller.declare(req(), {
+          incidentTypeId: platformIncidentTypeId,
+          title: 'Sirens',
+          description: 'Tornado',
+        } as any),
       );
       expect(dto.status).toBe('ACTIVE');
       expect(dto.schoolId).toBe(TEST_SCHOOL_ID);
@@ -385,9 +380,7 @@ describe('integration:m87-safety/controllers', () => {
 
     it('GET / with status filter', async () => {
       const id = await declareIncident();
-      const active = await withTestTenant(() =>
-        controller.list({ status: 'ACTIVE' } as any),
-      );
+      const active = await withTestTenant(() => controller.list({ status: 'ACTIVE' } as any));
       expect(active.find((r: any) => r.id === id)).toBeDefined();
     });
 
@@ -436,15 +429,12 @@ describe('integration:m87-safety/controllers', () => {
 
     it('POST /types → admin creates school-scoped type', async () => {
       const created = await withTestTenant(() =>
-        controller.createType(
-          req(),
-          {
-            code: 'CTRL-NEW-' + generateId().slice(-6),
-            name: 'CTRL New Type',
-            severity: 'HIGH',
-            requiresLockdown: false,
-          } as any,
-        ),
+        controller.createType(req(), {
+          code: 'CTRL-NEW-' + generateId().slice(-6),
+          name: 'CTRL New Type',
+          severity: 'HIGH',
+          requiresLockdown: false,
+        } as any),
       );
       expect(created.severity).toBe('HIGH');
       expect(created.schoolId).toBe(TEST_SCHOOL_ID);
@@ -452,14 +442,11 @@ describe('integration:m87-safety/controllers', () => {
 
     it('GET /types/:id → returns the row', async () => {
       const created = await withTestTenant(() =>
-        controller.createType(
-          req(),
-          {
-            code: 'CTRL-GET-' + generateId().slice(-6),
-            name: 'CTRL Get Type',
-            severity: 'MEDIUM',
-          } as any,
-        ),
+        controller.createType(req(), {
+          code: 'CTRL-GET-' + generateId().slice(-6),
+          name: 'CTRL Get Type',
+          severity: 'MEDIUM',
+        } as any),
       );
       const got = await withTestTenant(() => controller.getType(created.id));
       expect(got.id).toBe(created.id);
@@ -467,21 +454,18 @@ describe('integration:m87-safety/controllers', () => {
 
     it('PATCH /types/:id → admin can update', async () => {
       const created = await withTestTenant(() =>
-        controller.createType(
-          req(),
-          {
-            code: 'CTRL-PAT-' + generateId().slice(-6),
-            name: 'CTRL Patch Type',
-            severity: 'LOW',
-          } as any,
-        ),
+        controller.createType(req(), {
+          code: 'CTRL-PAT-' + generateId().slice(-6),
+          name: 'CTRL Patch Type',
+          severity: 'LOW',
+        } as any),
       );
       const patched = await withTestTenant(() =>
-        controller.patchType(
-          req(),
-          created.id,
-          { name: 'Updated', severity: 'CRITICAL', requiresLockdown: true } as any,
-        ),
+        controller.patchType(req(), created.id, {
+          name: 'Updated',
+          severity: 'CRITICAL',
+          requiresLockdown: true,
+        } as any),
       );
       expect(patched.name).toBe('Updated');
       expect(patched.severity).toBe('CRITICAL');
@@ -495,9 +479,7 @@ describe('integration:m87-safety/controllers', () => {
   describe('IncidentsController — procedures', () => {
     function baseProc(overrides: Record<string, unknown> = {}) {
       const today = new Date().toISOString().slice(0, 10);
-      const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       return {
         procedureType: 'FIRE_EVACUATION' as const,
         title: 'CTRL Fire Procedure',
@@ -525,9 +507,7 @@ describe('integration:m87-safety/controllers', () => {
       const list = await withTestTenant(() => controller.listProcedures());
       expect(list.find((p: any) => p.id === created.id)).toBeDefined();
 
-      const includeInactive = await withTestTenant(() =>
-        controller.listProcedures('true'),
-      );
+      const includeInactive = await withTestTenant(() => controller.listProcedures('true'));
       expect(includeInactive.find((p: any) => p.id === created.id)).toBeDefined();
 
       const byType = await withTestTenant(() =>
@@ -539,11 +519,10 @@ describe('integration:m87-safety/controllers', () => {
       expect(byId.id).toBe(created.id);
 
       const patched = await withTestTenant(() =>
-        controller.patchProcedure(
-          req(),
-          created.id,
-          { title: 'CTRL Fire Procedure v2', isActive: false } as any,
-        ),
+        controller.patchProcedure(req(), created.id, {
+          title: 'CTRL Fire Procedure v2',
+          isActive: false,
+        } as any),
       );
       expect(patched.title).toBe('CTRL Fire Procedure v2');
       expect(patched.isActive).toBe(false);
@@ -557,15 +536,11 @@ describe('integration:m87-safety/controllers', () => {
     it('POST /:id/timeline + GET /:id/timeline', async () => {
       const incidentId = await declareIncident();
       const entry = await withTestTenant(() =>
-        controller.appendTimeline(
-          req(),
-          incidentId,
-          {
-            eventType: 'ALERT_SENT',
-            description: 'Mass SMS dispatched',
-            metadata: { channel: 'sms', count: 100 },
-          } as any,
-        ),
+        controller.appendTimeline(req(), incidentId, {
+          eventType: 'ALERT_SENT',
+          description: 'Mass SMS dispatched',
+          metadata: { channel: 'sms', count: 100 },
+        } as any),
       );
       expect(entry.eventType).toBe('ALERT_SENT');
       expect(entry.incidentId).toBe(incidentId);
@@ -600,17 +575,13 @@ describe('integration:m87-safety/controllers', () => {
     it('GET /:id/accountability → returns list', async () => {
       const incidentId = await declareIncident();
       const recId = await seedAccRow(incidentId);
-      const list = await withTestTenant(() =>
-        controller.listAccountability(incidentId),
-      );
+      const list = await withTestTenant(() => controller.listAccountability(incidentId));
       expect(list.find((r: any) => r.id === recId)).toBeDefined();
     });
 
     it('GET /:id/accountability/summary → returns null when no summary materialised', async () => {
       const incidentId = await declareIncident();
-      const summary = await withTestTenant(() =>
-        controller.getAccountabilitySummary(incidentId),
-      );
+      const summary = await withTestTenant(() => controller.getAccountabilitySummary(incidentId));
       // No accountability records yet — summary row not materialised → null
       expect(summary).toBeNull();
     });
@@ -619,19 +590,16 @@ describe('integration:m87-safety/controllers', () => {
       const incidentId = await declareIncident();
       const recId = await seedAccRow(incidentId);
       const updated = await withTestTenant(() =>
-        controller.patchAccountability(
-          req(),
-          recId,
-          { status: 'ACCOUNTED_FOR', notes: 'Confirmed at assembly' } as any,
-        ),
+        controller.patchAccountability(req(), recId, {
+          status: 'ACCOUNTED_FOR',
+          notes: 'Confirmed at assembly',
+        } as any),
       );
       expect(updated.status).toBe('ACCOUNTED_FOR');
       expect(updated.lastUpdatedBy).toBe(TEST_ADMIN_ACCOUNT_ID);
 
       // Now summary is materialised
-      const summary = await withTestTenant(() =>
-        controller.getAccountabilitySummary(incidentId),
-      );
+      const summary = await withTestTenant(() => controller.getAccountabilitySummary(incidentId));
       expect(summary).not.toBeNull();
       expect(summary!.accountedFor).toBe(1);
     });
@@ -642,15 +610,11 @@ describe('integration:m87-safety/controllers', () => {
       const r2 = await seedAccRow(incidentId);
       const r3 = await seedAccRow(incidentId);
       const result = await withTestTenant(() =>
-        controller.bulkAccountability(
-          req(),
-          incidentId,
-          {
-            recordIds: [r1, r2, r3],
-            status: 'EVACUATED',
-            notes: 'Mass evacuation complete',
-          } as any,
-        ),
+        controller.bulkAccountability(req(), incidentId, {
+          recordIds: [r1, r2, r3],
+          status: 'EVACUATED',
+          notes: 'Mass evacuation complete',
+        } as any),
       );
       expect(result.updated).toBe(3);
     });
@@ -666,15 +630,11 @@ describe('integration:m87-safety/controllers', () => {
       const visitorId = await seedSignedInVisitor();
 
       const reun = await withTestTenant(() =>
-        controller.createReunification(
-          req(),
-          incidentId,
-          {
-            studentId,
-            releasedToId: visitorId,
-            notes: 'Parent collected at 14:30',
-          } as any,
-        ),
+        controller.createReunification(req(), incidentId, {
+          studentId,
+          releasedToId: visitorId,
+          notes: 'Parent collected at 14:30',
+        } as any),
       );
       expect(reun.studentId).toBe(studentId);
       expect(reun.releasedToId).toBe(visitorId);
@@ -686,16 +646,13 @@ describe('integration:m87-safety/controllers', () => {
       const studentId = await seedStudent('ReunList');
       const visitorId = await seedSignedInVisitor();
       const reun = await withTestTenant(() =>
-        controller.createReunification(
-          req(),
-          incidentId,
-          { studentId, releasedToId: visitorId } as any,
-        ),
+        controller.createReunification(req(), incidentId, {
+          studentId,
+          releasedToId: visitorId,
+        } as any),
       );
 
-      const list = await withTestTenant(() =>
-        controller.listReunification(incidentId),
-      );
+      const list = await withTestTenant(() => controller.listReunification(incidentId));
       expect(list.find((r: any) => r.id === reun.id)).toBeDefined();
     });
 
@@ -704,22 +661,16 @@ describe('integration:m87-safety/controllers', () => {
       const studentId = await seedStudent('ReunCorr');
       const visitorId = await seedSignedInVisitor();
       const reun = await withTestTenant(() =>
-        controller.createReunification(
-          req(),
-          incidentId,
-          { studentId, releasedToId: visitorId } as any,
-        ),
+        controller.createReunification(req(), incidentId, {
+          studentId,
+          releasedToId: visitorId,
+        } as any),
       );
 
       const correction = await withTestTenant(() =>
-        controller.correctReunification(
-          req(),
-          reun.id,
-          {
-            correctionReason:
-              'Recorded wrong releasedToId — collecting adult was a different parent',
-          } as any,
-        ),
+        controller.correctReunification(req(), reun.id, {
+          correctionReason: 'Recorded wrong releasedToId — collecting adult was a different parent',
+        } as any),
       );
       expect(correction.reunificationRecordId).toBe(reun.id);
       expect(correction.correctedBy).toBe(TEST_ADMIN_ACCOUNT_ID);
@@ -740,33 +691,25 @@ describe('integration:m87-safety/controllers', () => {
     }
 
     it('POST /drills + GET /drills/list + GET /drills/overdue + PATCH /drills/:id/complete', async () => {
-      const created = await withTestTenant(() =>
-        controller.createDrill(req(), baseDrill() as any),
-      );
+      const created = await withTestTenant(() => controller.createDrill(req(), baseDrill() as any));
       expect(created.status).toBe('SCHEDULED');
 
       const list = await withTestTenant(() => controller.listDrills());
       expect(list.find((d: any) => d.id === created.id)).toBeDefined();
 
-      const filtered = await withTestTenant(() =>
-        controller.listDrills('SCHEDULED' as any),
-      );
+      const filtered = await withTestTenant(() => controller.listDrills('SCHEDULED' as any));
       expect(filtered.find((d: any) => d.id === created.id)).toBeDefined();
 
       const overdue = await withTestTenant(() => controller.overdueDrills());
       expect(Array.isArray(overdue)).toBe(true);
 
       const completed = await withTestTenant(() =>
-        controller.completeDrill(
-          req(),
-          created.id,
-          {
-            completedAt: new Date().toISOString(),
-            durationSeconds: 240,
-            participationRate: 0.97,
-            notes: 'All clear in 4 minutes',
-          } as any,
-        ),
+        controller.completeDrill(req(), created.id, {
+          completedAt: new Date().toISOString(),
+          durationSeconds: 240,
+          participationRate: 0.97,
+          notes: 'All clear in 4 minutes',
+        } as any),
       );
       expect(completed.status).toBe('COMPLETED');
       expect(completed.durationSeconds).toBe(240);
@@ -774,17 +717,10 @@ describe('integration:m87-safety/controllers', () => {
 
     it('PATCH /drills/:id/cancel', async () => {
       const created = await withTestTenant(() =>
-        controller.createDrill(
-          req(),
-          baseDrill({ procedureType: 'LOCKDOWN' }) as any,
-        ),
+        controller.createDrill(req(), baseDrill({ procedureType: 'LOCKDOWN' }) as any),
       );
       const cancelled = await withTestTenant(() =>
-        controller.cancelDrill(
-          req(),
-          created.id,
-          { notes: 'Weather rescheduled' } as any,
-        ),
+        controller.cancelDrill(req(), created.id, { notes: 'Weather rescheduled' } as any),
       );
       expect(cancelled.status).toBe('CANCELLED');
     });
@@ -796,16 +732,13 @@ describe('integration:m87-safety/controllers', () => {
   describe('IncidentsController — non-discipline reports', () => {
     it('POST /reports → admin creates incident report', async () => {
       const created = await withTestTenant(() =>
-        controller.createReport(
-          req(),
-          {
-            incidentType: 'STUDENT_INJURY',
-            location: 'Gymnasium',
-            incidentDate: new Date().toISOString(),
-            description: 'Student tripped during basketball practice and grazed knee.',
-            severity: 'LOW',
-          } as any,
-        ),
+        controller.createReport(req(), {
+          incidentType: 'STUDENT_INJURY',
+          location: 'Gymnasium',
+          incidentDate: new Date().toISOString(),
+          description: 'Student tripped during basketball practice and grazed knee.',
+          severity: 'LOW',
+        } as any),
       );
       expect(created.status).toBe('OPEN');
       expect(created.severity).toBe('LOW');
@@ -814,21 +747,16 @@ describe('integration:m87-safety/controllers', () => {
 
     it('GET /reports/list (default + filters)', async () => {
       const r = await withTestTenant(() =>
-        controller.createReport(
-          req(),
-          {
-            incidentType: 'PROPERTY_DAMAGE',
-            location: 'Cafeteria',
-            incidentDate: new Date().toISOString(),
-            description: 'Window cracked due to thrown ball; awaiting facilities review.',
-            severity: 'MEDIUM',
-          } as any,
-        ),
+        controller.createReport(req(), {
+          incidentType: 'PROPERTY_DAMAGE',
+          location: 'Cafeteria',
+          incidentDate: new Date().toISOString(),
+          description: 'Window cracked due to thrown ball; awaiting facilities review.',
+          severity: 'MEDIUM',
+        } as any),
       );
 
-      const list = await withTestTenant(() =>
-        controller.listReports(req(), {} as any),
-      );
+      const list = await withTestTenant(() => controller.listReports(req(), {} as any));
       expect(list.find((x: any) => x.id === r.id)).toBeDefined();
 
       const filteredByStatus = await withTestTenant(() =>
@@ -849,15 +777,12 @@ describe('integration:m87-safety/controllers', () => {
 
     it('GET /reports/:id → returns dto', async () => {
       const r = await withTestTenant(() =>
-        controller.createReport(
-          req(),
-          {
-            incidentType: 'MEDICAL_EPISODE',
-            incidentDate: new Date().toISOString(),
-            description: 'Student fainted briefly during a fire drill; alert and fine now.',
-            severity: 'HIGH',
-          } as any,
-        ),
+        controller.createReport(req(), {
+          incidentType: 'MEDICAL_EPISODE',
+          incidentDate: new Date().toISOString(),
+          description: 'Student fainted briefly during a fire drill; alert and fine now.',
+          severity: 'HIGH',
+        } as any),
       );
       const got = await withTestTenant(() => controller.getReport(req(), r.id));
       expect(got.id).toBe(r.id);
@@ -865,32 +790,24 @@ describe('integration:m87-safety/controllers', () => {
 
     it('PATCH /reports/:id → admin reviewer transitions status', async () => {
       const r = await withTestTenant(() =>
-        controller.createReport(
-          req(),
-          {
-            incidentType: 'STAFF_INJURY',
-            incidentDate: new Date().toISOString(),
-            description: 'Teacher twisted ankle during evacuation drill; rest recommended.',
-            severity: 'LOW',
-          } as any,
-        ),
+        controller.createReport(req(), {
+          incidentType: 'STAFF_INJURY',
+          incidentDate: new Date().toISOString(),
+          description: 'Teacher twisted ankle during evacuation drill; rest recommended.',
+          severity: 'LOW',
+        } as any),
       );
       const reviewed = await withTestTenant(() =>
-        controller.patchReport(
-          req(),
-          r.id,
-          { status: 'UNDER_REVIEW' } as any,
-        ),
+        controller.patchReport(req(), r.id, { status: 'UNDER_REVIEW' } as any),
       );
       expect(reviewed.status).toBe('UNDER_REVIEW');
       expect(reviewed.reviewedBy).toBe(TEST_ADMIN_ACCOUNT_ID);
 
       const closed = await withTestTenant(() =>
-        controller.patchReport(
-          req(),
-          r.id,
-          { status: 'CLOSED', resolution: 'No further action required; incident closed.' } as any,
-        ),
+        controller.patchReport(req(), r.id, {
+          status: 'CLOSED',
+          resolution: 'No further action required; incident closed.',
+        } as any),
       );
       expect(closed.status).toBe('CLOSED');
       expect(closed.closedAt).not.toBeNull();

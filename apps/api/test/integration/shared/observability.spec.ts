@@ -4,11 +4,7 @@ import { RequestLogMiddleware } from '@shared/observability/request-log.middlewa
 import { TraceIdMiddleware } from '@shared/observability/trace-id.middleware';
 import { MetricsService } from '@shared/observability/metrics.service';
 import { CircuitBreaker, CircuitBreakerOpenError } from '@shared/observability/circuit-breaker';
-import {
-  bootstrapOpenTelemetry,
-  getTracer,
-  withSpan,
-} from '@shared/observability/otel-bootstrap';
+import { bootstrapOpenTelemetry, getTracer, withSpan } from '@shared/observability/otel-bootstrap';
 import {
   getTraceContext,
   getTraceId,
@@ -43,12 +39,14 @@ const TENANT: TenantInfo = {
 
 // Stand-in for express Request / Response so we can drive middleware
 // without bringing up a full Nest app.
-function makeReq(opts: {
-  method?: string;
-  path?: string;
-  originalUrl?: string;
-  headers?: Record<string, string>;
-} = {}) {
+function makeReq(
+  opts: {
+    method?: string;
+    path?: string;
+    originalUrl?: string;
+    headers?: Record<string, string>;
+  } = {},
+) {
   const headers = opts.headers ?? {};
   return {
     method: opts.method ?? 'GET',

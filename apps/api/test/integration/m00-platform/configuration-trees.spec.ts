@@ -12,11 +12,7 @@ import {
 } from '@modules/m00-platform/configuration/configuration.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 /**
  * Wave 2 — DEFERRED FOLLOW-UP. Covers the five m00-platform/configuration
@@ -361,15 +357,11 @@ describe('integration:m00-platform/configuration-trees', () => {
       const email = 'bulk-test-dup-' + Date.now() + '@x.local';
       // First pass — creates one staff.
       await withTestTenant(async () =>
-        bulk.bulkImportStaff([
-          { firstName: 'BulkTest', lastName: 'Dup', email },
-        ]),
+        bulk.bulkImportStaff([{ firstName: 'BulkTest', lastName: 'Dup', email }]),
       );
       // Second pass — exact same email; should skip.
       const result = await withTestTenant(async () =>
-        bulk.bulkImportStaff([
-          { firstName: 'BulkTest', lastName: 'Dup2', email },
-        ]),
+        bulk.bulkImportStaff([{ firstName: 'BulkTest', lastName: 'Dup2', email }]),
       );
       expect(result.created).toBe(0);
       expect(result.skipped).toBe(1);
@@ -378,9 +370,7 @@ describe('integration:m00-platform/configuration-trees', () => {
     it('bulkImportStaff: malformed email → BadRequestException up-front (whole batch rejected)', async () => {
       await expect(
         withTestTenant(async () =>
-          bulk.bulkImportStaff([
-            { firstName: 'BulkTest', lastName: 'Bad', email: 'not-an-email' },
-          ]),
+          bulk.bulkImportStaff([{ firstName: 'BulkTest', lastName: 'Bad', email: 'not-an-email' }]),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -411,9 +401,9 @@ describe('integration:m00-platform/configuration-trees', () => {
     });
 
     it('bulkImportStaff: empty array → BadRequestException', async () => {
-      await expect(
-        withTestTenant(async () => bulk.bulkImportStaff([])),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => bulk.bulkImportStaff([]))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('bulkImportStudents: happy 1-row batch → 1 student created', async () => {
@@ -433,9 +423,7 @@ describe('integration:m00-platform/configuration-trees', () => {
     it('bulkImportStudents: missing studentNumber → BadRequestException', async () => {
       await expect(
         withTestTenant(async () =>
-          bulk.bulkImportStudents([
-            { firstName: 'BulkStu', lastName: 'NoNum', studentNumber: '' },
-          ]),
+          bulk.bulkImportStudents([{ firstName: 'BulkStu', lastName: 'NoNum', studentNumber: '' }]),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -456,9 +444,9 @@ describe('integration:m00-platform/configuration-trees', () => {
     });
 
     it('bulkImportStudents: empty array → BadRequestException', async () => {
-      await expect(
-        withTestTenant(async () => bulk.bulkImportStudents([])),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(withTestTenant(async () => bulk.bulkImportStudents([]))).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 });

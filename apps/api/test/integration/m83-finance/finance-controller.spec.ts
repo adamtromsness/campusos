@@ -28,15 +28,8 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
+import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { resetFinanceTables } from '../helpers/reset';
 import {
@@ -184,11 +177,7 @@ describe('integration:m83-finance/finance-controller', () => {
       expect(created.id).toBeTruthy();
 
       const patched = await withTestTenant(() =>
-        controller.patchFund(
-          created.id,
-          { fundName: 'CC Fund Renamed' } as any,
-          req(),
-        ),
+        controller.patchFund(created.id, { fundName: 'CC Fund Renamed' } as any, req()),
       );
       expect(patched.fundName).toBe('CC Fund Renamed');
     });
@@ -217,11 +206,7 @@ describe('integration:m83-finance/finance-controller', () => {
         ),
       );
       const patched = await withTestTenant(() =>
-        controller.patchAccount(
-          created.id,
-          { accountName: 'Renamed Travel' } as any,
-          req(),
-        ),
+        controller.patchAccount(created.id, { accountName: 'Renamed Travel' } as any, req()),
       );
       expect(patched.accountName).toBe('Renamed Travel');
 
@@ -407,7 +392,9 @@ describe('integration:m83-finance/finance-controller', () => {
 
       const list = await withTestTenant(() => controller.listAPVouchers());
       expect(list.find((v: any) => v.id === voucher.id)).toBeDefined();
-      const filtered = await withTestTenant(() => controller.listAPVouchers('PENDING', TEST_SUPPLIER_A_ID));
+      const filtered = await withTestTenant(() =>
+        controller.listAPVouchers('PENDING', TEST_SUPPLIER_A_ID),
+      );
       expect(filtered.find((v: any) => v.id === voucher.id)).toBeDefined();
 
       const got = await withTestTenant(() => controller.getAPVoucher(voucher.id));

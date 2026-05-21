@@ -260,7 +260,9 @@ describe('integration:m00-platform/governance-ropa', () => {
       await withTestTenant(async () =>
         service.updateProcessingActivity(adminActor(), b.id, { isActive: false }),
       );
-      const active = await withTestTenant(async () => service.listProcessingActivities(adminActor()));
+      const active = await withTestTenant(async () =>
+        service.listProcessingActivities(adminActor()),
+      );
       expect(active.find((p) => p.id === a.id)).toBeDefined();
       expect(active.find((p) => p.id === b.id)).toBeUndefined();
       const all = await withTestTenant(async () =>
@@ -432,10 +434,7 @@ describe('integration:m00-platform/governance-ropa', () => {
         service.createRetentionPolicy(adminActor(), baseRetentionInput()),
       );
       const b = await withTestTenant(async () =>
-        service.createRetentionPolicy(
-          adminActor(),
-          baseRetentionInput({ dataCategory: 'Other' }),
-        ),
+        service.createRetentionPolicy(adminActor(), baseRetentionInput({ dataCategory: 'Other' })),
       );
       const updated = await withTestTenant(async () =>
         service.updateRetentionPolicy(adminActor(), a.id, { notes: 'reviewed' }),

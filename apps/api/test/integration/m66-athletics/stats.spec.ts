@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -142,11 +138,7 @@ describe('integration:m66-athletics/stats', () => {
   it('bulkEnter: missing game → NotFoundException', async () => {
     await expect(
       withTestTenant(() =>
-        stats.bulkEnter(
-          '00000000-0000-0000-0000-000000000000',
-          { stats: [] } as any,
-          adminActor(),
-        ),
+        stats.bulkEnter('00000000-0000-0000-0000-000000000000', { stats: [] } as any, adminActor()),
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -201,13 +193,7 @@ describe('integration:m66-athletics/stats', () => {
   it('bulkEnter: student → ForbiddenException', async () => {
     const g = await createGame();
     await expect(
-      withTestTenant(() =>
-        stats.bulkEnter(
-          g.id,
-          { stats: [] } as any,
-          studentActor(),
-        ),
-      ),
+      withTestTenant(() => stats.bulkEnter(g.id, { stats: [] } as any, studentActor())),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -253,14 +239,24 @@ describe('integration:m66-athletics/stats', () => {
   it('createAllTimeRecord: duplicate (school, sport, type, category) → BadRequestException', async () => {
     await withTestTenant(() =>
       stats.createAllTimeRecord(
-        { sport: 'Soccer', recordType: 'SINGLE_GAME', statCategory: 'GOALS', recordValue: 5 } as any,
+        {
+          sport: 'Soccer',
+          recordType: 'SINGLE_GAME',
+          statCategory: 'GOALS',
+          recordValue: 5,
+        } as any,
         adminActor(),
       ),
     );
     await expect(
       withTestTenant(() =>
         stats.createAllTimeRecord(
-          { sport: 'Soccer', recordType: 'SINGLE_GAME', statCategory: 'GOALS', recordValue: 6 } as any,
+          {
+            sport: 'Soccer',
+            recordType: 'SINGLE_GAME',
+            statCategory: 'GOALS',
+            recordValue: 6,
+          } as any,
           adminActor(),
         ),
       ),

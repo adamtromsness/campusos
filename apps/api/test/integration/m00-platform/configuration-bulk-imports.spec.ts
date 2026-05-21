@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -15,11 +11,7 @@ import {
 } from '@modules/m00-platform/configuration/configuration.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 /**
  * DB-backed integration tests for the configuration paths that the
@@ -119,7 +111,11 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     return id;
   }
 
-  async function seedSpace(buildingId: string, name: string, opts: { schRoomId?: string | null } = {}): Promise<string> {
+  async function seedSpace(
+    buildingId: string,
+    name: string,
+    opts: { schRoomId?: string | null } = {},
+  ): Promise<string> {
     const id = generateId();
     createdSpaceIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -324,9 +320,9 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     });
 
     it('empty array → BadRequestException', async () => {
-      await expect(
-        withTestTenant(async () => facility.bulkImportRooms([])),
-      ).rejects.toThrow(/CSV is empty/);
+      await expect(withTestTenant(async () => facility.bulkImportRooms([]))).rejects.toThrow(
+        /CSV is empty/,
+      );
     });
 
     it('> 1000 rows → BadRequestException with row count', async () => {
@@ -337,9 +333,9 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
         spaceType: 'CLASSROOM',
         areaSqft: null,
       }));
-      await expect(
-        withTestTenant(async () => facility.bulkImportRooms(rows)),
-      ).rejects.toThrow(/1001 rows — max 1000 per batch/);
+      await expect(withTestTenant(async () => facility.bulkImportRooms(rows))).rejects.toThrow(
+        /1001 rows — max 1000 per batch/,
+      );
     });
 
     it('unknown building → BadRequestException with rowErrors mentioning the building name', async () => {
@@ -390,10 +386,7 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
       expect(resp.rowErrors.some((e) => e.includes('buildingName is required'))).toBe(true);
     });
 
-    async function expectRowError(
-      bulkPromise: Promise<unknown>,
-      pattern: RegExp,
-    ): Promise<void> {
+    async function expectRowError(bulkPromise: Promise<unknown>, pattern: RegExp): Promise<void> {
       let caught: unknown;
       try {
         await bulkPromise;
@@ -517,7 +510,8 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     }
 
     it('row WITH guardian fields → creates guardian + sis_guardians + link', async () => {
-      const guardianEmail = 'blk-guardian-' + Math.random().toString(36).slice(2, 8) + '@test.local';
+      const guardianEmail =
+        'blk-guardian-' + Math.random().toString(36).slice(2, 8) + '@test.local';
       const result = await withTestTenant(async () =>
         bulk.bulkImportStudents([
           baseStudent({
@@ -557,7 +551,8 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     });
 
     it('two students sharing one guardian email → reuses guardian rows', async () => {
-      const guardianEmail = 'blk-guardian-shared-' + Math.random().toString(36).slice(2, 8) + '@test.local';
+      const guardianEmail =
+        'blk-guardian-shared-' + Math.random().toString(36).slice(2, 8) + '@test.local';
       const result = await withTestTenant(async () =>
         bulk.bulkImportStudents([
           baseStudent({
@@ -597,9 +592,7 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
 
     it('row without guardian fields → no guardian rows created', async () => {
       const result = await withTestTenant(async () =>
-        bulk.bulkImportStudents([
-          baseStudent({ firstName: 'BlkStu1' }),
-        ]),
+        bulk.bulkImportStudents([baseStudent({ firstName: 'BlkStu1' })]),
       );
       expect(result.created).toBe(1);
     });
@@ -620,9 +613,7 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     it('missing firstName → BadRequest up-front', async () => {
       let caught: unknown;
       try {
-        await withTestTenant(async () =>
-          bulk.bulkImportStudents([baseStudent({ firstName: '' })]),
-        );
+        await withTestTenant(async () => bulk.bulkImportStudents([baseStudent({ firstName: '' })]));
       } catch (err) {
         caught = err;
       }
@@ -634,9 +625,7 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
     it('missing lastName → BadRequest', async () => {
       let caught: unknown;
       try {
-        await withTestTenant(async () =>
-          bulk.bulkImportStudents([baseStudent({ lastName: '' })]),
-        );
+        await withTestTenant(async () => bulk.bulkImportStudents([baseStudent({ lastName: '' })]));
       } catch (err) {
         caught = err;
       }
@@ -750,9 +739,7 @@ describe('integration:m00-platform/configuration-bulk-imports', () => {
       try {
         const email = 'blk-staff-pos-' + Math.random().toString(36).slice(2, 8) + '@test.local';
         const result = await withTestTenant(async () =>
-          bulk.bulkImportStaff([
-            baseStaff({ email, positionTitle: 'BlkStaff-Teacher' }),
-          ]),
+          bulk.bulkImportStaff([baseStaff({ email, positionTitle: 'BlkStaff-Teacher' })]),
         );
         expect(result.created).toBe(1);
 

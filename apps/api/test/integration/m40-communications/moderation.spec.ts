@@ -62,21 +62,15 @@ describe('integration:m40-communications/moderation', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_appeals`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_appeals`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_log WHERE policy_id IN (SELECT id FROM ${TEST_SCHEMA}.msg_moderation_policies WHERE name LIKE 'IT-%')`,
     );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_policies WHERE name LIKE 'IT-%'`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_contributions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_contributions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.msg_moderation_actions`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.msg_moderation_rules WHERE name LIKE 'IT-%'`,
     );
@@ -99,9 +93,7 @@ describe('integration:m40-communications/moderation', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          messagingMod.listQueue(teacherActor()),
-        ),
+        withTestTenant(async () => messagingMod.listQueue(teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -118,9 +110,7 @@ describe('integration:m40-communications/moderation', () => {
         pid,
         TEST_SCHOOL_ID,
       );
-      const list = await withTestTenant(async () =>
-        messagingMod.listPolicies(false, adminActor()),
-      );
+      const list = await withTestTenant(async () => messagingMod.listPolicies(false, adminActor()));
       expect(list.map((p) => p.id)).toContain(pid);
     });
 
@@ -178,17 +168,13 @@ describe('integration:m40-communications/moderation', () => {
     it('patchPolicy clearing keywords → BadRequestException', async () => {
       const id = await seedBuildingPolicy('IT-clear');
       await expect(
-        withTestTenant(async () =>
-          messagingMod.patchPolicy(id, { keywords: [] }, adminActor()),
-        ),
+        withTestTenant(async () => messagingMod.patchPolicy(id, { keywords: [] }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('patchPolicy with no fields returns the existing policy', async () => {
       const id = await seedBuildingPolicy('IT-noop');
-      const r = await withTestTenant(async () =>
-        messagingMod.patchPolicy(id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => messagingMod.patchPolicy(id, {}, adminActor()));
       expect(r.id).toBe(id);
     });
 
@@ -228,9 +214,7 @@ describe('integration:m40-communications/moderation', () => {
         pid,
         TEST_SCHOOL_ID,
       );
-      const incl = await withTestTenant(async () =>
-        messagingMod.listPolicies(true, adminActor()),
-      );
+      const incl = await withTestTenant(async () => messagingMod.listPolicies(true, adminActor()));
       expect(incl.map((p) => p.id)).toContain(pid);
     });
   });
@@ -389,9 +373,7 @@ describe('integration:m40-communications/moderation', () => {
 
     it('getRule on unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          rulesMod.getRule('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => rulesMod.getRule('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -468,9 +450,7 @@ describe('integration:m40-communications/moderation', () => {
           adminActor(),
         ),
       );
-      const d = await withTestTenant(async () =>
-        rulesMod.resolveDecision('innocent banter', null),
-      );
+      const d = await withTestTenant(async () => rulesMod.resolveDecision('innocent banter', null));
       expect(d).toBeNull();
     });
 
@@ -533,9 +513,7 @@ describe('integration:m40-communications/moderation', () => {
           },
         }),
       );
-      const q = await withTestTenant(async () =>
-        rulesMod.listQueue({ reviewStatus: 'PENDING' }),
-      );
+      const q = await withTestTenant(async () => rulesMod.listQueue({ reviewStatus: 'PENDING' }));
       expect(q.length).toBeGreaterThan(0);
     });
 
@@ -574,20 +552,14 @@ describe('integration:m40-communications/moderation', () => {
       // Second patch → BadRequestException
       await expect(
         withTestTenant(async () =>
-          rulesMod.patchAction(
-            action.id,
-            { reviewStatus: 'CONFIRMED_BLOCK' } as any,
-            adminActor(),
-          ),
+          rulesMod.patchAction(action.id, { reviewStatus: 'CONFIRMED_BLOCK' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('getAction on unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          rulesMod.getAction('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => rulesMod.getAction('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -611,7 +583,9 @@ describe('integration:m40-communications/moderation', () => {
       return rule.id;
     }
 
-    async function seedActionAndMessage(opts?: { actionTaken?: 'BLOCKED' | 'AUTO_APPROVED' }): Promise<{
+    async function seedActionAndMessage(opts?: {
+      actionTaken?: 'BLOCKED' | 'AUTO_APPROVED';
+    }): Promise<{
       actionId: string;
       messageId: string;
     }> {
@@ -696,9 +670,7 @@ describe('integration:m40-communications/moderation', () => {
     it('AUTO_APPROVED action cannot be appealed → BadRequestException', async () => {
       const { actionId } = await seedActionAndMessage({ actionTaken: 'AUTO_APPROVED' });
       await expect(
-        withTestTenant(async () =>
-          appeals.create(actionId, { appealReason: 'meh' }, adminActor()),
-        ),
+        withTestTenant(async () => appeals.create(actionId, { appealReason: 'meh' }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -833,9 +805,9 @@ describe('integration:m40-communications/moderation', () => {
         id,
         TEST_SCHOOL_B_ID,
       );
-      await expect(
-        withTestTenant(async () => rulesMod.getRule(id)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => rulesMod.getRule(id))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

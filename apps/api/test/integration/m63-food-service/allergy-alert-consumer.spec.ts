@@ -14,10 +14,7 @@ import {
   TEST_SUBDOMAIN,
 } from '../helpers/tenant-context';
 import { adminActor, TEST_STUDENT_PERSON_ID } from '../helpers/actor';
-import {
-  resetFoodServiceTables,
-  ensureFoodServiceSeed,
-} from '../fixtures/food-service';
+import { resetFoodServiceTables, ensureFoodServiceSeed } from '../fixtures/food-service';
 
 const TEST_FDS_PLATFORM_STUDENT_ID = '019e0cf8-aaaa-7777-8888-000000063300';
 const TEST_FDS_SIS_STUDENT_ID = '019e0cf8-aaaa-7777-8888-000000063301';

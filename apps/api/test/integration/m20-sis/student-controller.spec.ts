@@ -12,10 +12,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_CLASS_ID, TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
 import {
@@ -184,11 +181,7 @@ describe('integration:m20-sis/student-controller', () => {
       expect(created.studentNumber).toBe(studentNumber);
 
       const patched = await withTestTenant(async () =>
-        studentController.patch(
-          created.id,
-          { gradeLevel: '6' } as any,
-          fakeAdminReq(),
-        ),
+        studentController.patch(created.id, { gradeLevel: '6' } as any, fakeAdminReq()),
       );
       expect(patched.gradeLevel).toBe('6');
     });
@@ -206,9 +199,7 @@ describe('integration:m20-sis/student-controller', () => {
 
     it('myChildren returns linked-children list for the caller', async () => {
       // Admin has no children — empty list is the expected happy path.
-      const list = await withTestTenant(async () =>
-        studentController.myChildren(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => studentController.myChildren(fakeAdminReq()));
       expect(Array.isArray(list)).toBe(true);
     });
 
@@ -223,9 +214,7 @@ describe('integration:m20-sis/student-controller', () => {
 
   describe('ClassController', () => {
     it('list returns classes', async () => {
-      const list = await withTestTenant(async () =>
-        classController.list({} as any),
-      );
+      const list = await withTestTenant(async () => classController.list({} as any));
       // TEST_SIS_CLASS_ID is the fixture class for the school.
       expect(list.map((c) => c.id)).toContain(TEST_SIS_CLASS_ID);
     });
@@ -238,9 +227,7 @@ describe('integration:m20-sis/student-controller', () => {
     });
 
     it('getOne returns class by id', async () => {
-      const cls = await withTestTenant(async () =>
-        classController.getOne(TEST_SIS_CLASS_ID),
-      );
+      const cls = await withTestTenant(async () => classController.getOne(TEST_SIS_CLASS_ID));
       expect(cls.id).toBe(TEST_SIS_CLASS_ID);
     });
 
@@ -248,9 +235,7 @@ describe('integration:m20-sis/student-controller', () => {
       const student = await trackedStudent();
       await enrollStudent(rawClient, student.studentId, TEST_SIS_CLASS_ID);
 
-      const roster = await withTestTenant(async () =>
-        classController.roster(TEST_SIS_CLASS_ID),
-      );
+      const roster = await withTestTenant(async () => classController.roster(TEST_SIS_CLASS_ID));
       expect(roster.map((r) => r.studentId)).toContain(student.studentId);
     });
 
@@ -259,9 +244,7 @@ describe('integration:m20-sis/student-controller', () => {
       // hr_employees row is bridged for the admin persona; falls through
       // to listForTeacherEmployee which returns rows only if the employee
       // is in sis_class_teachers. With no assignment, the result is [].
-      const list = await withTestTenant(async () =>
-        classController.my(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => classController.my(fakeAdminReq()));
       expect(Array.isArray(list)).toBe(true);
     });
 
@@ -281,9 +264,7 @@ describe('integration:m20-sis/student-controller', () => {
       );
       await assignTeacherToClass(rawClient, TEST_SIS_CLASS_ID, empId);
 
-      const list = await withTestTenant(async () =>
-        classController.my(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => classController.my(fakeAdminReq()));
       expect(Array.isArray(list)).toBe(true);
     });
   });

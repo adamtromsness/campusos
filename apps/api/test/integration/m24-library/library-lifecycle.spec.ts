@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -332,7 +328,12 @@ describe('integration:m24-library/library-lifecycle', () => {
       const updated = await withTestTenant(async () =>
         locations.patch(
           created.id,
-          { name: 'Reference Renamed', locationType: 'DISPLAY' as any, sortOrder: 5, isActive: false } as any,
+          {
+            name: 'Reference Renamed',
+            locationType: 'DISPLAY' as any,
+            sortOrder: 5,
+            isActive: false,
+          } as any,
           adminActor(),
         ),
       );
@@ -345,10 +346,7 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('create from non-librarian (teacher) → Forbidden', async () => {
       await expect(
         withTestTenant(async () =>
-          locations.create(
-            { name: 'Bogus', locationType: 'SHELF' as any } as any,
-            teacherActor(),
-          ),
+          locations.create({ name: 'Bogus', locationType: 'SHELF' as any } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -400,15 +398,10 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(list.length).toBeGreaterThan(0);
       const list2 = await withTestTenant(async () => locationCtrl.list());
       expect(list2.length).toBeGreaterThan(0);
-      const loc = await withTestTenant(async () =>
-        locationCtrl.getById(TEST_LIB_LOCATION_A_ID),
-      );
+      const loc = await withTestTenant(async () => locationCtrl.getById(TEST_LIB_LOCATION_A_ID));
       expect(loc.id).toBe(TEST_LIB_LOCATION_A_ID);
       const created = await withTestTenant(async () =>
-        locationCtrl.create(
-          { name: 'Ctrl Shelf', locationType: 'SHELF' as any } as any,
-          fakeReq(),
-        ),
+        locationCtrl.create({ name: 'Ctrl Shelf', locationType: 'SHELF' as any } as any, fakeReq()),
       );
       const patched = await withTestTenant(async () =>
         locationCtrl.patch(created.id, { name: 'Ctrl Renamed' } as any, fakeReq()),
@@ -422,9 +415,7 @@ describe('integration:m24-library/library-lifecycle', () => {
   // ═════════════════════════════════════════════════════════════════════
   describe('CatalogueItemService', () => {
     it('search with q triggers ts_rank ordering + cross-school isolation', async () => {
-      const hits = await withTestTenant(async () =>
-        catalogue.search({ q: 'Test', limit: 20 }),
-      );
+      const hits = await withTestTenant(async () => catalogue.search({ q: 'Test', limit: 20 }));
       expect(hits.map((h) => h.id)).toContain(TEST_LIB_ITEM_A_ID);
       // School B-only item must not surface
       expect(hits.map((h) => h.id)).not.toContain(TEST_LIB_ITEM_B_ID);
@@ -501,9 +492,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(noop.id).toBe(newItem.id);
       // Non-librarian forbidden
       await expect(
-        withTestTenant(async () =>
-          catalogue.create({ title: 'X' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => catalogue.create({ title: 'X' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () =>
@@ -532,9 +521,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(badLimit.length).toBeGreaterThan(0);
 
-      const dto = await withTestTenant(async () =>
-        catalogueCtrl.getById(TEST_LIB_ITEM_A_ID),
-      );
+      const dto = await withTestTenant(async () => catalogueCtrl.getById(TEST_LIB_ITEM_A_ID));
       expect(dto.id).toBe(TEST_LIB_ITEM_A_ID);
       const copyList = await withTestTenant(async () =>
         catalogueCtrl.listCopies(TEST_LIB_ITEM_A_ID),
@@ -595,11 +582,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Duplicate barcode → 400
       await expect(
         withTestTenant(async () =>
-          copies.create(
-            TEST_LIB_ITEM_A2_ID,
-            { barcode: 'LIB-NEW-1' } as any,
-            adminActor(),
-          ),
+          copies.create(TEST_LIB_ITEM_A2_ID, { barcode: 'LIB-NEW-1' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -632,7 +615,7 @@ describe('integration:m24-library/library-lifecycle', () => {
             locationId: TEST_LIB_LOCATION_DISPLAY_A_ID,
             isAvailable: false,
             locationStatus: 'IN_PROCESSING' as any,
-            replacementValue: 7.50,
+            replacementValue: 7.5,
           } as any,
           adminActor(),
         ),
@@ -647,11 +630,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
       await expect(
         withTestTenant(async () =>
-          copies.patch(
-            TEST_LIB_COPY_A2_ID,
-            { locationId: NONEXISTENT_UUID } as any,
-            adminActor(),
-          ),
+          copies.patch(TEST_LIB_COPY_A2_ID, { locationId: NONEXISTENT_UUID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -689,11 +668,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(lookup.copy.id).toBe(TEST_LIB_COPY_A1_ID);
       const created = await withTestTenant(async () =>
-        copyCtrl.create(
-          TEST_LIB_ITEM_A2_ID,
-          { barcode: 'LIB-CTRL-1' } as any,
-          fakeReq(),
-        ),
+        copyCtrl.create(TEST_LIB_ITEM_A2_ID, { barcode: 'LIB-CTRL-1' } as any, fakeReq()),
       );
       const patched = await withTestTenant(async () =>
         copyCtrl.patch(created.id, { condition: 'GOOD' as any } as any, fakeReq()),
@@ -724,9 +699,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(staffType).toBe('STAFF');
       // Unknown patron → BadRequest
       await expect(
-        withTestTenant(async () =>
-          checkouts.assertPatronInCurrentTenant(NONEXISTENT_UUID),
-        ),
+        withTestTenant(async () => checkouts.assertPatronInCurrentTenant(NONEXISTENT_UUID)),
       ).rejects.toBeInstanceOf(BadRequestException);
       // resolvePatronType nullable signature
       const t = await withTestTenant(async () => checkouts.resolvePatronType(NONEXISTENT_UUID));
@@ -764,7 +737,11 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('checkout-by-copyId path also works', async () => {
       const co = await withTestTenant(async () =>
         checkouts.checkout(
-          { copyId: TEST_LIB_COPY_A2_ID, patronId: TEST_STUDENT_PERSON_ID, loanPeriodDays: 7 } as any,
+          {
+            copyId: TEST_LIB_COPY_A2_ID,
+            patronId: TEST_STUDENT_PERSON_ID,
+            loanPeriodDays: 7,
+          } as any,
           adminActor(),
         ),
       );
@@ -774,10 +751,7 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('checkout requires barcode or copyId; rejects unknown barcode; rejects unavailable copy', async () => {
       await expect(
         withTestTenant(async () =>
-          checkouts.checkout(
-            { patronId: TEST_STUDENT_PERSON_ID } as any,
-            adminActor(),
-          ),
+          checkouts.checkout({ patronId: TEST_STUDENT_PERSON_ID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
@@ -832,9 +806,7 @@ describe('integration:m24-library/library-lifecycle', () => {
           adminActor(),
         ),
       );
-      const ret = await withTestTenant(async () =>
-        checkouts.returnCheckout(co.id, adminActor()),
-      );
+      const ret = await withTestTenant(async () => checkouts.returnCheckout(co.id, adminActor()));
       expect(ret.status).toBe('RETURNED');
       expect(ret.returnedAt).not.toBeNull();
 
@@ -918,10 +890,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       await withTestTenant(async () => checkouts.returnCheckout(co.id, adminActor()));
       const holdRow = await rawClient.$queryRawUnsafe<
         Array<{ status: string; notified_at: Date | null }>
-      >(
-        `SELECT status, notified_at FROM ${TEST_SCHEMA}.lib_holds WHERE id = $1::uuid`,
-        holdId,
-      );
+      >(`SELECT status, notified_at FROM ${TEST_SCHEMA}.lib_holds WHERE id = $1::uuid`, holdId);
       expect(holdRow[0]!.status).toBe('READY');
       expect(holdRow[0]!.notified_at).not.toBeNull();
       const copyState = await rawClient.$queryRawUnsafe<Array<{ location_status: string }>>(
@@ -1144,9 +1113,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       const got = await withTestTenant(async () => checkoutCtrl.getById(created.id, fakeReq()));
       expect(got.id).toBe(created.id);
-      const renewed = await withTestTenant(async () =>
-        checkoutCtrl.renew(created.id, fakeReq()),
-      );
+      const renewed = await withTestTenant(async () => checkoutCtrl.renew(created.id, fakeReq()));
       expect(renewed.renewalCount).toBe(1);
       const returned = await withTestTenant(async () =>
         checkoutCtrl.returnCheckout(created.id, fakeReq()),
@@ -1317,9 +1284,7 @@ describe('integration:m24-library/library-lifecycle', () => {
           fakeReq({ sub: TEST_ADMIN_ACCOUNT_ID, personId: TEST_STUDENT_PERSON_ID }),
         ),
       );
-      const list = await withTestTenant(async () =>
-        holdCtrl.list(undefined, undefined, fakeReq()),
-      );
+      const list = await withTestTenant(async () => holdCtrl.list(undefined, undefined, fakeReq()));
       expect(list.length).toBeGreaterThan(0);
       const filtered = await withTestTenant(async () =>
         holdCtrl.list('PENDING', TEST_STUDENT_PERSON_ID, fakeReq()),
@@ -1329,18 +1294,14 @@ describe('integration:m24-library/library-lifecycle', () => {
         holdCtrl.list('BOGUS', undefined, fakeReq()),
       );
       expect(badStatus).toBeDefined();
-      const got = await withTestTenant(async () =>
-        holdCtrl.getById(created.id, fakeReq()),
-      );
+      const got = await withTestTenant(async () => holdCtrl.getById(created.id, fakeReq()));
       expect(got.id).toBe(created.id);
       // Move to READY then collect via controller
       await rawClient.$executeRawUnsafe(
         `UPDATE ${TEST_SCHEMA}.lib_holds SET status = 'READY', notified_at = now() WHERE id = $1::uuid`,
         created.id,
       );
-      const collected = await withTestTenant(async () =>
-        holdCtrl.collect(created.id, fakeReq()),
-      );
+      const collected = await withTestTenant(async () => holdCtrl.collect(created.id, fakeReq()));
       expect(collected.status).toBe('COLLECTED');
       // Create + cancel another
       const second = await withTestTenant(async () =>
@@ -1349,9 +1310,7 @@ describe('integration:m24-library/library-lifecycle', () => {
           fakeReq({ sub: TEST_ADMIN_ACCOUNT_ID, personId: TEST_STUDENT_PERSON_ID }),
         ),
       );
-      const cancelled = await withTestTenant(async () =>
-        holdCtrl.cancel(second.id, fakeReq()),
-      );
+      const cancelled = await withTestTenant(async () => holdCtrl.cancel(second.id, fakeReq()));
       expect(cancelled.status).toBe('CANCELLED');
     });
   });
@@ -1442,9 +1401,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(w.status).toBe('WAIVED');
       // Re-waive terminal → BadRequest
       await expect(
-        withTestTenant(async () =>
-          fines.waive(fineId, { reason: 'again' } as any, adminActor()),
-        ),
+        withTestTenant(async () => fines.waive(fineId, { reason: 'again' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         withTestTenant(async () =>
@@ -1454,17 +1411,13 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Non-admin (teacher) → Forbidden
       const { fineId: f2 } = await seedOutstandingFine();
       await expect(
-        withTestTenant(async () =>
-          fines.waive(f2, { reason: 'x' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => fines.waive(f2, { reason: 'x' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('controller list / getById / pay / waive pass-through', async () => {
       const { fineId } = await seedOutstandingFine();
-      const list = await withTestTenant(async () =>
-        fineCtrl.list(undefined, undefined, fakeReq()),
-      );
+      const list = await withTestTenant(async () => fineCtrl.list(undefined, undefined, fakeReq()));
       expect(list.length).toBeGreaterThan(0);
       const filtered = await withTestTenant(async () =>
         fineCtrl.list('OUTSTANDING', TEST_STUDENT_PERSON_ID, fakeReq()),
@@ -1503,9 +1456,7 @@ describe('integration:m24-library/library-lifecycle', () => {
         TEST_LIB_PROGRAMME_A_ID,
         TEST_LIB_STU_A_ID,
       );
-      const adminList = await withTestTenant(async () =>
-        programmes.list(adminActor(), {} as any),
-      );
+      const adminList = await withTestTenant(async () => programmes.list(adminActor(), {} as any));
       expect(adminList.map((p) => p.id)).toContain(TEST_LIB_PROGRAMME_A_ID);
       // Student sees myProgress inlined
       const studentList = await withTestTenant(async () =>
@@ -1518,9 +1469,7 @@ describe('integration:m24-library/library-lifecycle', () => {
         `UPDATE ${TEST_SCHEMA}.lib_reading_programmes SET is_active = false WHERE id = $1::uuid`,
         TEST_LIB_PROGRAMME_CLASS_A_ID,
       );
-      const activeOnly = await withTestTenant(async () =>
-        programmes.list(adminActor(), {} as any),
-      );
+      const activeOnly = await withTestTenant(async () => programmes.list(adminActor(), {} as any));
       expect(activeOnly.map((p) => p.id)).not.toContain(TEST_LIB_PROGRAMME_CLASS_A_ID);
       const all = await withTestTenant(async () =>
         programmes.list(adminActor(), { includeInactive: true } as any),
@@ -1655,9 +1604,7 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('controller list / getById / leaderboard / create / patch pass-through', async () => {
       const list = await withTestTenant(async () => programmeCtrl.list(undefined, fakeReq()));
       expect(list.length).toBeGreaterThan(0);
-      const inactive = await withTestTenant(async () =>
-        programmeCtrl.list('true', fakeReq()),
-      );
+      const inactive = await withTestTenant(async () => programmeCtrl.list('true', fakeReq()));
       expect(inactive).toBeDefined();
       const dto = await withTestTenant(async () =>
         programmeCtrl.getById(TEST_LIB_PROGRAMME_A_ID, fakeReq()),
@@ -1717,7 +1664,12 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(log.studentId).toBe(TEST_LIB_STU_A_ID);
       // Both SCHOOL_WIDE and CLASS programmes should have a progress row
       const rows = await rawClient.$queryRawUnsafe<
-        Array<{ programme_id: string; books_read: number; pages_read: number; is_complete: boolean }>
+        Array<{
+          programme_id: string;
+          books_read: number;
+          pages_read: number;
+          is_complete: boolean;
+        }>
       >(
         `SELECT programme_id::text AS programme_id, books_read, pages_read, is_complete
            FROM ${TEST_SCHEMA}.lib_programme_progress
@@ -1745,7 +1697,12 @@ describe('integration:m24-library/library-lifecycle', () => {
         ),
       );
       const rows2 = await rawClient.$queryRawUnsafe<
-        Array<{ programme_id: string; books_read: number; pages_read: number; is_complete: boolean }>
+        Array<{
+          programme_id: string;
+          books_read: number;
+          pages_read: number;
+          is_complete: boolean;
+        }>
       >(
         `SELECT programme_id::text AS programme_id, books_read, pages_read, is_complete
            FROM ${TEST_SCHEMA}.lib_programme_progress
@@ -1826,10 +1783,7 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('patch student own + transitions in-progress→complete triggers progress upsert; non-owner Forbidden; missing 404; non-student Forbidden', async () => {
       // Seed an in-progress log (no completedDate)
       const log = await withTestTenant(async () =>
-        logs.log(
-          { catalogueItemId: TEST_LIB_ITEM_A_ID, pagesRead: 50 } as any,
-          studentActor(),
-        ),
+        logs.log({ catalogueItemId: TEST_LIB_ITEM_A_ID, pagesRead: 50 } as any, studentActor()),
       );
       const patched = await withTestTenant(async () =>
         logs.patch(
@@ -1852,9 +1806,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(Number(c[0]!.c)).toBeGreaterThan(0);
       // Empty patch no-op
-      const noop = await withTestTenant(async () =>
-        logs.patch(log.id, {} as any, studentActor()),
-      );
+      const noop = await withTestTenant(async () => logs.patch(log.id, {} as any, studentActor()));
       expect(noop.id).toBe(log.id);
       // Non-student → Forbidden
       await expect(
@@ -1889,9 +1841,7 @@ describe('integration:m24-library/library-lifecycle', () => {
           fakeReq({ sub: TEST_ADMIN_ACCOUNT_ID, personId: TEST_STUDENT_PERSON_ID }),
         ),
       );
-      const list = await withTestTenant(async () =>
-        logCtrl.list(TEST_LIB_STU_A_ID, fakeReq()),
-      );
+      const list = await withTestTenant(async () => logCtrl.list(TEST_LIB_STU_A_ID, fakeReq()));
       expect(list.length).toBeGreaterThan(0);
       const got = await withTestTenant(async () =>
         logCtrl.getById(
@@ -1933,10 +1883,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Duplicate name → 400
       await expect(
         withTestTenant(async () =>
-          lists.create(
-            { name: 'Summer Pick', listType: 'GENERAL' as any } as any,
-            adminActor(),
-          ),
+          lists.create({ name: 'Summer Pick', listType: 'GENERAL' as any } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -1957,21 +1904,13 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Duplicate item → 400
       await expect(
         withTestTenant(async () =>
-          lists.addItem(
-            list.id,
-            { catalogueItemId: TEST_LIB_ITEM_A_ID } as any,
-            adminActor(),
-          ),
+          lists.addItem(list.id, { catalogueItemId: TEST_LIB_ITEM_A_ID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       // Add item w/ bogus catalogue → 404
       await expect(
         withTestTenant(async () =>
-          lists.addItem(
-            list.id,
-            { catalogueItemId: NONEXISTENT_UUID } as any,
-            adminActor(),
-          ),
+          lists.addItem(list.id, { catalogueItemId: NONEXISTENT_UUID } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Add item to bogus list → 404
@@ -2002,9 +1941,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       expect(unpub.isPublished).toBe(false);
       expect(unpub.publishedAt).toBeNull();
       // Re-publish via the publish controller alias
-      const repub = await withTestTenant(async () =>
-        listCtrl.publish(list.id, fakeReq()),
-      );
+      const repub = await withTestTenant(async () => listCtrl.publish(list.id, fakeReq()));
       expect(repub.isPublished).toBe(true);
       // Re-publish (no-state-change branch — keep isPublished=true)
       const samePub = await withTestTenant(async () =>
@@ -2029,9 +1966,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(meta.name).toBe('Renamed');
       // Empty patch no-op
-      const noop = await withTestTenant(async () =>
-        lists.patch(list.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => lists.patch(list.id, {} as any, adminActor()));
       expect(noop.id).toBe(list.id);
       // Patch missing → 404
       await expect(
@@ -2080,9 +2015,7 @@ describe('integration:m24-library/library-lifecycle', () => {
         lists.patch(pub.id, { isPublished: true } as any, adminActor()),
       );
       // Student (non-writer) only sees published
-      const studentList = await withTestTenant(async () =>
-        lists.list(studentActor(), {} as any),
-      );
+      const studentList = await withTestTenant(async () => lists.list(studentActor(), {} as any));
       expect(studentList.map((l) => l.id)).toContain(pub.id);
       expect(studentList.map((l) => l.id)).not.toContain(draft.id);
       // Admin with includeUnpublished sees draft
@@ -2117,9 +2050,7 @@ describe('integration:m24-library/library-lifecycle', () => {
         withTestTenant(async () => lists.getById(draft.id, studentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Admin reads draft
-      const adminDraft = await withTestTenant(async () =>
-        lists.getById(draft.id, adminActor()),
-      );
+      const adminDraft = await withTestTenant(async () => lists.getById(draft.id, adminActor()));
       expect(adminDraft.id).toBe(draft.id);
       // Missing → 404
       await expect(
@@ -2139,30 +2070,18 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       await expect(
         withTestTenant(async () =>
-          lists.addItem(
-            list.id,
-            { catalogueItemId: TEST_LIB_ITEM_A_ID } as any,
-            studentActor(),
-          ),
+          lists.addItem(list.id, { catalogueItemId: TEST_LIB_ITEM_A_ID } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          lists.patch(list.id, { name: 'X' } as any, studentActor()),
-        ),
+        withTestTenant(async () => lists.patch(list.id, { name: 'X' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Need a real item for patchItem path
       const item = await withTestTenant(async () =>
-        lists.addItem(
-          list.id,
-          { catalogueItemId: TEST_LIB_ITEM_A_ID } as any,
-          adminActor(),
-        ),
+        lists.addItem(list.id, { catalogueItemId: TEST_LIB_ITEM_A_ID } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          lists.patchItem(item.id, { notes: 'x' } as any, studentActor()),
-        ),
+        withTestTenant(async () => lists.patchItem(item.id, { notes: 'x' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () => lists.removeItem(item.id, studentActor())),
@@ -2171,10 +2090,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('controller list / getById / create / patch / addItem / patchItem / removeItem pass-through', async () => {
       const list = await withTestTenant(async () =>
-        listCtrl.create(
-          { name: 'CtrlList', listType: 'GENERAL' as any } as any,
-          fakeReq(),
-        ),
+        listCtrl.create({ name: 'CtrlList', listType: 'GENERAL' as any } as any, fakeReq()),
       );
       const listing = await withTestTenant(async () =>
         listCtrl.list('true', undefined, undefined, undefined, fakeReq()),
@@ -2192,11 +2108,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(patched.id).toBe(list.id);
       const item = await withTestTenant(async () =>
-        listCtrl.addItem(
-          list.id,
-          { catalogueItemId: TEST_LIB_ITEM_A_ID } as any,
-          fakeReq(),
-        ),
+        listCtrl.addItem(list.id, { catalogueItemId: TEST_LIB_ITEM_A_ID } as any, fakeReq()),
       );
       const itemPatched = await withTestTenant(async () =>
         listCtrl.patchItem(item.id, { notes: 'n' } as any, fakeReq()),
@@ -2222,30 +2134,18 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Duplicate POST → 400
       await expect(
         withTestTenant(async () =>
-          reviews.create(
-            TEST_LIB_ITEM_A_ID,
-            { rating: 5 } as any,
-            studentActor(),
-          ),
+          reviews.create(TEST_LIB_ITEM_A_ID, { rating: 5 } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       // Non-student → Forbidden
       await expect(
         withTestTenant(async () =>
-          reviews.create(
-            TEST_LIB_ITEM_A_ID,
-            { rating: 5 } as any,
-            adminActor(),
-          ),
+          reviews.create(TEST_LIB_ITEM_A_ID, { rating: 5 } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         withTestTenant(async () =>
-          reviews.create(
-            TEST_LIB_ITEM_A_ID,
-            { rating: 5 } as any,
-            teacherActor(),
-          ),
+          reviews.create(TEST_LIB_ITEM_A_ID, { rating: 5 } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Bogus item → 404
@@ -2258,11 +2158,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('patch student own only; moderator can patch any; non-owner Forbidden; missing 404', async () => {
       const r = await withTestTenant(async () =>
-        reviews.create(
-          TEST_LIB_ITEM_A_ID,
-          { rating: 3, reviewText: 'meh' } as any,
-          studentActor(),
-        ),
+        reviews.create(TEST_LIB_ITEM_A_ID, { rating: 3, reviewText: 'meh' } as any, studentActor()),
       );
       const patched = await withTestTenant(async () =>
         reviews.patch(r.id, { rating: 5, reviewText: 'love it' } as any, studentActor()),
@@ -2274,9 +2170,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       );
       expect(adminPatch.reviewText).toBe('edited by admin');
       // Empty patch no-op
-      const noop = await withTestTenant(async () =>
-        reviews.patch(r.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => reviews.patch(r.id, {} as any, adminActor()));
       expect(noop.id).toBe(r.id);
       // Missing → 404
       await expect(
@@ -2286,27 +2180,19 @@ describe('integration:m24-library/library-lifecycle', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       // Officer (non-moderator non-owner) → Forbidden
       await expect(
-        withTestTenant(async () =>
-          reviews.patch(r.id, { rating: 1 } as any, officerActor()),
-        ),
+        withTestTenant(async () => reviews.patch(r.id, { rating: 1 } as any, officerActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('setApproval hide / unhide; missing → 404; non-moderator → Forbidden', async () => {
       const r = await withTestTenant(async () =>
-        reviews.create(
-          TEST_LIB_ITEM_A_ID,
-          { rating: 2 } as any,
-          studentActor(),
-        ),
+        reviews.create(TEST_LIB_ITEM_A_ID, { rating: 2 } as any, studentActor()),
       );
       const hidden = await withTestTenant(async () =>
         reviews.setApproval(r.id, false, adminActor()),
       );
       expect(hidden.isApproved).toBe(false);
-      const shown = await withTestTenant(async () =>
-        reviews.setApproval(r.id, true, adminActor()),
-      );
+      const shown = await withTestTenant(async () => reviews.setApproval(r.id, true, adminActor()));
       expect(shown.isApproved).toBe(true);
       await expect(
         withTestTenant(async () => reviews.setApproval(NONEXISTENT_UUID, false, adminActor())),
@@ -2318,11 +2204,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('listForItem: moderator sees hidden; student sees only approved', async () => {
       const r = await withTestTenant(async () =>
-        reviews.create(
-          TEST_LIB_ITEM_A_ID,
-          { rating: 4 } as any,
-          studentActor(),
-        ),
+        reviews.create(TEST_LIB_ITEM_A_ID, { rating: 4 } as any, studentActor()),
       );
       await withTestTenant(async () => reviews.setApproval(r.id, false, adminActor()));
       const adminList = await withTestTenant(async () =>
@@ -3091,23 +2973,15 @@ describe('integration:m24-library/library-lifecycle', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
       // ACTIVE → RETURNED with returnedDate
       const returned = await withTestTenant(async () =>
-        ills.patch(
-          ill.id,
-          { status: 'RETURNED', returnedDate: '2026-05-30' } as any,
-          adminActor(),
-        ),
+        ills.patch(ill.id, { status: 'RETURNED', returnedDate: '2026-05-30' } as any, adminActor()),
       );
       expect(returned.status).toBe('RETURNED');
       // Re-transition from terminal → BadRequest
       await expect(
-        withTestTenant(async () =>
-          ills.patch(ill.id, { status: 'ACTIVE' } as any, adminActor()),
-        ),
+        withTestTenant(async () => ills.patch(ill.id, { status: 'ACTIVE' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       // Empty patch no-op
-      const noop = await withTestTenant(async () =>
-        ills.patch(ill.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => ills.patch(ill.id, {} as any, adminActor()));
       expect(noop.id).toBe(ill.id);
       // Patch missing → 404
       await expect(
@@ -3117,9 +2991,7 @@ describe('integration:m24-library/library-lifecycle', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       // Non-librarian → Forbidden
       await expect(
-        withTestTenant(async () =>
-          ills.patch(ill.id, { notes: 'x' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => ills.patch(ill.id, { notes: 'x' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -3250,10 +3122,7 @@ describe('integration:m24-library/library-lifecycle', () => {
     it('ISBN dedup: re-submit overlapping batch → skipped++', async () => {
       // First batch
       const j1 = await withTestTenant(async () =>
-        imports.create(
-          { importType: 'ISBN_BATCH', isbns: ['978-DUP-1'] } as any,
-          adminActor(),
-        ),
+        imports.create({ importType: 'ISBN_BATCH', isbns: ['978-DUP-1'] } as any, adminActor()),
       );
       await withTestTenant(async () => imports.processQueuedJob(j1.id));
       // Second batch including the same ISBN
@@ -3283,20 +3152,14 @@ describe('integration:m24-library/library-lifecycle', () => {
       // Non-librarian → Forbidden
       await expect(
         withTestTenant(async () =>
-          imports.create(
-            { importType: 'ISBN_BATCH', isbns: ['978-X'] } as any,
-            teacherActor(),
-          ),
+          imports.create({ importType: 'ISBN_BATCH', isbns: ['978-X'] } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       // Admin without employeeId → Forbidden — use a contrived actor
       const adminNoEmp = { ...adminActor(), employeeId: null } as any;
       await expect(
         withTestTenant(async () =>
-          imports.create(
-            { importType: 'ISBN_BATCH', isbns: ['978-X'] } as any,
-            adminNoEmp,
-          ),
+          imports.create({ importType: 'ISBN_BATCH', isbns: ['978-X'] } as any, adminNoEmp),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -3348,10 +3211,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('list + getById; cross-school isolation; missing → 404', async () => {
       const j = await withTestTenant(async () =>
-        imports.create(
-          { importType: 'ISBN_BATCH', isbns: ['978-LST-1'] } as any,
-          adminActor(),
-        ),
+        imports.create({ importType: 'ISBN_BATCH', isbns: ['978-LST-1'] } as any, adminActor()),
       );
       const list = await withTestTenant(async () => imports.list());
       expect(list.map((x) => x.id)).toContain(j.id);
@@ -3367,10 +3227,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('listQueuedForCurrentTenant returns ids; worker tick drains them', async () => {
       const j1 = await withTestTenant(async () =>
-        imports.create(
-          { importType: 'ISBN_BATCH', isbns: ['978-QQ-1'] } as any,
-          adminActor(),
-        ),
+        imports.create({ importType: 'ISBN_BATCH', isbns: ['978-QQ-1'] } as any, adminActor()),
       );
       const queued = await withTestTenant(async () => imports.listQueuedForCurrentTenant());
       expect(queued).toContain(j1.id);
@@ -3392,10 +3249,7 @@ describe('integration:m24-library/library-lifecycle', () => {
 
     it('controller list / getById / create pass-through', async () => {
       const created = await withTestTenant(async () =>
-        importCtrl.create(
-          { importType: 'ISBN_BATCH', isbns: ['978-CTRL-1'] } as any,
-          fakeReq(),
-        ),
+        importCtrl.create({ importType: 'ISBN_BATCH', isbns: ['978-CTRL-1'] } as any, fakeReq()),
       );
       const list = await withTestTenant(async () => importCtrl.list());
       expect(list.map((x) => x.id)).toContain(created.id);

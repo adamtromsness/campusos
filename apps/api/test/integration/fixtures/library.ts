@@ -154,7 +154,6 @@ export async function resetLibraryTables(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe(
     `DELETE FROM ${TEST_SCHEMA}.school_config WHERE config_key = 'library_recommendation_weights'`,
   );
-
 }
 
 async function ensureStudent(

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -226,9 +222,7 @@ describe('integration:m84-payments/financial-aid-applications', () => {
             studentId,
             programId,
             academicYearId: TEST_ACADEMIC_YEAR_ID,
-            supportingDocuments: [
-              { documentName: 'tax_return.pdf', s3Key: 'docs/x' } as any,
-            ],
+            supportingDocuments: [{ documentName: 'tax_return.pdf', s3Key: 'docs/x' } as any],
           },
           adminActor(),
         ),
@@ -361,7 +355,7 @@ describe('integration:m84-payments/financial-aid-applications', () => {
       expect(r.id).toBe(id);
     });
 
-    it('parent reads own child\'s application', async () => {
+    it("parent reads own child's application", async () => {
       const { id } = await setup();
       const r = await withTestTenant(async () => service.getApplicationById(id, parentActor()));
       expect(r.id).toBe(id);
@@ -413,18 +407,14 @@ describe('integration:m84-payments/financial-aid-applications', () => {
 
     it('admin lists every application in tenant', async () => {
       const { id } = await setup();
-      const list = await withTestTenant(async () =>
-        service.listApplications({}, adminActor()),
-      );
+      const list = await withTestTenant(async () => service.listApplications({}, adminActor()));
       expect(list.find((x) => x.id === id)).toBeDefined();
     });
 
-    it('parent lists own children\'s applications only', async () => {
+    it("parent lists own children's applications only", async () => {
       const { id, studentId } = await setup();
       void studentId;
-      const list = await withTestTenant(async () =>
-        service.listApplications({}, parentActor()),
-      );
+      const list = await withTestTenant(async () => service.listApplications({}, parentActor()));
       expect(list.find((x) => x.id === id)).toBeDefined();
     });
 
@@ -507,28 +497,20 @@ describe('integration:m84-payments/financial-aid-applications', () => {
       const id = await seedDraft();
       await withTestTenant(async () => service.submitApplication(id, parentActor()));
       const u = await withTestTenant(async () =>
-        service.updateApplication(
-          id,
-          { applicationStatement: 'admin override' },
-          adminActor(),
-        ),
+        service.updateApplication(id, { applicationStatement: 'admin override' }, adminActor()),
       );
       expect(u.applicationStatement).toBe('admin override');
     });
 
     it('empty patch returns existing', async () => {
       const id = await seedDraft();
-      const u = await withTestTenant(async () =>
-        service.updateApplication(id, {}, parentActor()),
-      );
+      const u = await withTestTenant(async () => service.updateApplication(id, {}, parentActor()));
       expect(u.id).toBe(id);
     });
 
     it('non-existent application → NotFound (via getById)', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.updateApplication(generateId(), {}, adminActor()),
-        ),
+        withTestTenant(async () => service.updateApplication(generateId(), {}, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -597,9 +579,7 @@ describe('integration:m84-payments/financial-aid-applications', () => {
 
     it('withdraw without reason works', async () => {
       const id = await seedSubmitted();
-      const r = await withTestTenant(async () =>
-        service.withdrawApplication(id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => service.withdrawApplication(id, {}, adminActor()));
       expect(r.status).toBe('WITHDRAWN');
     });
 
@@ -644,7 +624,7 @@ describe('integration:m84-payments/financial-aid-applications', () => {
       expect(list.find((a) => a.id === awardId)).toBeDefined();
     });
 
-    it('linked parent lists own child\'s awards', async () => {
+    it("linked parent lists own child's awards", async () => {
       const { awardId, studentId } = await seedAward();
       const list = await withTestTenant(async () =>
         service.listAwardsForStudent(studentId, parentActor()),
@@ -655,18 +635,14 @@ describe('integration:m84-payments/financial-aid-applications', () => {
     it('unlinked parent → Forbidden', async () => {
       const studentId = await seedStudent(); // No guardian link
       await expect(
-        withTestTenant(async () =>
-          service.listAwardsForStudent(studentId, parentActor()),
-        ),
+        withTestTenant(async () => service.listAwardsForStudent(studentId, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('teacher → Forbidden', async () => {
       const studentId = await seedStudent();
       await expect(
-        withTestTenant(async () =>
-          service.listAwardsForStudent(studentId, teacherActor()),
-        ),
+        withTestTenant(async () => service.listAwardsForStudent(studentId, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

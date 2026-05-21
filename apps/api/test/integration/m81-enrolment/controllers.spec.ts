@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -44,11 +40,7 @@ import { OutboxService } from '@shared/kafka/outbox.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_PERSON_ID,
   TEST_ADMIN_ACCOUNT_ID,
@@ -57,11 +49,7 @@ import {
 } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
-import {
-  seedStudent,
-  linkStudentGuardian,
-  cleanupSeededIds,
-} from '../m20-sis/sis-helpers';
+import { seedStudent, linkStudentGuardian, cleanupSeededIds } from '../m20-sis/sis-helpers';
 
 /**
  * Wave 4 — m81-enrolment controller DB-backed integration.
@@ -203,33 +191,18 @@ describe('integration:m81-enrolment/controllers', () => {
       capacity,
     );
     templateService = new ExitTaskTemplateService(tenantPrisma, permCheck);
-    withdrawalService = new WithdrawalService(
-      tenantPrisma,
-      permCheck,
-      outbox,
-      templateService,
-    );
+    withdrawalService = new WithdrawalService(tenantPrisma, permCheck, outbox, templateService);
     exitTaskService = new ExitTaskService(tenantPrisma, permCheck);
-    reenrolService = new ReenrolmentService(
-      tenantPrisma,
-      permCheck,
-      withdrawalService,
-    );
+    reenrolService = new ReenrolmentService(tenantPrisma, permCheck, withdrawalService);
 
     // Controllers
     appController = new ApplicationController(appService, actorContext);
-    scoringController = new ApplicationScoringController(
-      scoringService,
-      actorContext,
-    );
+    scoringController = new ApplicationScoringController(scoringService, actorContext);
     stageController = new ApplicationStageController(stageService, actorContext);
     periodController = new EnrollmentPeriodController(periodService, actorContext);
     searchController = new EnrollmentSearchController(searchService);
     midYearController = new MidYearAdmissionController(midYearService, actorContext);
-    onboardingController = new OnboardingController(
-      onboardingService,
-      actorContext,
-    );
+    onboardingController = new OnboardingController(onboardingService, actorContext);
     reenrolController = new ReenrolmentController(reenrolService, actorContext);
     offerController = new OfferController(offerService, actorContext);
     tourController = new TourController(slotService, bookingService, actorContext);
@@ -239,10 +212,7 @@ describe('integration:m81-enrolment/controllers', () => {
       exitTaskService,
       actorContext,
     );
-    templateController = new ExitTaskTemplateController(
-      templateService,
-      actorContext,
-    );
+    templateController = new ExitTaskTemplateController(templateService, actorContext);
 
     // Seed admin permission cache for every m81 code we exercise.
     // ApplicationService etc. read from the iam_effective_access_cache via
@@ -298,73 +268,33 @@ describe('integration:m81-enrolment/controllers', () => {
     );
 
     // Wipe every enrolment row so each test starts clean.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_scores`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_stages`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_scores`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_stages`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_task_completions`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_student_onboarding_progress`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_tasks`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_onboarding_checklists`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_reenrollment_confirmations`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_exit_tasks`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_task_templates`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_mid_year_admission_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_booking_guests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_bookings`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_tour_slots`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_reenrollment_confirmations`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_exit_tasks`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_task_templates`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_mid_year_admission_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_booking_guests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_bookings`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_tour_slots`);
 
     // Cross-suite collision guard: pay_family_accounts grows on offer-accept
     // and re-enrolment flows; m84-payments has UNIQUE keys that collide.
@@ -428,7 +358,9 @@ describe('integration:m81-enrolment/controllers', () => {
     return guardianId;
   }
 
-  function appPayload(overrides: Partial<{ studentFirstName: string; guardianEmail: string }> = {}): any {
+  function appPayload(
+    overrides: Partial<{ studentFirstName: string; guardianEmail: string }> = {},
+  ): any {
     return {
       enrollmentPeriodId: periodAId,
       studentFirstName: overrides.studentFirstName ?? 'Ctrl',
@@ -449,9 +381,7 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(created.studentFirstName).toBe('Ctrl');
 
-      const list = await withTestTenant(async () =>
-        appController.list({} as any, fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => appController.list({} as any, fakeAdminReq()));
       expect(list.map((r) => r.id)).toContain(created.id);
 
       const filtered = await withTestTenant(async () =>
@@ -486,10 +416,7 @@ describe('integration:m81-enrolment/controllers', () => {
     it('getById unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          appController.getById(
-            '00000000-0000-0000-0000-000000000000',
-            fakeAdminReq(),
-          ),
+          appController.getById('00000000-0000-0000-0000-000000000000', fakeAdminReq()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -503,9 +430,7 @@ describe('integration:m81-enrolment/controllers', () => {
       const list = await withTestTenant(async () => periodController.list());
       expect(list.map((p) => p.id)).toContain(periodAId);
 
-      const detail = await withTestTenant(async () =>
-        periodController.getById(periodAId),
-      );
+      const detail = await withTestTenant(async () => periodController.getById(periodAId));
       expect(detail.id).toBe(periodAId);
 
       const opens = new Date();
@@ -524,11 +449,7 @@ describe('integration:m81-enrolment/controllers', () => {
       expect(created.name).toBe('Ctrl Period New');
 
       const updated = await withTestTenant(async () =>
-        periodController.update(
-          created.id,
-          { name: 'Ctrl Period Renamed' } as any,
-          fakeAdminReq(),
-        ),
+        periodController.update(created.id, { name: 'Ctrl Period Renamed' } as any, fakeAdminReq()),
       );
       expect(updated.name).toBe('Ctrl Period Renamed');
 
@@ -646,24 +567,16 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(score.criterionName).toBe('Academic');
 
-      const list = await withTestTenant(async () =>
-        scoringController.list(app.id, fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => scoringController.list(app.id, fakeAdminReq()));
       expect(list.map((s) => s.id)).toContain(score.id);
 
       const patched = await withTestTenant(async () =>
-        scoringController.patch(
-          score.id,
-          { score: 9, notes: 'updated' } as any,
-          fakeAdminReq(),
-        ),
+        scoringController.patch(score.id, { score: 9, notes: 'updated' } as any, fakeAdminReq()),
       );
       expect(patched.score).toBe(9);
       expect(patched.notes).toBe('updated');
 
-      await withTestTenant(async () =>
-        scoringController.remove(score.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => scoringController.remove(score.id, fakeAdminReq()));
       const after = await withTestTenant(async () =>
         scoringController.list(app.id, fakeAdminReq()),
       );
@@ -680,11 +593,7 @@ describe('integration:m81-enrolment/controllers', () => {
         appController.create(appPayload() as any, fakeAdminReq()),
       );
       await withTestTenant(async () =>
-        appController.updateStatus(
-          app.id,
-          { status: 'ACCEPTED' } as any,
-          fakeAdminReq(),
-        ),
+        appController.updateStatus(app.id, { status: 'ACCEPTED' } as any, fakeAdminReq()),
       );
 
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -702,9 +611,7 @@ describe('integration:m81-enrolment/controllers', () => {
       expect(offer.applicationId).toBe(app.id);
       expect(offer.offerType).toBe('CONDITIONAL');
 
-      const list = await withTestTenant(async () =>
-        offerController.list(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => offerController.list(fakeAdminReq()));
       expect(list.map((o) => o.id)).toContain(offer.id);
 
       const detail = await withTestTenant(async () =>
@@ -713,20 +620,12 @@ describe('integration:m81-enrolment/controllers', () => {
       expect(detail.id).toBe(offer.id);
 
       const verified = await withTestTenant(async () =>
-        offerController.setConditionsMet(
-          offer.id,
-          { conditionsMet: true } as any,
-          fakeAdminReq(),
-        ),
+        offerController.setConditionsMet(offer.id, { conditionsMet: true } as any, fakeAdminReq()),
       );
       expect(verified.conditionsMet).toBe(true);
 
       const responded = await withTestTenant(async () =>
-        offerController.respond(
-          offer.id,
-          { familyResponse: 'DECLINED' } as any,
-          fakeAdminReq(),
-        ),
+        offerController.respond(offer.id, { familyResponse: 'DECLINED' } as any, fakeAdminReq()),
       );
       expect(responded.familyResponse).toBe('DECLINED');
     });
@@ -742,11 +641,7 @@ describe('integration:m81-enrolment/controllers', () => {
         appController.create(appPayload() as any, fakeAdminReq()),
       );
       await withTestTenant(async () =>
-        appController.updateStatus(
-          app.id,
-          { status: 'WAITLISTED' } as any,
-          fakeAdminReq(),
-        ),
+        appController.updateStatus(app.id, { status: 'WAITLISTED' } as any, fakeAdminReq()),
       );
       // Insert a waitlist entry directly — the WaitlistService construction
       // path lives elsewhere; for the controller test we just need a row
@@ -793,9 +688,7 @@ describe('integration:m81-enrolment/controllers', () => {
   describe('OnboardingController', () => {
     it('listChecklists + getChecklist + createChecklist', async () => {
       // Initially empty
-      const empty = await withTestTenant(async () =>
-        onboardingController.listChecklists(),
-      );
+      const empty = await withTestTenant(async () => onboardingController.listChecklists());
       expect(empty).toHaveLength(0);
 
       const created = await withTestTenant(async () =>
@@ -816,9 +709,7 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(created.name).toBe('Ctrl Checklist');
 
-      const list = await withTestTenant(async () =>
-        onboardingController.listChecklists(),
-      );
+      const list = await withTestTenant(async () => onboardingController.listChecklists());
       expect(list.map((c) => c.id)).toContain(created.id);
 
       const listIncl = await withTestTenant(async () =>
@@ -864,27 +755,15 @@ describe('integration:m81-enrolment/controllers', () => {
         appController.create(appPayload() as any, fakeAdminReq()),
       );
       await withTestTenant(async () =>
-        appController.updateStatus(
-          app.id,
-          { status: 'ACCEPTED' } as any,
-          fakeAdminReq(),
-        ),
+        appController.updateStatus(app.id, { status: 'ACCEPTED' } as any, fakeAdminReq()),
       );
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerController.issue(
-          app.id,
-          { responseDeadline: deadline } as any,
-          fakeAdminReq(),
-        ),
+        offerController.issue(app.id, { responseDeadline: deadline } as any, fakeAdminReq()),
       );
       // Accept the offer to trigger onboarding progress generation.
       await withTestTenant(async () =>
-        offerController.respond(
-          offer.id,
-          { familyResponse: 'ACCEPTED' } as any,
-          fakeAdminReq(),
-        ),
+        offerController.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, fakeAdminReq()),
       );
 
       const progress = await withTestTenant(async () =>
@@ -917,11 +796,7 @@ describe('integration:m81-enrolment/controllers', () => {
       const mandatory = completions.find((c) => c.isMandatory === true);
       if (mandatory) {
         const done = await withTestTenant(async () =>
-          onboardingController.complete(
-            mandatory.id,
-            { notes: 'done' } as any,
-            fakeAdminReq(),
-          ),
+          onboardingController.complete(mandatory.id, { notes: 'done' } as any, fakeAdminReq()),
         );
         expect(done.completion.status).toBe('COMPLETED');
       }
@@ -953,28 +828,18 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(slot.maxBookings).toBe(5);
 
-      const adminList = await withTestTenant(async () =>
-        tourController.listAdmin(fakeAdminReq()),
-      );
+      const adminList = await withTestTenant(async () => tourController.listAdmin(fakeAdminReq()));
       expect(adminList.map((s) => s.id)).toContain(slot.id);
 
-      const detail = await withTestTenant(async () =>
-        tourController.getSlot(slot.id),
-      );
+      const detail = await withTestTenant(async () => tourController.getSlot(slot.id));
       expect(detail.id).toBe(slot.id);
 
       const patched = await withTestTenant(async () =>
-        tourController.patchSlot(
-          slot.id,
-          { notes: 'Ctrl notes' } as any,
-          fakeAdminReq(),
-        ),
+        tourController.patchSlot(slot.id, { notes: 'Ctrl notes' } as any, fakeAdminReq()),
       );
       expect(patched.notes).toBe('Ctrl notes');
 
-      const publicList = await withTestTenant(async () =>
-        tourController.listPublic(),
-      );
+      const publicList = await withTestTenant(async () => tourController.listPublic());
       expect(publicList.map((s) => s.id)).toContain(slot.id);
     });
 
@@ -1002,9 +867,7 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(booking.status).toBe('CONFIRMED');
 
-      const list = await withTestTenant(async () =>
-        tourController.listBookings(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => tourController.listBookings(fakeAdminReq()));
       expect(list.map((b) => b.id)).toContain(booking.id);
 
       const detail = await withTestTenant(async () =>
@@ -1013,11 +876,7 @@ describe('integration:m81-enrolment/controllers', () => {
       expect(detail.id).toBe(booking.id);
 
       const patched = await withTestTenant(async () =>
-        tourController.patchBooking(
-          booking.id,
-          { status: 'COMPLETED' } as any,
-          fakeAdminReq(),
-        ),
+        tourController.patchBooking(booking.id, { status: 'COMPLETED' } as any, fakeAdminReq()),
       );
       expect(patched.status).toBe('COMPLETED');
 
@@ -1052,9 +911,7 @@ describe('integration:m81-enrolment/controllers', () => {
 
     it('template list/upsert + withdrawal create/list/getById/cancel/placeHold + exit-task patch', async () => {
       // List templates — lazy-seeds the DEFAULT 7-task baseline.
-      const tpl0 = await withTestTenant(async () =>
-        templateController.list(fakeAdminReq()),
-      );
+      const tpl0 = await withTestTenant(async () => templateController.list(fakeAdminReq()));
       expect(tpl0.length).toBeGreaterThanOrEqual(1);
 
       // Upsert a custom template list.
@@ -1082,16 +939,11 @@ describe('integration:m81-enrolment/controllers', () => {
       // Create a withdrawal using the new template.
       const student = await trackedStudent();
       const created = await withTestTenant(async () =>
-        withdrawalController.create(
-          withdrawalInput(student.studentId) as any,
-          fakeAdminReq(),
-        ),
+        withdrawalController.create(withdrawalInput(student.studentId) as any, fakeAdminReq()),
       );
       expect(created.studentId).toBe(student.studentId);
 
-      const list = await withTestTenant(async () =>
-        withdrawalController.list(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => withdrawalController.list(fakeAdminReq()));
       expect(list.map((w) => w.id)).toContain(created.id);
 
       const listByStatus = await withTestTenant(async () =>
@@ -1118,11 +970,7 @@ describe('integration:m81-enrolment/controllers', () => {
       // Patch an exit task to COMPLETED.
       const task = detail.exitTasks[0]!;
       const patched = await withTestTenant(async () =>
-        withdrawalController.patchTask(
-          task.id,
-          { status: 'COMPLETED' } as any,
-          fakeAdminReq(),
-        ),
+        withdrawalController.patchTask(task.id, { status: 'COMPLETED' } as any, fakeAdminReq()),
       );
       expect(patched.status).toBe('COMPLETED');
 
@@ -1150,10 +998,7 @@ describe('integration:m81-enrolment/controllers', () => {
     it('complete flow: all tasks done → withdrawal completes', async () => {
       const student = await trackedStudent();
       const created = await withTestTenant(async () =>
-        withdrawalController.create(
-          withdrawalInput(student.studentId) as any,
-          fakeAdminReq(),
-        ),
+        withdrawalController.create(withdrawalInput(student.studentId) as any, fakeAdminReq()),
       );
 
       const taskRows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
@@ -1162,19 +1007,11 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       for (const t of taskRows) {
         await withTestTenant(async () =>
-          withdrawalController.patchTask(
-            t.id,
-            { status: 'COMPLETED' } as any,
-            fakeAdminReq(),
-          ),
+          withdrawalController.patchTask(t.id, { status: 'COMPLETED' } as any, fakeAdminReq()),
         );
       }
       const completed = await withTestTenant(async () =>
-        withdrawalController.complete(
-          created.id,
-          {} as any,
-          fakeAdminReq(),
-        ),
+        withdrawalController.complete(created.id, {} as any, fakeAdminReq()),
       );
       expect(completed.status).toBe('COMPLETED');
     });
@@ -1202,9 +1039,7 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(submitted.confirmedContinuing).toBe(true);
 
-      const list = await withTestTenant(async () =>
-        reenrolController.list(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => reenrolController.list(fakeAdminReq()));
       expect(list.map((r) => r.id)).toContain(submitted.id);
 
       const listByYear = await withTestTenant(async () =>
@@ -1242,9 +1077,7 @@ describe('integration:m81-enrolment/controllers', () => {
             studentLastName: 'Ctrl',
             studentDateOfBirth: '2018-04-12',
             applyingForGradeLevel: '5',
-            requestedStartDate: new Date(
-              Date.now() + 30 * 24 * 60 * 60 * 1000,
-            ).toISOString(),
+            requestedStartDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             admissionReason: 'FAMILY_RELOCATION',
           } as any,
           fakeAdminReq(),
@@ -1252,9 +1085,7 @@ describe('integration:m81-enrolment/controllers', () => {
       );
       expect(submitted.studentFirstName).toBe('MY');
 
-      const list = await withTestTenant(async () =>
-        midYearController.list(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => midYearController.list(fakeAdminReq()));
       expect(list.map((r) => r.id)).toContain(submitted.id);
 
       const detail = await withTestTenant(async () =>
@@ -1276,10 +1107,7 @@ describe('integration:m81-enrolment/controllers', () => {
     it('getById unknown → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          midYearController.getById(
-            '00000000-0000-0000-0000-000000000000',
-            fakeAdminReq(),
-          ),
+          midYearController.getById('00000000-0000-0000-0000-000000000000', fakeAdminReq()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

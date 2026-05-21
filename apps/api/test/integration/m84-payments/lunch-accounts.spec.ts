@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -479,9 +475,9 @@ describe('integration:m84-payments/lunch-accounts', () => {
       expect(caught).toBeDefined();
       const code = caught?.meta?.code ?? '';
       const msg = caught?.message ?? '';
-      expect(code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable')).toBe(
-        true,
-      );
+      expect(
+        code === '23001' || msg.includes('23001') || msg.toLowerCase().includes('immutable'),
+      ).toBe(true);
     });
 
     it('UPDATE pay_lunch_account_balance_transfers.reason → SQLSTATE 23001', async () => {
@@ -545,11 +541,7 @@ describe('integration:m84-payments/lunch-accounts', () => {
     it('deposit to a missing account → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.deposit(
-            '00000000-0000-0000-0000-000000000000',
-            { amount: 10 },
-            adminActor(),
-          ),
+          service.deposit('00000000-0000-0000-0000-000000000000', { amount: 10 }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -579,9 +571,7 @@ describe('integration:m84-payments/lunch-accounts', () => {
 
     it('empty patch is a no-op (returns row)', async () => {
       const { accountId } = await seedStudentWithLunchAccount({ balance: 100 });
-      const result = await withTestTenant(async () =>
-        service.update(accountId, {}, adminActor()),
-      );
+      const result = await withTestTenant(async () => service.update(accountId, {}, adminActor()));
       expect(result.id).toBe(accountId);
     });
 
@@ -593,9 +583,7 @@ describe('integration:m84-payments/lunch-accounts', () => {
     ])('update as %s → ForbiddenException', async (_label, actor) => {
       const { accountId } = await seedStudentWithLunchAccount({ balance: 100 });
       await expect(
-        withTestTenant(async () =>
-          service.update(accountId, { lowBalanceThreshold: 5 }, actor()),
-        ),
+        withTestTenant(async () => service.update(accountId, { lowBalanceThreshold: 5 }, actor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -705,11 +693,14 @@ describe('integration:m84-payments/lunch-accounts', () => {
     it.each([
       ['officer', officerActor],
       ['teacher', teacherActor],
-    ])('getForStudent as %s (non-admin, non-STUDENT/GUARDIAN) → ForbiddenException', async (_label, actor) => {
-      const { studentId } = await seedStudentWithLunchAccount({ balance: 50 });
-      await expect(
-        withTestTenant(async () => service.getForStudent(studentId, actor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-    });
+    ])(
+      'getForStudent as %s (non-admin, non-STUDENT/GUARDIAN) → ForbiddenException',
+      async (_label, actor) => {
+        const { studentId } = await seedStudentWithLunchAccount({ balance: 50 });
+        await expect(
+          withTestTenant(async () => service.getForStudent(studentId, actor())),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      },
+    );
   });
 });

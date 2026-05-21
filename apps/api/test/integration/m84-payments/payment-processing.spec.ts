@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -211,9 +207,7 @@ describe('integration:m84-payments/payment-processing', () => {
     it('two partial payments: second flips invoice to PAID', async () => {
       const { invoiceId } = await seedSentInvoice({ total: 100 });
 
-      await withTestTenant(async () =>
-        payments.pay(invoiceId, { amount: 40 }, adminActor()),
-      );
+      await withTestTenant(async () => payments.pay(invoiceId, { amount: 40 }, adminActor()));
       const second = await withTestTenant(async () =>
         payments.pay(invoiceId, { amount: 60 }, adminActor()),
       );
@@ -228,9 +222,7 @@ describe('integration:m84-payments/payment-processing', () => {
       // Two outbox events, both for this invoice
       const emits = await readOutboxFor('pay.payment.received');
       expect(emits).toHaveLength(2);
-      const statuses = emits
-        .map((e) => JSON.parse(e.envelope).payload.invoiceStatus)
-        .sort();
+      const statuses = emits.map((e) => JSON.parse(e.envelope).payload.invoiceStatus).sort();
       expect(statuses).toEqual(['PAID', 'PARTIAL']);
     });
 
@@ -279,7 +271,7 @@ describe('integration:m84-payments/payment-processing', () => {
       },
     );
 
-    it('non-account-holder GUARDIAN cannot pay another family\'s invoice', async () => {
+    it("non-account-holder GUARDIAN cannot pay another family's invoice", async () => {
       // Create an invoice for a DIFFERENT family account holder
       const otherPersonId = generateId();
       await rawClient.$executeRawUnsafe(
@@ -450,7 +442,9 @@ describe('integration:m84-payments/payment-processing', () => {
       const fa = await seedFamilyAccount();
       const sent1 = await seedSentInvoice({ familyAccountId: fa, total: 100 });
       const sent2 = await seedSentInvoice({ familyAccountId: fa, total: 50 });
-      await withTestTenant(async () => payments.pay(sent1.invoiceId, { amount: 100 }, adminActor()));
+      await withTestTenant(async () =>
+        payments.pay(sent1.invoiceId, { amount: 100 }, adminActor()),
+      );
       await withTestTenant(async () => payments.pay(sent2.invoiceId, { amount: 50 }, adminActor()));
 
       const byInvoice = await withTestTenant(async () =>
@@ -482,7 +476,7 @@ describe('integration:m84-payments/payment-processing', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('getById for another family\'s payment as wrong guardian → NotFoundException (does not leak existence)', async () => {
+    it("getById for another family's payment as wrong guardian → NotFoundException (does not leak existence)", async () => {
       const otherPersonId = generateId();
       await rawClient.$executeRawUnsafe(
         `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import {
@@ -385,7 +381,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
       );
       kafka.reset();
       const after = await withTestTenant(async () =>
-        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'APPROVED', undefined, adminActor()),
+        engine.advanceStep(
+          submitted.id,
+          submitted.steps[0]!.id,
+          'APPROVED',
+          undefined,
+          adminActor(),
+        ),
       );
       expect(after.status).toBe('PENDING');
       expect(after.steps).toHaveLength(2);
@@ -404,7 +406,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
         engine.submit({ requestType: 'sis_absence_requests' } as any, adminActor()),
       );
       const afterStep1 = await withTestTenant(async () =>
-        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'APPROVED', undefined, adminActor()),
+        engine.advanceStep(
+          submitted.id,
+          submitted.steps[0]!.id,
+          'APPROVED',
+          undefined,
+          adminActor(),
+        ),
       );
       const step2 = afterStep1.steps.find((s) => s.stepOrder === 2)!;
       kafka.reset();
@@ -421,13 +429,7 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
       );
       kafka.reset();
       const after = await withTestTenant(async () =>
-        engine.advanceStep(
-          submitted.id,
-          submitted.steps[0]!.id,
-          'REJECTED',
-          'no go',
-          adminActor(),
-        ),
+        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'REJECTED', 'no go', adminActor()),
       );
       expect(after.status).toBe('REJECTED');
       expect(after.steps[0]!.status).toBe('REJECTED');
@@ -442,7 +444,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
         engine.submit({ requestType: 'hr_leave_requests' } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'APPROVED', undefined, adminActor()),
+        engine.advanceStep(
+          submitted.id,
+          submitted.steps[0]!.id,
+          'APPROVED',
+          undefined,
+          adminActor(),
+        ),
       );
       // Step is now APPROVED. Trying to approve again should fail.
       await expect(
@@ -498,7 +506,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
         engine.submit({ requestType: 'hr_leave_requests' } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'APPROVED', undefined, adminActor()),
+        engine.advanceStep(
+          submitted.id,
+          submitted.steps[0]!.id,
+          'APPROVED',
+          undefined,
+          adminActor(),
+        ),
       );
       // Manually create a fake AWAITING step on a resolved request and
       // try to advance — exercises the "Cannot action on resolved" path.
@@ -531,7 +545,10 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
     it('admin can withdraw on behalf of requester', async () => {
       const submitted = await withTestTenant(async () =>
         engine.submit(
-          { requestType: 'sis_absence_requests', requesterAccountId: TEST_TEACHER_ACCOUNT_ID } as any,
+          {
+            requestType: 'sis_absence_requests',
+            requesterAccountId: TEST_TEACHER_ACCOUNT_ID,
+          } as any,
           adminActor(),
         ),
       );
@@ -553,7 +570,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
         engine.submit({ requestType: 'hr_leave_requests' } as any, adminActor()),
       );
       await withTestTenant(async () =>
-        engine.advanceStep(submitted.id, submitted.steps[0]!.id, 'APPROVED', undefined, adminActor()),
+        engine.advanceStep(
+          submitted.id,
+          submitted.steps[0]!.id,
+          'APPROVED',
+          undefined,
+          adminActor(),
+        ),
       );
       await expect(
         withTestTenant(async () => engine.withdraw(submitted.id, adminActor())),
@@ -592,7 +615,10 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
       // Requester = teacher; approver = admin.
       const submitted = await withTestTenant(async () =>
         engine.submit(
-          { requestType: 'sis_absence_requests', requesterAccountId: TEST_TEACHER_ACCOUNT_ID } as any,
+          {
+            requestType: 'sis_absence_requests',
+            requesterAccountId: TEST_TEACHER_ACCOUNT_ID,
+          } as any,
           adminActor(),
         ),
       );
@@ -632,7 +658,9 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
       await withTestTenant(async () =>
         engine.submit({ requestType: 'sis_absence_requests' } as any, adminActor()),
       );
-      const mine = await withTestTenant(async () => engine.list({ mine: true } as any, adminActor()));
+      const mine = await withTestTenant(async () =>
+        engine.list({ mine: true } as any, adminActor()),
+      );
       expect(mine.every((r) => r.requesterId === TEST_ADMIN_ACCOUNT_ID)).toBe(true);
     });
 
@@ -761,17 +789,13 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
 
     it('getById — non-admin → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          templates.getById(TEST_WORKFLOW_TPL_LEAVE_A_ID, teacherActor()),
-        ),
+        withTestTenant(async () => templates.getById(TEST_WORKFLOW_TPL_LEAVE_A_ID, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('cross-school: B template not visible from A', async () => {
       await expect(
-        withTestTenant(async () =>
-          templates.getById(TEST_WORKFLOW_TPL_LEAVE_B_ID, adminActor()),
-        ),
+        withTestTenant(async () => templates.getById(TEST_WORKFLOW_TPL_LEAVE_B_ID, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -801,14 +825,17 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
       const submitted = await withTestTenant(async () =>
         workflowCtrl.submit({ requestType: 'sis_absence_requests' } as any, fakeReq),
       );
-      const fetched = await withTestTenant(async () =>
-        workflowCtrl.getById(submitted.id, fakeReq),
-      );
+      const fetched = await withTestTenant(async () => workflowCtrl.getById(submitted.id, fakeReq));
       expect(fetched.id).toBe(submitted.id);
       const list = await withTestTenant(async () => workflowCtrl.list({} as any, fakeReq));
       expect(list.length).toBeGreaterThan(0);
       const advanced = await withTestTenant(async () =>
-        workflowCtrl.approve(submitted.id, submitted.steps[0]!.id, { comments: 'ok' } as any, fakeReq),
+        workflowCtrl.approve(
+          submitted.id,
+          submitted.steps[0]!.id,
+          { comments: 'ok' } as any,
+          fakeReq,
+        ),
       );
       expect(advanced.steps.find((s) => s.stepOrder === 1)!.status).toBe('APPROVED');
       const cmt = await withTestTenant(async () =>
@@ -825,7 +852,12 @@ describe('integration:m02-workflows/approval-lifecycle', () => {
         workflowCtrl.submit({ requestType: 'hr_leave_requests' } as any, fakeReq),
       );
       const rejected = await withTestTenant(async () =>
-        workflowCtrl.reject(submitted.id, submitted.steps[0]!.id, { comments: 'no' } as any, fakeReq),
+        workflowCtrl.reject(
+          submitted.id,
+          submitted.steps[0]!.id,
+          { comments: 'no' } as any,
+          fakeReq,
+        ),
       );
       expect(rejected.status).toBe('REJECTED');
     });

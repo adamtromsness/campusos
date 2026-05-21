@@ -13,8 +13,21 @@ import { AuthService } from '@modules/m00-platform/auth/auth.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { runWithTenantContext, type TenantInfo } from '@shared/tenant/tenant.context';
-import { TEST_SCHOOL_ID, TEST_SCHEMA, TEST_SUBDOMAIN, TEST_ORG_ID, withTestTenant } from '../helpers/tenant-context';
-import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID, adminActor, studentActor, teacherActor, parentActor } from '../helpers/actor';
+import {
+  TEST_SCHOOL_ID,
+  TEST_SCHEMA,
+  TEST_SUBDOMAIN,
+  TEST_ORG_ID,
+  withTestTenant,
+} from '../helpers/tenant-context';
+import {
+  TEST_ADMIN_ACCOUNT_ID,
+  TEST_ADMIN_PERSON_ID,
+  adminActor,
+  studentActor,
+  teacherActor,
+  parentActor,
+} from '../helpers/actor';
 import { ensureWorkflowsPlatformFixtures } from '../fixtures/workflows';
 
 /**
@@ -321,11 +334,7 @@ describe('integration:shared/auth-guards', () => {
     it('school admin bypasses the check by default', async () => {
       await withTestTenant(async () => {
         await expect(
-          assertStudentOwnsRecord(
-            adminActor(),
-            'irrelevant-student-id',
-            tenantPrisma,
-          ),
+          assertStudentOwnsRecord(adminActor(), 'irrelevant-student-id', tenantPrisma),
         ).resolves.toBeUndefined();
       });
     });

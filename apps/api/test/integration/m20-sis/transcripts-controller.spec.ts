@@ -15,10 +15,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from '../fixtures/sis';
 import { seedStudent, cleanupSeededIds } from './sis-helpers';
@@ -109,28 +106,16 @@ describe('integration:m20-sis/transcripts-controller', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_transcript_courses`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_transcript_courses`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_transcripts`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_transcript_requests`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_transcript_requests`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_transfer_records`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_lockers`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_reporting_periods`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_awards`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_medical_exemption_records`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_awards`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_medical_exemption_records`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -186,11 +171,7 @@ describe('integration:m20-sis/transcripts-controller', () => {
       expect(single.id).toBe(generated.id);
 
       const patched = await withTestTenant(async () =>
-        controller.patchTranscriptStatus(
-          generated.id,
-          { status: 'SENT' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchTranscriptStatus(generated.id, { status: 'SENT' } as any, fakeAdminReq()),
       );
       expect(patched.status).toBe('SENT');
     });
@@ -221,11 +202,7 @@ describe('integration:m20-sis/transcripts-controller', () => {
       expect(list.map((r) => r.id)).toContain(submitted.id);
 
       const filtered = await withTestTenant(async () =>
-        controller.listTranscriptRequests(
-          fakeAdminReq(),
-          student.studentId,
-          'SUBMITTED',
-        ),
+        controller.listTranscriptRequests(fakeAdminReq(), student.studentId, 'SUBMITTED'),
       );
       expect(filtered.map((r) => r.id)).toContain(submitted.id);
 
@@ -382,9 +359,7 @@ describe('integration:m20-sis/transcripts-controller', () => {
       const list = await withTestTenant(async () => controller.listReportingPeriods());
       expect(list.map((p) => p.id)).toContain(created.id);
 
-      const single = await withTestTenant(async () =>
-        controller.getReportingPeriod(created.id),
-      );
+      const single = await withTestTenant(async () => controller.getReportingPeriod(created.id));
       expect(single.id).toBe(created.id);
 
       const patched = await withTestTenant(async () =>
@@ -472,11 +447,7 @@ describe('integration:m20-sis/transcripts-controller', () => {
       expect(list.map((e) => e.id)).toContain(created.id);
 
       const patched = await withTestTenant(async () =>
-        controller.patchExemption(
-          created.id,
-          { reason: 'Updated reason' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchExemption(created.id, { reason: 'Updated reason' } as any, fakeAdminReq()),
       );
       expect(patched.reason).toBe('Updated reason');
 

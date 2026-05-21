@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -13,11 +9,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { adminActor, teacherActor } from '../helpers/actor';
 import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_CLASS_ID } from '../fixtures/sis';
 import { seedStudent, cleanupSeededIds } from './sis-helpers';
@@ -359,11 +351,7 @@ describe('integration:m20-sis/transcripts', () => {
       const s = await trackedStudent();
       await expect(
         withTestTenant(async () =>
-          transcriptService.generate(
-            s.studentId,
-            { transcriptType: 'BOGUS' } as any,
-            adminActor(),
-          ),
+          transcriptService.generate(s.studentId, { transcriptType: 'BOGUS' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -660,10 +648,7 @@ describe('integration:m20-sis/transcripts', () => {
     it('getRequestById unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          transcriptService.getRequestById(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          transcriptService.getRequestById('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });

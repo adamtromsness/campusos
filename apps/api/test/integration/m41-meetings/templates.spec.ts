@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { MeetingTemplateService } from '@modules/m41-meetings/templates/meeting-template.service';
@@ -101,17 +97,11 @@ describe('integration:m41-meetings/templates', () => {
 
     it('duplicate template name in same school → BadRequestException (UNIQUE)', async () => {
       await withTestTenant(async () =>
-        templateService.create(
-          { name: 'Dup', defaultDurationMinutes: 30 } as any,
-          adminActor(),
-        ),
+        templateService.create({ name: 'Dup', defaultDurationMinutes: 30 } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          templateService.create(
-            { name: 'Dup', defaultDurationMinutes: 60 } as any,
-            adminActor(),
-          ),
+          templateService.create({ name: 'Dup', defaultDurationMinutes: 60 } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -134,10 +124,7 @@ describe('integration:m41-meetings/templates', () => {
 
     it('non-admin staff without employeeId would fail — but test teacher has one (staff path)', async () => {
       const dto = await withTestTenant(async () =>
-        templateService.create(
-          { name: 'Teacher built' } as any,
-          teacherActor(),
-        ),
+        templateService.create({ name: 'Teacher built' } as any, teacherActor()),
       );
       expect(dto.name).toBe('Teacher built');
     });
@@ -153,16 +140,12 @@ describe('integration:m41-meetings/templates', () => {
         templateService.patch(t2.id, { isActive: false } as any, adminActor()),
       );
 
-      const activeList = await withTestTenant(async () =>
-        templateService.list(adminActor()),
-      );
+      const activeList = await withTestTenant(async () => templateService.list(adminActor()));
       const ids = activeList.map((r) => r.id);
       expect(ids).toContain(t1.id);
       expect(ids).not.toContain(t2.id);
 
-      const allList = await withTestTenant(async () =>
-        templateService.list(adminActor(), true),
-      );
+      const allList = await withTestTenant(async () => templateService.list(adminActor(), true));
       const allIds = allList.map((r) => r.id);
       expect(allIds).toContain(t1.id);
       expect(allIds).toContain(t2.id);
@@ -172,17 +155,12 @@ describe('integration:m41-meetings/templates', () => {
       const t = await withTestTenant(async () =>
         templateService.create({ name: 'Findme' } as any, adminActor()),
       );
-      const fetched = await withTestTenant(async () =>
-        templateService.getById(t.id, adminActor()),
-      );
+      const fetched = await withTestTenant(async () => templateService.getById(t.id, adminActor()));
       expect(fetched.id).toBe(t.id);
 
       await expect(
         withTestTenant(async () =>
-          templateService.getById(
-            '00000000-0000-0000-0000-000000000000',
-            adminActor(),
-          ),
+          templateService.getById('00000000-0000-0000-0000-000000000000', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -194,10 +172,7 @@ describe('integration:m41-meetings/templates', () => {
 
       await expect(
         withTestTenant(async () =>
-          templateService.getById(
-            '00000000-0000-0000-0000-000000000000',
-            studentActor(),
-          ),
+          templateService.getById('00000000-0000-0000-0000-000000000000', studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -320,9 +295,7 @@ describe('integration:m41-meetings/templates', () => {
       expect(meetingRows).toHaveLength(1);
       expect(meetingRows[0]!.duration_minutes).toBe(60);
 
-      const agenda = await rawClient.$queryRawUnsafe<
-        Array<{ title: string; sort_order: number }>
-      >(
+      const agenda = await rawClient.$queryRawUnsafe<Array<{ title: string; sort_order: number }>>(
         `SELECT title, sort_order FROM ${TEST_SCHEMA}.mtg_agenda_items WHERE meeting_id = $1::uuid ORDER BY sort_order ASC`,
         result.meetingId,
       );
@@ -414,9 +387,7 @@ describe('integration:m41-meetings/templates', () => {
           adminActor(),
         ),
       );
-      const m = await rawClient.$queryRawUnsafe<
-        Array<{ duration_minutes: number }>
-      >(
+      const m = await rawClient.$queryRawUnsafe<Array<{ duration_minutes: number }>>(
         `SELECT duration_minutes FROM ${TEST_SCHEMA}.mtg_meetings WHERE id = $1::uuid`,
         result.meetingId,
       );
@@ -435,16 +406,12 @@ describe('integration:m41-meetings/templates', () => {
       const bTemplate = await withTestTenantB(async () =>
         templateService.create({ name: 'B only' } as any, adminActor()),
       );
-      const aList = await withTestTenant(async () =>
-        templateService.list(adminActor()),
-      );
+      const aList = await withTestTenant(async () => templateService.list(adminActor()));
       const aIds = aList.map((r) => r.id);
       expect(aIds).toContain(aTemplate.id);
       expect(aIds).not.toContain(bTemplate.id);
 
-      const bList = await withTestTenantB(async () =>
-        templateService.list(adminActor()),
-      );
+      const bList = await withTestTenantB(async () => templateService.list(adminActor()));
       const bIds = bList.map((r) => r.id);
       expect(bIds).toContain(bTemplate.id);
       expect(bIds).not.toContain(aTemplate.id);
@@ -460,12 +427,16 @@ describe('integration:m41-meetings/templates', () => {
     });
 
     it('same template name allowed in different schools', async () => {
-      const aId = (await withTestTenant(async () =>
-        templateService.create({ name: 'Shared name' } as any, adminActor()),
-      )).id;
-      const bId = (await withTestTenantB(async () =>
-        templateService.create({ name: 'Shared name' } as any, adminActor()),
-      )).id;
+      const aId = (
+        await withTestTenant(async () =>
+          templateService.create({ name: 'Shared name' } as any, adminActor()),
+        )
+      ).id;
+      const bId = (
+        await withTestTenantB(async () =>
+          templateService.create({ name: 'Shared name' } as any, adminActor()),
+        )
+      ).id;
       expect(aId).not.toBe(bId);
     });
   });

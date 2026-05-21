@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import {
-  isUniqueViolation,
-  isCheckViolation,
-} from '@modules/m63-food-service/food-service.errors';
+import { isUniqueViolation, isCheckViolation } from '@modules/m63-food-service/food-service.errors';
 
 describe('integration:m63-food-service/error-helpers', () => {
   describe('isUniqueViolation', () => {

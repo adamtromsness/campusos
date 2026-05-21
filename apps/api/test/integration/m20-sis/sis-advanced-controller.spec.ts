@@ -19,18 +19,10 @@ import { OutboxService } from '@shared/kafka/outbox.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_CLASS_ID, TEST_SIS_FAMILY_ID } from '../fixtures/sis';
-import {
-  seedStudent,
-  seedGuardian,
-  linkStudentGuardian,
-  cleanupSeededIds,
-} from './sis-helpers';
+import { seedStudent, seedGuardian, linkStudentGuardian, cleanupSeededIds } from './sis-helpers';
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 
 /**
@@ -138,33 +130,15 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
 
   beforeEach(async () => {
     // Wipe rows that this spec creates.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_custom_field_values`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_custom_field_definitions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_auto_approval_rules`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_parent_info_update_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_notes`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_family_relationships`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_profiles`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_absence_requests`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_custom_field_values`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_custom_field_definitions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_auto_approval_rules`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_parent_info_update_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_notes`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_family_relationships`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_profiles`);
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.sis_attendance_records CASCADE`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_absence_requests`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -204,11 +178,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
     it('updateProfile sets editable fields', async () => {
       const s = await trackedStudent();
       const updated = await withTestTenant(async () =>
-        sisAdvanced.updateProfile(
-          s.studentId,
-          { motto: 'Carpe Diem' } as any,
-          fakeAdminReq(),
-        ),
+        sisAdvanced.updateProfile(s.studentId, { motto: 'Carpe Diem' } as any, fakeAdminReq()),
       );
       expect(updated.motto).toBe('Carpe Diem');
     });
@@ -216,11 +186,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
     it('uploadAvatar + listPendingAvatars + reviewAvatar round-trips', async () => {
       const s = await trackedStudent();
       const uploaded = await withTestTenant(async () =>
-        sisAdvanced.uploadAvatar(
-          s.studentId,
-          { s3Key: 'avatars/foo.png' } as any,
-          fakeAdminReq(),
-        ),
+        sisAdvanced.uploadAvatar(s.studentId, { s3Key: 'avatars/foo.png' } as any, fakeAdminReq()),
       );
       expect(uploaded.avatarStatus).toBe('PENDING_APPROVAL');
 
@@ -230,11 +196,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
       expect(pending.map((p) => p.studentId)).toContain(s.studentId);
 
       const reviewed = await withTestTenant(async () =>
-        sisAdvanced.reviewAvatar(
-          uploaded.id,
-          { decision: 'APPROVED' } as any,
-          fakeAdminReq(),
-        ),
+        sisAdvanced.reviewAvatar(uploaded.id, { decision: 'APPROVED' } as any, fakeAdminReq()),
       );
       expect(reviewed.avatarStatus).toBe('APPROVED');
     });
@@ -407,9 +369,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
       );
       expect(created.guardianAId).toBe(gA.guardianId);
 
-      const list = await withTestTenant(async () =>
-        sisAdvanced.listFamilyRelationships(familyId),
-      );
+      const list = await withTestTenant(async () => sisAdvanced.listFamilyRelationships(familyId));
       expect(list.map((r) => r.id)).toContain(created.id);
 
       const patched = await withTestTenant(async () =>
@@ -446,12 +406,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
       const date = '2026-09-14';
       // Read class attendance (admin sees all rows; period=null returns nothing yet).
       const empty = await withTestTenant(async () =>
-        attendanceController.classAttendance(
-          TEST_SIS_CLASS_ID,
-          date,
-          {} as any,
-          fakeAdminReq(),
-        ),
+        attendanceController.classAttendance(TEST_SIS_CLASS_ID, date, {} as any, fakeAdminReq()),
       );
       expect(Array.isArray(empty)).toBe(true);
 
@@ -462,9 +417,7 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
           date,
           {
             period: 'P1',
-            records: [
-              { studentId: student.studentId, status: 'TARDY', note: 'Late bus' },
-            ],
+            records: [{ studentId: student.studentId, status: 'TARDY', note: 'Late bus' }],
           } as any,
           fakeAdminReq(),
         ),
@@ -481,22 +434,14 @@ describe('integration:m20-sis/sis-advanced-controller', () => {
       )) as Array<{ id: string }>;
       if (rec.length > 0) {
         const marked = await withTestTenant(async () =>
-          attendanceController.markOne(
-            rec[0]!.id,
-            { status: 'PRESENT' } as any,
-            fakeAdminReq(),
-          ),
+          attendanceController.markOne(rec[0]!.id, { status: 'PRESENT' } as any, fakeAdminReq()),
         );
         expect(marked.status).toBe('PRESENT');
       }
 
       // Per-student attendance history.
       const history = await withTestTenant(async () =>
-        attendanceController.studentAttendance(
-          student.studentId,
-          {} as any,
-          fakeAdminReq(),
-        ),
+        attendanceController.studentAttendance(student.studentId, {} as any, fakeAdminReq()),
       );
       expect(Array.isArray(history)).toBe(true);
     });

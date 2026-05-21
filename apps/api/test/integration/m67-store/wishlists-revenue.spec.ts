@@ -19,17 +19,8 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
+import { adminActor, studentActor, parentActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import {
   ensureStoreSeed,
   resetStoreTables,
@@ -171,7 +162,7 @@ describe('integration:m67-store/wishlists-revenue', () => {
       expect(rows[0]!.c).toBe(0);
     });
 
-    it('non-admin cannot manage another customer\'s wishlist', async () => {
+    it("non-admin cannot manage another customer's wishlist", async () => {
       // student trying to act for admin person → forbidden
       await expect(
         withTestTenant(async () =>
@@ -230,9 +221,7 @@ describe('integration:m67-store/wishlists-revenue', () => {
 
     it('getById unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          externalCust.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => externalCust.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -252,9 +241,7 @@ describe('integration:m67-store/wishlists-revenue', () => {
       );
       expect(opt.methodName).toBe('Express');
       expect(opt.flatRate).toBe(10);
-      const list = await withTestTenant(async () =>
-        shipping.listForStore(TEST_STORE_PUBLIC_ID),
-      );
+      const list = await withTestTenant(async () => shipping.listForStore(TEST_STORE_PUBLIC_ID));
       expect(list.map((o) => o.id)).toContain(opt.id);
     });
 
@@ -312,9 +299,7 @@ describe('integration:m67-store/wishlists-revenue', () => {
       await withTestTenant(async () =>
         shipping.patch(adminActor(), opt.id, { isActive: false } as any),
       );
-      const active = await withTestTenant(async () =>
-        shipping.listForStore(TEST_STORE_PUBLIC_ID),
-      );
+      const active = await withTestTenant(async () => shipping.listForStore(TEST_STORE_PUBLIC_ID));
       expect(active.map((o) => o.id)).not.toContain(opt.id);
       const all = await withTestTenant(async () =>
         shipping.listForStore(TEST_STORE_PUBLIC_ID, true),
@@ -343,9 +328,9 @@ describe('integration:m67-store/wishlists-revenue', () => {
     });
 
     it('non-manager list → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => revenue.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => revenue.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('materialise rerun is idempotent (upserts)', async () => {
@@ -412,9 +397,7 @@ describe('integration:m67-store/wishlists-revenue', () => {
 
     it('getById returns category; missing → NotFoundException', async () => {
       const root = await makeRoot();
-      const fetched = await withTestTenant(async () =>
-        category.getById(adminActor(), root.id),
-      );
+      const fetched = await withTestTenant(async () => category.getById(adminActor(), root.id));
       expect(fetched.id).toBe(root.id);
 
       await expect(

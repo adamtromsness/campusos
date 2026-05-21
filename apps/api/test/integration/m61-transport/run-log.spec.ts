@@ -6,14 +6,8 @@ import { RunLogService } from '@modules/m61-transport/run-log.service';
 import { InspectionService } from '@modules/m61-transport/inspection.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHEMA } from '../helpers/tenant-context';
+import { adminActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 import {
   resetTransportTables,
   ensureTransportSeed,
@@ -91,21 +85,14 @@ describe('integration:m61-transport/run-log', () => {
     expect(fetched.id).toBe(run.id);
 
     const completed = await withTestTenant(async () =>
-      runLogs.complete(
-        run.id,
-        { odometerEnd: 100050, notes: 'Smooth run' } as any,
-        adminActor(),
-      ),
+      runLogs.complete(run.id, { odometerEnd: 100050, notes: 'Smooth run' } as any, adminActor()),
     );
     expect(completed.status).toBe('COMPLETED');
   });
 
   it('starting a second IN_PROGRESS run for same date rejects', async () => {
     await withTestTenant(async () =>
-      runLogs.start(
-        { routeId: TEST_ROUTE_ID, runDate: RUN_DATE } as any,
-        adminActor(),
-      ),
+      runLogs.start({ routeId: TEST_ROUTE_ID, runDate: RUN_DATE } as any, adminActor()),
     );
 
     await expect(

@@ -16,11 +16,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import {
   resetFacilitiesTables,
   ensureFacilitiesSeed,
@@ -144,9 +140,7 @@ describe('integration:m65-facilities/assets-controller', () => {
     const fetched = await withTestTenant(async () => ctl.getAsset(asset.id));
     expect(fetched.id).toBe(asset.id);
 
-    await withTestTenant(async () =>
-      ctl.patchAsset(asset.id, { name: 'Renamed' } as any, req),
-    );
+    await withTestTenant(async () => ctl.patchAsset(asset.id, { name: 'Renamed' } as any, req));
 
     const overdue = await withTestTenant(async () => ctl.maintenanceOverdue());
     expect(Array.isArray(overdue)).toBe(true);

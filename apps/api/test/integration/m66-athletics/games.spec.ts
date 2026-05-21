@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -24,12 +20,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  teacherActor,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { adminActor, studentActor, teacherActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
 import { seedStudent } from '../m20-sis/sis-helpers';
 import {
@@ -280,7 +271,11 @@ describe('integration:m66-athletics/games', () => {
         ),
       );
       await withTestTenant(() =>
-        results.enterResult(b.id, { homeScore: 2, awayScore: 2, outcome: 'DRAW' } as any, adminActor()),
+        results.enterResult(
+          b.id,
+          { homeScore: 2, awayScore: 2, outcome: 'DRAW' } as any,
+          adminActor(),
+        ),
       );
       const c = await withTestTenant(() =>
         games.create(
@@ -367,11 +362,7 @@ describe('integration:m66-athletics/games', () => {
       const g = await createGame();
       await expect(
         withTestTenant(() =>
-          results.enterResult(
-            g.id,
-            { homeScore: 1, awayScore: 0, outcome: 'WIN' } as any,
-            ghost,
-          ),
+          results.enterResult(g.id, { homeScore: 1, awayScore: 0, outcome: 'WIN' } as any, ghost),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -420,11 +411,7 @@ describe('integration:m66-athletics/games', () => {
       )) as Array<{ id: string }>;
       await expect(
         withTestTenant(() =>
-          results.patchResult(
-            resultRows[0]!.id,
-            { outcome: 'LOSS' } as any,
-            adminActor(),
-          ),
+          results.patchResult(resultRows[0]!.id, { outcome: 'LOSS' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -543,9 +530,9 @@ describe('integration:m66-athletics/games', () => {
     });
 
     it('list: student → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(() => proposals.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(() => proposals.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('accept: PROPOSED → ACCEPTED', async () => {
@@ -598,7 +585,11 @@ describe('integration:m66-athletics/games', () => {
         ),
       );
       const counter = await withTestTenant(() =>
-        proposals.counter(p.id, { counterProposalData: { newDate: '2026-10-15' } } as any, adminActor()),
+        proposals.counter(
+          p.id,
+          { counterProposalData: { newDate: '2026-10-15' } } as any,
+          adminActor(),
+        ),
       );
       expect(counter.status).toBe('COUNTER_PROPOSED');
       expect(counter.counterProposalData).toEqual({ newDate: '2026-10-15' });
@@ -744,7 +735,11 @@ describe('integration:m66-athletics/games', () => {
       expect(accepted.acceptedAt).not.toBeNull();
 
       const confirmed = await withTestTenant(() =>
-        officials.transitionAssignment(a.id, { status: 'CONFIRMED', notes: 'OK' } as any, adminActor()),
+        officials.transitionAssignment(
+          a.id,
+          { status: 'CONFIRMED', notes: 'OK' } as any,
+          adminActor(),
+        ),
       );
       expect(confirmed.status).toBe('CONFIRMED');
 
@@ -1046,9 +1041,7 @@ describe('integration:m66-athletics/games', () => {
     });
 
     it('hasOfficialAdminScope + hasMarketplaceAdminScope', async () => {
-      const adminScope = await withTestTenant(() =>
-        officials.hasOfficialAdminScope(adminActor()),
-      );
+      const adminScope = await withTestTenant(() => officials.hasOfficialAdminScope(adminActor()));
       expect(adminScope).toBe(true);
       const teacherScope = await withTestTenant(() =>
         officials.hasOfficialAdminScope(teacherActor()),
@@ -1142,9 +1135,7 @@ describe('integration:m66-athletics/games', () => {
           adminActor(),
         ),
       );
-      const noop = await withTestTenant(() =>
-        coaching.patch(created.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(() => coaching.patch(created.id, {} as any, adminActor()));
       expect(noop.id).toBe(created.id);
 
       await expect(
@@ -1167,7 +1158,9 @@ describe('integration:m66-athletics/games', () => {
         ),
       );
       await expect(
-        withTestTenant(() => coaching.patch(created.id, { role: 'HEAD_COACH' } as any, studentActor())),
+        withTestTenant(() =>
+          coaching.patch(created.id, { role: 'HEAD_COACH' } as any, studentActor()),
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

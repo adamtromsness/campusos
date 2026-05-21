@@ -157,19 +157,18 @@ describe('integration:m00-platform/governance-processors', () => {
     it('empty dataCategoriesProcessed → BadRequest', async () => {
       await expect(
         withTestTenant(async () =>
-          service.createProcessor(adminActor(), baseProcessorInput({ dataCategoriesProcessed: [] })),
+          service.createProcessor(
+            adminActor(),
+            baseProcessorInput({ dataCategoriesProcessed: [] }),
+          ),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('duplicate processorName → BadRequest', async () => {
-      await withTestTenant(async () =>
-        service.createProcessor(adminActor(), baseProcessorInput()),
-      );
+      await withTestTenant(async () => service.createProcessor(adminActor(), baseProcessorInput()));
       await expect(
-        withTestTenant(async () =>
-          service.createProcessor(adminActor(), baseProcessorInput()),
-        ),
+        withTestTenant(async () => service.createProcessor(adminActor(), baseProcessorInput())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -178,10 +177,7 @@ describe('integration:m00-platform/governance-processors', () => {
         service.createProcessor(adminActor(), baseProcessorInput()),
       );
       const b = await withTestTenant(async () =>
-        service.createProcessor(
-          adminActor(),
-          baseProcessorInput({ processorName: 'AWS' }),
-        ),
+        service.createProcessor(adminActor(), baseProcessorInput({ processorName: 'AWS' })),
       );
       const list = await withTestTenant(async () => service.listProcessors(adminActor()));
       expect(list.length).toBeGreaterThanOrEqual(2);
@@ -212,10 +208,7 @@ describe('integration:m00-platform/governance-processors', () => {
         service.createProcessor(adminActor(), baseProcessorInput()),
       );
       const b = await withTestTenant(async () =>
-        service.createProcessor(
-          adminActor(),
-          baseProcessorInput({ processorName: 'Other' }),
-        ),
+        service.createProcessor(adminActor(), baseProcessorInput({ processorName: 'Other' })),
       );
       await expect(
         withTestTenant(async () =>
@@ -295,9 +288,7 @@ describe('integration:m00-platform/governance-processors', () => {
         service.createProcessor(adminActor(), baseProcessorInput()),
       );
       await expect(
-        withTestTenant(async () =>
-          service.createDpa(adminActor(), baseDpaInput(procB.id)),
-        ),
+        withTestTenant(async () => service.createDpa(adminActor(), baseDpaInput(procB.id))),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -392,9 +383,7 @@ describe('integration:m00-platform/governance-processors', () => {
       const dpa = await withTestTenant(async () =>
         service.createDpa(adminActor(), baseDpaInput(proc.id)),
       );
-      const updated = await withTestTenant(async () =>
-        service.updateDpa(adminActor(), dpa.id, {}),
-      );
+      const updated = await withTestTenant(async () => service.updateDpa(adminActor(), dpa.id, {}));
       expect(updated.id).toBe(dpa.id);
     });
 

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -454,9 +450,7 @@ describe('integration:m22-scheduling/pull-out', () => {
 
     it('getById unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          pullOutService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => pullOutService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 

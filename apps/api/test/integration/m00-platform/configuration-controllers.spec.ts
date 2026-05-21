@@ -15,11 +15,7 @@ import {
 } from '@modules/m00-platform/configuration/configuration.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 /**
  * Controller-layer coverage for m00-platform/configuration.
@@ -217,9 +213,9 @@ describe('integration:m00-platform/configuration-controllers', () => {
     it('refuses delete when building has spaces (409 ConflictException)', async () => {
       const id = await seedBuilding('CTRL-Bldg-Busy-' + generateId().slice(-6));
       await seedSpace(id, 'CTRL-Room-1');
-      await expect(
-        withTestTenant(() => controller.deleteBuilding(id)),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(withTestTenant(() => controller.deleteBuilding(id))).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
 
     it('rejects unknown building id (404 NotFoundException)', async () => {
@@ -412,9 +408,7 @@ describe('integration:m00-platform/configuration-controllers', () => {
 
     it('rejects out-of-range currentStep', async () => {
       await expect(
-        withTestTenant(() =>
-          controller.patchWizardProgress({ currentStep: 99 } as any),
-        ),
+        withTestTenant(() => controller.patchWizardProgress({ currentStep: 99 } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -498,16 +492,12 @@ describe('integration:m00-platform/configuration-controllers', () => {
       const studentNumber = 'CTRL-STU-DUP-' + Date.now();
       await withTestTenant(() =>
         controller.importStudents({
-          rows: [
-            { firstName: 'CtrlStu', lastName: 'First', studentNumber },
-          ],
+          rows: [{ firstName: 'CtrlStu', lastName: 'First', studentNumber }],
         } as any),
       );
       const result = await withTestTenant(() =>
         controller.importStudents({
-          rows: [
-            { firstName: 'CtrlStu', lastName: 'Second', studentNumber },
-          ],
+          rows: [{ firstName: 'CtrlStu', lastName: 'Second', studentNumber }],
         } as any),
       );
       expect(result.created).toBe(0);

@@ -137,10 +137,7 @@ describe('integration:m21-classroom/misc-controllers', () => {
     redis = new RedisService();
     await redis.onModuleInit();
 
-    hallPassService = new HallPassService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    hallPassService = new HallPassService(tenantPrisma, kafka as unknown as KafkaProducerService);
     lessonRecordingService = new LessonRecordingService(tenantPrisma, outbox);
     classMomentService = new ClassMomentService(tenantPrisma);
     peerReviewService = new PeerReviewService(tenantPrisma);
@@ -377,10 +374,7 @@ describe('integration:m21-classroom/misc-controllers', () => {
       const student = await trackedStudent();
       await enrollStudent(rawClient, student.studentId);
       await withTestTenant(async () =>
-        hallPassController.updateSettings(
-          { destinations: ['Bathroom'] } as any,
-          fakeAdminReq(),
-        ),
+        hallPassController.updateSettings({ destinations: ['Bathroom'] } as any, fakeAdminReq()),
       );
       const pass = await withTestTenant(async () =>
         hallPassController.issue(
@@ -458,11 +452,7 @@ describe('integration:m21-classroom/misc-controllers', () => {
       expect(fetched.id).toBe(moment.id);
 
       const reacted = await withTestTenant(async () =>
-        classMomentController.react(
-          moment.id,
-          { reactionType: 'LIKE' } as any,
-          fakeAdminReq(),
-        ),
+        classMomentController.react(moment.id, { reactionType: 'LIKE' } as any, fakeAdminReq()),
       );
       expect(reacted.reactionCount).toBe(1);
 
@@ -514,9 +504,7 @@ describe('integration:m21-classroom/misc-controllers', () => {
       );
       expect(Array.isArray(list)).toBe(true);
 
-      const mine = await withTestTenant(async () =>
-        peerReviewController.listMy(fakeAdminReq()),
-      );
+      const mine = await withTestTenant(async () => peerReviewController.listMy(fakeAdminReq()));
       expect(Array.isArray(mine)).toBe(true);
     });
   });

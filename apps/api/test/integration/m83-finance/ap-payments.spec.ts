@@ -1,16 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
-import {
-  APVoucherService,
-  APPaymentService,
-} from '@modules/m83-finance/budgets.service';
+import { APVoucherService, APPaymentService } from '@modules/m83-finance/budgets.service';
 import { PostingService } from '@modules/m83-finance/posting.service';
 import { FinanceValidationService } from '@modules/m83-finance/validation';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
@@ -22,12 +15,7 @@ import {
   TEST_SCHOOL_B_ID,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  officerActor,
-  teacherActor,
-  studentActor,
-} from '../helpers/actor';
+import { adminActor, officerActor, teacherActor, studentActor } from '../helpers/actor';
 import {
   TEST_SUPPLIER_A_ID,
   TEST_SUPPLIER_B_SCHOOL_ID,
@@ -85,9 +73,7 @@ describe('integration:m83-finance/ap-payments', () => {
 
   async function seedApprovedVoucher(opts?: { totalAmount?: number }): Promise<string> {
     const today = new Date().toISOString().slice(0, 10);
-    const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const v = await withTestTenant(async () =>
       apVouchers.create(adminActor(), {
         supplierId: TEST_SUPPLIER_A_ID,
@@ -181,9 +167,7 @@ describe('integration:m83-finance/ap-payments', () => {
           amount: 200,
         }),
       );
-      const list = await withTestTenant(async () =>
-        apPayments.listForVoucher(voucherId),
-      );
+      const list = await withTestTenant(async () => apPayments.listForVoucher(voucherId));
       expect(list).toHaveLength(2);
       // newest-first
       expect(list[0]!.amount).toBe(200);
@@ -205,9 +189,7 @@ describe('integration:m83-finance/ap-payments', () => {
     it('voucher not APPROVED → BadRequestException', async () => {
       // Create a PENDING voucher (no transition).
       const today = new Date().toISOString().slice(0, 10);
-      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const v = await withTestTenant(async () =>
         apVouchers.create(adminActor(), {
           supplierId: TEST_SUPPLIER_A_ID,
@@ -231,9 +213,7 @@ describe('integration:m83-finance/ap-payments', () => {
 
     it('voucher missing gl_account_id → BadRequestException', async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const v = await withTestTenant(async () =>
         apVouchers.create(adminActor(), {
           supplierId: TEST_SUPPLIER_A_ID,
@@ -270,9 +250,7 @@ describe('integration:m83-finance/ap-payments', () => {
     it('cross-school voucher (under School B) → NotFoundException from School A', async () => {
       const voucherIdB = await withTestTenantB(async () => {
         const today = new Date().toISOString().slice(0, 10);
-        const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const v = await apVouchers.create(adminActor(), {
           supplierId: TEST_SUPPLIER_B_SCHOOL_ID,
           voucherNumber: 'AP-B-' + generateId().slice(-8),

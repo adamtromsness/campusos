@@ -23,11 +23,7 @@ import {
   TEST_ADMIN_PERSON_ID,
   TEST_ADMIN_EMPLOYEE_ID,
 } from '../helpers/actor';
-import {
-  resetTransportTables,
-  ensureTransportSeed,
-  TEST_VEHICLE_ID,
-} from '../fixtures/transport';
+import { resetTransportTables, ensureTransportSeed, TEST_VEHICLE_ID } from '../fixtures/transport';
 
 class StubActorContext {
   async resolveActor(): Promise<ResolvedActor> {
@@ -104,19 +100,15 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
   it('repairs — list + create + outstanding + patch', async () => {
     const r = await withTestTenant(async () =>
-      ctl.createRepair(
-        req,
-        TEST_VEHICLE_ID,
-        {
-          repairDate: '2026-06-01',
-          problemDescription: 'Test',
-          workPerformed: 'Inspected',
-          mileageAtRepair: 10000,
-          performedByType: 'INTERNAL',
-          totalCost: 50,
-          status: 'IN_PROGRESS',
-        } as any,
-      ),
+      ctl.createRepair(req, TEST_VEHICLE_ID, {
+        repairDate: '2026-06-01',
+        problemDescription: 'Test',
+        workPerformed: 'Inspected',
+        mileageAtRepair: 10000,
+        performedByType: 'INTERNAL',
+        totalCost: 50,
+        status: 'IN_PROGRESS',
+      } as any),
     );
     expect(r.problemDescription).toBe('Test');
 
@@ -134,10 +126,12 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
   it('parts — list + create + patch + restock + lowStock', async () => {
     const p = await withTestTenant(async () =>
-      ctl.createPart(
-        req,
-        { partName: 'Brake Pad', partNumber: 'BP-1', quantityOnHand: 10, minStockLevel: 3 } as any,
-      ),
+      ctl.createPart(req, {
+        partName: 'Brake Pad',
+        partNumber: 'BP-1',
+        quantityOnHand: 10,
+        minStockLevel: 3,
+      } as any),
     );
     expect(p.partName).toBe('Brake Pad');
 
@@ -160,16 +154,12 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
   it('components — install + list + patch + approachingEol', async () => {
     const c = await withTestTenant(async () =>
-      ctl.createComponent(
-        req,
-        TEST_VEHICLE_ID,
-        {
-          componentType: 'TYRE',
-          description: 'Front-left',
-          installedDate: '2026-06-01',
-          installedMileage: 10000,
-        } as any,
-      ),
+      ctl.createComponent(req, TEST_VEHICLE_ID, {
+        componentType: 'TYRE',
+        description: 'Front-left',
+        installedDate: '2026-06-01',
+        installedMileage: 10000,
+      } as any),
     );
     expect(c.componentType).toBe('TYRE');
 
@@ -187,18 +177,14 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
   it('fuel — log + list + fleetSummary', async () => {
     const f = await withTestTenant(async () =>
-      ctl.createFuel(
-        req,
-        TEST_VEHICLE_ID,
-        {
-          loggedBy: TEST_ADMIN_EMPLOYEE_ID,
-          logDate: '2026-06-01',
-          odometerReading: 50000,
-          fuelQuantity: 30,
-          fuelCost: 90,
-          fuelType: 'DIESEL',
-        } as any,
-      ),
+      ctl.createFuel(req, TEST_VEHICLE_ID, {
+        loggedBy: TEST_ADMIN_EMPLOYEE_ID,
+        logDate: '2026-06-01',
+        odometerReading: 50000,
+        fuelQuantity: 30,
+        fuelCost: 90,
+        fuelType: 'DIESEL',
+      } as any),
     );
     expect(f.fuelType).toBe('DIESEL');
 
@@ -219,25 +205,17 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
     expect(updated.weeklyDrivingLimitMinutes).toBe(2400);
 
     const log = await withTestTenant(async () =>
-      ctl.startDuty(
-        req,
-        TEST_ADMIN_EMPLOYEE_ID,
-        {
-          logDate: '2026-06-01',
-          dutyStartAt: '2026-06-01T06:00:00Z',
-        } as any,
-      ),
+      ctl.startDuty(req, TEST_ADMIN_EMPLOYEE_ID, {
+        logDate: '2026-06-01',
+        dutyStartAt: '2026-06-01T06:00:00Z',
+      } as any),
     );
     expect(log.driverId).toBe(TEST_ADMIN_EMPLOYEE_ID);
 
-    const list = await withTestTenant(async () =>
-      ctl.listDriverHours(TEST_ADMIN_EMPLOYEE_ID),
-    );
+    const list = await withTestTenant(async () => ctl.listDriverHours(TEST_ADMIN_EMPLOYEE_ID));
     expect(list.map((x: any) => x.id)).toContain(log.id);
 
-    const weekly = await withTestTenant(async () =>
-      ctl.weeklySummary(TEST_ADMIN_EMPLOYEE_ID),
-    );
+    const weekly = await withTestTenant(async () => ctl.weeklySummary(TEST_ADMIN_EMPLOYEE_ID));
     expect(weekly.driverId).toBe(TEST_ADMIN_EMPLOYEE_ID);
 
     const approaching = await withTestTenant(async () => ctl.approachingLimit());
@@ -245,32 +223,24 @@ describe('integration:m61-transport/fleet-maintenance-controller', () => {
 
     // Close out the duty
     const completed = await withTestTenant(async () =>
-      ctl.completeDuty(
-        req,
-        log.id,
-        {
-          dutyEndAt: '2026-06-01T14:00:00Z',
-          drivingMinutes: 360,
-          breakMinutes: 60,
-          notes: 'Done',
-        } as any,
-      ),
+      ctl.completeDuty(req, log.id, {
+        dutyEndAt: '2026-06-01T14:00:00Z',
+        drivingMinutes: 360,
+        breakMinutes: 60,
+        notes: 'Done',
+      } as any),
     );
     expect(completed.dutyEndAt).not.toBeNull();
   });
 
   it('vehicle lifecycle — patch + getForVehicle + replacementPlanning', async () => {
     const v = await withTestTenant(async () =>
-      ctl.patchLifecycle(
-        req,
-        TEST_VEHICLE_ID,
-        {
-          purchaseDate: '2020-01-01',
-          purchasePrice: 80000,
-          expectedLifeYears: 12,
-          depreciationMethod: 'STRAIGHT_LINE',
-        } as any,
-      ),
+      ctl.patchLifecycle(req, TEST_VEHICLE_ID, {
+        purchaseDate: '2020-01-01',
+        purchasePrice: 80000,
+        expectedLifeYears: 12,
+        depreciationMethod: 'STRAIGHT_LINE',
+      } as any),
     );
     expect(v.vehicleId).toBe(TEST_VEHICLE_ID);
 

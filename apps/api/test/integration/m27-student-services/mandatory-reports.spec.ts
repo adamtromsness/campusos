@@ -7,11 +7,7 @@ import { MandatoryReportService } from '@modules/m27-student-services/counsellin
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import { adminActor, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 
 /**
@@ -202,11 +198,7 @@ describe('integration:m27-student-services/mandatory-reports', () => {
     const { id } = await seedReport();
     const before = await readRow(id);
     await withTestTenant(async () =>
-      service.patch(
-        id,
-        { cpsResponse: 'CPS opened case file 2026-05-18' } as any,
-        adminActor(),
-      ),
+      service.patch(id, { cpsResponse: 'CPS opened case file 2026-05-18' } as any, adminActor()),
     );
     const after = await readRow(id);
     expect(after.cps_response).toBe('CPS opened case file 2026-05-18');
@@ -218,9 +210,7 @@ describe('integration:m27-student-services/mandatory-reports', () => {
     const { id } = await seedReport();
     const before = await readRow(id);
     for (const status of ['CPS_CONTACTED', 'INVESTIGATION_ACTIVE', 'CLOSED']) {
-      await withTestTenant(async () =>
-        service.patch(id, { status } as any, adminActor()),
-      );
+      await withTestTenant(async () => service.patch(id, { status } as any, adminActor()));
       const r = await readRow(id);
       expect(r.status).toBe(status);
       // Core fields are byte-identical at every transition.

@@ -293,7 +293,8 @@ export class PortfolioService {
       if (sets.length === 0) {
         // Read inside the same tx so the FOR UPDATE-locked row is visible.
         const cur = (await client.$queryRawUnsafe(
-          SELECT_PORTFOLIO_BASE + ' WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
+          SELECT_PORTFOLIO_BASE +
+            ' WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
           studentId,
           tenant.schoolId,
         )) as PortfolioRow[];

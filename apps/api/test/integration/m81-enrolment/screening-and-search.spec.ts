@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -31,10 +27,7 @@ import {
   TEST_PARENT_PERSON_ID,
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 5 — m81-enrolment ApplicationScoringService + ApplicationStageService
@@ -85,37 +78,19 @@ describe('integration:m81-enrolment/screening-and-search', () => {
 
   beforeEach(async () => {
     (kafka as unknown as RecordingKafkaProducer).reset();
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_scores`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_stages`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_scores`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_stages`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
     await rawClient.$executeRawUnsafe(
       `TRUNCATE ${TEST_SCHEMA}.pay_family_account_students, ${TEST_SCHEMA}.pay_family_accounts CASCADE`,
     );
@@ -172,11 +147,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('officer (STAFF non-admin = Enrolment Officer) can score', async () => {
       const appId = await seedApp();
       const created = await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Sibling', score: 5 },
-          officerActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Sibling', score: 5 }, officerActor()),
       );
       expect(created.criterionName).toBe('Sibling');
     });
@@ -186,11 +157,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       await expect(
         withTestTenant(
           async () =>
-            scoringService.create(
-              appId,
-              { criterionName: 'Bias', score: 9 },
-              parentActor(),
-            ),
+            scoringService.create(appId, { criterionName: 'Bias', score: 9 }, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -201,11 +168,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       await expect(
         withTestTenant(
           async () =>
-            scoringService.create(
-              appId,
-              { criterionName: 'self', score: 1 },
-              studentActor(),
-            ),
+            scoringService.create(appId, { criterionName: 'self', score: 1 }, studentActor()),
           { personId: TEST_STUDENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -227,19 +190,11 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('duplicate criterion for same application → BadRequest', async () => {
       const appId = await seedApp();
       await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Academic', score: 8 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Academic', score: 8 }, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          scoringService.create(
-            appId,
-            { criterionName: 'Academic', score: 9 },
-            adminActor(),
-          ),
+          scoringService.create(appId, { criterionName: 'Academic', score: 9 }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -247,18 +202,10 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('listForApplication returns ordered rows; parent → Forbidden', async () => {
       const appId = await seedApp();
       await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Music', score: 7 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Music', score: 7 }, adminActor()),
       );
       await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Athletics', score: 6 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Athletics', score: 6 }, adminActor()),
       );
       const list = await withTestTenant(async () =>
         scoringService.listForApplication(appId, adminActor()),
@@ -266,10 +213,9 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       expect(list.map((s) => s.criterionName)).toEqual(['Athletics', 'Music']);
 
       await expect(
-        withTestTenant(
-          async () => scoringService.listForApplication(appId, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => scoringService.listForApplication(appId, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -298,11 +244,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('patch with empty body returns existing row', async () => {
       const appId = await seedApp();
       const created = await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'NoOp', score: 5 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'NoOp', score: 5 }, adminActor()),
       );
       const same = await withTestTenant(async () =>
         scoringService.patch(created.id, {}, adminActor()),
@@ -313,11 +255,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('patch unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          scoringService.patch(
-            '00000000-0000-0000-0000-000000000000',
-            { score: 1 },
-            adminActor(),
-          ),
+          scoringService.patch('00000000-0000-0000-0000-000000000000', { score: 1 }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -325,11 +263,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('remove drops the row; remove unknown → NotFound', async () => {
       const appId = await seedApp();
       const created = await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Drop', score: 3 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Drop', score: 3 }, adminActor()),
       );
       await withTestTenant(async () => scoringService.remove(created.id, adminActor()));
       const list = await withTestTenant(async () =>
@@ -344,17 +278,12 @@ describe('integration:m81-enrolment/screening-and-search', () => {
     it('remove by parent → Forbidden', async () => {
       const appId = await seedApp();
       const created = await withTestTenant(async () =>
-        scoringService.create(
-          appId,
-          { criterionName: 'Bias', score: 5 },
-          adminActor(),
-        ),
+        scoringService.create(appId, { criterionName: 'Bias', score: 5 }, adminActor()),
       );
       await expect(
-        withTestTenant(
-          async () => scoringService.remove(created.id, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => scoringService.remove(created.id, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -377,9 +306,7 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       expect(s2.toStatus).toBe('INTERVIEW');
       expect(s2.notes).toBe('Set up panel');
 
-      const stages = await withTestTenant(async () =>
-        stageService.list(appId, adminActor()),
-      );
+      const stages = await withTestTenant(async () => stageService.list(appId, adminActor()));
       expect(stages.map((s) => s.toStatus)).toEqual(['UNDER_REVIEW', 'INTERVIEW']);
     });
 
@@ -432,15 +359,14 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('list row-scope: parent sees own, but cannot see another guardian\'s', async () => {
+    it("list row-scope: parent sees own, but cannot see another guardian's", async () => {
       const ownAppId = await seedApp({ byParent: true });
       await withTestTenant(async () =>
         stageService.advance(ownAppId, 'UNDER_REVIEW', null, adminActor()),
       );
-      const own = await withTestTenant(
-        async () => stageService.list(ownAppId, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const own = await withTestTenant(async () => stageService.list(ownAppId, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(own.length).toBe(1);
 
       // Different application owned by admin → 404 for the parent.
@@ -449,10 +375,9 @@ describe('integration:m81-enrolment/screening-and-search', () => {
         stageService.advance(otherAppId, 'UNDER_REVIEW', null, adminActor()),
       );
       await expect(
-        withTestTenant(
-          async () => stageService.list(otherAppId, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => stageService.list(otherAppId, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -461,19 +386,16 @@ describe('integration:m81-enrolment/screening-and-search', () => {
       await withTestTenant(async () =>
         stageService.advance(appId, 'UNDER_REVIEW', null, adminActor()),
       );
-      const list = await withTestTenant(async () =>
-        stageService.list(appId, teacherActor()),
-      );
+      const list = await withTestTenant(async () => stageService.list(appId, teacherActor()));
       expect(list).toHaveLength(1);
     });
 
     it('student → NotFound on list', async () => {
       const appId = await seedApp();
       await expect(
-        withTestTenant(
-          async () => stageService.list(appId, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => stageService.list(appId, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

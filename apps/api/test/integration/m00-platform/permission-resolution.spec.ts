@@ -4,10 +4,7 @@ import { generateId } from '@campusos/database';
 
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
-import {
-  TEST_SCHOOL_ID,
-  TEST_SCHOOL_B_ID,
-} from '../helpers/tenant-context';
+import { TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
   TEST_OFFICER_ACCOUNT_ID,
@@ -121,9 +118,7 @@ describe('integration:m00-platform/permission-resolution', () => {
     });
 
     it('resolveScopeChain returns [PLATFORM] when no SCHOOL scope exists for the school', async () => {
-      const chain = await permCheck.resolveScopeChain(
-        '00000000-0000-0000-0000-000000000001',
-      );
+      const chain = await permCheck.resolveScopeChain('00000000-0000-0000-0000-000000000001');
       const platformScopeId = await lookupScopeId({});
       expect(chain).toEqual([platformScopeId]);
     });
@@ -188,11 +183,10 @@ describe('integration:m00-platform/permission-resolution', () => {
         scopeId: schoolScope,
         codes: ['att-001:read'],
       });
-      const ok = await permCheck.hasAnyPermission(
-        TEST_TEACHER_ACCOUNT_ID,
-        schoolScope,
-        ['fin-005:admin', 'att-001:read'],
-      );
+      const ok = await permCheck.hasAnyPermission(TEST_TEACHER_ACCOUNT_ID, schoolScope, [
+        'fin-005:admin',
+        'att-001:read',
+      ]);
       expect(ok).toBe(true);
     });
 
@@ -203,21 +197,16 @@ describe('integration:m00-platform/permission-resolution', () => {
         scopeId: schoolScope,
         codes: ['att-001:read'],
       });
-      const ok = await permCheck.hasAnyPermission(
-        TEST_TEACHER_ACCOUNT_ID,
-        schoolScope,
-        ['fin-005:admin', 'fin-006:write'],
-      );
+      const ok = await permCheck.hasAnyPermission(TEST_TEACHER_ACCOUNT_ID, schoolScope, [
+        'fin-005:admin',
+        'fin-006:write',
+      ]);
       expect(ok).toBe(false);
     });
 
     it('returns false on empty codes list', async () => {
       const schoolScope = await lookupScopeId({ schoolId: TEST_SCHOOL_ID });
-      const ok = await permCheck.hasAnyPermission(
-        TEST_TEACHER_ACCOUNT_ID,
-        schoolScope,
-        [],
-      );
+      const ok = await permCheck.hasAnyPermission(TEST_TEACHER_ACCOUNT_ID, schoolScope, []);
       expect(ok).toBe(false);
     });
   });
@@ -252,11 +241,9 @@ describe('integration:m00-platform/permission-resolution', () => {
         scopeId: schoolScope,
         codes: ['fin-005:write'],
       });
-      const ok = await permCheck.hasAnyPermissionInTenant(
-        TEST_OFFICER_ACCOUNT_ID,
-        TEST_SCHOOL_ID,
-        ['fin-005:write'],
-      );
+      const ok = await permCheck.hasAnyPermissionInTenant(TEST_OFFICER_ACCOUNT_ID, TEST_SCHOOL_ID, [
+        'fin-005:write',
+      ]);
       expect(ok).toBe(true);
     });
 
@@ -270,11 +257,9 @@ describe('integration:m00-platform/permission-resolution', () => {
       });
       // Calling for ANY school — both should pass because PLATFORM scope
       // is in the chain.
-      const okA = await permCheck.hasAnyPermissionInTenant(
-        TEST_ADMIN_ACCOUNT_ID,
-        TEST_SCHOOL_ID,
-        ['fin-005:admin'],
-      );
+      const okA = await permCheck.hasAnyPermissionInTenant(TEST_ADMIN_ACCOUNT_ID, TEST_SCHOOL_ID, [
+        'fin-005:admin',
+      ]);
       const okB = await permCheck.hasAnyPermissionInTenant(
         TEST_ADMIN_ACCOUNT_ID,
         TEST_SCHOOL_B_ID,
@@ -313,11 +298,10 @@ describe('integration:m00-platform/permission-resolution', () => {
         scopeId: schoolScope,
         codes: ['att-001:read'],
       });
-      const ok = await permCheck.hasAnyPermissionInTenant(
-        TEST_TEACHER_ACCOUNT_ID,
-        TEST_SCHOOL_ID,
-        ['fin-005:admin', 'fin-006:admin'],
-      );
+      const ok = await permCheck.hasAnyPermissionInTenant(TEST_TEACHER_ACCOUNT_ID, TEST_SCHOOL_ID, [
+        'fin-005:admin',
+        'fin-006:admin',
+      ]);
       expect(ok).toBe(false);
     });
 
@@ -328,11 +312,11 @@ describe('integration:m00-platform/permission-resolution', () => {
         scopeId: schoolScope,
         codes: ['fin-005:read'],
       });
-      const ok = await permCheck.hasAnyPermissionInTenant(
-        TEST_OFFICER_ACCOUNT_ID,
-        TEST_SCHOOL_ID,
-        ['fin-005:read', 'fin-005:write', 'fin-005:admin'],
-      );
+      const ok = await permCheck.hasAnyPermissionInTenant(TEST_OFFICER_ACCOUNT_ID, TEST_SCHOOL_ID, [
+        'fin-005:read',
+        'fin-005:write',
+        'fin-005:admin',
+      ]);
       expect(ok).toBe(true);
     });
   });

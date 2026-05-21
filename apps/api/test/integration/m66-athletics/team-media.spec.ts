@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -122,9 +118,7 @@ describe('integration:m66-athletics/team-media', () => {
 
   it('listForRoster: missing roster → NotFoundException', async () => {
     await expect(
-      withTestTenant(() =>
-        media.listForRoster('00000000-0000-0000-0000-000000000000'),
-      ),
+      withTestTenant(() => media.listForRoster('00000000-0000-0000-0000-000000000000')),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -163,9 +157,7 @@ describe('integration:m66-athletics/team-media', () => {
     );
     expect(a.programmeId).toBe(TEST_ATH_PROGRAMME_A_ID);
 
-    const byProg = await withTestTenant(() =>
-      media.listForProgramme(TEST_ATH_PROGRAMME_A_ID),
-    );
+    const byProg = await withTestTenant(() => media.listForProgramme(TEST_ATH_PROGRAMME_A_ID));
     expect(byProg.map((x) => x.id)).toContain(a.id);
 
     const filtered = await withTestTenant(() =>
@@ -240,19 +232,14 @@ describe('integration:m66-athletics/team-media', () => {
     );
     expect(a.seasonId).toBe(TEST_ATH_SEASON_A_ID);
 
-    const list = await withTestTenant(() =>
-      media.listMedia({ seasonId: TEST_ATH_SEASON_A_ID }),
-    );
+    const list = await withTestTenant(() => media.listMedia({ seasonId: TEST_ATH_SEASON_A_ID }));
     expect(list.map((x) => x.id)).toContain(a.id);
   });
 
   it('createAsset: student → ForbiddenException', async () => {
     await expect(
       withTestTenant(() =>
-        media.createAsset(
-          { assetType: 'PHOTO', s3Key: 'x' } as any,
-          studentActor(),
-        ),
+        media.createAsset({ assetType: 'PHOTO', s3Key: 'x' } as any, studentActor()),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -263,9 +250,7 @@ describe('integration:m66-athletics/team-media', () => {
   });
 
   it('listForProgramme: returns empty for programme with no media', async () => {
-    const list = await withTestTenant(() =>
-      media.listForProgramme(TEST_ATH_PROGRAMME_A_ID),
-    );
+    const list = await withTestTenant(() => media.listForProgramme(TEST_ATH_PROGRAMME_A_ID));
     expect(list).toEqual([]);
   });
 

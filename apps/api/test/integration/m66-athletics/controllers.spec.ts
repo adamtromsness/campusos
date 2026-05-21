@@ -46,16 +46,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
+import { adminActor, TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { seedStudent } from '../m20-sis/sis-helpers';
 import {
   resetAthleticsTables,
@@ -327,7 +319,13 @@ describe('integration:m66-athletics/controllers', () => {
 
     // Filtered list (covers query branches)
     const filtered = await withTestTenant(() =>
-      gameCtl.list(TEST_ATH_SEASON_A_ID, TEST_ATH_ROSTER_A_ID, 'SCHEDULED', '2026-01-01', '2027-01-01'),
+      gameCtl.list(
+        TEST_ATH_SEASON_A_ID,
+        TEST_ATH_ROSTER_A_ID,
+        'SCHEDULED',
+        '2026-01-01',
+        '2027-01-01',
+      ),
     );
     expect(filtered.map((g) => g.id)).toContain(created.id);
 
@@ -699,9 +697,7 @@ describe('integration:m66-athletics/controllers', () => {
         unitCost: 50,
       } as any),
     );
-    const list = await withTestTenant(() =>
-      eqCtl.list(TEST_ATH_PROGRAMME_A_ID, 'UNIFORM', 'GOOD'),
-    );
+    const list = await withTestTenant(() => eqCtl.list(TEST_ATH_PROGRAMME_A_ID, 'UNIFORM', 'GOOD'));
     expect(list.map((x) => x.id)).toContain(e.id);
     const got = await withTestTenant(() => eqCtl.getById(e.id));
     expect(got.id).toBe(e.id);
@@ -714,9 +710,7 @@ describe('integration:m66-athletics/controllers', () => {
     const c = await withTestTenant(() =>
       eqCtl.checkout(adminReq(), e.id, { assignedToPersonId: stu.personId } as any),
     );
-    const checkoutList = await withTestTenant(() =>
-      eqCtl.listCheckouts(e.id, stu.personId, true),
-    );
+    const checkoutList = await withTestTenant(() => eqCtl.listCheckouts(e.id, stu.personId, true));
     expect(checkoutList.map((x) => x.id)).toContain(c.id);
     const overdue = await withTestTenant(() => eqCtl.listOverdue());
     expect(Array.isArray(overdue)).toBe(true);
@@ -732,11 +726,13 @@ describe('integration:m66-athletics/controllers', () => {
     expect(mList.map((x) => x.id)).toContain(m.id);
 
     // Safety equipment
-    const memberId = (await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
-      `INSERT INTO ${TEST_SCHEMA}.ath_roster_members (id, roster_id, student_id, eligibility_status) VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'ELIGIBLE') RETURNING id::text AS id`,
-      TEST_ATH_ROSTER_A_ID,
-      stu.studentId,
-    ))[0]!.id;
+    const memberId = (
+      await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
+        `INSERT INTO ${TEST_SCHEMA}.ath_roster_members (id, roster_id, student_id, eligibility_status) VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'ELIGIBLE') RETURNING id::text AS id`,
+        TEST_ATH_ROSTER_A_ID,
+        stu.studentId,
+      )
+    )[0]!.id;
 
     const s = await withTestTenant(() =>
       safetyCtl.create(adminReq(), {

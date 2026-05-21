@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { LeaveService } from '@modules/m80-hr/leave/leave.service';
@@ -293,21 +289,15 @@ describe('integration:m80-hr/leave-lifecycle', () => {
 
     it('non-admin sees own only; admin sees all', async () => {
       const dto = await submitOne();
-      const teacherList = await withTestTenant(async () =>
-        leave.list({} as any, teacherActor()),
-      );
+      const teacherList = await withTestTenant(async () => leave.list({} as any, teacherActor()));
       expect(teacherList.map((r) => r.id)).toContain(dto.id);
 
-      const adminList = await withTestTenant(async () =>
-        leave.list({} as any, adminActor()),
-      );
+      const adminList = await withTestTenant(async () => leave.list({} as any, adminActor()));
       expect(adminList.map((r) => r.id)).toContain(dto.id);
     });
 
     it('non-admin without employeeId → empty', async () => {
-      const list = await withTestTenant(async () =>
-        leave.list({} as any, parentActor()),
-      );
+      const list = await withTestTenant(async () => leave.list({} as any, parentActor()));
       expect(list).toEqual([]);
     });
 
@@ -363,9 +353,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
     it('non-admin → Forbidden', async () => {
       const r = await submitVacation();
       await expect(
-        withTestTenant(async () =>
-          leave.approve(r.id, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => leave.approve(r.id, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -388,9 +376,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
 
     it('approve non-PENDING → BadRequest', async () => {
       const r = await submitVacation();
-      await withTestTenant(async () =>
-        leave.approve(r.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => leave.approve(r.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () => leave.approve(r.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -399,11 +385,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
     it('approve missing → 404', async () => {
       await expect(
         withTestTenant(async () =>
-          leave.approve(
-            '019e0cf8-aaaa-7777-8888-00000000fffe',
-            {} as any,
-            adminActor(),
-          ),
+          leave.approve('019e0cf8-aaaa-7777-8888-00000000fffe', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -427,9 +409,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
     it('non-admin → Forbidden', async () => {
       const r = await submit();
       await expect(
-        withTestTenant(async () =>
-          leave.reject(r.id, {} as any, teacherActor()),
-        ),
+        withTestTenant(async () => leave.reject(r.id, {} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -483,9 +463,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
 
     it('admin cancel of APPROVED → CANCELLED + reverses used', async () => {
       const r = await submit();
-      await withTestTenant(async () =>
-        leave.approve(r.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => leave.approve(r.id, {} as any, adminActor()));
       const before = await withTestTenant(async () =>
         leave.listBalancesForEmployee(TEST_TEACHER_EMPLOYEE_ID),
       );
@@ -639,9 +617,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
     it('APPROVED on already-terminal row swallows BadRequest', async () => {
       const r = await submit();
       // Admin approves first.
-      await withTestTenant(async () =>
-        leave.approve(r.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => leave.approve(r.id, {} as any, adminActor()));
       // Now consumer tries to approve — should swallow the BadRequest.
       const msg = buildEnvelope('approval.request.resolved', {
         requestId: generateId(),
@@ -680,12 +656,12 @@ describe('integration:m80-hr/leave-lifecycle', () => {
       );
       expect(dto.status).toBe('PENDING');
 
-      const list = await withTestTenant(async () => leaveCtrl.listRequests({} as any, teacherReq()));
+      const list = await withTestTenant(async () =>
+        leaveCtrl.listRequests({} as any, teacherReq()),
+      );
       expect(list.map((l) => l.id)).toContain(dto.id);
 
-      const got = await withTestTenant(async () =>
-        leaveCtrl.getRequest(dto.id, teacherReq()),
-      );
+      const got = await withTestTenant(async () => leaveCtrl.getRequest(dto.id, teacherReq()));
       expect(got.id).toBe(dto.id);
 
       const approved = await withTestTenant(async () =>
@@ -737,9 +713,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
           teacherReq(),
         ),
       );
-      const cancelled = await withTestTenant(async () =>
-        leaveCtrl.cancel(dto2.id, teacherReq()),
-      );
+      const cancelled = await withTestTenant(async () => leaveCtrl.cancel(dto2.id, teacherReq()));
       expect(cancelled.status).toBe('CANCELLED');
     });
   });
@@ -760,9 +734,7 @@ describe('integration:m80-hr/leave-lifecycle', () => {
           teacherActor(),
         ),
       );
-      const bList = await withTestTenantB(async () =>
-        leave.list({} as any, adminActor()),
-      );
+      const bList = await withTestTenantB(async () => leave.list({} as any, adminActor()));
       // School B has no leave rows seeded.
       // (Admin actor in School B context still resolves admin scope.)
       expect(Array.isArray(bList)).toBe(true);

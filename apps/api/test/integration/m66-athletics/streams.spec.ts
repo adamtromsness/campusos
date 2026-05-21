@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -148,9 +144,7 @@ describe('integration:m66-athletics/streams', () => {
 
   it('configureStream: duplicate → BadRequestException', async () => {
     const g = await createGame();
-    await withTestTenant(() =>
-      streams.configureStream(g.id, {} as any, adminActor()),
-    );
+    await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
     await expect(
       withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor())),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -159,11 +153,7 @@ describe('integration:m66-athletics/streams', () => {
   it('configureStream: missing game → BadRequestException', async () => {
     await expect(
       withTestTenant(() =>
-        streams.configureStream(
-          '00000000-0000-0000-0000-000000000000',
-          {} as any,
-          adminActor(),
-        ),
+        streams.configureStream('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -202,9 +192,7 @@ describe('integration:m66-athletics/streams', () => {
 
   it('patchStream: SCHEDULED → LIVE → ENDED with timestamps', async () => {
     const g = await createGame();
-    const s = await withTestTenant(() =>
-      streams.configureStream(g.id, {} as any, adminActor()),
-    );
+    const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
     const live = await withTestTenant(() =>
       streams.patchStream(
         s.id,
@@ -233,9 +221,7 @@ describe('integration:m66-athletics/streams', () => {
 
   it('patchStream: illegal transition → BadRequestException', async () => {
     const g = await createGame();
-    const s = await withTestTenant(() =>
-      streams.configureStream(g.id, {} as any, adminActor()),
-    );
+    const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
     await expect(
       withTestTenant(() =>
         streams.patchStream(s.id, { streamStatus: 'ENDED' } as any, adminActor()),
@@ -245,12 +231,8 @@ describe('integration:m66-athletics/streams', () => {
 
   it('patchStream: no-op + accessLevel change', async () => {
     const g = await createGame();
-    const s = await withTestTenant(() =>
-      streams.configureStream(g.id, {} as any, adminActor()),
-    );
-    const noop = await withTestTenant(() =>
-      streams.patchStream(s.id, {} as any, adminActor()),
-    );
+    const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
+    const noop = await withTestTenant(() => streams.patchStream(s.id, {} as any, adminActor()));
     expect(noop.id).toBe(s.id);
     const updated = await withTestTenant(() =>
       streams.patchStream(s.id, { accessLevel: 'COACHES_ONLY' } as any, adminActor()),
@@ -281,9 +263,7 @@ describe('integration:m66-athletics/streams', () => {
 
   it('listLive: returns LIVE-only', async () => {
     const g = await createGame();
-    const s = await withTestTenant(() =>
-      streams.configureStream(g.id, {} as any, adminActor()),
-    );
+    const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
     await withTestTenant(() =>
       streams.patchStream(s.id, { streamStatus: 'LIVE' } as any, adminActor()),
     );
@@ -297,9 +277,7 @@ describe('integration:m66-athletics/streams', () => {
   describe('Highlight clips', () => {
     async function setupClip() {
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       const stu = await trackedSeedStudent({ firstName: 'Player' });
       const c = await withTestTenant(() =>
         streams.createClip(
@@ -324,9 +302,7 @@ describe('integration:m66-athletics/streams', () => {
       const byStream = await withTestTenant(() => streams.listClipsForStream(stream.id));
       expect(byStream.map((x) => x.id)).toContain(clip.id);
 
-      const byStudent = await withTestTenant(() =>
-        streams.listClipsForStudent(student.studentId),
-      );
+      const byStudent = await withTestTenant(() => streams.listClipsForStudent(student.studentId));
       expect(byStudent.map((x) => x.id)).toContain(clip.id);
 
       const got = await withTestTenant(() => streams.getClipById(clip.id));
@@ -335,9 +311,7 @@ describe('integration:m66-athletics/streams', () => {
 
     it('createClip: bad time window → BadRequestException', async () => {
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       const stu = await trackedSeedStudent();
       await expect(
         withTestTenant(() =>
@@ -375,9 +349,7 @@ describe('integration:m66-athletics/streams', () => {
 
     it('createClip: missing student → BadRequestException', async () => {
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       await expect(
         withTestTenant(() =>
           streams.createClip(
@@ -396,9 +368,7 @@ describe('integration:m66-athletics/streams', () => {
 
     it('createClip: student → ForbiddenException', async () => {
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       const stu = await trackedSeedStudent();
       await expect(
         withTestTenant(() =>
@@ -425,21 +395,13 @@ describe('integration:m66-athletics/streams', () => {
     it('recordClipConsent: admin CONSENTED + duplicate consent → BadRequestException', async () => {
       const { clip } = await setupClip();
       const after = await withTestTenant(() =>
-        streams.recordClipConsent(
-          clip.id,
-          { consentStatus: 'CONSENTED' } as any,
-          adminActor(),
-        ),
+        streams.recordClipConsent(clip.id, { consentStatus: 'CONSENTED' } as any, adminActor()),
       );
       expect(after.consentStatus).toBe('CONSENTED');
 
       await expect(
         withTestTenant(() =>
-          streams.recordClipConsent(
-            clip.id,
-            { consentStatus: 'DECLINED' } as any,
-            adminActor(),
-          ),
+          streams.recordClipConsent(clip.id, { consentStatus: 'DECLINED' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -447,9 +409,7 @@ describe('integration:m66-athletics/streams', () => {
     it('recordClipConsent: parent linked → consent allowed', async () => {
       // Setup a parent linked to a clip student
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       const stu = await trackedSeedStudent({ firstName: 'P' });
       const guardianId = await ensureGuardianForPerson(
         rawClient,
@@ -472,11 +432,7 @@ describe('integration:m66-athletics/streams', () => {
         ),
       );
       const after = await withTestTenant(() =>
-        streams.recordClipConsent(
-          c.id,
-          { consentStatus: 'CONSENTED' } as any,
-          parentActor(),
-        ),
+        streams.recordClipConsent(c.id, { consentStatus: 'CONSENTED' } as any, parentActor()),
       );
       expect(after.consentStatus).toBe('CONSENTED');
     });
@@ -498,11 +454,7 @@ describe('integration:m66-athletics/streams', () => {
       // Random student actor with no link
       await expect(
         withTestTenant(() =>
-          streams.recordClipConsent(
-            clip.id,
-            { consentStatus: 'CONSENTED' } as any,
-            studentActor(),
-          ),
+          streams.recordClipConsent(clip.id, { consentStatus: 'CONSENTED' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -510,9 +462,7 @@ describe('integration:m66-athletics/streams', () => {
     it('recordClipConsent: COPPA under-13 student-self → ForbiddenException', async () => {
       // Create a clip for a student linked to studentActor.personId with DOB making them < 13.
       const g = await createGame();
-      const s = await withTestTenant(() =>
-        streams.configureStream(g.id, {} as any, adminActor()),
-      );
+      const s = await withTestTenant(() => streams.configureStream(g.id, {} as any, adminActor()));
       // Create platform_students row for studentActor.personId if missing
       const existingPs = (await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT id::text AS id FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
@@ -573,11 +523,7 @@ describe('integration:m66-athletics/streams', () => {
       );
       await expect(
         withTestTenant(() =>
-          streams.recordClipConsent(
-            c.id,
-            { consentStatus: 'CONSENTED' } as any,
-            studentActor(),
-          ),
+          streams.recordClipConsent(c.id, { consentStatus: 'CONSENTED' } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -591,15 +537,9 @@ describe('integration:m66-athletics/streams', () => {
     it('addClipToPortfolio: consented → emits outbox', async () => {
       const { clip } = await setupClip();
       await withTestTenant(() =>
-        streams.recordClipConsent(
-          clip.id,
-          { consentStatus: 'CONSENTED' } as any,
-          adminActor(),
-        ),
+        streams.recordClipConsent(clip.id, { consentStatus: 'CONSENTED' } as any, adminActor()),
       );
-      const after = await withTestTenant(() =>
-        streams.addClipToPortfolio(clip.id, adminActor()),
-      );
+      const after = await withTestTenant(() => streams.addClipToPortfolio(clip.id, adminActor()));
       expect(after.addedToPortfolio).toBe(true);
 
       const outboxRows = (await rawClient.$queryRawUnsafe(
@@ -619,11 +559,7 @@ describe('integration:m66-athletics/streams', () => {
     it('addClipToPortfolio: already added → BadRequestException', async () => {
       const { clip } = await setupClip();
       await withTestTenant(() =>
-        streams.recordClipConsent(
-          clip.id,
-          { consentStatus: 'CONSENTED' } as any,
-          adminActor(),
-        ),
+        streams.recordClipConsent(clip.id, { consentStatus: 'CONSENTED' } as any, adminActor()),
       );
       await withTestTenant(() => streams.addClipToPortfolio(clip.id, adminActor()));
       await expect(
@@ -639,10 +575,7 @@ describe('integration:m66-athletics/streams', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
         withTestTenant(() =>
-          streams.addClipToPortfolio(
-            '00000000-0000-0000-0000-000000000000',
-            studentActor(),
-          ),
+          streams.addClipToPortfolio('00000000-0000-0000-0000-000000000000', studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -734,9 +667,9 @@ describe('integration:m66-athletics/streams', () => {
       // Use admin person id as the configurer
       '019e0cf8-aaaa-7777-8888-000000000010',
     );
-    await expect(
-      withTestTenant(() => streams.getById(bStreamId)),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(withTestTenant(() => streams.getById(bStreamId))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     const a = await withTestTenant(() => streams.getByGameId(bGameId));
     expect(a).toBeNull();
   });

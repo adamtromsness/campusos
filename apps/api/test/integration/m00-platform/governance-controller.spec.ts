@@ -20,15 +20,8 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_ACCOUNT_ID,
-  TEST_ADMIN_PERSON_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
+import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 
 /**
@@ -191,9 +184,7 @@ describe('integration:m00-platform/governance-controller', () => {
       );
       expect(Array.isArray(gapsOnly)).toBe(true);
 
-      await withTestTenant(async () =>
-        controller.deleteProcessingActivity(req, created.id),
-      );
+      await withTestTenant(async () => controller.deleteProcessingActivity(req, created.id));
     });
   });
 
@@ -210,9 +201,7 @@ describe('integration:m00-platform/governance-controller', () => {
           nextReviewDate: '2030-01-01',
         } as any),
       );
-      const got = await withTestTenant(async () =>
-        controller.getRetentionPolicy(req, created.id),
-      );
+      const got = await withTestTenant(async () => controller.getRetentionPolicy(req, created.id));
       expect(got.id).toBe(created.id);
 
       await withTestTenant(async () =>
@@ -221,9 +210,7 @@ describe('integration:m00-platform/governance-controller', () => {
         } as any),
       );
 
-      const list = await withTestTenant(async () =>
-        controller.listRetentionPolicies(req, 'false'),
-      );
+      const list = await withTestTenant(async () => controller.listRetentionPolicies(req, 'false'));
       expect(list.find((p: any) => p.id === created.id)).toBeDefined();
 
       const dueOnly = await withTestTenant(async () =>
@@ -231,9 +218,7 @@ describe('integration:m00-platform/governance-controller', () => {
       );
       expect(Array.isArray(dueOnly)).toBe(true);
 
-      await withTestTenant(async () =>
-        controller.deleteRetentionPolicy(req, created.id),
-      );
+      await withTestTenant(async () => controller.deleteRetentionPolicy(req, created.id));
     });
   });
 
@@ -253,9 +238,7 @@ describe('integration:m00-platform/governance-controller', () => {
       expect(got.id).toBe(created.id);
       const list = await withTestTenant(async () => controller.listDpias(req));
       expect(list.find((d: any) => d.id === created.id)).toBeDefined();
-      const filtered = await withTestTenant(async () =>
-        controller.listDpias(req, 'DRAFT'),
-      );
+      const filtered = await withTestTenant(async () => controller.listDpias(req, 'DRAFT'));
       expect(Array.isArray(filtered)).toBe(true);
       await withTestTenant(async () =>
         controller.updateDpia(req, created.id, {
@@ -279,22 +262,16 @@ describe('integration:m00-platform/governance-controller', () => {
           nextReviewDate: '2027-01-01',
         } as any),
       );
-      const got = await withTestTenant(async () =>
-        controller.getProcessor(req, p.id),
-      );
+      const got = await withTestTenant(async () => controller.getProcessor(req, p.id));
       expect(got.id).toBe(p.id);
       await withTestTenant(async () =>
         controller.updateProcessor(req, p.id, {
           registeredCountry: 'EU',
         } as any),
       );
-      const listAll = await withTestTenant(async () =>
-        controller.listProcessors(req),
-      );
+      const listAll = await withTestTenant(async () => controller.listProcessors(req));
       expect(listAll.find((x: any) => x.id === p.id)).toBeDefined();
-      const gapsOnly = await withTestTenant(async () =>
-        controller.listProcessors(req, 'true'),
-      );
+      const gapsOnly = await withTestTenant(async () => controller.listProcessors(req, 'true'));
       expect(Array.isArray(gapsOnly)).toBe(true);
 
       // DPA flow
@@ -318,9 +295,7 @@ describe('integration:m00-platform/governance-controller', () => {
       );
       const dpaList = await withTestTenant(async () => controller.listDpas(req));
       expect(dpaList.find((d: any) => d.id === dpa.id)).toBeDefined();
-      const filteredDpas = await withTestTenant(async () =>
-        controller.listDpas(req, p.id),
-      );
+      const filteredDpas = await withTestTenant(async () => controller.listDpas(req, p.id));
       expect(filteredDpas.find((d: any) => d.id === dpa.id)).toBeDefined();
     });
   });
@@ -430,9 +405,7 @@ describe('integration:m00-platform/governance-controller', () => {
       const req = authedReq();
       const list = await withTestTenant(async () => controller.listErasures(req));
       expect(Array.isArray(list)).toBe(true);
-      const filtered = await withTestTenant(async () =>
-        controller.listErasures(req, 'PENDING'),
-      );
+      const filtered = await withTestTenant(async () => controller.listErasures(req, 'PENDING'));
       expect(Array.isArray(filtered)).toBe(true);
       const pseudonymisations = await withTestTenant(async () =>
         controller.listPseudonymisations(req),
@@ -475,13 +448,9 @@ describe('integration:m00-platform/governance-controller', () => {
       const list = await withTestTenant(async () => controller.listNotices(req));
       expect(list.find((n: any) => n.id === created.id)).toBeDefined();
 
-      await withTestTenant(async () =>
-        controller.publishNotice(req, created.id, {} as any),
-      );
+      await withTestTenant(async () => controller.publishNotice(req, created.id, {} as any));
 
-      const current = await withTestTenant(async () =>
-        controller.currentNotice(req),
-      );
+      const current = await withTestTenant(async () => controller.currentNotice(req));
       expect(current).toBeDefined();
     });
   });

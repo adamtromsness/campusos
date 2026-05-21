@@ -22,10 +22,7 @@ import {
   TEST_SCHOOL_B_ID,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { adminActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 
 /**
  * Wave 3 follow-up — Codex review FIX 2a. Belt-and-braces cross-
@@ -70,22 +67,11 @@ describe('integration:m23-health/cross-school', () => {
     outbox = new OutboxService();
     accessLog = new HealthAccessLogService(tenantPrisma);
     guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     iep = new IepPlanService(tenantPrisma, accessLog, records, outbox);
     const requirements = new ImmunisationRequirementService(tenantPrisma);
     const kafka = makeRecordingKafka() as unknown as KafkaProducerService;
-    immunisation = new ImmunisationComplianceService(
-      tenantPrisma,
-      permCheck,
-      requirements,
-      kafka,
-    );
+    immunisation = new ImmunisationComplianceService(tenantPrisma, permCheck, requirements, kafka);
   });
 
   afterAll(async () => {
@@ -99,9 +85,7 @@ describe('integration:m23-health/cross-school', () => {
 
   beforeEach(async () => {
     // Wipe access log to keep audit-row counts deterministic per test
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     // Wipe any records/iep/immunisation rows tied to test-tagged
     // students from prior runs.
     await rawClient.$executeRawUnsafe(
@@ -227,9 +211,7 @@ describe('integration:m23-health/cross-school', () => {
       TEST_ADMIN_EMPLOYEE_ID,
     );
     // Sanity: B sees it
-    const seenInB = await withTestTenantB(async () =>
-      iep.getForStudent(studentBId, adminActor()),
-    );
+    const seenInB = await withTestTenantB(async () => iep.getForStudent(studentBId, adminActor()));
     expect(seenInB).not.toBeNull();
     expect(seenInB!.studentId).toBe(studentBId);
 
@@ -284,9 +266,7 @@ describe('integration:m23-health/cross-school', () => {
       studentBId,
       TEST_SCHOOL_B_ID,
     );
-    const fromA = await withTestTenant(async () =>
-      immunisation.list({} as any),
-    );
+    const fromA = await withTestTenant(async () => immunisation.list({} as any));
     expect(fromA.find((c) => c.id === complianceId)).toBeUndefined();
     const fromB = await withTestTenantB(async () => immunisation.list({} as any));
     expect(fromB.find((c) => c.id === complianceId)).toBeDefined();

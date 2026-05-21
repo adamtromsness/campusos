@@ -15,10 +15,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import {
-  TEST_ADMIN_PERSON_ID,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_COURSE_ID } from '../fixtures/sis';
 import { seedStudent, cleanupSeededIds } from './sis-helpers';
@@ -110,27 +107,15 @@ describe('integration:m20-sis/graduation-controller', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_graduation_audits`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_graduation_requirements`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_student_gpa_snapshots`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_gpa_configurations`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_service_learning_hours`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_service_learning_requirements`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_course_prerequisites`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_course_prerequisites`);
     if (localCleanupSecondaryCourseIds.length) {
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.sis_courses WHERE id = ANY($1::uuid[])`,
@@ -185,14 +170,10 @@ describe('integration:m20-sis/graduation-controller', () => {
       );
       expect(created.creditsRequired).toBe(24);
 
-      const list = await withTestTenant(async () =>
-        controller.listRequirements(undefined),
-      );
+      const list = await withTestTenant(async () => controller.listRequirements(undefined));
       expect(list.map((r) => r.id)).toContain(created.id);
 
-      const listInactive = await withTestTenant(async () =>
-        controller.listRequirements('true'),
-      );
+      const listInactive = await withTestTenant(async () => controller.listRequirements('true'));
       expect(Array.isArray(listInactive)).toBe(true);
 
       const single = await withTestTenant(async () => controller.getRequirement(created.id));
@@ -242,7 +223,9 @@ describe('integration:m20-sis/graduation-controller', () => {
       const summary = await withTestTenant(async () => controller.runAudit());
       expect(typeof summary).toBe('object');
 
-      const single = await withTestTenant(async () => controller.runAuditForStudent(student.studentId));
+      const single = await withTestTenant(async () =>
+        controller.runAuditForStudent(student.studentId),
+      );
       expect(typeof single.auditsUpserted).toBe('number');
     });
   });
@@ -325,16 +308,14 @@ describe('integration:m20-sis/graduation-controller', () => {
       expect(list.map((c) => c.id)).toContain(created.id);
 
       const patched = await withTestTenant(async () =>
-        controller.patchGpaConfig(
-          created.id,
-          { configName: 'CTL Renamed' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchGpaConfig(created.id, { configName: 'CTL Renamed' } as any, fakeAdminReq()),
       );
       expect(patched.configName).toBe('CTL Renamed');
 
       const student = await trackedStudent({ gradeLevel: '11' });
-      const snapshots = await withTestTenant(async () => controller.getStudentGpa(student.studentId));
+      const snapshots = await withTestTenant(async () =>
+        controller.getStudentGpa(student.studentId),
+      );
       expect(Array.isArray(snapshots)).toBe(true);
 
       const summary = await withTestTenant(async () =>

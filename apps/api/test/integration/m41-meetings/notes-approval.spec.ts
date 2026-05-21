@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { MeetingService } from '@modules/m41-meetings/meetings/meeting.service';
@@ -137,11 +133,7 @@ describe('integration:m41-meetings/notes-approval', () => {
       const meetingId = await createMeeting();
       await expect(
         withTestTenant(async () =>
-          notesService.upsert(
-            meetingId,
-            { notesText: 'unauthorised' } as any,
-            teacherActor(),
-          ),
+          notesService.upsert(meetingId, { notesText: 'unauthorised' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -161,9 +153,7 @@ describe('integration:m41-meetings/notes-approval', () => {
       );
       // Parent is neither organiser nor participant
       await expect(
-        withTestTenant(async () =>
-          notesService.getForMeeting(meetingId, parentActor()),
-        ),
+        withTestTenant(async () => notesService.getForMeeting(meetingId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -269,22 +259,14 @@ describe('integration:m41-meetings/notes-approval', () => {
       // Cannot modify notesText after approval
       await expect(
         withTestTenant(async () =>
-          notesService.patch(
-            notes.id,
-            { notesText: 'sneaky rewrite' } as any,
-            adminActor(),
-          ),
+          notesService.patch(notes.id, { notesText: 'sneaky rewrite' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       // Cannot modify is_parent_visible after approval either
       await expect(
         withTestTenant(async () =>
-          notesService.patch(
-            notes.id,
-            { isParentVisible: true } as any,
-            adminActor(),
-          ),
+          notesService.patch(notes.id, { isParentVisible: true } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 

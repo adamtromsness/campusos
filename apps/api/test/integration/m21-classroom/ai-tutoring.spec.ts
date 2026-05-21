@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -142,27 +138,15 @@ describe('integration:m21-classroom/ai-tutoring', () => {
     // then messages (partitioned), then sessions. The CASCADE on
     // sessions also handles signals but we go explicit to keep the
     // assertion surface clean.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_opt_outs`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_opt_outs`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_learning_signals`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_messages`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_sessions`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.cls_ai_usage_log`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_enrollments`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_messages`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_ai_tutoring_sessions`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.cls_ai_usage_log`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_enrollments`);
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -258,15 +242,16 @@ describe('integration:m21-classroom/ai-tutoring', () => {
     it('admin opts a student out → row inserted, isOptedOut=true', async () => {
       const student = await trackedStudent();
       const dto = await withTestTenant(async () =>
-        optOuts.create({ studentId: student.studentId, reason: 'parent request' } as any, adminActor()),
+        optOuts.create(
+          { studentId: student.studentId, reason: 'parent request' } as any,
+          adminActor(),
+        ),
       );
       expect(dto.studentId).toBe(student.studentId);
       expect(dto.reason).toBe('parent request');
       expect(dto.optedOutBy).toBe(adminActor().personId);
 
-      const flag = await withTestTenant(async () =>
-        optOuts.isOptedOut(student.studentId),
-      );
+      const flag = await withTestTenant(async () => optOuts.isOptedOut(student.studentId));
       expect(flag).toBe(true);
     });
 
@@ -290,8 +275,7 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       // No sis_student_guardians link
       await expect(
         withTestTenant(
-          async () =>
-            optOuts.create({ studentId: student.studentId } as any, parentActor()),
+          async () => optOuts.create({ studentId: student.studentId } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -342,15 +326,11 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       await withTestTenant(async () =>
         optOuts.create({ studentId: student.studentId } as any, adminActor()),
       );
-      expect(
-        await withTestTenant(async () => optOuts.isOptedOut(student.studentId)),
-      ).toBe(true);
+      expect(await withTestTenant(async () => optOuts.isOptedOut(student.studentId))).toBe(true);
 
       await withTestTenant(async () => optOuts.delete(student.studentId, adminActor()));
 
-      expect(
-        await withTestTenant(async () => optOuts.isOptedOut(student.studentId)),
-      ).toBe(false);
+      expect(await withTestTenant(async () => optOuts.isOptedOut(student.studentId))).toBe(false);
     });
 
     it('STUDENT cannot opt themselves back in (REVIEW-P2C7 BLOCKING 5) → Forbidden', async () => {
@@ -362,10 +342,9 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       );
       // ... but cannot opt themselves back in.
       await expect(
-        withTestTenant(
-          async () => optOuts.delete(selfSid, studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => optOuts.delete(selfSid, studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -375,13 +354,10 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       await withTestTenant(async () =>
         optOuts.create({ studentId: student.studentId } as any, adminActor()),
       );
-      await withTestTenant(
-        async () => optOuts.delete(student.studentId, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
-      expect(
-        await withTestTenant(async () => optOuts.isOptedOut(student.studentId)),
-      ).toBe(false);
+      await withTestTenant(async () => optOuts.delete(student.studentId, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
+      expect(await withTestTenant(async () => optOuts.isOptedOut(student.studentId))).toBe(false);
     });
   });
 
@@ -448,8 +424,7 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       );
       await expect(
         withTestTenant(
-          async () =>
-            tutoring.startSession({ subject: 'History' } as any, studentActor()),
+          async () => tutoring.startSession({ subject: 'History' } as any, studentActor()),
           { personId: TEST_STUDENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -475,10 +450,9 @@ describe('integration:m21-classroom/ai-tutoring', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       // Parent opts back in.
-      await withTestTenant(
-        async () => optOuts.delete(student.studentId, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      await withTestTenant(async () => optOuts.delete(student.studentId, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
 
       const dto = await withTestTenant(async () =>
         tutoring.startSession(
@@ -684,20 +658,14 @@ describe('integration:m21-classroom/ai-tutoring', () => {
         tutoring.completeSession(session.id, {} as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          tutoring.completeSession(session.id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => tutoring.completeSession(session.id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('completing an unknown id → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          tutoring.completeSession(
-            '00000000-0000-0000-0000-000000000000',
-            {} as any,
-            adminActor(),
-          ),
+          tutoring.completeSession('00000000-0000-0000-0000-000000000000', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -755,10 +723,9 @@ describe('integration:m21-classroom/ai-tutoring', () => {
 
     it('getQuota by STUDENT actor → ForbiddenException', async () => {
       await expect(
-        withTestTenant(
-          async () => usage.getQuota(studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => usage.getQuota(studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

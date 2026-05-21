@@ -14,10 +14,7 @@ import {
 } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  withTestTenantB,
-} from '../helpers/tenant-context';
+import { withTestTenant, withTestTenantB } from '../helpers/tenant-context';
 import {
   adminActor,
   TEST_ADMIN_ACCOUNT_ID,
@@ -128,12 +125,15 @@ describe('integration:m85-accreditation/controllers', () => {
 
     it('createEvidence + listEvidenceForStandard + listEvidenceByStatus + getEvidence + reviewEvidence', async () => {
       const ev = await withTestTenant(async () =>
-        ctl.createEvidence(req as any, {
-          standardId: TEST_PLATFORM_STANDARD_A_ID,
-          evidenceType: 'OBSERVATION',
-          title: 'Note',
-          description: 'desc',
-        } as any),
+        ctl.createEvidence(
+          req as any,
+          {
+            standardId: TEST_PLATFORM_STANDARD_A_ID,
+            evidenceType: 'OBSERVATION',
+            title: 'Note',
+            description: 'desc',
+          } as any,
+        ),
       );
       expect(ev.status).toBe('DRAFT');
 
@@ -168,18 +168,19 @@ describe('integration:m85-accreditation/controllers', () => {
 
     it('createSelfStudyRating + listSelfStudy + selfStudySummary', async () => {
       const rating = await withTestTenant(async () =>
-        ctl.createSelfStudyRating(req as any, {
-          standardId: TEST_PLATFORM_STANDARD_A_ID,
-          cycleId: '2025-2026',
-          rating: 'ACCOMPLISHED',
-          rationale: 'r',
-        } as any),
+        ctl.createSelfStudyRating(
+          req as any,
+          {
+            standardId: TEST_PLATFORM_STANDARD_A_ID,
+            cycleId: '2025-2026',
+            rating: 'ACCOMPLISHED',
+            rationale: 'r',
+          } as any,
+        ),
       );
       expect(rating.rating).toBe('ACCOMPLISHED');
 
-      const list = await withTestTenant(async () =>
-        ctl.listSelfStudy(req as any, '2025-2026'),
-      );
+      const list = await withTestTenant(async () => ctl.listSelfStudy(req as any, '2025-2026'));
       expect(list.length).toBe(1);
 
       const summary = await withTestTenant(async () =>
@@ -209,13 +210,9 @@ describe('integration:m85-accreditation/controllers', () => {
       const ap = await withTestTenant(async () => ctl.createActionPlan(req as any, dto()));
       expect(ap.status).toBe('PLANNED');
 
-      const list = await withTestTenant(async () =>
-        ctl.listActionPlans(req as any, undefined),
-      );
+      const list = await withTestTenant(async () => ctl.listActionPlans(req as any, undefined));
       expect(list.length).toBe(1);
-      const filtered = await withTestTenant(async () =>
-        ctl.listActionPlans(req as any, 'PLANNED'),
-      );
+      const filtered = await withTestTenant(async () => ctl.listActionPlans(req as any, 'PLANNED'));
       expect(filtered.length).toBe(1);
 
       const got = await withTestTenant(async () => ctl.getActionPlan(req as any, ap.id));
@@ -240,9 +237,7 @@ describe('integration:m85-accreditation/controllers', () => {
       // Cannot delete COMPLETE — but verify the handler routes to delete()
       // on a deletable plan instead.
       const ap2 = await withTestTenant(async () => ctl.createActionPlan(req as any, dto()));
-      const out = await withTestTenant(async () =>
-        ctl.deleteActionPlan(req as any, ap2.id),
-      );
+      const out = await withTestTenant(async () => ctl.deleteActionPlan(req as any, ap2.id));
       expect(out).toEqual({ ok: true });
     });
   });
@@ -254,10 +249,13 @@ describe('integration:m85-accreditation/controllers', () => {
 
     it('createSiteVisit + listSiteVisits + getSiteVisit + updateSiteVisit + siteVisitReadiness', async () => {
       const v = await withTestTenant(async () =>
-        ctl.createSiteVisit(req as any, {
-          visitDate: isoDate(30),
-          accreditorOrg: 'O',
-        } as any),
+        ctl.createSiteVisit(
+          req as any,
+          {
+            visitDate: isoDate(30),
+            accreditorOrg: 'O',
+          } as any,
+        ),
       );
       expect(v.status).toBe('PREPARING');
 
@@ -272,9 +270,7 @@ describe('integration:m85-accreditation/controllers', () => {
       );
       expect(ready.status).toBe('READY');
 
-      const report = await withTestTenant(async () =>
-        ctl.siteVisitReadiness(req as any, v.id),
-      );
+      const report = await withTestTenant(async () => ctl.siteVisitReadiness(req as any, v.id));
       expect(report.visitId).toBe(v.id);
       expect(report.totalAdoptedStandards).toBe(3);
     });

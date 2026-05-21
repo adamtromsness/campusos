@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -18,12 +15,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  studentActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, teacherActor, studentActor, parentActor } from '../helpers/actor';
 import { TEST_MEETING_TYPE_ID } from '../fixtures/meetings';
 
 /**
@@ -68,9 +60,7 @@ describe('integration:m41-meetings/iep-meetings', () => {
   });
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.mtg_iep_meeting_records`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.mtg_meetings WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -232,15 +222,13 @@ describe('integration:m41-meetings/iep-meetings', () => {
       expect(fetched).toBeNull();
     });
 
-    it('non-admin non-counsellor (parent) gets 404 on existing record (don\'t-leak-existence)', async () => {
+    it("non-admin non-counsellor (parent) gets 404 on existing record (don't-leak-existence)", async () => {
       const meetingId = await createMeeting();
       await withTestTenant(async () =>
         iepService.create(meetingId, { studentId } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          iepService.getForMeeting(meetingId, parentActor()),
-        ),
+        withTestTenant(async () => iepService.getForMeeting(meetingId, parentActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -288,7 +276,11 @@ describe('integration:m41-meetings/iep-meetings', () => {
     it('empty patch returns current row', async () => {
       const meetingId = await createMeeting();
       const created = await withTestTenant(async () =>
-        iepService.create(meetingId, { studentId, outcomesSummary: 'unchanged' } as any, adminActor()),
+        iepService.create(
+          meetingId,
+          { studentId, outcomesSummary: 'unchanged' } as any,
+          adminActor(),
+        ),
       );
       const after = await withTestTenant(async () =>
         iepService.patch(created.id, {} as any, adminActor()),

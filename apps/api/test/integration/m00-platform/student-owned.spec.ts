@@ -8,12 +8,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 
 import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
-import {
-  adminActor,
-  officerActor,
-  teacherActor,
-  parentActor,
-} from '../helpers/actor';
+import { adminActor, officerActor, teacherActor, parentActor } from '../helpers/actor';
 
 /**
  * Wave 2 — DB-backed integration tests for assertStudentOwnsRecord.
@@ -143,7 +138,7 @@ describe('integration:m00-platform/student-owned (assertStudentOwnsRecord)', () 
       });
     });
 
-    it('STUDENT writing ANOTHER student\'s record → ForbiddenException', async () => {
+    it("STUDENT writing ANOTHER student's record → ForbiddenException", async () => {
       const me = await seedStudent();
       const other = await seedStudent();
       await withTestTenant(async () => {
@@ -165,11 +160,7 @@ describe('integration:m00-platform/student-owned (assertStudentOwnsRecord)', () 
       const target = await seedStudent();
       await withTestTenant(async () => {
         await expect(
-          assertStudentOwnsRecord(
-            studentActorFor(orphanPersonId),
-            target.studentId,
-            tenantPrisma,
-          ),
+          assertStudentOwnsRecord(studentActorFor(orphanPersonId), target.studentId, tenantPrisma),
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
     });
@@ -204,11 +195,7 @@ describe('integration:m00-platform/student-owned (assertStudentOwnsRecord)', () 
       const target = await seedStudent();
       await withTestTenant(async () => {
         await expect(
-          assertStudentOwnsRecord(
-            studentActorFor(personId),
-            target.studentId,
-            tenantPrisma,
-          ),
+          assertStudentOwnsRecord(studentActorFor(personId), target.studentId, tenantPrisma),
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
     });

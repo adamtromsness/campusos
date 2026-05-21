@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { TrainingProgrammeService } from '@modules/m80-hr/training/programme.service';
@@ -189,17 +185,13 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
     it('getById 404 missing', async () => {
       await expect(
-        withTestTenant(async () =>
-          programmes.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => programmes.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('create rejects non-admin + duplicate-name → BadRequest', async () => {
       await expect(
-        withTestTenant(async () =>
-          programmes.create({ name: 'X' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => programmes.create({ name: 'X' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       await expect(
@@ -250,11 +242,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       await expect(
         withTestTenant(async () =>
-          programmes.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          programmes.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -291,9 +279,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
     it('create rejects bad programme + non-admin', async () => {
       await expect(
-        withTestTenant(async () =>
-          events.create({} as any, teacherActor()),
-        ),
+        withTestTenant(async () => events.create({} as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       await expect(
@@ -318,17 +304,13 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
         events.list({ programmeId: TEST_HR_TRAINING_PROG_MAND_ID } as any),
       );
       expect(filtered.map((x) => x.id)).toContain(e.id);
-      const sched = await withTestTenant(async () =>
-        events.list({ status: 'SCHEDULED' } as any),
-      );
+      const sched = await withTestTenant(async () => events.list({ status: 'SCHEDULED' } as any));
       expect(sched.length).toBeGreaterThan(0);
 
       const got = await withTestTenant(async () => events.getById(e.id));
       expect(got.id).toBe(e.id);
       await expect(
-        withTestTenant(async () =>
-          events.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => events.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -352,9 +334,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(upd.title).toBe('Renamed');
 
       // No-op
-      const noop = await withTestTenant(async () =>
-        events.patch(e.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => events.patch(e.id, {} as any, adminActor()));
       expect(noop.id).toBe(e.id);
 
       // CANCELLED requires reason
@@ -382,20 +362,14 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       await expect(
         withTestTenant(async () =>
-          events.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          events.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('loadInternalWithProgramme returns or null', async () => {
       const e = await createEvent();
-      const got = await withTestTenant(async () =>
-        events.loadInternalWithProgramme(e.id),
-      );
+      const got = await withTestTenant(async () => events.loadInternalWithProgramme(e.id));
       expect(got?.eventId).toBe(e.id);
       const miss = await withTestTenant(async () =>
         events.loadInternalWithProgramme('019e0cf8-aaaa-7777-8888-00000000ffff'),
@@ -425,11 +399,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       const e = await setupEvent();
       await expect(
         withTestTenant(async () =>
-          completions.record(
-            e.id,
-            { employeeId: TEST_ADMIN_EMPLOYEE_ID } as any,
-            teacherActor(),
-          ),
+          completions.record(e.id, { employeeId: TEST_ADMIN_EMPLOYEE_ID } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -574,9 +544,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
     it('getById missing → 404', async () => {
       await expect(
-        withTestTenant(async () =>
-          completions.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => completions.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -608,9 +576,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(dto.isRequired).toBe(true);
 
       await expect(
-        withTestTenant(async () =>
-          certTypes.create({ name: dto.name } as any, adminActor()),
-        ),
+        withTestTenant(async () => certTypes.create({ name: dto.name } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       const upd = await withTestTenant(async () =>
@@ -636,20 +602,14 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       await expect(
         withTestTenant(async () =>
-          certTypes.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          certTypes.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('create rejects non-admin', async () => {
       await expect(
-        withTestTenant(async () =>
-          certTypes.create({ name: 'NA' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => certTypes.create({ name: 'NA' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -692,29 +652,19 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       // listExpiringSoon admin only
       await expect(
-        withTestTenant(async () =>
-          employeeCerts.listExpiringSoon(60, teacherActor()),
-        ),
+        withTestTenant(async () => employeeCerts.listExpiringSoon(60, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       // Revoke
       const revoked = await withTestTenant(async () =>
-        employeeCerts.revoke(
-          created.id,
-          { reason: 'invalid' } as any,
-          adminActor(),
-        ),
+        employeeCerts.revoke(created.id, { reason: 'invalid' } as any, adminActor()),
       );
       expect(revoked.status).toBe('REVOKED');
 
       // Re-revoke → BadRequest
       await expect(
         withTestTenant(async () =>
-          employeeCerts.revoke(
-            created.id,
-            { reason: 'x' } as any,
-            adminActor(),
-          ),
+          employeeCerts.revoke(created.id, { reason: 'x' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -812,11 +762,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       // verify non-admin → Forbidden
       await expect(
         withTestTenant(async () =>
-          legacyCerts.verify(
-            cert.id,
-            { status: 'VERIFIED' } as any,
-            teacherActor(),
-          ),
+          legacyCerts.verify(cert.id, { status: 'VERIFIED' } as any, teacherActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -897,10 +843,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       await expect(
         withTestTenant(async () =>
-          frameworks.create(
-            { name: 'HR Test Framework' } as any,
-            adminActor(),
-          ),
+          frameworks.create({ name: 'HR Test Framework' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -936,29 +879,19 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
       // Rejects non-admin
       await expect(
-        withTestTenant(async () =>
-          frameworks.create({ name: 'X' } as any, teacherActor()),
-        ),
+        withTestTenant(async () => frameworks.create({ name: 'X' } as any, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       await expect(
         withTestTenant(async () =>
-          frameworks.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          frameworks.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // Duplicate-name on PATCH (rename to existing seeded framework)
       await expect(
         withTestTenant(async () =>
-          frameworks.patch(
-            created.id,
-            { name: 'HR Test Framework' } as any,
-            adminActor(),
-          ),
+          frameworks.patch(created.id, { name: 'HR Test Framework' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -1058,9 +991,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(archived.status).toBe('ARCHIVED');
       // Cannot exit ARCHIVED
       await expect(
-        withTestTenant(async () =>
-          cycles.patch(c.id, { status: 'OPEN' } as any, adminActor()),
-        ),
+        withTestTenant(async () => cycles.patch(c.id, { status: 'OPEN' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       // Patch name + dates + no-op
@@ -1077,17 +1008,13 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
         ),
       );
       expect(upd.name).toBe('New name');
-      const noop = await withTestTenant(async () =>
-        cycles.patch(c2.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => cycles.patch(c2.id, {} as any, adminActor()));
       expect(noop.id).toBe(c2.id);
     });
 
     it('cycle getById 404 missing; CLOSED transition restrictions', async () => {
       await expect(
-        withTestTenant(async () =>
-          cycles.getById('019e0cf8-aaaa-7777-8888-00000000ffff'),
-        ),
+        withTestTenant(async () => cycles.getById('019e0cf8-aaaa-7777-8888-00000000ffff')),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       const c = await createCycle('MID_YEAR');
@@ -1099,9 +1026,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       // tests `input.status !== cur` before applying any rule, so it
       // returns the row unchanged. Test via a forbidden target.)
       await expect(
-        withTestTenant(async () =>
-          cycles.patch(c.id, { status: 'ARCHIVED' } as any, adminActor()),
-        ),
+        withTestTenant(async () => cycles.patch(c.id, { status: 'ARCHIVED' } as any, adminActor())),
       ).resolves.toBeTruthy();
     });
   });
@@ -1213,19 +1138,13 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
     it('list scoping; getById 404/no-leak; admin sees row', async () => {
       const a = await newAppraisal();
       // Admin sees
-      const list = await withTestTenant(async () =>
-        appraisals.list({} as any, adminActor()),
-      );
+      const list = await withTestTenant(async () => appraisals.list({} as any, adminActor()));
       expect(list.map((x) => x.id)).toContain(a.id);
       // Non-admin teacher sees own
-      const tList = await withTestTenant(async () =>
-        appraisals.list({} as any, teacherActor()),
-      );
+      const tList = await withTestTenant(async () => appraisals.list({} as any, teacherActor()));
       expect(tList.map((x) => x.id)).toContain(a.id);
       // Non-admin parent (no employeeId) → []
-      const pList = await withTestTenant(async () =>
-        appraisals.list({} as any, parentActor()),
-      );
+      const pList = await withTestTenant(async () => appraisals.list({} as any, parentActor()));
       expect(pList).toEqual([]);
 
       // cycleId filter
@@ -1235,9 +1154,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(filtered.length).toBeGreaterThan(0);
 
       // getById
-      const got = await withTestTenant(async () =>
-        appraisals.getById(a.id, adminActor()),
-      );
+      const got = await withTestTenant(async () => appraisals.getById(a.id, adminActor()));
       expect(got.id).toBe(a.id);
       // Foreign actor non-admin → 404
       await expect(
@@ -1288,11 +1205,10 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       // SIGNED_OFF must be by employee actor
       await expect(
         withTestTenant(async () =>
-          appraisals.patch(
-            a.id,
-            { status: 'SIGNED_OFF' } as any,
-            { ...adminActor(), employeeId: null },
-          ),
+          appraisals.patch(a.id, { status: 'SIGNED_OFF' } as any, {
+            ...adminActor(),
+            employeeId: null,
+          }),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -1317,20 +1233,20 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(same.id).toBe(a.id);
       await expect(
         withTestTenant(async () =>
-          appraisals.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          appraisals.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       // Foreign non-admin → Forbidden
       await expect(
         withTestTenant(async () =>
-          appraisals.patch(a.id, { selfReview: 'x' } as any, {
-            ...teacherActor(),
-            employeeId: TEST_OFFICER_EMPLOYEE_ID,
-          } as any),
+          appraisals.patch(
+            a.id,
+            { selfReview: 'x' } as any,
+            {
+              ...teacherActor(),
+              employeeId: TEST_OFFICER_EMPLOYEE_ID,
+            } as any,
+          ),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -1386,21 +1302,21 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       // Officer cannot
       await expect(
         withTestTenant(async () =>
-          goals.patch(goal.id, { progressNotes: 'no' } as any, {
-            ...teacherActor(),
-            employeeId: TEST_OFFICER_EMPLOYEE_ID,
-          } as any),
+          goals.patch(
+            goal.id,
+            { progressNotes: 'no' } as any,
+            {
+              ...teacherActor(),
+              employeeId: TEST_OFFICER_EMPLOYEE_ID,
+            } as any,
+          ),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // Bad goalId
       await expect(
         withTestTenant(async () =>
-          goals.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          goals.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
 
@@ -1416,9 +1332,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
 
       // patch with no fields
-      const noop = await withTestTenant(async () =>
-        goals.patch(goal.id, {} as any, adminActor()),
-      );
+      const noop = await withTestTenant(async () => goals.patch(goal.id, {} as any, adminActor()));
       expect(noop.id).toBe(goal.id);
 
       // Lock appraisal SIGNED_OFF → goal mutations blocked
@@ -1426,9 +1340,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
         appraisals.patch(a.id, { status: 'SIGNED_OFF' } as any, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          goals.create(a.id, { goalText: 'x' } as any, adminActor()),
-        ),
+        withTestTenant(async () => goals.create(a.id, { goalText: 'x' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         withTestTenant(async () =>
@@ -1515,11 +1427,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       );
       await expect(
         withTestTenant(async () =>
-          comments.create(
-            a.id,
-            { commentText: 'x' } as any,
-            adminActor(),
-          ),
+          comments.create(a.id, { commentText: 'x' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -1639,9 +1547,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(noop.id).toBe(obs.id);
 
       // lock
-      const locked = await withTestTenant(async () =>
-        observations.lock(obs.id, adminActor()),
-      );
+      const locked = await withTestTenant(async () => observations.lock(obs.id, adminActor()));
       expect(locked.isLocked).toBe(true);
 
       // re-lock → BadRequest; patch locked → BadRequest
@@ -1649,27 +1555,18 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
         withTestTenant(async () => observations.lock(obs.id, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
-        withTestTenant(async () =>
-          observations.patch(obs.id, { notes: 'x' } as any, adminActor()),
-        ),
+        withTestTenant(async () => observations.patch(obs.id, { notes: 'x' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       // Missing → 404
       await expect(
         withTestTenant(async () =>
-          observations.patch(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          observations.patch('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
         withTestTenant(async () =>
-          observations.lock(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            adminActor(),
-          ),
+          observations.lock('019e0cf8-aaaa-7777-8888-00000000ffff', adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1713,18 +1610,14 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
     it('list scoping: admin sees all + mine=true; non-admin own only', async () => {
       const c = await submitClaim();
-      const aList = await withTestTenant(async () =>
-        claims.list({} as any, adminActor()),
-      );
+      const aList = await withTestTenant(async () => claims.list({} as any, adminActor()));
       expect(aList.map((x) => x.id)).toContain(c.id);
       const mine = await withTestTenant(async () =>
         claims.list({ mine: true } as any, adminActor()),
       );
       expect(mine.length).toBeGreaterThan(0);
       // non-admin parent (no employeeId) → []
-      const pList = await withTestTenant(async () =>
-        claims.list({} as any, parentActor()),
-      );
+      const pList = await withTestTenant(async () => claims.list({} as any, parentActor()));
       expect(pList).toEqual([]);
       // Status filter
       const sub = await withTestTenant(async () =>
@@ -1792,18 +1685,12 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       await withTestTenant(async () =>
         claims.decide(c.id, { decision: 'APPROVED' } as any, adminActor()),
       );
-      const paid = await withTestTenant(async () =>
-        claims.markPaid(c.id, {} as any, adminActor()),
-      );
+      const paid = await withTestTenant(async () => claims.markPaid(c.id, {} as any, adminActor()));
       expect(paid.status).toBe('PAID');
       // missing → 404
       await expect(
         withTestTenant(async () =>
-          claims.markPaid(
-            '019e0cf8-aaaa-7777-8888-00000000ffff',
-            {} as any,
-            adminActor(),
-          ),
+          claims.markPaid('019e0cf8-aaaa-7777-8888-00000000ffff', {} as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -1814,9 +1701,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
   // ───────────────────────────────────────────────────────────────────
   describe('controllers', () => {
     it('TrainingController flows', async () => {
-      const ps = await withTestTenant(async () =>
-        trainingCtrl.listProgrammes('false'),
-      );
+      const ps = await withTestTenant(async () => trainingCtrl.listProgrammes('false'));
       expect(ps.length).toBeGreaterThan(0);
 
       const got = await withTestTenant(async () =>
@@ -1870,9 +1755,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(emC.length).toBeGreaterThan(0);
 
       // Cert types + employee certs
-      const cts = await withTestTenant(async () =>
-        trainingCtrl.listCertTypes('false'),
-      );
+      const cts = await withTestTenant(async () => trainingCtrl.listCertTypes('false'));
       expect(cts.length).toBeGreaterThan(0);
       const ct = await withTestTenant(async () =>
         trainingCtrl.createCertType(adminReq(), {
@@ -1886,9 +1769,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       expect(ctUpd.isRequired).toBe(true);
 
       // listExpiring + employee cert flow
-      const expList = await withTestTenant(async () =>
-        trainingCtrl.listExpiring(adminReq(), '90'),
-      );
+      const expList = await withTestTenant(async () => trainingCtrl.listExpiring(adminReq(), '90'));
       expect(Array.isArray(expList)).toBe(true);
 
       const ec = await withTestTenant(async () =>
@@ -1935,16 +1816,10 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
       const exp = await withTestTenant(async () => certsCtrl.listExpiringSoon());
       expect(exp.length).toBeGreaterThan(0);
       const certId = exp[0]!.id;
-      const got = await withTestTenant(async () =>
-        certsCtrl.getById(certId, adminReq()),
-      );
+      const got = await withTestTenant(async () => certsCtrl.getById(certId, adminReq()));
       expect(got.id).toBe(certId);
       const verified = await withTestTenant(async () =>
-        certsCtrl.verify(
-          certId,
-          { status: 'VERIFIED' } as any,
-          adminReq(),
-        ),
+        certsCtrl.verify(certId, { status: 'VERIFIED' } as any, adminReq()),
       );
       expect(verified.verificationStatus).toBe('VERIFIED');
 
@@ -1954,9 +1829,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
 
     it('AppraisalsController flows', async () => {
       // Framework
-      const list = await withTestTenant(async () =>
-        appraisalsCtrl.listFrameworks(undefined),
-      );
+      const list = await withTestTenant(async () => appraisalsCtrl.listFrameworks(undefined));
       expect(list.length).toBeGreaterThan(0);
       const created = await withTestTenant(async () =>
         appraisalsCtrl.createFramework(adminReq(), {
@@ -1981,9 +1854,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
           endsOn: '2026-08-31',
         } as any),
       );
-      const cyclesList = await withTestTenant(async () =>
-        appraisalsCtrl.listCycles(),
-      );
+      const cyclesList = await withTestTenant(async () => appraisalsCtrl.listCycles());
       expect(cyclesList.map((c) => c.id)).toContain(cyc.id);
       const cycGot = await withTestTenant(async () => appraisalsCtrl.getCycle(cyc.id));
       expect(cycGot.id).toBe(cyc.id);
@@ -2004,9 +1875,7 @@ describe('integration:m80-hr/training-certs-appraisals', () => {
         appraisalsCtrl.listAppraisals(adminReq(), cyc.id),
       );
       expect(aList.map((x) => x.id)).toContain(a.id);
-      const aGot = await withTestTenant(async () =>
-        appraisalsCtrl.getAppraisal(adminReq(), a.id),
-      );
+      const aGot = await withTestTenant(async () => appraisalsCtrl.getAppraisal(adminReq(), a.id));
       expect(aGot.id).toBe(a.id);
       const aUpd = await withTestTenant(async () =>
         appraisalsCtrl.patchAppraisal(adminReq(), a.id, {

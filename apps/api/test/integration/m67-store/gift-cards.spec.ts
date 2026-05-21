@@ -199,7 +199,9 @@ describe('integration:m67-store/gift-cards', () => {
           initialBalanceCents: 5000,
         } as any),
       );
-      await withTestTenant(async () => service.cancel(adminActor(), card.id, { reason: 'X' } as any));
+      await withTestTenant(async () =>
+        service.cancel(adminActor(), card.id, { reason: 'X' } as any),
+      );
       await expect(
         withTestTenant(async () =>
           service.redeem(adminActor(), {
@@ -284,7 +286,9 @@ describe('integration:m67-store/gift-cards', () => {
           initialBalanceCents: 5000,
         } as any),
       );
-      await withTestTenant(async () => service.cancel(adminActor(), card.id, { reason: 'X' } as any));
+      await withTestTenant(async () =>
+        service.cancel(adminActor(), card.id, { reason: 'X' } as any),
+      );
       await expect(
         withTestTenant(async () =>
           service.topUp(adminActor(), card.id, { amountCents: 1000 } as any),
@@ -338,7 +342,9 @@ describe('integration:m67-store/gift-cards', () => {
           initialBalanceCents: 5000,
         } as any),
       );
-      await withTestTenant(async () => service.cancel(adminActor(), card.id, { reason: 'X' } as any));
+      await withTestTenant(async () =>
+        service.cancel(adminActor(), card.id, { reason: 'X' } as any),
+      );
       await expect(
         withTestTenant(async () => service.cancel(adminActor(), card.id, { reason: 'Y' } as any)),
       ).rejects.toBeInstanceOf(BadRequestException);

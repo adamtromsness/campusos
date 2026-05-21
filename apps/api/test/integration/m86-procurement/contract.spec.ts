@@ -166,7 +166,10 @@ describe('integration:m86-procurement/contract', () => {
     it('endDate before startDate → BadRequest (before any DB write)', async () => {
       await expect(
         withTestTenant(async () =>
-          service.create(adminActor(), baseInput({ startDate: '2026-06-01', endDate: '2026-01-01' })),
+          service.create(
+            adminActor(),
+            baseInput({ startDate: '2026-06-01', endDate: '2026-01-01' }),
+          ),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -266,9 +269,9 @@ describe('integration:m86-procurement/contract', () => {
     });
 
     it('list / getById as student → Forbidden', async () => {
-      await expect(
-        withTestTenant(async () => service.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('officer with prc-001:read can list', async () => {
@@ -329,9 +332,7 @@ describe('integration:m86-procurement/contract', () => {
     it('updating endDate to before startDate → BadRequest', async () => {
       const id = await seedDraft();
       await expect(
-        withTestTenant(async () =>
-          service.patch(adminActor(), id, { endDate: '2020-01-01' }),
-        ),
+        withTestTenant(async () => service.patch(adminActor(), id, { endDate: '2020-01-01' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

@@ -210,9 +210,9 @@ describe('integration:m21-classroom/report-cards', () => {
       service.create(rcId, { subjectLabel: 'D' } as any, adminActor()),
     );
     await withTestTenant(async () => service.delete(subj.id, adminActor()));
-    await expect(
-      withTestTenant(async () => service.getById(subj.id)),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(withTestTenant(async () => service.getById(subj.id))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('delete unknown id → NotFoundException', async () => {

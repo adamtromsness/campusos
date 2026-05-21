@@ -187,12 +187,14 @@ export class CalendarService {
     // assertTimeShape pre-check must mirror that behaviour — otherwise a
     // patch that simply sets allDay=true on an existing timed event rejects
     // even though the UPDATE would have succeeded.
-    var nextStart = body.allDay === true
-      ? null
-      : (body.startTime !== undefined ? body.startTime : existing.startTime);
-    var nextEnd = body.allDay === true
-      ? null
-      : (body.endTime !== undefined ? body.endTime : existing.endTime);
+    var nextStart =
+      body.allDay === true
+        ? null
+        : body.startTime !== undefined
+          ? body.startTime
+          : existing.startTime;
+    var nextEnd =
+      body.allDay === true ? null : body.endTime !== undefined ? body.endTime : existing.endTime;
     this.assertTimeShape(nextAllDay, nextStart ?? undefined, nextEnd ?? undefined);
 
     var setClauses: string[] = [];

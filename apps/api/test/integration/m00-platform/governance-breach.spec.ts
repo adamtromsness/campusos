@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -152,7 +148,9 @@ describe('integration:m00-platform/governance-breach', () => {
 
   describe('create', () => {
     it('admin creates a breach record (notification NOT required) — NO outbox row', async () => {
-      const created = await withTestTenant(async () => service.create(adminActor(), baseCreateInput()));
+      const created = await withTestTenant(async () =>
+        service.create(adminActor(), baseCreateInput()),
+      );
       expect(created.status).toBe('UNDER_INVESTIGATION');
       expect(created.isResolved).toBe(false);
       expect(created.supervisoryAuthorityNotificationRequired).toBe(false);
@@ -245,9 +243,7 @@ describe('integration:m00-platform/governance-breach', () => {
           baseCreateInput({ supervisoryAuthorityNotificationRequired: true }),
         ),
       );
-      const b = await withTestTenant(async () =>
-        service.create(adminActor(), baseCreateInput()),
-      );
+      const b = await withTestTenant(async () => service.create(adminActor(), baseCreateInput()));
       const pending = await withTestTenant(async () =>
         service.list(adminActor(), { pendingNotificationOnly: true }),
       );
@@ -269,9 +265,9 @@ describe('integration:m00-platform/governance-breach', () => {
     });
 
     it('list as non-DPO → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => service.list(officerActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(officerActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 

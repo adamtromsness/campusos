@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -79,18 +75,9 @@ describe('integration:m81-enrolment/withdrawals', () => {
     permCheck = new PermissionCheckService(rawClient);
     outbox = new OutboxService();
     templates = new ExitTaskTemplateService(tenantPrisma, permCheck);
-    withdrawalService = new WithdrawalService(
-      tenantPrisma,
-      permCheck,
-      outbox,
-      templates,
-    );
+    withdrawalService = new WithdrawalService(tenantPrisma, permCheck, outbox, templates);
     exitTaskService = new ExitTaskService(tenantPrisma, permCheck);
-    reenrolService = new ReenrolmentService(
-      tenantPrisma,
-      permCheck,
-      withdrawalService,
-    );
+    reenrolService = new ReenrolmentService(tenantPrisma, permCheck, withdrawalService);
   });
 
   afterAll(async () => {
@@ -100,18 +87,10 @@ describe('integration:m81-enrolment/withdrawals', () => {
 
   beforeEach(async () => {
     // Wipe enrolment + re-enrolment rows on School A + B.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_reenrollment_confirmations`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_exit_tasks`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_requests`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_task_templates`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_reenrollment_confirmations`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_exit_tasks`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_requests`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_task_templates`);
     // Re-enrolment + offer-acceptance flows seed pay_family_accounts +
     // pay_family_account_students. Clean them up so the m84-payments
     // suite doesn't collide on the UNIQUE (school_id, account_holder_id).
@@ -238,10 +217,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       const student = await trackedStudent();
       await expect(
         withTestTenant(async () =>
-          withdrawalService.create(
-            withdrawalInput(student.studentId),
-            officerActor(),
-          ),
+          withdrawalService.create(withdrawalInput(student.studentId), officerActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -336,9 +312,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
     it('refuses to complete while any task is PENDING', async () => {
       const { id } = await seedActiveWithdrawal();
       await expect(
-        withTestTenant(async () =>
-          withdrawalService.complete(id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => withdrawalService.complete(id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -351,11 +325,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       // Mark each task COMPLETED via ExitTaskService.
       for (const t of taskIds) {
         await withTestTenant(async () =>
-          exitTaskService.patch(
-            t.id,
-            { status: 'COMPLETED' } as any,
-            adminActor(),
-          ),
+          exitTaskService.patch(t.id, { status: 'COMPLETED' } as any, adminActor()),
         );
       }
       const completed = await withTestTenant(async () =>
@@ -364,9 +334,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       expect(completed.status).toBe('COMPLETED');
       expect(completed.completedAt).not.toBeNull();
 
-      const studentRows = await rawClient.$queryRawUnsafe<
-        Array<{ enrollment_status: string }>
-      >(
+      const studentRows = await rawClient.$queryRawUnsafe<Array<{ enrollment_status: string }>>(
         `SELECT enrollment_status FROM ${TEST_SCHEMA}.sis_students WHERE id = $1::uuid`,
         studentId,
       );
@@ -384,9 +352,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
     it('non-admin → ForbiddenException', async () => {
       const { id } = await seedActiveWithdrawal();
       await expect(
-        withTestTenant(async () =>
-          withdrawalService.complete(id, {} as any, officerActor()),
-        ),
+        withTestTenant(async () => withdrawalService.complete(id, {} as any, officerActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -398,20 +364,12 @@ describe('integration:m81-enrolment/withdrawals', () => {
       );
       for (const t of taskIds) {
         await withTestTenant(async () =>
-          exitTaskService.patch(
-            t.id,
-            { status: 'WAIVED' } as any,
-            adminActor(),
-          ),
+          exitTaskService.patch(t.id, { status: 'WAIVED' } as any, adminActor()),
         );
       }
-      await withTestTenant(async () =>
-        withdrawalService.complete(id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => withdrawalService.complete(id, {} as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          withdrawalService.complete(id, {} as any, adminActor()),
-        ),
+        withTestTenant(async () => withdrawalService.complete(id, {} as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -426,11 +384,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
         withdrawalService.create(withdrawalInput(student.studentId), adminActor()),
       );
       const cancelled = await withTestTenant(async () =>
-        withdrawalService.cancel(
-          dto.id,
-          { reason: 'family changed mind' } as any,
-          adminActor(),
-        ),
+        withdrawalService.cancel(dto.id, { reason: 'family changed mind' } as any, adminActor()),
       );
       expect(cancelled.status).toBe('CANCELLED');
     });
@@ -446,23 +400,13 @@ describe('integration:m81-enrolment/withdrawals', () => {
       );
       for (const t of taskIds) {
         await withTestTenant(async () =>
-          exitTaskService.patch(
-            t.id,
-            { status: 'WAIVED' } as any,
-            adminActor(),
-          ),
+          exitTaskService.patch(t.id, { status: 'WAIVED' } as any, adminActor()),
         );
       }
-      await withTestTenant(async () =>
-        withdrawalService.complete(dto.id, {} as any, adminActor()),
-      );
+      await withTestTenant(async () => withdrawalService.complete(dto.id, {} as any, adminActor()));
       await expect(
         withTestTenant(async () =>
-          withdrawalService.cancel(
-            dto.id,
-            { reason: 'too late' } as any,
-            adminActor(),
-          ),
+          withdrawalService.cancel(dto.id, { reason: 'too late' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -486,11 +430,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       );
       await expect(
         withTestTenant(async () =>
-          withdrawalService.cancel(
-            dto.id,
-            { reason: 'no' } as any,
-            officerActor(),
-          ),
+          withdrawalService.cancel(dto.id, { reason: 'no' } as any, officerActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -550,11 +490,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
         ),
       );
       const cleared = await withTestTenant(async () =>
-        withdrawalService.placeReenrolHold(
-          dto.id,
-          { hold: false } as any,
-          adminActor(),
-        ),
+        withdrawalService.placeReenrolHold(dto.id, { hold: false } as any, adminActor()),
       );
       expect(cleared.reEnrollmentHoldPlaced).toBe(false);
       expect(cleared.reEnrollmentHoldReason).toBeNull();
@@ -601,9 +537,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       expect(dto.linkedWithdrawalId).not.toBeNull();
 
       // Verify the linked withdrawal row exists with REQUESTED status.
-      const wRows = await rawClient.$queryRawUnsafe<
-        Array<{ status: string; student_id: string }>
-      >(
+      const wRows = await rawClient.$queryRawUnsafe<Array<{ status: string; student_id: string }>>(
         `SELECT status, student_id::text FROM ${TEST_SCHEMA}.enr_withdrawal_requests WHERE id = $1::uuid`,
         dto.linkedWithdrawalId,
       );
@@ -648,9 +582,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
         { personId: TEST_PARENT_PERSON_ID },
       );
 
-      const beforeWithdrawals = await rawClient.$queryRawUnsafe<
-        Array<{ count: number }>
-      >(
+      const beforeWithdrawals = await rawClient.$queryRawUnsafe<Array<{ count: number }>>(
         `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.enr_withdrawal_requests WHERE student_id = $1::uuid`,
         student.studentId,
       );
@@ -673,9 +605,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
 
-      const afterWithdrawals = await rawClient.$queryRawUnsafe<
-        Array<{ count: number }>
-      >(
+      const afterWithdrawals = await rawClient.$queryRawUnsafe<Array<{ count: number }>>(
         `SELECT count(*)::int AS count FROM ${TEST_SCHEMA}.enr_withdrawal_requests WHERE student_id = $1::uuid`,
         student.studentId,
       );
@@ -729,9 +659,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
       const aDto = await withTestTenant(async () =>
         withdrawalService.create(withdrawalInput(aStudent.studentId), adminActor()),
       );
-      const aList = await withTestTenant(async () =>
-        withdrawalService.list(adminActor()),
-      );
+      const aList = await withTestTenant(async () => withdrawalService.list(adminActor()));
       const ids = aList.map((r) => r.id);
       expect(ids).toContain(aDto.id);
       expect(ids).not.toContain(bDto.id);
@@ -743,9 +671,7 @@ describe('integration:m81-enrolment/withdrawals', () => {
         withdrawalService.create(withdrawalInput(bStudent.studentId), adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          withdrawalService.getById(bDto.id, adminActor()),
-        ),
+        withTestTenant(async () => withdrawalService.getById(bDto.id, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

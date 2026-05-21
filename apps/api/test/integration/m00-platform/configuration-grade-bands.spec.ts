@@ -9,11 +9,7 @@ import {
 } from '@modules/m00-platform/configuration/configuration.service';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 const GRADE_BAND_CONFIG_KEY = 'grade_band_definitions';
 
@@ -104,9 +100,7 @@ describe('integration:m00-platform/configuration-grade-bands', () => {
       await expect(
         withTestTenant(async () =>
           academic.saveBandDefinitions({
-            bands: [
-              { key: 'x'.repeat(61), label: 'L', grades: ['1'] },
-            ],
+            bands: [{ key: 'x'.repeat(61), label: 'L', grades: ['1'] }],
           }),
         ),
       ).rejects.toThrow(/too long/);
@@ -278,9 +272,11 @@ describe('integration:m00-platform/configuration-grade-bands', () => {
       const yearId =
         yearRows.length > 0
           ? yearRows[0]!.id
-          : ((await rawClient.$queryRawUnsafe(
-              `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_academic_years ORDER BY start_date DESC LIMIT 1`,
-            )) as Array<{ id: string }>)[0]!.id;
+          : (
+              (await rawClient.$queryRawUnsafe(
+                `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_academic_years ORDER BY start_date DESC LIMIT 1`,
+              )) as Array<{ id: string }>
+            )[0]!.id;
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.sis_classes (id, school_id, course_id, academic_year_id, section_code)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5)`,
@@ -296,9 +292,7 @@ describe('integration:m00-platform/configuration-grade-bands', () => {
     it('classes with grade matching a band → land under the band; unmatched grade → ungroupedGrades', async () => {
       await withTestTenant(async () =>
         academic.saveBandDefinitions({
-          bands: [
-            { key: 'elementary', label: 'Elementary', grades: ['1', '2', '3'] },
-          ],
+          bands: [{ key: 'elementary', label: 'Elementary', grades: ['1', '2', '3'] }],
         }),
       );
       await seedClass('1', 'Math 1'); // → elementary band
@@ -337,9 +331,7 @@ describe('integration:m00-platform/configuration-grade-bands', () => {
     it('grade with no classes is still rendered in the band (empty array)', async () => {
       await withTestTenant(async () =>
         academic.saveBandDefinitions({
-          bands: [
-            { key: 'empty-band', label: 'EmptyTest', grades: ['99-never'] },
-          ],
+          bands: [{ key: 'empty-band', label: 'EmptyTest', grades: ['99-never'] }],
         }),
       );
       const tree = await withTestTenant(async () => academic.getTree());

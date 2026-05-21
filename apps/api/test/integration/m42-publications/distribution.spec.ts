@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -23,11 +19,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  TEST_ADMIN_ACCOUNT_ID,
-} from '../helpers/actor';
+import { adminActor, studentActor, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 import { TEST_PUB_SERIES_ID, TEST_PUB_SERIES_B_ID } from '../fixtures/publications';
 
 /**
@@ -98,11 +90,13 @@ describe('integration:m42-publications/distribution', () => {
     );
   });
 
-  async function seedPublication(opts: {
-    schoolId?: string;
-    status?: string;
-    seriesId?: string | null;
-  } = {}): Promise<string> {
+  async function seedPublication(
+    opts: {
+      schoolId?: string;
+      status?: string;
+      seriesId?: string | null;
+    } = {},
+  ): Promise<string> {
     const id = generateId();
     seededPubIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -174,9 +168,7 @@ describe('integration:m42-publications/distribution', () => {
         withTestTenant(async () =>
           distributionService.createList(adminActor(), pubId, {
             listName: 'Bad CLASS',
-            rules: [
-              { ruleType: 'CLASS', ruleValue: '00000000-0000-0000-0000-000000000000' },
-            ],
+            rules: [{ ruleType: 'CLASS', ruleValue: '00000000-0000-0000-0000-000000000000' }],
           } as any),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -298,9 +290,7 @@ describe('integration:m42-publications/distribution', () => {
     it('non-EDITOR student → ForbiddenException', async () => {
       const pubId = await seedPublication();
       await expect(
-        withTestTenant(async () =>
-          distributionService.listForPublication(studentActor(), pubId),
-        ),
+        withTestTenant(async () => distributionService.listForPublication(studentActor(), pubId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -326,9 +316,7 @@ describe('integration:m42-publications/distribution', () => {
 
     it('previewAudience on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          distributionService.previewAudience(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => distributionService.previewAudience(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -373,9 +361,7 @@ describe('integration:m42-publications/distribution', () => {
 
     it('distribute on phantom publication → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          distributionService.distribute(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => distributionService.distribute(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -385,26 +371,20 @@ describe('integration:m42-publications/distribution', () => {
         status: 'APPROVED',
       });
       await expect(
-        withTestTenant(async () =>
-          distributionService.distribute(adminActor(), pubBId),
-        ),
+        withTestTenant(async () => distributionService.distribute(adminActor(), pubBId)),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('distribute non-distributor caller → ForbiddenException', async () => {
       const pubId = await seedPublication({ status: 'APPROVED' });
       await expect(
-        withTestTenant(async () =>
-          distributionService.distribute(studentActor(), pubId),
-        ),
+        withTestTenant(async () => distributionService.distribute(studentActor(), pubId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('re-distribute already PUBLISHED publication does not re-emit status change', async () => {
       const pubId = await seedPublication({ status: 'APPROVED' });
-      await withTestTenant(async () =>
-        distributionService.distribute(adminActor(), pubId),
-      );
+      await withTestTenant(async () => distributionService.distribute(adminActor(), pubId));
       (kafka as unknown as RecordingKafkaProducer).reset();
       // Now status=PUBLISHED; redistribute should still work (PUBLISHED also allowed)
       const second = await withTestTenant(async () =>
@@ -467,9 +447,7 @@ describe('integration:m42-publications/distribution', () => {
     it('non-EDITOR student → ForbiddenException', async () => {
       const pubId = await seedPublication();
       await expect(
-        withTestTenant(async () =>
-          distributionService.deliveryStatus(studentActor(), pubId),
-        ),
+        withTestTenant(async () => distributionService.deliveryStatus(studentActor(), pubId)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -509,9 +487,7 @@ describe('integration:m42-publications/distribution', () => {
 
     it('subscribe to inactive/missing series → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          subscriptionService.subscribe(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => subscriptionService.subscribe(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -568,9 +544,7 @@ describe('integration:m42-publications/distribution', () => {
 
     it('unsubscribe on phantom series → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          subscriptionService.unsubscribe(adminActor(), generateId()),
-        ),
+        withTestTenant(async () => subscriptionService.unsubscribe(adminActor(), generateId())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -588,9 +562,7 @@ describe('integration:m42-publications/distribution', () => {
       await withTestTenant(async () =>
         subscriptionService.subscribe(adminActor(), TEST_PUB_SERIES_ID),
       );
-      const list = await withTestTenant(async () =>
-        subscriptionService.myList(adminActor()),
-      );
+      const list = await withTestTenant(async () => subscriptionService.myList(adminActor()));
       expect(list.length).toBeGreaterThan(0);
       expect(list[0]!.subscriberId).toBe(TEST_ADMIN_ACCOUNT_ID);
     });

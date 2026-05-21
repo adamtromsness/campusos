@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -18,10 +14,7 @@ import {
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
 import { adminActor, parentActor, teacherActor } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 5 — m81-enrolment EnrollmentPeriodService DB-backed integration tests.
@@ -59,31 +52,17 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
   beforeEach(async () => {
     // Wipe enr_* rows for both schools. Order matters because of FKs:
     // capacity_summary / intake_capacities / streams cascade off periods.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
     // Re-enrol family-account tables defensively (some flows touch them).
     await rawClient.$executeRawUnsafe(
       `TRUNCATE ${TEST_SCHEMA}.pay_family_account_students, ${TEST_SCHEMA}.pay_family_accounts CASCADE`,
@@ -280,11 +259,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
         ),
       );
       await withTestTenant(async () =>
-        periodService.createStream(
-          period.id,
-          { name: 'Standard', isActive: true },
-          adminActor(),
-        ),
+        periodService.createStream(period.id, { name: 'Standard', isActive: true }, adminActor()),
       );
       const withCapacity = await withTestTenant(async () =>
         periodService.createCapacity(
@@ -306,9 +281,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
 
     it('getById unknown id → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          periodService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => periodService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -353,11 +326,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
       );
       expect(step1.status).toBe('OPEN');
       const step2 = await withTestTenant(async () =>
-        periodService.update(
-          id,
-          { status: 'OFFERS_ISSUED' as any },
-          adminActor(),
-        ),
+        periodService.update(id, { status: 'OFFERS_ISSUED' as any }, adminActor()),
       );
       expect(step2.status).toBe('OFFERS_ISSUED');
       const step3 = await withTestTenant(async () =>
@@ -365,11 +334,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
       );
       expect(step3.status).toBe('CLOSED');
       const step4 = await withTestTenant(async () =>
-        periodService.update(
-          id,
-          { status: 'COMPLETED' as any },
-          adminActor(),
-        ),
+        periodService.update(id, { status: 'COMPLETED' as any }, adminActor()),
       );
       expect(step4.status).toBe('COMPLETED');
     });
@@ -397,9 +362,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
     it('update with empty body → no-op, current state returned', async () => {
       const id = await seed();
       const before = await withTestTenant(async () => periodService.getById(id));
-      const after = await withTestTenant(async () =>
-        periodService.update(id, {}, adminActor()),
-      );
+      const after = await withTestTenant(async () => periodService.update(id, {}, adminActor()));
       expect(after.name).toBe(before.name);
       expect(after.status).toBe(before.status);
     });
@@ -410,9 +373,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
       const period = await withTestTenant(async () => periodService.getById(id));
       const newCloses = new Date(new Date(period.opensAt).getTime() - 1000).toISOString();
       await expect(
-        withTestTenant(async () =>
-          periodService.update(id, { closesAt: newCloses }, adminActor()),
-        ),
+        withTestTenant(async () => periodService.update(id, { closesAt: newCloses }, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -431,14 +392,10 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
     it('non-admin update → ForbiddenException', async () => {
       const id = await seed();
       await expect(
-        withTestTenant(async () =>
-          periodService.update(id, { status: 'OPEN' }, parentActor()),
-        ),
+        withTestTenant(async () => periodService.update(id, { status: 'OPEN' }, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          periodService.update(id, { status: 'OPEN' }, teacherActor()),
-        ),
+        withTestTenant(async () => periodService.update(id, { status: 'OPEN' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -505,9 +462,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
         periodService.createStream(id, { name: 'Music' }, adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          periodService.createStream(id, { name: 'Music' }, adminActor()),
-        ),
+        withTestTenant(async () => periodService.createStream(id, { name: 'Music' }, adminActor())),
       ).rejects.toThrow();
     });
   });
@@ -563,11 +518,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
       const id = await seed();
       await expect(
         withTestTenant(async () =>
-          periodService.createCapacity(
-            id,
-            { gradeLevel: '5', totalPlaces: 10 },
-            parentActor(),
-          ),
+          periodService.createCapacity(id, { gradeLevel: '5', totalPlaces: 10 }, parentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });

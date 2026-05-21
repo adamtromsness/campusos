@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -32,10 +28,7 @@ import {
   TEST_PARENT_PERSON_ID,
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
-import {
-  TEST_SIS_ACADEMIC_YEAR_ID,
-  TEST_SIS_ACADEMIC_YEAR_B_ID,
-} from '../fixtures/sis';
+import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from '../fixtures/sis';
 
 /**
  * Wave 4 — m81-enrolment ApplicationService + OfferService DB-backed
@@ -77,10 +70,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
     kafka = makeRecordingKafka();
     outbox = new OutboxService();
     capacity = new CapacitySummaryService();
-    onboarding = new OnboardingService(
-      tenantPrisma,
-      kafka as unknown as KafkaProducerService,
-    );
+    onboarding = new OnboardingService(tenantPrisma, kafka as unknown as KafkaProducerService);
     appService = new ApplicationService(
       tenantPrisma,
       kafka as unknown as KafkaProducerService,
@@ -105,31 +95,17 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
     // Wipe enrolment rows across both schools. Order matters because of FKs:
     // - notes/screening/docs/offers/waitlist cascade off enr_applications.
     // - enr_applications.period FK is NO ACTION, so applications first.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_capacity_summary`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_waitlist_entries`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_offers`);
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_application_notes`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_application_notes`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_application_screening_responses`,
     );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_applications`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_applications`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_intake_capacities`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_admission_streams`);
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`);
     // OfferService.accept / WithdrawalService re-enrol flows create
     // pay_family_accounts + pay_family_account_students rows. They are
     // not cleaned by the enr_* wipe above and would collide with the
@@ -231,18 +207,15 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
 
     it('STUDENT persona → ForbiddenException', async () => {
       await expect(
-        withTestTenant(
-          async () => appService.create(buildCreatePayload(), studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.create(buildCreatePayload(), studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('non-admin STAFF persona (teacher) → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          appService.create(buildCreatePayload(), teacherActor()),
-        ),
+        withTestTenant(async () => appService.create(buildCreatePayload(), teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -253,10 +226,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         periodAId,
       );
       await expect(
-        withTestTenant(
-          async () => appService.create(buildCreatePayload(), parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.create(buildCreatePayload(), parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -267,10 +239,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       );
       const payload = { ...buildCreatePayload(), admissionType: 'MID_YEAR_ADMISSION' };
       await expect(
-        withTestTenant(
-          async () => appService.create(payload, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.create(payload, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -280,10 +251,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         periodAId,
       );
       const payload = { ...buildCreatePayload(), admissionType: 'MID_YEAR_ADMISSION' };
-      const dto = await withTestTenant(
-        async () => appService.create(payload, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const dto = await withTestTenant(async () => appService.create(payload, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(dto.status).toBe('SUBMITTED');
       expect(dto.admissionType).toBe('MID_YEAR_ADMISSION');
     });
@@ -294,10 +264,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         enrollmentPeriodId: '00000000-0000-0000-0000-000000000000',
       };
       await expect(
-        withTestTenant(
-          async () => appService.create(payload, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.create(payload, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -309,10 +278,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
           { questionKey: 'preferred_start', responseValue: 'autumn' },
         ],
       };
-      const dto = await withTestTenant(
-        async () => appService.create(payload, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const dto = await withTestTenant(async () => appService.create(payload, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(dto.screening).toHaveLength(2);
       const keys = dto.screening.map((s) => s.questionKey).sort();
       expect(keys).toEqual(['has_siblings', 'preferred_start']);
@@ -321,10 +289,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
     it('invalid date of birth → BadRequestException', async () => {
       const payload = { ...buildCreatePayload(), studentDateOfBirth: 'not-a-date' };
       await expect(
-        withTestTenant(
-          async () => appService.create(payload, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.create(payload, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -351,10 +318,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         ),
       );
 
-      const parentList = await withTestTenant(
-        async () => appService.list({}, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const parentList = await withTestTenant(async () => appService.list({}, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       expect(parentList).toHaveLength(1);
       expect(parentList[0]!.id).toBe(mine.id);
     });
@@ -374,35 +340,26 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
           adminActor(),
         ),
       );
-      const adminList = await withTestTenant(async () =>
-        appService.list({}, adminActor()),
-      );
+      const adminList = await withTestTenant(async () => appService.list({}, adminActor()));
       expect(adminList.length).toBeGreaterThanOrEqual(2);
     });
 
     it('STUDENT actor → empty list', async () => {
-      await withTestTenant(async () =>
-        appService.create(buildCreatePayload(), adminActor()),
-      );
-      const list = await withTestTenant(
-        async () => appService.list({}, studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
+      await withTestTenant(async () => appService.create(buildCreatePayload(), adminActor()));
+      const list = await withTestTenant(async () => appService.list({}, studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
+      });
       expect(list).toEqual([]);
     });
 
     it("parent getById on someone else's application → 404", async () => {
       const foreign = await withTestTenant(async () =>
-        appService.create(
-          buildCreatePayload({ guardianEmail: 'someoneelse@x' }),
-          adminActor(),
-        ),
+        appService.create(buildCreatePayload({ guardianEmail: 'someoneelse@x' }), adminActor()),
       );
       await expect(
-        withTestTenant(
-          async () => appService.getById(foreign.id, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => appService.getById(foreign.id, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -435,22 +392,14 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         appService.create(buildCreatePayload(), adminActor()),
       );
       const step1 = await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'UNDER_REVIEW' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'UNDER_REVIEW' } as any, adminActor()),
       );
       expect(step1.status).toBe('UNDER_REVIEW');
       expect(step1.reviewedBy).toBe(TEST_ADMIN_ACCOUNT_ID);
       expect(step1.reviewedAt).not.toBeNull();
 
       const step2 = await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'ACCEPTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       expect(step2.status).toBe('ACCEPTED');
 
@@ -464,19 +413,11 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         appService.create(buildCreatePayload(), adminActor()),
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'ACCEPTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          appService.updateStatus(
-            dto.id,
-            { status: 'UNDER_REVIEW' } as any,
-            adminActor(),
-          ),
+          appService.updateStatus(dto.id, { status: 'UNDER_REVIEW' } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -489,11 +430,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       await expect(
         withTestTenant(
           async () =>
-            appService.updateStatus(
-              dto.id,
-              { status: 'UNDER_REVIEW' } as any,
-              parentActor(),
-            ),
+            appService.updateStatus(dto.id, { status: 'UNDER_REVIEW' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -537,11 +474,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         { personId: TEST_PARENT_PERSON_ID },
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'ACCEPTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       return dto.id;
     }
@@ -550,11 +483,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const appId = await seedAcceptedApplication();
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline } as any, adminActor()),
       );
       expect(offer.status).toBe('ISSUED');
       expect(offer.offerType).toBe('UNCONDITIONAL');
@@ -572,11 +501,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       await expect(
         withTestTenant(async () =>
-          offerService.issue(
-            dto.id,
-            { responseDeadline: deadline } as any,
-            adminActor(),
-          ),
+          offerService.issue(dto.id, { responseDeadline: deadline } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -587,11 +512,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       await expect(
         withTestTenant(
           async () =>
-            offerService.issue(
-              appId,
-              { responseDeadline: deadline } as any,
-              parentActor(),
-            ),
+            offerService.issue(appId, { responseDeadline: deadline } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -601,19 +522,11 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const appId = await seedAcceptedApplication();
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline } as any, adminActor()),
       );
       await expect(
         withTestTenant(async () =>
-          offerService.issue(
-            appId,
-            { responseDeadline: deadline } as any,
-            adminActor(),
-          ),
+          offerService.issue(appId, { responseDeadline: deadline } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -637,11 +550,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const past = new Date(Date.now() - 1000).toISOString();
       await expect(
         withTestTenant(async () =>
-          offerService.issue(
-            appId,
-            { responseDeadline: past } as any,
-            adminActor(),
-          ),
+          offerService.issue(appId, { responseDeadline: past } as any, adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -650,20 +559,12 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const appId = await seedAcceptedApplication();
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline } as any, adminActor()),
       );
 
       const responded = await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'ACCEPTED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(responded.status).toBe('ACCEPTED');
@@ -693,19 +594,11 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const appId = await seedAcceptedApplication();
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          appId,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(appId, { responseDeadline: deadline } as any, adminActor()),
       );
       const responded = await withTestTenant(
         async () =>
-          offerService.respond(
-            offer.id,
-            { familyResponse: 'DECLINED' } as any,
-            parentActor(),
-          ),
+          offerService.respond(offer.id, { familyResponse: 'DECLINED' } as any, parentActor()),
         { personId: TEST_PARENT_PERSON_ID },
       );
       expect(responded.status).toBe('DECLINED');
@@ -723,28 +616,16 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         appService.create(buildCreatePayload(), adminActor()),
       );
       await withTestTenant(async () =>
-        appService.updateStatus(
-          dto.id,
-          { status: 'ACCEPTED' } as any,
-          adminActor(),
-        ),
+        appService.updateStatus(dto.id, { status: 'ACCEPTED' } as any, adminActor()),
       );
       const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       const offer = await withTestTenant(async () =>
-        offerService.issue(
-          dto.id,
-          { responseDeadline: deadline } as any,
-          adminActor(),
-        ),
+        offerService.issue(dto.id, { responseDeadline: deadline } as any, adminActor()),
       );
       await expect(
         withTestTenant(
           async () =>
-            offerService.respond(
-              offer.id,
-              { familyResponse: 'ACCEPTED' } as any,
-              parentActor(),
-            ),
+            offerService.respond(offer.id, { familyResponse: 'ACCEPTED' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -776,9 +657,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
         ),
       );
 
-      const aList = await withTestTenant(async () =>
-        appService.list({}, adminActor()),
-      );
+      const aList = await withTestTenant(async () => appService.list({}, adminActor()));
       const names = aList.map((r) => r.studentFirstName);
       expect(names).toContain('SchoolA-Student');
       expect(names).not.toContain('SchoolB-Student');
@@ -835,9 +714,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       const texts = parentView.notes.map((n) => n.noteText);
       expect(texts).toContain('all good');
       expect(texts).not.toContain('private screening notes');
-      const adminView = await withTestTenant(async () =>
-        appService.getById(dto.id, adminActor()),
-      );
+      const adminView = await withTestTenant(async () => appService.getById(dto.id, adminActor()));
       const adminTexts = adminView.notes.map((n) => n.noteText);
       expect(adminTexts).toContain('all good');
       expect(adminTexts).toContain('private screening notes');
@@ -850,12 +727,7 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       );
       await expect(
         withTestTenant(
-          async () =>
-            appService.addNote(
-              dto.id,
-              { noteText: 'parent note' } as any,
-              parentActor(),
-            ),
+          async () => appService.addNote(dto.id, { noteText: 'parent note' } as any, parentActor()),
           { personId: TEST_PARENT_PERSON_ID },
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);

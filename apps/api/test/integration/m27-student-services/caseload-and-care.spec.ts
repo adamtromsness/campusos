@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -173,28 +169,20 @@ describe('integration:m27-student-services/caseload-and-care', () => {
     it('officer without cou-001:write → Forbidden', async () => {
       const studentId = await seedStudent();
       await expect(
-        withTestTenant(async () =>
-          caseloads.create(baseInput({ studentId }), officerActor()),
-        ),
+        withTestTenant(async () => caseloads.create(baseInput({ studentId }), officerActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('teacher/student/parent → Forbidden', async () => {
       const studentId = await seedStudent();
       await expect(
-        withTestTenant(async () =>
-          caseloads.create(baseInput({ studentId }), teacherActor()),
-        ),
+        withTestTenant(async () => caseloads.create(baseInput({ studentId }), teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          caseloads.create(baseInput({ studentId }), studentActor()),
-        ),
+        withTestTenant(async () => caseloads.create(baseInput({ studentId }), studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
-        withTestTenant(async () =>
-          caseloads.create(baseInput({ studentId }), parentActor()),
-        ),
+        withTestTenant(async () => caseloads.create(baseInput({ studentId }), parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -204,9 +192,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
         caseloads.create(baseInput({ studentId }), adminActor()),
       );
       await expect(
-        withTestTenant(async () =>
-          caseloads.create(baseInput({ studentId }), adminActor()),
-        ),
+        withTestTenant(async () => caseloads.create(baseInput({ studentId }), adminActor())),
       ).rejects.toThrow(/already has a primary counsellor/);
       void first;
     });
@@ -218,7 +204,11 @@ describe('integration:m27-student-services/caseload-and-care', () => {
       );
       const consultant = await withTestTenant(async () =>
         caseloads.create(
-          baseInput({ studentId, isPrimaryCounselor: false, counselorId: TEST_OFFICER_EMPLOYEE_ID }),
+          baseInput({
+            studentId,
+            isPrimaryCounselor: false,
+            counselorId: TEST_OFFICER_EMPLOYEE_ID,
+          }),
           adminActor(),
         ),
       );
@@ -229,10 +219,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
       const studentId = await seedStudent();
       await expect(
         withTestTenant(async () =>
-          caseloads.create(
-            baseInput({ studentId, fromReferralId: generateId() }),
-            adminActor(),
-          ),
+          caseloads.create(baseInput({ studentId, fromReferralId: generateId() }), adminActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -299,9 +286,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
         );
         // officer is not the assigned counsellor (which is the admin)
         await expect(
-          withTestTenant(async () =>
-            caseloads.patch(c.id, { notes: 'x' }, officerActor()),
-          ),
+          withTestTenant(async () => caseloads.patch(c.id, { notes: 'x' }, officerActor())),
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
 
@@ -311,9 +296,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
           caseloads.create(baseInput({ studentId }), adminActor()),
         );
         await expect(
-          withTestTenant(async () =>
-            caseloads.patch(c.id, { notes: 'x' }, parentActor()),
-          ),
+          withTestTenant(async () => caseloads.patch(c.id, { notes: 'x' }, parentActor())),
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
     });
@@ -611,11 +594,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
     it('missing student → NotFound (create)', async () => {
       await expect(
         withTestTenant(async () =>
-          care.create(
-            generateId(),
-            { authorRole: 'NURSE', noteText: 'x' },
-            adminActor(),
-          ),
+          care.create(generateId(), { authorRole: 'NURSE', noteText: 'x' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -630,11 +609,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
       const studentId = await seedStudent();
       await expect(
         withTestTenant(async () =>
-          care.create(
-            studentId,
-            { authorRole: 'NURSE', noteText: 'x' },
-            officerActor(),
-          ),
+          care.create(studentId, { authorRole: 'NURSE', noteText: 'x' }, officerActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -658,9 +633,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
     it('officer with BOTH hlt-001:read AND cou-007:read can list', async () => {
       await grantOfficer(['hlt-001:read', 'cou-007:read']);
       const studentId = await seedStudent();
-      const list = await withTestTenant(async () =>
-        care.listForStudent(studentId, officerActor()),
-      );
+      const list = await withTestTenant(async () => care.listForStudent(studentId, officerActor()));
       expect(Array.isArray(list)).toBe(true);
     });
 
@@ -682,11 +655,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
       const studentId = await seedStudent();
       await expect(
         withTestTenant(async () =>
-          care.create(
-            studentId,
-            { authorRole: 'NURSE', noteText: 'x' },
-            officerActor(),
-          ),
+          care.create(studentId, { authorRole: 'NURSE', noteText: 'x' }, officerActor()),
         ),
       ).rejects.toThrow(/NURSE.*hlt-001:write/);
     });
@@ -696,11 +665,7 @@ describe('integration:m27-student-services/caseload-and-care', () => {
       const studentId = await seedStudent();
       await expect(
         withTestTenant(async () =>
-          care.create(
-            studentId,
-            { authorRole: 'COUNSELLOR', noteText: 'x' },
-            officerActor(),
-          ),
+          care.create(studentId, { authorRole: 'COUNSELLOR', noteText: 'x' }, officerActor()),
         ),
       ).rejects.toThrow(/COUNSELLOR.*cou-001:write|cou-007:write/);
     });

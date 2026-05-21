@@ -30,11 +30,7 @@ import { RedisService } from '@shared/cache/redis.service';
 import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_PERSON_ID,
   TEST_ADMIN_ACCOUNT_ID,
@@ -280,9 +276,7 @@ describe('integration:m42-publications/controllers', () => {
     });
 
     it('GET /publications/series/:id returns the fixture series', async () => {
-      const out = await withTestTenant(async () =>
-        controller.getSeries(TEST_PUB_SERIES_ID),
-      );
+      const out = await withTestTenant(async () => controller.getSeries(TEST_PUB_SERIES_ID));
       expect(out.id).toBe(TEST_PUB_SERIES_ID);
     });
 
@@ -314,11 +308,7 @@ describe('integration:m42-publications/controllers', () => {
       );
       seededSeriesIds.push(created.id);
       await withTestTenant(async () =>
-        controller.patchSeries(
-          created.id,
-          { description: 'patched' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchSeries(created.id, { description: 'patched' } as any, fakeAdminReq()),
       );
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT description FROM ${TEST_SCHEMA}.pub_series WHERE id = $1::uuid`,
@@ -340,14 +330,10 @@ describe('integration:m42-publications/controllers', () => {
           fakeAdminReq(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        controller.listEditions(TEST_PUB_SERIES_ID),
-      );
+      const list = await withTestTenant(async () => controller.listEditions(TEST_PUB_SERIES_ID));
       expect(list.map((e) => e.id)).toContain(created.id);
 
-      const fetched = await withTestTenant(async () =>
-        controller.getEdition(created.id),
-      );
+      const fetched = await withTestTenant(async () => controller.getEdition(created.id));
       expect(fetched.id).toBe(created.id);
     });
 
@@ -356,11 +342,7 @@ describe('integration:m42-publications/controllers', () => {
         controller.createEdition(TEST_PUB_SERIES_ID, {} as any, fakeAdminReq()),
       );
       await withTestTenant(async () =>
-        controller.patchEdition(
-          created.id,
-          { theme: 'Spring' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchEdition(created.id, { theme: 'Spring' } as any, fakeAdminReq()),
       );
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT theme FROM ${TEST_SCHEMA}.pub_edition WHERE id = $1::uuid`,
@@ -386,9 +368,7 @@ describe('integration:m42-publications/controllers', () => {
       );
       seededPubIds.push(created.id);
 
-      const list = await withTestTenant(async () =>
-        controller.listPublications(fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => controller.listPublications(fakeAdminReq()));
       expect(list.map((p) => p.id)).toContain(created.id);
 
       const detail = await withTestTenant(async () =>
@@ -416,11 +396,7 @@ describe('integration:m42-publications/controllers', () => {
     it('PATCH /publications/:id/status', async () => {
       const pubId = await seedPublication({ status: 'DRAFT' });
       await withTestTenant(async () =>
-        controller.patchPublicationStatus(
-          pubId,
-          { status: 'IN_REVIEW' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchPublicationStatus(pubId, { status: 'IN_REVIEW' } as any, fakeAdminReq()),
       );
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT status FROM ${TEST_SCHEMA}.pub_publications WHERE id = $1::uuid`,
@@ -448,9 +424,7 @@ describe('integration:m42-publications/controllers', () => {
       );
       expect(created.userId).toBe(TEST_STUDENT_ACCOUNT_ID);
 
-      await withTestTenant(async () =>
-        controller.removeCollaborator(created.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.removeCollaborator(created.id, fakeAdminReq()));
       const rows = (await rawClient.$queryRawUnsafe(
         `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.pub_publication_collaborators WHERE id = $1::uuid`,
         created.id,
@@ -466,25 +440,15 @@ describe('integration:m42-publications/controllers', () => {
     it('section CRUD: create, list, patch, approve, remove', async () => {
       const pubId = await seedPublication();
       const created = await withTestTenant(async () =>
-        controller.createSection(
-          pubId,
-          { title: 'A', body: 'b' } as any,
-          fakeAdminReq(),
-        ),
+        controller.createSection(pubId, { title: 'A', body: 'b' } as any, fakeAdminReq()),
       );
       expect(created.title).toBe('A');
 
-      const list = await withTestTenant(async () =>
-        controller.listSections(pubId, fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => controller.listSections(pubId, fakeAdminReq()));
       expect(list.map((s) => s.id)).toContain(created.id);
 
       await withTestTenant(async () =>
-        controller.patchSection(
-          created.id,
-          { title: 'New title' } as any,
-          fakeAdminReq(),
-        ),
+        controller.patchSection(created.id, { title: 'New title' } as any, fakeAdminReq()),
       );
       await withTestTenant(async () => controller.approveSection(created.id, fakeAdminReq()));
 
@@ -506,11 +470,7 @@ describe('integration:m42-publications/controllers', () => {
     it('contributor + comment routes', async () => {
       const pubId = await seedPublication();
       const section = await withTestTenant(async () =>
-        controller.createSection(
-          pubId,
-          { title: 'Sec', body: 'b' } as any,
-          fakeAdminReq(),
-        ),
+        controller.createSection(pubId, { title: 'Sec', body: 'b' } as any, fakeAdminReq()),
       );
       const contrib = await withTestTenant(async () =>
         controller.addContributor(
@@ -531,13 +491,9 @@ describe('integration:m42-publications/controllers', () => {
       );
       expect(comments.map((c) => c.id)).toContain(comment.id);
 
-      await withTestTenant(async () =>
-        controller.resolveComment(comment.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.resolveComment(comment.id, fakeAdminReq()));
 
-      await withTestTenant(async () =>
-        controller.removeContributor(contrib.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.removeContributor(contrib.id, fakeAdminReq()));
     });
   });
 
@@ -588,20 +544,14 @@ describe('integration:m42-publications/controllers', () => {
     });
 
     it('subscribe / unsubscribe / listSubscriptions / mySubscriptions', async () => {
-      await withTestTenant(async () =>
-        controller.subscribe(TEST_PUB_SERIES_ID, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.subscribe(TEST_PUB_SERIES_ID, fakeAdminReq()));
       const subs = await withTestTenant(async () =>
         controller.listSubscriptions(TEST_PUB_SERIES_ID),
       );
       expect(subs.length).toBeGreaterThan(0);
-      const mine = await withTestTenant(async () =>
-        controller.mySubscriptions(fakeAdminReq()),
-      );
+      const mine = await withTestTenant(async () => controller.mySubscriptions(fakeAdminReq()));
       expect(mine.length).toBeGreaterThan(0);
-      await withTestTenant(async () =>
-        controller.unsubscribe(TEST_PUB_SERIES_ID, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.unsubscribe(TEST_PUB_SERIES_ID, fakeAdminReq()));
       // Cleanup
       await rawClient.$executeRawUnsafe(
         `DELETE FROM ${TEST_SCHEMA}.pub_series_subscriptions WHERE series_id = $1::uuid`,
@@ -621,14 +571,10 @@ describe('integration:m42-publications/controllers', () => {
       );
       expect(cp.versionNumber).toBe(1);
 
-      const list = await withTestTenant(async () =>
-        controller.listVersions(pubId, fakeAdminReq()),
-      );
+      const list = await withTestTenant(async () => controller.listVersions(pubId, fakeAdminReq()));
       expect(list.length).toBeGreaterThan(0);
 
-      const detail = await withTestTenant(async () =>
-        controller.getVersion(cp.id, fakeAdminReq()),
-      );
+      const detail = await withTestTenant(async () => controller.getVersion(cp.id, fakeAdminReq()));
       expect(detail.id).toBe(cp.id);
 
       const reverted = await withTestTenant(async () =>
@@ -671,11 +617,7 @@ describe('integration:m42-publications/controllers', () => {
       expect(fetched.id).toBe(tpl.id);
 
       await withTestTenant(async () =>
-        controller.updateTemplate(
-          tpl.id,
-          { description: 'updated' } as any,
-          fakeAdminReq(),
-        ),
+        controller.updateTemplate(tpl.id, { description: 'updated' } as any, fakeAdminReq()),
       );
 
       const fromTemplate = await withTestTenant(async () =>
@@ -688,9 +630,7 @@ describe('integration:m42-publications/controllers', () => {
       seededPubIds.push(fromTemplate.id);
       expect(fromTemplate.title).toBe('from-tpl publication');
 
-      await withTestTenant(async () =>
-        controller.deleteTemplate(tpl.id, fakeAdminReq()),
-      );
+      await withTestTenant(async () => controller.deleteTemplate(tpl.id, fakeAdminReq()));
       // Already deleted, remove from cleanup list
       const idx = seededTemplateIds.indexOf(tpl.id);
       if (idx >= 0) seededTemplateIds.splice(idx, 1);
@@ -705,11 +645,7 @@ describe('integration:m42-publications/controllers', () => {
       const pubId = await seedPublication();
       const scheduledAt = new Date(Date.now() + 3600 * 1000).toISOString();
       const scheduled = await withTestTenant(async () =>
-        controller.schedulePublication(
-          pubId,
-          { scheduledAt } as any,
-          fakeAdminReq(),
-        ),
+        controller.schedulePublication(pubId, { scheduledAt } as any, fakeAdminReq()),
       );
       expect(scheduled.publicationId).toBe(pubId);
       expect(scheduled.status).toBe('SCHEDULED');
@@ -723,11 +659,7 @@ describe('integration:m42-publications/controllers', () => {
       expect(list.map((s) => s.publicationId)).toContain(pubId);
 
       await withTestTenant(async () =>
-        controller.cancelSchedule(
-          pubId,
-          { cancellationReason: 'reason' } as any,
-          fakeAdminReq(),
-        ),
+        controller.cancelSchedule(pubId, { cancellationReason: 'reason' } as any, fakeAdminReq()),
       );
     });
   });
@@ -739,20 +671,12 @@ describe('integration:m42-publications/controllers', () => {
     it('ingestAnalyticsEvent + getAnalytics + summary', async () => {
       const pubId = await seedPublication();
       await withTestTenant(async () =>
-        controller.ingestAnalyticsEvent(
-          pubId,
-          { eventType: 'OPEN' } as any,
-          fakeAdminReq(),
-        ),
+        controller.ingestAnalyticsEvent(pubId, { eventType: 'OPEN' } as any, fakeAdminReq()),
       );
-      const a = await withTestTenant(async () =>
-        controller.getAnalytics(pubId, fakeAdminReq()),
-      );
+      const a = await withTestTenant(async () => controller.getAnalytics(pubId, fakeAdminReq()));
       expect(a.publicationId).toBe(pubId);
 
-      const summary = await withTestTenant(async () =>
-        controller.analyticsSummary(fakeAdminReq()),
-      );
+      const summary = await withTestTenant(async () => controller.analyticsSummary(fakeAdminReq()));
       expect(Array.isArray(summary)).toBe(true);
     });
   });

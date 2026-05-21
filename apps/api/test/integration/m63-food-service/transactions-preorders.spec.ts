@@ -12,11 +12,7 @@ import { PermissionCheckService } from '@modules/m00-platform';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { makeRecordingKafka, RecordingKafkaProducer } from '../helpers/recording-kafka';
-import {
-  withTestTenant,
-  TEST_SCHEMA,
-  TEST_SCHOOL_ID,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   adminActor,
   parentActor,
@@ -146,10 +142,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
   describe('TransactionService — KEYSTONE fds.meal.served', () => {
     async function openSession() {
       return withTestTenant(async () =>
-        sessions.open(
-          { serviceDate: '2026-09-15', mealType: 'LUNCH' } as any,
-          adminActor(),
-        ),
+        sessions.open({ serviceDate: '2026-09-15', mealType: 'LUNCH' } as any, adminActor()),
       );
     }
 
@@ -162,9 +155,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
             patronType: 'STUDENT',
             sessionId: session.id,
             posDeviceId: TEST_POS_DEVICE_ID,
-            items: [
-              { itemId: TEST_MENU_ITEM_ID, name: 'Apple Slices', price: 1.5 },
-            ],
+            items: [{ itemId: TEST_MENU_ITEM_ID, name: 'Apple Slices', price: 1.5 }],
             paymentMethod: 'LUNCH_ACCOUNT',
           } as any,
           adminActor(),
@@ -172,9 +163,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
       );
       expect(tx.total).toBe(1.5);
 
-      const emits = (kafka as unknown as RecordingKafkaProducer).callsForTopic(
-        'fds.meal.served',
-      );
+      const emits = (kafka as unknown as RecordingKafkaProducer).callsForTopic('fds.meal.served');
       expect(emits.length).toBeGreaterThan(0);
       expect(emits[0]!.payload).toMatchObject({
         patronId: TEST_STUDENT_PERSON_ID,
@@ -196,16 +185,12 @@ describe('integration:m63-food-service/transactions-preorders', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () =>
-        txns.list({ sessionId: session.id }),
-      );
+      const list = await withTestTenant(async () => txns.list({ sessionId: session.id }));
       expect(list.map((t) => t.id)).toContain(tx.id);
     });
 
     it('checkAllergens returns response for student', async () => {
-      const result = await withTestTenant(async () =>
-        txns.checkAllergens(TEST_STUDENT_PERSON_ID),
-      );
+      const result = await withTestTenant(async () => txns.checkAllergens(TEST_STUDENT_PERSON_ID));
       expect(result).toBeTruthy();
     });
 
@@ -232,10 +217,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
   describe('ReconciliationService', () => {
     it('getBySession returns array (empty for fresh session)', async () => {
       const session = await withTestTenant(async () =>
-        sessions.open(
-          { serviceDate: '2026-09-16', mealType: 'LUNCH' } as any,
-          adminActor(),
-        ),
+        sessions.open({ serviceDate: '2026-09-16', mealType: 'LUNCH' } as any, adminActor()),
       );
       const list = await withTestTenant(async () => recon.getBySession(session.id));
       expect(Array.isArray(list)).toBe(true);
@@ -243,10 +225,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
 
     it('patch updates a reconciliation row', async () => {
       const session = await withTestTenant(async () =>
-        sessions.open(
-          { serviceDate: '2026-09-17', mealType: 'LUNCH' } as any,
-          adminActor(),
-        ),
+        sessions.open({ serviceDate: '2026-09-17', mealType: 'LUNCH' } as any, adminActor()),
       );
       // Seed a reconciliation row directly
       const reconId = '019e0cf8-aaaa-7777-8888-000000063200';
@@ -305,9 +284,7 @@ describe('integration:m63-food-service/transactions-preorders', () => {
       );
       expect(order.studentId).toBe(studentRowId);
 
-      const list = await withTestTenant(async () =>
-        preorders.listPreorders({}, adminActor()),
-      );
+      const list = await withTestTenant(async () => preorders.listPreorders({}, adminActor()));
       expect(list.map((p) => p.id)).toContain(order.id);
 
       const fetched = await withTestTenant(async () =>

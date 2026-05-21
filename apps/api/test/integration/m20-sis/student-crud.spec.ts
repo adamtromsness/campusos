@@ -261,10 +261,9 @@ describe('integration:m20-sis/student-crud', () => {
       );
       studentIds.push(sid);
 
-      const self = await withTestTenant(
-        async () => service.getSelfForStudent(studentActor()),
-        { personId: TEST_STUDENT_PERSON_ID },
-      );
+      const self = await withTestTenant(async () => service.getSelfForStudent(studentActor()), {
+        personId: TEST_STUDENT_PERSON_ID,
+      });
       expect(self.id).toBe(sid);
     });
 
@@ -281,10 +280,9 @@ describe('integration:m20-sis/student-crud', () => {
         TEST_SCHOOL_ID,
       );
       await expect(
-        withTestTenant(
-          async () => service.getSelfForStudent(studentActor()),
-          { personId: TEST_STUDENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.getSelfForStudent(studentActor()), {
+          personId: TEST_STUDENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -310,20 +308,18 @@ describe('integration:m20-sis/student-crud', () => {
       guardianIds.push(guardianId);
       await linkStudentGuardian(rawClient, myKid.studentId, guardianId);
 
-      const list = await withTestTenant(
-        async () => service.list({}, parentActor()),
-        { personId: TEST_PARENT_PERSON_ID },
-      );
+      const list = await withTestTenant(async () => service.list({}, parentActor()), {
+        personId: TEST_PARENT_PERSON_ID,
+      });
       const ids = list.map((r) => r.id);
       expect(ids).toContain(myKid.studentId);
       expect(ids).not.toContain(otherKid.studentId);
 
       // Direct getById on the unlinked sibling collapses to 404
       await expect(
-        withTestTenant(
-          async () => service.getById(otherKid.studentId, parentActor()),
-          { personId: TEST_PARENT_PERSON_ID },
-        ),
+        withTestTenant(async () => service.getById(otherKid.studentId, parentActor()), {
+          personId: TEST_PARENT_PERSON_ID,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -364,9 +360,7 @@ describe('integration:m20-sis/student-crud', () => {
       const child = await trackedSeedStudent({ firstName: 'Linked', lastName: 'Child' });
       await linkStudentGuardian(rawClient, child.studentId, g.guardianId);
 
-      const list = await withTestTenant(async () =>
-        service.listForGuardianPerson(g.personId),
-      );
+      const list = await withTestTenant(async () => service.listForGuardianPerson(g.personId));
       expect(list.map((r) => r.id)).toContain(child.studentId);
     });
   });

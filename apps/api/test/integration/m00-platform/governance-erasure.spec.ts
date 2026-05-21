@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -70,9 +66,7 @@ describe('integration:m00-platform/governance-erasure', () => {
   beforeEach(async () => {
     // dpo_pseudonymisation_log carries the IMMUTABLE prevent_mutation
     // trigger so per-row DELETE fails — TRUNCATE bypasses BEFORE ROW.
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.dpo_pseudonymisation_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.dpo_pseudonymisation_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.dpo_erasure_requests WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -164,18 +158,14 @@ describe('integration:m00-platform/governance-erasure', () => {
       expect(created.completedAt).toBeNull();
       expect(created.reviewedById).toBeNull();
 
-      const fetched = await withTestTenant(async () =>
-        service.getById(adminActor(), created.id),
-      );
+      const fetched = await withTestTenant(async () => service.getById(adminActor(), created.id));
       expect(fetched.id).toBe(created.id);
     });
 
     it('cross-tenant dataSubject → BadRequest (no projection in current tenant)', async () => {
       // A random uuid that's not a person in any tenant
       await expect(
-        withTestTenant(async () =>
-          service.create(adminActor(), { dataSubjectId: generateId() }),
-        ),
+        withTestTenant(async () => service.create(adminActor(), { dataSubjectId: generateId() })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -224,9 +214,9 @@ describe('integration:m00-platform/governance-erasure', () => {
     });
 
     it('list as non-DPO → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => service.list(officerActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(officerActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('cross-school getById → NotFoundException', async () => {
@@ -322,9 +312,7 @@ describe('integration:m00-platform/governance-erasure', () => {
       const created = await withTestTenant(async () =>
         service.create(adminActor(), { dataSubjectId: VALID_DATA_SUBJECT_ID }),
       );
-      const result = await withTestTenant(async () =>
-        service.update(adminActor(), created.id, {}),
-      );
+      const result = await withTestTenant(async () => service.update(adminActor(), created.id, {}));
       expect(result.id).toBe(created.id);
       expect(result.status).toBe('RECEIVED');
     });
@@ -344,9 +332,7 @@ describe('integration:m00-platform/governance-erasure', () => {
         service.create(adminActor(), { dataSubjectId: VALID_DATA_SUBJECT_ID }),
       );
       await expect(
-        withTestTenant(async () =>
-          service.update(officerActor(), created.id, { notes: 'x' }),
-        ),
+        withTestTenant(async () => service.update(officerActor(), created.id, { notes: 'x' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -577,9 +563,7 @@ describe('integration:m00-platform/governance-erasure', () => {
         }),
       );
 
-      const all = await withTestTenant(async () =>
-        service.listPseudonymisations(adminActor()),
-      );
+      const all = await withTestTenant(async () => service.listPseudonymisations(adminActor()));
       expect(all.length).toBeGreaterThanOrEqual(1);
       const filtered = await withTestTenant(async () =>
         service.listPseudonymisations(adminActor(), erasure.id),

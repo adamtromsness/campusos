@@ -149,9 +149,7 @@ describe('integration:m00-platform/auth-controller', () => {
     it('missing authorization code → HttpException(BAD_REQUEST)', async () => {
       const req: any = { query: {} };
       const res = makeRes();
-      await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(
-        HttpException,
-      );
+      await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(HttpException);
     });
 
     it('happy path: exchanges code, fetches userinfo, sets cookie, redirects', async () => {
@@ -190,9 +188,7 @@ describe('integration:m00-platform/auth-controller', () => {
       try {
         const req: any = { query: { code: 'oidc-code-123' } };
         const res = makeRes();
-        await expect(
-          controller.callback(req, res as any),
-        ).rejects.toBeInstanceOf(HttpException);
+        await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(HttpException);
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -214,9 +210,7 @@ describe('integration:m00-platform/auth-controller', () => {
       try {
         const req: any = { query: { code: 'c' } };
         const res = makeRes();
-        await expect(
-          controller.callback(req, res as any),
-        ).rejects.toBeInstanceOf(HttpException);
+        await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(HttpException);
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -236,9 +230,7 @@ describe('integration:m00-platform/auth-controller', () => {
       try {
         const req: any = { query: { code: 'c' } };
         const res = makeRes();
-        await expect(
-          controller.callback(req, res as any),
-        ).rejects.toBeInstanceOf(HttpException);
+        await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(HttpException);
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -261,9 +253,7 @@ describe('integration:m00-platform/auth-controller', () => {
       try {
         const req: any = { query: { code: 'c' } };
         const res = makeRes();
-        await expect(
-          controller.callback(req, res as any),
-        ).rejects.toBeInstanceOf(HttpException);
+        await expect(controller.callback(req, res as any)).rejects.toBeInstanceOf(HttpException);
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -321,18 +311,15 @@ describe('integration:m00-platform/auth-controller', () => {
 
     it('missing email → HttpException(BAD_REQUEST)', async () => {
       const res = makeRes();
-      await expect(
-        controller.devLogin({ email: '' }, res as any),
-      ).rejects.toBeInstanceOf(HttpException);
+      await expect(controller.devLogin({ email: '' }, res as any)).rejects.toBeInstanceOf(
+        HttpException,
+      );
     });
 
     it('unknown email → HttpException(NOT_FOUND)', async () => {
       const res = makeRes();
       await expect(
-        controller.devLogin(
-          { email: 'unknown-' + generateId() + '@nowhere' },
-          res as any,
-        ),
+        controller.devLogin({ email: 'unknown-' + generateId() + '@nowhere' }, res as any),
       ).rejects.toBeInstanceOf(HttpException);
     });
 

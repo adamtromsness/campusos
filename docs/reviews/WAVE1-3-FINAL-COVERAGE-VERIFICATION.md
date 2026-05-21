@@ -39,18 +39,18 @@ Duration    350.48s
 
 All coverage runs completed with 0 test failures.
 
-| Module | Target | Measured | Meets Target? |
-| --- | ---: | ---: | :---: |
-| m83-finance | >=95% | 95.52% | Yes |
-| m84-payments | >=95% | 96.94% | Yes |
-| m86-procurement | >=80% | 84.17% | Yes |
-| m00-platform/auth | >=95% | 100.00% | Yes |
-| m00-platform/iam | >=95% | 99.09% | Yes |
-| m00-platform/configuration | >=95% | 97.28% | Yes |
-| m00-platform/governance | >=95% | 96.76% | Yes |
-| m23-health | >=90% | 90.69% | Yes |
-| m27-student-services | >=90% | 94.35% | Yes |
-| m87-safety | >=90% | 95.93% | Yes |
+| Module                     | Target | Measured | Meets Target? |
+| -------------------------- | -----: | -------: | :-----------: |
+| m83-finance                |  >=95% |   95.52% |      Yes      |
+| m84-payments               |  >=95% |   96.94% |      Yes      |
+| m86-procurement            |  >=80% |   84.17% |      Yes      |
+| m00-platform/auth          |  >=95% |  100.00% |      Yes      |
+| m00-platform/iam           |  >=95% |   99.09% |      Yes      |
+| m00-platform/configuration |  >=95% |   97.28% |      Yes      |
+| m00-platform/governance    |  >=95% |   96.76% |      Yes      |
+| m23-health                 |  >=90% |   90.69% |      Yes      |
+| m27-student-services       |  >=90% |   94.35% |      Yes      |
+| m87-safety                 |  >=90% |   95.93% |      Yes      |
 
 ## Verdict
 

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { ServicePartnerService } from '@modules/m41-meetings/meetings/service-partner.service';
@@ -16,12 +12,7 @@ import {
   TEST_SCHOOL_ID,
   TEST_SCHOOL_B_ID,
 } from '../helpers/tenant-context';
-import {
-  adminActor,
-  studentActor,
-  parentActor,
-  teacherActor,
-} from '../helpers/actor';
+import { adminActor, studentActor, parentActor, teacherActor } from '../helpers/actor';
 
 /**
  * Wave 5 — m41-meetings ServicePartnerService.
@@ -75,29 +66,21 @@ describe('integration:m41-meetings/service-partner', () => {
     });
 
     it('duplicate org_name in same school → BadRequestException', async () => {
-      await withTestTenant(async () =>
-        service.create({ orgName: 'Dup Org' } as any, adminActor()),
-      );
+      await withTestTenant(async () => service.create({ orgName: 'Dup Org' } as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          service.create({ orgName: 'Dup Org' } as any, adminActor()),
-        ),
+        withTestTenant(async () => service.create({ orgName: 'Dup Org' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('STUDENT cannot create → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.create({ orgName: 'Forbidden' } as any, studentActor()),
-        ),
+        withTestTenant(async () => service.create({ orgName: 'Forbidden' } as any, studentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('GUARDIAN cannot create → ForbiddenException', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.create({ orgName: 'Forbidden' } as any, parentActor()),
-        ),
+        withTestTenant(async () => service.create({ orgName: 'Forbidden' } as any, parentActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -131,9 +114,7 @@ describe('integration:m41-meetings/service-partner', () => {
       const created = await withTestTenant(async () =>
         service.create({ orgName: 'Findable' } as any, adminActor()),
       );
-      const fetched = await withTestTenant(async () =>
-        service.getById(created.id, adminActor()),
-      );
+      const fetched = await withTestTenant(async () => service.getById(created.id, adminActor()));
       expect(fetched.id).toBe(created.id);
       await expect(
         withTestTenant(async () =>
@@ -143,9 +124,9 @@ describe('integration:m41-meetings/service-partner', () => {
     });
 
     it('STUDENT cannot list / getById → ForbiddenException', async () => {
-      await expect(
-        withTestTenant(async () => service.list(studentActor())),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(withTestTenant(async () => service.list(studentActor()))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
 
       await expect(
         withTestTenant(async () =>
@@ -205,13 +186,9 @@ describe('integration:m41-meetings/service-partner', () => {
       const a = await withTestTenant(async () =>
         service.create({ orgName: 'A' } as any, adminActor()),
       );
-      await withTestTenant(async () =>
-        service.create({ orgName: 'B' } as any, adminActor()),
-      );
+      await withTestTenant(async () => service.create({ orgName: 'B' } as any, adminActor()));
       await expect(
-        withTestTenant(async () =>
-          service.patch(a.id, { orgName: 'B' } as any, adminActor()),
-        ),
+        withTestTenant(async () => service.patch(a.id, { orgName: 'B' } as any, adminActor())),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });

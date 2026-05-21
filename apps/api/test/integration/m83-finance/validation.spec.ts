@@ -6,11 +6,7 @@ import { generateId } from '@campusos/database';
 import { FinanceValidationService } from '@modules/m83-finance/validation';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   TEST_FUND_ID,
   TEST_FUND_B_ID,
@@ -66,7 +62,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('empty id → BadRequest with field name', async () => {
       await withTestTenant(async () => {
-        await expect(service.assertActiveFund('', 'myField')).rejects.toThrow(/myField is required/);
+        await expect(service.assertActiveFund('', 'myField')).rejects.toThrow(
+          /myField is required/,
+        );
       });
     });
 
@@ -119,7 +117,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('empty id → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(service.assertActiveAccount('', undefined, 'foo')).rejects.toThrow(/foo is required/);
+        await expect(service.assertActiveAccount('', undefined, 'foo')).rejects.toThrow(
+          /foo is required/,
+        );
       });
     });
 
@@ -151,9 +151,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('type filter: REVENUE account when allowedTypes=[ASSET] → BadRequest mentioning expected types', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveAccount(TEST_COA_REVENUE_ID, ['ASSET']),
-        ).rejects.toThrow(/expected one of ASSET/);
+        await expect(service.assertActiveAccount(TEST_COA_REVENUE_ID, ['ASSET'])).rejects.toThrow(
+          /expected one of ASSET/,
+        );
       });
     });
 
@@ -167,17 +167,15 @@ describe('integration:m83-finance/validation', () => {
 
     it('empty allowedTypes array is treated as no filter', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveAccount(TEST_COA_CASH_ID, []),
-        ).resolves.toBeUndefined();
+        await expect(service.assertActiveAccount(TEST_COA_CASH_ID, [])).resolves.toBeUndefined();
       });
     });
 
     it('cross-school account → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveAccount(TEST_COA_SUPPLIES_B_ID),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.assertActiveAccount(TEST_COA_SUPPLIES_B_ID)).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
       });
     });
 
@@ -215,9 +213,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('cross-school period → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertPeriodInState(TEST_PERIOD_B_ID),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.assertPeriodInState(TEST_PERIOD_B_ID)).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
       });
     });
 
@@ -230,9 +228,9 @@ describe('integration:m83-finance/validation', () => {
       );
       try {
         await withTestTenant(async () => {
-          await expect(
-            service.assertPeriodInState(TEST_PERIOD_ID, ['OPEN']),
-          ).rejects.toThrow(/status=CLOSED/);
+          await expect(service.assertPeriodInState(TEST_PERIOD_ID, ['OPEN'])).rejects.toThrow(
+            /status=CLOSED/,
+          );
         });
       } finally {
         await rawClient.$executeRawUnsafe(
@@ -244,9 +242,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('non-existent period → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertPeriodInState(generateId()),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.assertPeriodInState(generateId())).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
       });
     });
   });
@@ -282,17 +280,17 @@ describe('integration:m83-finance/validation', () => {
 
     it('empty id → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertBudgetLineInCurrentTenant('', 'blid'),
-        ).rejects.toThrow(/blid is required/);
+        await expect(service.assertBudgetLineInCurrentTenant('', 'blid')).rejects.toThrow(
+          /blid is required/,
+        );
       });
     });
 
     it('non-existent budget line → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertBudgetLineInCurrentTenant(generateId()),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.assertBudgetLineInCurrentTenant(generateId())).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
       });
     });
   });
@@ -300,9 +298,7 @@ describe('integration:m83-finance/validation', () => {
   describe('assertActiveSupplier', () => {
     it('valid active supplier passes', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveSupplier(TEST_SUPPLIER_A_ID),
-        ).resolves.toBeUndefined();
+        await expect(service.assertActiveSupplier(TEST_SUPPLIER_A_ID)).resolves.toBeUndefined();
       });
     });
 
@@ -314,9 +310,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('inactive supplier → BadRequest with supplier code/name', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveSupplier(TEST_INACTIVE_SUPPLIER_ID),
-        ).rejects.toThrow(/inactive/);
+        await expect(service.assertActiveSupplier(TEST_INACTIVE_SUPPLIER_ID)).rejects.toThrow(
+          /inactive/,
+        );
       });
     });
 
@@ -330,9 +326,9 @@ describe('integration:m83-finance/validation', () => {
 
     it('non-existent supplier → BadRequest', async () => {
       await withTestTenant(async () => {
-        await expect(
-          service.assertActiveSupplier(generateId()),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.assertActiveSupplier(generateId())).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
       });
     });
   });

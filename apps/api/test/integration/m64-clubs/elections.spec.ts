@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { ElectionService } from '@modules/m64-clubs/elections/election.service';
@@ -89,10 +85,7 @@ describe('integration:m64-clubs/elections', () => {
    * across spec runs so the studentActor() persona always resolves to
    * the same sis_students row.
    */
-  async function linkStudentToPerson(
-    personId: string,
-    gradeLevel: string = '5',
-  ): Promise<string> {
+  async function linkStudentToPerson(personId: string, gradeLevel: string = '5'): Promise<string> {
     const platformStudentId = (await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id::text AS id FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
       personId,
@@ -218,7 +211,11 @@ describe('integration:m64-clubs/elections', () => {
       });
 
       const cast = await withTestTenant(async () =>
-        votes.cast(electionId, { position: 'President', candidateId: candId } as any, studentActor()),
+        votes.cast(
+          electionId,
+          { position: 'President', candidateId: candId } as any,
+          studentActor(),
+        ),
       );
       expect(cast.status).toBe('CAST');
       expect(typeof cast.votedAt).toBe('string');
@@ -250,7 +247,11 @@ describe('integration:m64-clubs/elections', () => {
         position: 'President',
       });
       await withTestTenant(async () =>
-        votes.cast(electionId, { position: 'President', candidateId: candId } as any, studentActor()),
+        votes.cast(
+          electionId,
+          { position: 'President', candidateId: candId } as any,
+          studentActor(),
+        ),
       );
       await expect(
         withTestTenant(async () =>
@@ -300,11 +301,7 @@ describe('integration:m64-clubs/elections', () => {
       const candId = await seedCandidate({ electionId, studentId: stuId, position: 'P' });
       await expect(
         withTestTenant(async () =>
-          votes.cast(
-            electionId,
-            { position: 'P', candidateId: candId } as any,
-            studentActor(),
-          ),
+          votes.cast(electionId, { position: 'P', candidateId: candId } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -325,11 +322,7 @@ describe('integration:m64-clubs/elections', () => {
       const candId = await seedCandidate({ electionId, studentId: stuId, position: 'P' });
       await expect(
         withTestTenant(async () =>
-          votes.cast(
-            electionId,
-            { position: 'P', candidateId: candId } as any,
-            studentActor(),
-          ),
+          votes.cast(electionId, { position: 'P', candidateId: candId } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -343,11 +336,7 @@ describe('integration:m64-clubs/elections', () => {
       const candId = await seedCandidate({ electionId, studentId: stuId, position: 'P' });
       await expect(
         withTestTenant(async () =>
-          votes.cast(
-            electionId,
-            { position: 'P', candidateId: candId } as any,
-            studentActor(),
-          ),
+          votes.cast(electionId, { position: 'P', candidateId: candId } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -403,11 +392,7 @@ describe('integration:m64-clubs/elections', () => {
       });
       await expect(
         withTestTenant(async () =>
-          votes.cast(
-            electionId,
-            { position: 'P', candidateId: candId } as any,
-            studentActor(),
-          ),
+          votes.cast(electionId, { position: 'P', candidateId: candId } as any, studentActor()),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -828,9 +813,7 @@ describe('integration:m64-clubs/elections', () => {
 
     it('missing → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          elections.getResults('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => elections.getResults('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 

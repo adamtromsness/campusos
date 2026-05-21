@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -307,10 +303,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
           drills.create(baseDrill({ procedureType: 'LOCKDOWN' }), adminActor()),
         );
         const b = await withTestTenant(async () =>
-          drills.create(
-            baseDrill({ procedureType: 'SHELTER_IN_PLACE' }),
-            adminActor(),
-          ),
+          drills.create(baseDrill({ procedureType: 'SHELTER_IN_PLACE' }), adminActor()),
         );
         await withTestTenant(async () =>
           drills.complete(
@@ -371,9 +364,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
       });
 
       it('cross-school isolation: School B drill not visible from School A list', async () => {
-        const a = await withTestTenantB(async () =>
-          drills.create(baseDrill(), adminActor()),
-        );
+        const a = await withTestTenantB(async () => drills.create(baseDrill(), adminActor()));
         const listA = await withTestTenant(async () => drills.list());
         expect(listA.find((d) => d.id === a.id)).toBeUndefined();
       });
@@ -430,9 +421,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
     it('list (default) returns active types only; includeInactive=true returns inactive too', async () => {
       const active = await withTestTenant(async () => types.create(baseType(), adminActor()));
       const inactive = await withTestTenant(async () => types.create(baseType(), adminActor()));
-      await withTestTenant(async () =>
-        types.patch(inactive.id, { isActive: false }, adminActor()),
-      );
+      await withTestTenant(async () => types.patch(inactive.id, { isActive: false }, adminActor()));
       const def = await withTestTenant(async () => types.list());
       expect(def.find((t) => t.id === active.id)).toBeDefined();
       expect(def.find((t) => t.id === inactive.id)).toBeUndefined();
@@ -441,9 +430,9 @@ describe('integration:m87-safety/drills-types-procedures', () => {
     });
 
     it('getById missing → NotFound', async () => {
-      await expect(
-        withTestTenant(async () => types.getById(generateId())),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(withTestTenant(async () => types.getById(generateId()))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     describe('patch', () => {
@@ -522,9 +511,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
   describe('ProcedureService', () => {
     function baseProc(overrides: Record<string, unknown> = {}) {
       const today = new Date().toISOString().slice(0, 10);
-      const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
+      const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       return {
         procedureType: 'FIRE_EVACUATION' as const,
         title: 'Fire Evacuation Plan v1',
@@ -543,9 +530,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
     }
 
     it('admin creates an emergency procedure', async () => {
-      const p = await withTestTenant(async () =>
-        procedures.create(baseProc(), adminActor()),
-      );
+      const p = await withTestTenant(async () => procedures.create(baseProc(), adminActor()));
       expect(p.procedureType).toBe('FIRE_EVACUATION');
       expect(p.isActive).toBe(true);
       expect(p.procedureSteps).toHaveLength(2);
@@ -587,9 +572,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
       const p = await withTestTenant(async () =>
         procedures.create(baseProc({ procedureType: 'SHELTER_IN_PLACE' }), adminActor()),
       );
-      await withTestTenant(async () =>
-        procedures.patch(p.id, { isActive: false }, adminActor()),
-      );
+      await withTestTenant(async () => procedures.patch(p.id, { isActive: false }, adminActor()));
       const def = await withTestTenant(async () => procedures.list());
       expect(def.find((x) => x.id === p.id)).toBeUndefined();
       const all = await withTestTenant(async () => procedures.list(true));
@@ -617,16 +600,12 @@ describe('integration:m87-safety/drills-types-procedures', () => {
     });
 
     it('loadActiveByTypeInternal returns row when active; null otherwise', async () => {
-      const got = await withTestTenant(async () =>
-        procedures.loadActiveByTypeInternal('HAZMAT'),
-      );
+      const got = await withTestTenant(async () => procedures.loadActiveByTypeInternal('HAZMAT'));
       expect(got).toBeNull();
       await withTestTenant(async () =>
         procedures.create(baseProc({ procedureType: 'HAZMAT' }), adminActor()),
       );
-      const found = await withTestTenant(async () =>
-        procedures.loadActiveByTypeInternal('HAZMAT'),
-      );
+      const found = await withTestTenant(async () => procedures.loadActiveByTypeInternal('HAZMAT'));
       expect(found).not.toBeNull();
     });
 
@@ -692,9 +671,7 @@ describe('integration:m87-safety/drills-types-procedures', () => {
 
       it('patch missing → NotFound', async () => {
         await expect(
-          withTestTenant(async () =>
-            procedures.patch(generateId(), { title: 'x' }, adminActor()),
-          ),
+          withTestTenant(async () => procedures.patch(generateId(), { title: 'x' }, adminActor())),
         ).rejects.toBeInstanceOf(NotFoundException);
       });
 
@@ -709,21 +686,15 @@ describe('integration:m87-safety/drills-types-procedures', () => {
         const a = await seed(); // MISSING_STUDENT, active
         // Create a second one (inactive)
         const today = new Date().toISOString().slice(0, 10);
-        const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         // Deactivate the first
-        await withTestTenant(async () =>
-          procedures.patch(a, { isActive: false }, adminActor()),
-        );
+        await withTestTenant(async () => procedures.patch(a, { isActive: false }, adminActor()));
         const b = await withTestTenant(async () =>
           procedures.create(baseProc({ procedureType: 'MISSING_STUDENT' }), adminActor()),
         );
         // Try to activate the first while the second is also active
         await expect(
-          withTestTenant(async () =>
-            procedures.patch(a, { isActive: true }, adminActor()),
-          ),
+          withTestTenant(async () => procedures.patch(a, { isActive: true }, adminActor())),
         ).rejects.toBeInstanceOf(BadRequestException);
         void b;
         void today;

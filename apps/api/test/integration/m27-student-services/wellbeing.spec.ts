@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import type { ResolvedActor } from '@modules/m00-platform';
@@ -14,11 +10,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -231,10 +223,7 @@ describe('integration:m27-student-services/wellbeing', () => {
     return id;
   }
 
-  async function seedCaseload(
-    studentId: string,
-    counselorEmployeeId: string,
-  ): Promise<string> {
+  async function seedCaseload(studentId: string, counselorEmployeeId: string): Promise<string> {
     const id = generateId();
     createdCaseloadIds.push(id);
     await rawClient.$executeRawUnsafe(
@@ -376,7 +365,9 @@ describe('integration:m27-student-services/wellbeing', () => {
       academicFreeText: string;
       academicScale110: string;
     },
-    overrides: Partial<Record<keyof typeof q, { numericResponse?: number; textResponse?: string }>> = {},
+    overrides: Partial<
+      Record<keyof typeof q, { numericResponse?: number; textResponse?: string }>
+    > = {},
   ) {
     return [
       {
@@ -504,7 +495,7 @@ describe('integration:m27-student-services/wellbeing', () => {
       const stored = await readAlertsForStudent(studentId);
       expect(stored).toHaveLength(2);
       expect(stored.every((a) => a.alert_type === 'WANTS_TO_TALK')).toBe(true);
-      expect((await readOutbox())).toHaveLength(2);
+      expect(await readOutbox()).toHaveLength(2);
     });
 
     it('cannot resubmit completed check-in → BadRequest; no new outbox emits, no new alerts', async () => {
@@ -565,9 +556,7 @@ describe('integration:m27-student-services/wellbeing', () => {
       const checkinId = await seedCheckin(studentId, tpl.templateId);
       const responses = fullValidResponses(tpl, { safetyYesNo: { numericResponse: 7 } });
       await expect(
-        withTestTenant(async () =>
-          checkins.submit(checkinId, { responses } as any, adminActor()),
-        ),
+        withTestTenant(async () => checkins.submit(checkinId, { responses } as any, adminActor())),
       ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/YES_NO/) });
     });
 
@@ -577,9 +566,7 @@ describe('integration:m27-student-services/wellbeing', () => {
       const checkinId = await seedCheckin(studentId, tpl.templateId);
       const responses = fullValidResponses(tpl, { safetyScale15: { numericResponse: 999 } });
       await expect(
-        withTestTenant(async () =>
-          checkins.submit(checkinId, { responses } as any, adminActor()),
-        ),
+        withTestTenant(async () => checkins.submit(checkinId, { responses } as any, adminActor())),
       ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/SCALE_1_5/) });
     });
 
@@ -591,9 +578,7 @@ describe('integration:m27-student-services/wellbeing', () => {
         academicFreeText: { numericResponse: 5, textResponse: undefined as any },
       });
       await expect(
-        withTestTenant(async () =>
-          checkins.submit(checkinId, { responses } as any, adminActor()),
-        ),
+        withTestTenant(async () => checkins.submit(checkinId, { responses } as any, adminActor())),
       ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/FREE_TEXT/) });
     });
 
@@ -603,13 +588,11 @@ describe('integration:m27-student-services/wellbeing', () => {
       const checkinId = await seedCheckin(studentId, tpl.templateId);
       const responses = fullValidResponses(tpl, { academicScale110: { numericResponse: 15 } });
       await expect(
-        withTestTenant(async () =>
-          checkins.submit(checkinId, { responses } as any, adminActor()),
-        ),
+        withTestTenant(async () => checkins.submit(checkinId, { responses } as any, adminActor())),
       ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/SCALE_1_10/) });
     });
 
-    it('STUDENT actor can submit their OWN check-in; cannot submit another student\'s', async () => {
+    it("STUDENT actor can submit their OWN check-in; cannot submit another student's", async () => {
       const myStudentId = await ensureStudentActorProjection();
       const other = await seedStudent('OtherStu');
       const tpl = await seedTemplate();
@@ -622,7 +605,11 @@ describe('integration:m27-student-services/wellbeing', () => {
       // other student's submission denied
       await expect(
         withTestTenant(async () =>
-          checkins.submit(otherCheckin, { responses: fullValidResponses(tpl) } as any, studentActor()),
+          checkins.submit(
+            otherCheckin,
+            { responses: fullValidResponses(tpl) } as any,
+            studentActor(),
+          ),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -728,7 +715,7 @@ describe('integration:m27-student-services/wellbeing', () => {
       expect((dto as any).responses).toHaveLength(5);
     });
 
-    it('STUDENT.getById on another student\'s check-in → NotFound (row scope)', async () => {
+    it("STUDENT.getById on another student's check-in → NotFound (row scope)", async () => {
       await ensureStudentActorProjection();
       const otherStu = await seedStudent('OtherForStu');
       const tpl = await seedTemplate();

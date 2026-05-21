@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -14,11 +10,7 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 import {
   adminActor,
   officerActor,
@@ -72,13 +64,7 @@ describe('integration:m23-health/health-records', () => {
     permCheck = new PermissionCheckService(rawClient);
     guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     accessLog = new HealthAccessLogService(tenantPrisma);
-    service = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    service = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
   });
 
   afterAll(async () => {
@@ -91,9 +77,7 @@ describe('integration:m23-health/health-records', () => {
   const createdStudentIds: string[] = [];
 
   beforeEach(async () => {
-    await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-    );
+    await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.hlth_student_health_records WHERE student_id IN (SELECT id FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'HR-TEST-%')`,
     );
@@ -217,9 +201,7 @@ describe('integration:m23-health/health-records', () => {
 
     it('create with empty allergies array → no outbox emit (length check)', async () => {
       const studentId = await seedStudent();
-      await withTestTenant(async () =>
-        service.create(studentId, { allergies: [] }, adminActor()),
-      );
+      await withTestTenant(async () => service.create(studentId, { allergies: [] }, adminActor()));
       expect(await readAllergyOutbox()).toHaveLength(0);
     });
 
@@ -257,11 +239,7 @@ describe('integration:m23-health/health-records', () => {
     it('create against missing student → NotFoundException', async () => {
       await expect(
         withTestTenant(async () =>
-          service.create(
-            '00000000-0000-0000-0000-000000000000',
-            {},
-            adminActor(),
-          ),
+          service.create('00000000-0000-0000-0000-000000000000', {}, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -316,9 +294,7 @@ describe('integration:m23-health/health-records', () => {
         `DELETE FROM platform.platform_outbox WHERE topic = 'hlth.allergy_alert.changed' AND tenant_id = $1::uuid`,
         TEST_SCHOOL_ID,
       );
-      await withTestTenant(async () =>
-        service.update(studentId, { allergies: [] }, adminActor()),
-      );
+      await withTestTenant(async () => service.update(studentId, { allergies: [] }, adminActor()));
       const emits = await readAllergyOutbox();
       expect(emits).toHaveLength(1);
       const envelope = JSON.parse(emits[0]!.envelope);
@@ -356,9 +332,7 @@ describe('integration:m23-health/health-records', () => {
 
     it('empty patch is a no-op (no outbox, no error)', async () => {
       const studentId = await seedRecord();
-      const result = await withTestTenant(async () =>
-        service.update(studentId, {}, adminActor()),
-      );
+      const result = await withTestTenant(async () => service.update(studentId, {}, adminActor()));
       expect(result.studentId).toBe(studentId);
       expect(await readAllergyOutbox()).toHaveLength(0);
     });
@@ -371,9 +345,7 @@ describe('integration:m23-health/health-records', () => {
     ])('update as %s → ForbiddenException', async (_label, actor) => {
       const studentId = await seedRecord();
       await expect(
-        withTestTenant(async () =>
-          service.update(studentId, { bloodType: 'A+' }, actor()),
-        ),
+        withTestTenant(async () => service.update(studentId, { bloodType: 'A+' }, actor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -448,20 +420,21 @@ describe('integration:m23-health/health-records', () => {
     it.each([
       ['student', studentActor],
       ['teacher (no class link)', teacherActor],
-    ])('getFullRecord as %s without class link → 404 (don\'t-leak-existence)', async (_label, actor) => {
-      const studentId = await seedRecordWithAllergies();
-      await expect(
-        withTestTenant(async () => service.getFullRecord(studentId, actor())),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
+    ])(
+      "getFullRecord as %s without class link → 404 (don't-leak-existence)",
+      async (_label, actor) => {
+        const studentId = await seedRecordWithAllergies();
+        await expect(
+          withTestTenant(async () => service.getFullRecord(studentId, actor())),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      },
+    );
 
     it('every successful read writes a VIEW_RECORD audit row (multiple reads → multiple rows)', async () => {
       const studentId = await seedRecordWithAllergies();
       // service.create returns getFullRecord which writes one VIEW_RECORD row.
       // Truncate so we count only the explicit reads below.
-      await rawClient.$executeRawUnsafe(
-        `TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`,
-      );
+      await rawClient.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.hlth_health_access_log`);
       await withTestTenant(async () => service.getFullRecord(studentId, adminActor()));
       await withTestTenant(async () => service.getFullRecord(studentId, adminActor()));
       await withTestTenant(async () => service.getFullRecord(studentId, adminActor()));

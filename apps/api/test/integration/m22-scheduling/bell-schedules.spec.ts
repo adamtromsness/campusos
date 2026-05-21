@@ -72,9 +72,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
     subjectChoiceService = new SubjectChoiceService(tenantPrisma, permissionCheck);
 
     // Wipe everything we own up-front.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -99,9 +97,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
 
   afterAll(async () => {
     // Cleanup choices first (FK to students), then windows, overrides, periods, schedules.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -146,9 +142,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
 
   beforeEach(async () => {
     // Per-test wipe — surgical, only our school's rows.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`,
-    );
+    await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sch_student_subject_choices`);
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sch_subject_choice_windows WHERE school_id IN ($1::uuid, $2::uuid)`,
       TEST_SCHOOL_ID,
@@ -302,9 +296,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
 
     it('getById unknown → NotFoundException', async () => {
       await expect(
-        withTestTenant(async () =>
-          bellService.getById('00000000-0000-0000-0000-000000000000'),
-        ),
+        withTestTenant(async () => bellService.getById('00000000-0000-0000-0000-000000000000')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -320,8 +312,22 @@ describe('integration:m22-scheduling/bell-schedules', () => {
           dto.id,
           {
             periods: [
-              { name: 'P1', dayOfWeek: 0, startTime: '08:00', endTime: '09:00', periodType: 'LESSON', sortOrder: 1 },
-              { name: 'P2', dayOfWeek: 0, startTime: '09:05', endTime: '10:05', periodType: 'LESSON', sortOrder: 2 },
+              {
+                name: 'P1',
+                dayOfWeek: 0,
+                startTime: '08:00',
+                endTime: '09:00',
+                periodType: 'LESSON',
+                sortOrder: 1,
+              },
+              {
+                name: 'P2',
+                dayOfWeek: 0,
+                startTime: '09:05',
+                endTime: '10:05',
+                periodType: 'LESSON',
+                sortOrder: 2,
+              },
             ],
           } as any,
           adminActor(),
@@ -354,9 +360,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
           bellService.upsertPeriods(
             dto.id,
             {
-              periods: [
-                { name: 'P1', startTime: '08:00', endTime: '09:00', periodType: 'LESSON' },
-              ],
+              periods: [{ name: 'P1', startTime: '08:00', endTime: '09:00', periodType: 'LESSON' }],
             } as any,
             teacherActor(),
           ),
@@ -374,9 +378,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
           bellService.upsertPeriods(
             dto.id,
             {
-              periods: [
-                { name: 'P1', startTime: '10:00', endTime: '09:00', periodType: 'LESSON' },
-              ],
+              periods: [{ name: 'P1', startTime: '10:00', endTime: '09:00', periodType: 'LESSON' }],
             } as any,
             adminActor(),
           ),
@@ -448,9 +450,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
       );
       expect(res.deleted).toBe(true);
       await expect(
-        withTestTenant(async () =>
-          dayOverrideService.deleteByDate('2027-02-02', adminActor()),
-        ),
+        withTestTenant(async () => dayOverrideService.deleteByDate('2027-02-02', adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -462,9 +462,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
         ),
       );
       await expect(
-        withTestTenant(async () =>
-          dayOverrideService.deleteByDate('2027-03-03', teacherActor()),
-        ),
+        withTestTenant(async () => dayOverrideService.deleteByDate('2027-03-03', teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -748,9 +746,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
       // and UNIQUE(platform_student_id) on sis_students mean we cannot
       // create a second projection — the prior test's row is durable across
       // this describe block.
-      const existingRows = await rawClient.$queryRawUnsafe<
-        Array<{ id: string }>
-      >(
+      const existingRows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT s.id::text AS id FROM ${TEST_SCHEMA}.sis_students s
            JOIN platform.platform_students ps ON ps.id = s.platform_student_id
          WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
@@ -898,9 +894,7 @@ describe('integration:m22-scheduling/bell-schedules', () => {
           adminActor(),
         ),
       );
-      const result = await withTestTenant(async () =>
-        subjectChoiceService.list(adminActor(), {}),
-      );
+      const result = await withTestTenant(async () => subjectChoiceService.list(adminActor(), {}));
       expect(result.length).toBeGreaterThanOrEqual(1);
     });
   });

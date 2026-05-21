@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -14,16 +11,8 @@ import { PermissionCheckService } from '@modules/m00-platform/iam/permission-che
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
 
-import {
-  withTestTenant,
-  TEST_SCHOOL_ID,
-  TEST_SCHEMA,
-} from '../helpers/tenant-context';
-import {
-  adminActor,
-  teacherActor,
-  TEST_ADMIN_EMPLOYEE_ID,
-} from '../helpers/actor';
+import { withTestTenant, TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
+import { adminActor, teacherActor, TEST_ADMIN_EMPLOYEE_ID } from '../helpers/actor';
 
 describe('integration:m23-health/iep-goals-services-progress', () => {
   let tenantPrisma: TenantPrismaService;
@@ -42,13 +31,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     const guardianAuthz = new GuardianAuthorizationService(tenantPrisma);
     outbox = new OutboxService();
     accessLog = new HealthAccessLogService(tenantPrisma);
-    records = new HealthRecordService(
-      tenantPrisma,
-      accessLog,
-      permCheck,
-      guardianAuthz,
-      outbox,
-    );
+    records = new HealthRecordService(tenantPrisma, accessLog, permCheck, guardianAuthz, outbox);
     service = new IepPlanService(tenantPrisma, accessLog, records, outbox);
   });
 
@@ -141,11 +124,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('admin updates a goal', async () => {
       const { planId } = await seedPlan();
       const g = await withTestTenant(async () =>
-        service.addGoal(
-          planId,
-          { goalText: 'baseline goal' },
-          adminActor(),
-        ),
+        service.addGoal(planId, { goalText: 'baseline goal' }, adminActor()),
       );
       const u = await withTestTenant(async () =>
         service.updateGoal(
@@ -171,17 +150,13 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
       const g = await withTestTenant(async () =>
         service.addGoal(planId, { goalText: 'g' }, adminActor()),
       );
-      const r = await withTestTenant(async () =>
-        service.updateGoal(g.id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => service.updateGoal(g.id, {}, adminActor()));
       expect(r.id).toBe(g.id);
     });
 
     it('addGoal missing plan → NotFound', async () => {
       await expect(
-        withTestTenant(async () =>
-          service.addGoal(generateId(), { goalText: 'x' }, adminActor()),
-        ),
+        withTestTenant(async () => service.addGoal(generateId(), { goalText: 'x' }, adminActor())),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -196,9 +171,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('non-nurse → Forbidden on addGoal/updateGoal', async () => {
       const { planId } = await seedPlan();
       await expect(
-        withTestTenant(async () =>
-          service.addGoal(planId, { goalText: 'x' }, teacherActor()),
-        ),
+        withTestTenant(async () => service.addGoal(planId, { goalText: 'x' }, teacherActor())),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -230,11 +203,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('addGoalProgress on missing goal → NotFound', async () => {
       await expect(
         withTestTenant(async () =>
-          service.addGoalProgress(
-            generateId(),
-            { progressValue: 'x' },
-            adminActor(),
-          ),
+          service.addGoalProgress(generateId(), { progressValue: 'x' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -252,9 +221,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
       const goalId = await seedGoal();
       const noEmp = { ...adminActor(), employeeId: null };
       await expect(
-        withTestTenant(async () =>
-          service.addGoalProgress(goalId, { progressValue: 'x' }, noEmp),
-        ),
+        withTestTenant(async () => service.addGoalProgress(goalId, { progressValue: 'x' }, noEmp)),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -284,11 +251,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('admin updates a service', async () => {
       const { planId } = await seedPlan();
       const s = await withTestTenant(async () =>
-        service.addService(
-          planId,
-          { serviceType: 'OT', deliveryMethod: 'PUSH_IN' },
-          adminActor(),
-        ),
+        service.addService(planId, { serviceType: 'OT', deliveryMethod: 'PUSH_IN' }, adminActor()),
       );
       const u = await withTestTenant(async () =>
         service.updateService(
@@ -310,15 +273,9 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('empty patch returns existing service', async () => {
       const { planId } = await seedPlan();
       const s = await withTestTenant(async () =>
-        service.addService(
-          planId,
-          { serviceType: 'OT', deliveryMethod: 'PULL_OUT' },
-          adminActor(),
-        ),
+        service.addService(planId, { serviceType: 'OT', deliveryMethod: 'PULL_OUT' }, adminActor()),
       );
-      const r = await withTestTenant(async () =>
-        service.updateService(s.id, {}, adminActor()),
-      );
+      const r = await withTestTenant(async () => service.updateService(s.id, {}, adminActor()));
       expect(r.id).toBe(s.id);
     });
 
@@ -337,11 +294,7 @@ describe('integration:m23-health/iep-goals-services-progress', () => {
     it('updateService missing → NotFound', async () => {
       await expect(
         withTestTenant(async () =>
-          service.updateService(
-            generateId(),
-            { serviceType: 'x' },
-            adminActor(),
-          ),
+          service.updateService(generateId(), { serviceType: 'x' }, adminActor()),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
