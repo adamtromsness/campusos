@@ -10,7 +10,7 @@ import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
-import { HealthAccessLogService } from '@modules/m23-health';
+import { HealthAccessLogService } from './health-access-log.service';
 import { TelehealthProviderService } from './telehealth-provider.service';
 import {
   CreateTelehealthSessionDto,

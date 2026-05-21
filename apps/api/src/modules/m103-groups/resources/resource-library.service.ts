@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
-import { GroupService } from '@modules/m103-groups';
+import { GroupService } from '../groups/group.service';
 import { assertGroupInCurrentSchool } from '../groups/access';
 import {
   CreateResourceDto,

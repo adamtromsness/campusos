@@ -5,7 +5,7 @@ import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
-import { NotificationQueueService } from '@modules/m40-communications';
+import { NotificationQueueService } from '../notifications/notification-queue.service';
 import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**

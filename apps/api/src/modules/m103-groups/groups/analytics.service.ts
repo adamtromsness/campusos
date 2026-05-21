@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
-import { GroupService } from '@modules/m103-groups';
+import { GroupService } from './group.service';
 import { assertGroupInCurrentSchool } from './access';
 import { GroupAnalyticsRowDto, RecomputeAnalyticsDto } from './dto/groups-advanced.dto';
 

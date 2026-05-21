@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform';
 import { IamModule } from '@modules/m00-platform';
 import { KafkaModule } from '@shared/kafka';
-import { NotificationsModule } from '@modules/m40-communications';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementController } from './announcement.controller';
 import { AudienceFanOutWorker } from './audience-fan-out.worker';

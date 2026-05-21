@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform';
 import { IamModule } from '@modules/m00-platform';
 import { KafkaModule } from '@shared/kafka';
-import { SisModule } from '@modules/m20-sis';
+import { SisModule } from '../students/sis.module';
 import { AttendanceService } from './attendance.service';
 import { AbsenceRequestService } from './absence-request.service';
 import { AttendanceController } from './attendance.controller';

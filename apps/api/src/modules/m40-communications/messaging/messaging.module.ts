@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform';
 import { IamModule } from '@modules/m00-platform';
 import { KafkaModule } from '@shared/kafka';
-import { NotificationsModule } from '@modules/m40-communications';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ThreadService } from './thread.service';
 import { MessageService } from './message.service';
 import { UnreadCountService } from './unread-count.service';
