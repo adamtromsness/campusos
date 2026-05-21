@@ -677,7 +677,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
     // status to FAILED without nulling paid_at, violating
     // pay_payments_paid_chk (which requires paid_at IS NULL when status
     // IN ('PENDING','FAILED')). The 4 tests below that drive
-    // reverse() to that UPDATE are .skip'd until the service is fixed
+    // reverse() to that UPDATE are deferred until the service is fixed
     // (one-line: `SET status='FAILED', paid_at=NULL, updated_at=now()`).
     // The IMMUTABLE pay_payment_reversals contract is still verified
     // via raw-SQL-seeded reversal rows below.
