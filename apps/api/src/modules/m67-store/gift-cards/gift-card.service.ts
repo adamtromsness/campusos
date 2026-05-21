@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import { randomInt } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
@@ -118,15 +118,15 @@ export class GiftCardService {
 
   /**
    * 16-character upper-case alphanumeric card code excluding the
-   * ambiguous characters I, O, 0, 1. Rejection set is small enough
-   * that rejection sampling has near-zero impact.
+   * ambiguous characters I, O, 0, 1. Uses crypto.randomInt for
+   * unbiased index selection (modulo-based bytes biased toward
+   * lower indices when 256 % charsetLength != 0).
    */
   private generateCardCode(): string {
     const allowed = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const buf = randomBytes(20);
     let out = '';
     for (let i = 0; i < 16; i++) {
-      out += allowed[buf[i]! % allowed.length];
+      out += allowed[randomInt(allowed.length)];
     }
     return out;
   }

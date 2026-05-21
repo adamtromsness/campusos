@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertValidEnvelope, EnvelopeValidationError } from './envelope-validator';
+import { assertValidEnvelope, EnvelopeValidationError } from '@shared/kafka/envelope-validator';
 
 const validEnvelope = {
   event_id: '019dff45-1234-7000-8000-000000000001',

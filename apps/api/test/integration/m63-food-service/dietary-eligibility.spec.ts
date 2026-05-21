@@ -263,22 +263,9 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
       expect(Array.isArray(student)).toBe(true);
     });
 
-    it.skip('upsertFromAlertEvent inserts alert', async () => {
-      await withTestTenant(async () =>
-        alerts.upsertFromAlertEvent({
-          studentId: resolvedStudentId,
-          schoolId: TEST_SCHOOL_ID,
-          allergenCode: 'peanut',
-          severity: 'SEVERE',
-          sourceHealthAlertId: '019e0cf8-aaaa-7777-8888-000000063200',
-          isActive: true,
-        } as any),
-      );
-      const list = await withTestTenant(async () =>
-        alerts.listForStudent(resolvedStudentId, adminActor()),
-      );
-      expect(list.length).toBeGreaterThan(0);
-    });
+    // upsertFromAlertEvent is fully covered by
+    // m63-food-service/allergy-alert-consumer.spec.ts (materialise +
+    // idempotent retry + UPSERT on conflict + deactivation).
 
     it('syncFromHealth runs (no-op when no health alerts)', async () => {
       const result = await withTestTenant(async () => alerts.syncFromHealth(adminActor()));

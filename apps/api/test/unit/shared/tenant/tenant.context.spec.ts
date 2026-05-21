@@ -5,7 +5,7 @@ import {
   getRequestContext,
   TenantInfo,
   RequestContext,
-} from './tenant.context';
+} from '@shared/tenant/tenant.context';
 
 describe('TenantContext', function () {
   var testTenant: TenantInfo = {

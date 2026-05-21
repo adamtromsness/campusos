@@ -997,17 +997,7 @@ describe('integration:m27-student-services/controllers', () => {
       expect(got.id).toBe(meeting.id);
     });
 
-    /**
-     * listDiscussions + recordDiscussion are blocked by a known
-     * svc_mtss_tiers.tier_level service-side SELECT bug — the
-     * column is `tier`, not `tier_level`. The existing
-     * types-mtss-agency-longitudinal.spec.ts has the same describe
-     * block marked `describe.skip(...)` for the same reason. The
-     * controller routes exist and dispatch to the service, so just
-     * exercise the route handler and accept the service-layer error
-     * as expected behaviour.
-     */
-    it('listDiscussions surfaces service-layer error (known tier_level bug)', async () => {
+    it('listDiscussions returns the recorded rows for a meeting', async () => {
       const meeting = await withTestTenant(() =>
         advancedCtrl.createMeeting(
           {
@@ -1017,12 +1007,13 @@ describe('integration:m27-student-services/controllers', () => {
           req(),
         ),
       );
-      await expect(
-        withTestTenant(() => advancedCtrl.listDiscussions(meeting.id, req())),
-      ).rejects.toThrow(/tier_level/);
+      const list = await withTestTenant(() =>
+        advancedCtrl.listDiscussions(meeting.id, req()),
+      );
+      expect(Array.isArray(list)).toBe(true);
     });
 
-    it('recordDiscussion surfaces service-layer error (known tier_level bug)', async () => {
+    it('recordDiscussion creates a discussion row with MAINTAIN recommendation', async () => {
       const meeting = await withTestTenant(() =>
         advancedCtrl.createMeeting(
           {
@@ -1033,19 +1024,19 @@ describe('integration:m27-student-services/controllers', () => {
         ),
       );
       const studentId = await seedStudent('AdvDisc');
-      await expect(
-        withTestTenant(() =>
-          advancedCtrl.recordDiscussion(
-            meeting.id,
-            {
-              studentId,
-              tierChangeRecommended: 'MAINTAIN',
-              discussionNotes: 'continue tier supports',
-            } as any,
-            req(),
-          ),
+      const d = await withTestTenant(() =>
+        advancedCtrl.recordDiscussion(
+          meeting.id,
+          {
+            studentId,
+            tierChangeRecommended: 'MAINTAIN',
+            discussionNotes: 'continue tier supports',
+          } as any,
+          req(),
         ),
-      ).rejects.toThrow(/tier_level/);
+      );
+      expect(d.studentId).toBe(studentId);
+      expect(d.tierChangeRecommended).toBe('MAINTAIN');
     });
   });
 

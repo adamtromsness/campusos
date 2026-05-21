@@ -40,6 +40,8 @@ interface OptionRow {
   vote_count: number;
 }
 
+const MAX_POLL_OPTIONS = 50;
+
 /**
  * PollService — P2-28a Step 2 (REVIEW-P2C28 Round 1 BLOCKING 1 + 2
  * fixes applied).
@@ -136,8 +138,10 @@ export class PollService {
     if (input.options.length < 2) {
       throw new BadRequestException('A poll must have at least 2 options');
     }
-    if (input.options.length > 50) {
-      throw new BadRequestException('A poll cannot have more than 50 options');
+    if (input.options.length > MAX_POLL_OPTIONS) {
+      throw new BadRequestException(
+        `A poll cannot have more than ${MAX_POLL_OPTIONS} options`,
+      );
     }
     if (input.closesAt && new Date(input.closesAt).getTime() <= Date.now()) {
       throw new BadRequestException('closesAt must be in the future');
@@ -156,7 +160,8 @@ export class PollService {
         input.closesAt ?? null,
         actor.accountId,
       );
-      for (let i = 0; i < input.options.length; i++) {
+      const safeOptionCount = Math.min(input.options.length, MAX_POLL_OPTIONS);
+      for (let i = 0; i < safeOptionCount; i++) {
         await tx.$executeRawUnsafe(
           'INSERT INTO grp_poll_options (id, poll_id, option_text, sort_order, vote_count) ' +
             'VALUES ($1::uuid, $2::uuid, $3, $4, 0)',
@@ -218,8 +223,10 @@ export class PollService {
    * prevention via the new grp_poll_voter_checks PK.
    */
   async vote(pollId: string, input: VotePollDto, actor: ResolvedActor): Promise<PollResponseDto> {
-    if (input.optionIds.length > 50) {
-      throw new BadRequestException('Cannot submit more than 50 options in one ballot');
+    if (input.optionIds.length > MAX_POLL_OPTIONS) {
+      throw new BadRequestException(
+        `Cannot submit more than ${MAX_POLL_OPTIONS} options in one ballot`,
+      );
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const pollRows = (await tx.$queryRawUnsafe(
@@ -286,7 +293,8 @@ export class PollService {
       }
 
       // Atomic INSERT votes + INCREMENT vote_count
-      for (let i = 0; i < input.optionIds.length; i++) {
+      const safeBallotCount = Math.min(input.optionIds.length, MAX_POLL_OPTIONS);
+      for (let i = 0; i < safeBallotCount; i++) {
         const optionId = input.optionIds[i]!;
         const voteId = generateId();
         const rank = poll.poll_type === 'RANKED' ? i + 1 : null;

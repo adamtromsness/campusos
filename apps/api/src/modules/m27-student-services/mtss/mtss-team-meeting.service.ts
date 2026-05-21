@@ -59,7 +59,7 @@ const SELECT_DISCUSSION =
   '  JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
   '  WHERE s.id = d.student_id) AS student_name, ' +
   'd.tier_id::text AS tier_id, ' +
-  '(SELECT t.tier_level FROM svc_mtss_tiers t WHERE t.id = d.tier_id) AS tier_label, ' +
+  '(SELECT t.tier FROM svc_mtss_tiers t WHERE t.id = d.tier_id) AS tier_label, ' +
   'd.outcome, d.outcome_notes, d.created_at ' +
   'FROM svc_mtss_team_meeting_students d ';
 
@@ -204,8 +204,13 @@ export class MtssTeamMeetingService {
         );
       });
     } catch (err) {
-      const e = err as { code?: string; message?: string };
-      if (e?.code === '23505' || /unique constraint/i.test(e?.message ?? '')) {
+      const e = err as { code?: string; meta?: { code?: string }; message?: string };
+      const code = e?.code === 'P2010' ? e.meta?.code : e?.code;
+      if (
+        code === '23505' ||
+        /unique constraint/i.test(e?.message ?? '') ||
+        e?.message?.includes('23505')
+      ) {
         throw new BadRequestException(
           'Student already on this team meeting agenda. PATCH the existing row instead.',
         );

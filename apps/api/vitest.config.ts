@@ -4,8 +4,14 @@ import path from 'path';
 export default defineConfig({
   test: {
     globals: true,
-    root: './src',
+    root: '.',
     environment: 'node',
+    // Spec files live under test/unit/ (test strategy keeps src/ free of
+    // *.spec.ts files). Integration specs live under test/integration/
+    // and run via vitest.integration.config.ts — exclude here to avoid
+    // double-discovery.
+    include: ['test/unit/**/*.spec.ts'],
+    exclude: ['test/integration/**', 'node_modules', 'dist'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

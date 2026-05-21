@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CircuitBreaker, CircuitBreakerOpenError } from './circuit-breaker';
+import { CircuitBreaker, CircuitBreakerOpenError } from '@shared/observability/circuit-breaker';
 
 describe('CircuitBreaker', () => {
   it('starts CLOSED', () => {

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant, TenantPrismaService } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { ProgrammeService } from './programme.service';
 import {
@@ -136,10 +136,21 @@ export class RosterService {
   ) {}
 
   async listForSeason(seasonId: string): Promise<RosterResponseDto[]> {
+    // Cross-school isolation: ath_rosters has no school_id of its own;
+    // the school predicate lives on the great-grandparent ath_programmes.
+    // JOIN through ath_seasons → ath_programmes and filter on the
+    // current tenant's school. Without this, a caller in School A who
+    // somehow learned a School B seasonId would see School B rosters.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<RosterRow[]>(
-        SELECT_ROSTER + 'WHERE r.season_id = $1::uuid ORDER BY r.level ASC',
+        SELECT_ROSTER +
+          'JOIN ath_seasons s ON s.id = r.season_id ' +
+          'JOIN ath_programmes p ON p.id = s.programme_id ' +
+          'WHERE r.season_id = $1::uuid AND p.school_id = $2::uuid ' +
+          'ORDER BY r.level ASC',
         seasonId,
+        tenant.schoolId,
       );
     });
     return rows.map(rosterToDto);

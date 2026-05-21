@@ -27,7 +27,7 @@ import { join } from 'path';
  * and is fast enough to run every commit.
  */
 
-const SERVICE_ROOT = join(__dirname, '..', '..');
+const SERVICE_ROOT = join(__dirname, '..', '..', '..', '..', 'src');
 
 /**
  * Walk service-layer source files and collect those whose file path

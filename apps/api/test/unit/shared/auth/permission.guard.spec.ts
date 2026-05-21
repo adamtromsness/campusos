@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { ForbiddenException } from '@nestjs/common';
-import { PermissionGuard } from './permission.guard';
-import { PERMISSIONS_KEY } from './require-permission.decorator';
-import { PLATFORM_SCOPED_KEY } from './platform-scoped.decorator';
+import { PermissionGuard } from '@shared/auth/permission.guard';
+import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PLATFORM_SCOPED_KEY } from '@shared/auth/platform-scoped.decorator';
 import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**

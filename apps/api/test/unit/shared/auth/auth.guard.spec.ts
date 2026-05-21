@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { UnauthorizedException } from '@nestjs/common';
-import { AuthGuard, IS_PUBLIC_KEY } from './auth.guard';
+import { AuthGuard, IS_PUBLIC_KEY } from '@shared/auth/auth.guard';
 import { runWithTenantContext, getRequestContext, TenantInfo } from '@shared/tenant';
 
 /**

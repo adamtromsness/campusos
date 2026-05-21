@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { KafkaProducerService } from './kafka-producer.service';
+import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 /**
  * REVIEW-FINAL Q1 regression test — emitRaw forwards tenant-subdomain

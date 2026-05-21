@@ -26,7 +26,7 @@ import { join } from 'path';
  * Step 3. Phase 3 ops wires a per-CI tenant + the live trigger test.
  */
 
-const REPO_ROOT = join(__dirname, '..', '..', '..', '..', '..');
+const REPO_ROOT = join(__dirname, '..', '..', '..', '..', '..', '..');
 const TENANT_MIGRATION = join(
   REPO_ROOT,
   'packages',

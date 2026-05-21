@@ -800,14 +800,18 @@ describe('integration:m66-athletics/seasons', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('School A admin can list School B rosters (no school scope on listForSeason — relies on season visibility)', async () => {
-      // The list query has no school scope; if the seasonId is School B's
-      // season, the call returns those rosters. Service relies on the caller
-      // having gotten the seasonId through a school-scoped path.
-      const bRosters = await withTestTenantB(() =>
+    it('School A admin cannot list School B rosters (listForSeason filters via ath_programmes.school_id)', async () => {
+      // Cross-school isolation regression — even when given a known
+      // School B seasonId, a School A caller must see an empty roster
+      // list because RosterService.listForSeason JOINs through
+      // ath_seasons → ath_programmes and predicates on the calling
+      // tenant's school_id. Pairs with "School A admin cannot get
+      // School B season" above.
+      const list = await withTestTenant(() =>
         rosters.listForSeason(TEST_ATH_SEASON_B_ID),
       );
-      expect(bRosters.map((r) => r.id)).toContain(TEST_ATH_ROSTER_B_ID);
+      expect(list.map((r) => r.id)).not.toContain(TEST_ATH_ROSTER_B_ID);
+      expect(list.length).toBe(0);
     });
   });
 

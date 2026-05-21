@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { OutboxService } from './outbox.service';
+import { OutboxService } from '@shared/kafka/outbox.service';
 import { runWithTenantContext } from '@shared/tenant';
 
 const TEST_TENANT = {

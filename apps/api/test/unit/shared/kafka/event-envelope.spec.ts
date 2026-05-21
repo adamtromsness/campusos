@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { envelopeFromOptions, prefixedTopic, unprefixTopic } from './event-envelope';
+import { envelopeFromOptions, prefixedTopic, unprefixTopic } from '@shared/kafka/event-envelope';
 
 describe('event-envelope helpers', () => {
   describe('prefixedTopic / unprefixTopic', () => {

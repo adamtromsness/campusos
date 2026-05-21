@@ -33,7 +33,7 @@ import { join } from 'path';
  *   7. Journal batch balance (PostingService.post inside one tx)
  */
 
-const API_SRC = join(__dirname, '..', '..');
+const API_SRC = join(__dirname, '..', '..', '..', '..', 'src');
 
 interface AtomicCheck {
   name: string;

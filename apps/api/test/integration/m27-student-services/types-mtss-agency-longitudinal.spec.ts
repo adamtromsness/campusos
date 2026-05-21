@@ -338,7 +338,7 @@ describe('integration:m27-student-services/types-mtss-agency-longitudinal', () =
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    describe.skip('recordDiscussion (blocked by svc_mtss_tiers.tier_level service-side SELECT bug)', () => {
+    describe('recordDiscussion', () => {
       async function seedMeeting(): Promise<string> {
         const m = await withTestTenant(async () => teamMeetings.create(baseInput(), adminActor()));
         return m.id;

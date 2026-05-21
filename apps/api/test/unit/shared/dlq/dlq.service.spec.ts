@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
-import { DlqService } from './dlq.service';
+import { DlqService } from '@shared/dlq/dlq.service';
 import { KafkaProducerNotConnectedError } from '@shared/kafka';
 
 /**
