@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode } from 'react';
-import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
+import { hasAnyPermission, type AuthUser, type PersonaType } from '@/lib/auth-store';
 import {
   AcademicCapIcon,
   AttendanceIcon,
@@ -112,19 +112,48 @@ export interface AppDef {
    * `/schedule/rooms`, and so on.
    */
   routePrefix?: string;
+  /**
+   * Persona-type allowlist. When set, the tile only renders if the
+   * active persona's type is in the list. When omitted the tile is
+   * visible to every persona that holds the underlying permission —
+   * the right default for admin / platform / universal surfaces (e.g.
+   * Configuration, Platform, Compliance, Finance, Governance).
+   *
+   * Use this for surfaces that are inherently persona-specific even
+   * when the permission codes are held by multiple personas, e.g.
+   * Apply (parents), Substitutes (the SUBSTITUTE persona), Wellbeing
+   * (students). The historical isStaff/isStudent/isParent conditionals
+   * inside this function continue to label tiles per persona; the
+   * `personas` array drops them entirely when the active persona is
+   * the wrong one.
+   */
+  personas?: PersonaType[];
 }
 
 /**
  * Persona-aware app catalogue. The home launchpad and the sidebar both
  * render from this list, so adding a new app or changing its label only
  * needs to happen here.
+ *
+ * When the caller has no active persona (the "Getting Started" state
+ * for a brand-new account with zero personas), the catalogue is empty
+ * — the launchpad and sidebar both render their empty states, and the
+ * user is routed to /getting-started by the AppLayout shell.
+ *
+ * After the per-permission IF guards push every candidate tile, we
+ * filter again by `AppDef.personas` so persona-exclusive tiles (Apply,
+ * Substitutes, Wellbeing) only surface for the right active persona
+ * even when the underlying permission codes are held by multiple
+ * personas.
  */
 export function getAppsForUser(user: AuthUser): AppDef[] {
+  if (!user.activePersona) return [];
+
   const apps: AppDef[] = [];
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user.activePersona?.type === 'STAFF';
-  const isStudent = user.activePersona?.type === 'STUDENT';
-  const isParent = user.activePersona?.type === 'PARENT';
+  const isStaff = user.activePersona.type === 'STAFF';
+  const isStudent = user.activePersona.type === 'STUDENT';
+  const isParent = user.activePersona.type === 'PARENT';
 
   if (isAdmin || isStaff) {
     apps.push({
@@ -251,6 +280,10 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: isAdminView ? '/substitutes/coverage' : '/substitutes/dashboard',
       routePrefix: '/substitutes',
       icon: SubstitutesIcon,
+      // STAFF gets the admin coverage view; SUBSTITUTE gets the
+      // self-service dashboard. Hide from PARENT / STUDENT / ALUMNI /
+      // COMMUNITY even when they incidentally hold a read code.
+      personas: ['STAFF', 'SUBSTITUTE'],
     });
   }
 
@@ -271,6 +304,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/apply',
       routePrefix: '/apply',
       icon: AcademicCapIcon,
+      personas: ['PARENT'],
     });
   }
 
@@ -403,6 +437,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/wellbeing',
       routePrefix: '/wellbeing',
       icon: HeartIcon,
+      personas: ['STUDENT'],
     });
   }
 
@@ -959,5 +994,6 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     });
   }
 
-  return apps;
+  const activeType = user.activePersona.type;
+  return apps.filter((app) => app.personas === undefined || app.personas.includes(activeType));
 }

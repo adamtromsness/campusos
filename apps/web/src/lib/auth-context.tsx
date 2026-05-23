@@ -2,7 +2,13 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { apiFetch, attemptSilentLogin, setAccessToken, setOnUnauthenticated } from './api-client';
+import {
+  ApiError,
+  apiFetch,
+  attemptSilentLogin,
+  setAccessToken,
+  setOnUnauthenticated,
+} from './api-client';
 import { useAuthStore, type ActivePersona, type AuthUser, type UserPersona } from './auth-store';
 
 interface MeResponse {
@@ -27,6 +33,40 @@ function meToAuthUser(me: MeResponse): AuthUser {
     personas: me.personas,
     permissions: me.permissions,
   };
+}
+
+/**
+ * /auth/me with the persisted persona selection. The backend returns
+ * 404 when X-Active-Persona points at a persona the caller no longer
+ * owns (e.g. removed since last session); on that signal we drop the
+ * stale localStorage entry and retry without the header so the user
+ * still loads — bound to the default sorted persona.
+ */
+async function fetchMe(): Promise<MeResponse> {
+  let storedPersonaId: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      storedPersonaId = window.localStorage.getItem('activePersonaId');
+    } catch {
+      storedPersonaId = null;
+    }
+  }
+  const init: RequestInit = storedPersonaId
+    ? { headers: { 'X-Active-Persona': storedPersonaId } }
+    : {};
+  try {
+    return await apiFetch<MeResponse>('/api/v1/auth/me', init);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404 && storedPersonaId) {
+      try {
+        window.localStorage.removeItem('activePersonaId');
+      } catch {
+        // ignore
+      }
+      return apiFetch<MeResponse>('/api/v1/auth/me');
+    }
+    throw e;
+  }
 }
 
 interface AuthContextValue {
@@ -66,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setAccessToken(token);
       try {
-        const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+        const me = await fetchMe();
         setAuth(token, meToAuthUser(me));
       } catch {
         setUnauthenticated();
@@ -80,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email }),
     });
     setAccessToken(res.accessToken);
-    const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+    const me = await fetchMe();
     setAuth(res.accessToken, meToAuthUser(me));
     router.replace('/dashboard');
   };
@@ -92,12 +132,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // best-effort — clear local state regardless
     }
     setAccessToken(null);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem('activePersonaId');
+      } catch {
+        // ignore
+      }
+    }
     setUnauthenticated();
     router.replace('/login');
   };
 
   const refreshUser = async () => {
-    const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+    const me = await fetchMe();
     setUser(meToAuthUser(me));
   };
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { PersonaSwitcher } from './PersonaSwitcher';
 import { useAuthActions } from '@/lib/auth-context';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import { LogoutIcon, MenuIcon } from './icons';
@@ -30,7 +31,8 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
         </button>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <PersonaSwitcher />
         {hasAnyPermission(user, ['com-001:read', 'com-002:read']) && (
           <NotificationBell user={user} />
         )}
