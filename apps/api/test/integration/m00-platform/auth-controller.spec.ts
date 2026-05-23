@@ -5,6 +5,9 @@ import { generateId } from '@campusos/database';
 
 import { AuthController } from '@modules/m00-platform/auth/auth.controller';
 import { AuthService } from '@modules/m00-platform/auth/auth.service';
+import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 
@@ -21,6 +24,9 @@ import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
  */
 describe('integration:m00-platform/auth-controller', () => {
   let prisma: PrismaClient;
+  let tenantPrisma: TenantPrismaService;
+  let personaResolution: PersonaResolutionService;
+  let permissionCheck: PermissionCheckService;
   let authService: AuthService;
   let controller: AuthController;
 
@@ -74,8 +80,11 @@ describe('integration:m00-platform/auth-controller', () => {
   beforeAll(async () => {
     prisma = new PrismaClient();
     await prisma.$connect();
-    authService = new AuthService(prisma);
-    controller = new AuthController(authService, prisma);
+    tenantPrisma = new TenantPrismaService();
+    personaResolution = new PersonaResolutionService(prisma, tenantPrisma);
+    permissionCheck = new PermissionCheckService(prisma);
+    authService = new AuthService(prisma, personaResolution, permissionCheck);
+    controller = new AuthController(authService);
 
     // Seed a stable test user for authenticateByEmail / refresh /
     // dev-login. Reuse the admin person row that already exists in
@@ -341,27 +350,34 @@ describe('integration:m00-platform/auth-controller', () => {
   // ─── /auth/me ─────────────────────────────────────────────
 
   describe('me', () => {
-    it('returns identity + persona + sorted permission codes', async () => {
-      // Seed a couple of cache rows so the union returns multiple codes.
+    it('returns identity + personas + activePersona-scoped permissions', async () => {
+      // Seed a STAFF persona at TEST_SCHOOL_ID and a cache row at that
+      // school's scope so the user has scoped permissions.
+      const personaId = generateId();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_personas
+           (id, person_id, type, school_id, label, is_active, created_at)
+         VALUES ($1::uuid, $2::uuid, 'STAFF', '019e0cf8-aaaa-7777-8888-000000000002'::uuid, 'Staff at Test School', true, now())
+         ON CONFLICT (person_id, type, COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid))
+         DO UPDATE SET label = EXCLUDED.label, is_active = true`,
+        personaId,
+        testPersonId,
+      );
       const ce1 = generateId();
-      const ce2 = generateId();
       await prisma.$executeRawUnsafe(
         `INSERT INTO platform.iam_effective_access_cache
            (id, account_id, scope_id, permission_codes, computed_at, assignment_version_hash)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::text[], now(), 'me-test-A'),
-                ($5::uuid, $2::uuid, $6::uuid, $7::text[], now(), 'me-test-B')
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::text[], now(), 'me-test-A')
          ON CONFLICT (account_id, scope_id) DO UPDATE
            SET permission_codes = EXCLUDED.permission_codes`,
         ce1,
         testUserId,
         '019e0cf8-aaaa-7777-8888-00000000000d', // TEST_SCHOOL_SCOPE_ID
         ['z-perm:read', 'a-perm:read'],
-        ce2,
-        '019e0cf8-aaaa-7777-8888-00000000000e', // TEST_SCHOOL_B_SCOPE_ID
-        ['m-perm:read', 'a-perm:read'], // duplicate a-perm to verify dedupe
       );
       try {
         const req: any = {
+          headers: {},
           user: {
             sub: testUserId,
             personId: testPersonId,
@@ -371,29 +387,37 @@ describe('integration:m00-platform/auth-controller', () => {
           },
         };
         const result = await controller.me(req);
-        expect(result.id).toBe(testUserId);
-        expect(result.personId).toBe(testPersonId);
-        expect(result.email).toBe(testUserEmail);
+        expect(result.user.id).toBe(testUserId);
+        expect(result.user.personId).toBe(testPersonId);
+        expect(result.user.email).toBe(testUserEmail);
+        expect(result.activePersona).toBeTruthy();
+        expect(result.activePersona!.type).toBe('STAFF');
+        expect(result.personas.length).toBeGreaterThanOrEqual(1);
         // permissions should be deduped + sorted alphabetically.
         expect(result.permissions).toContain('a-perm:read');
-        expect(result.permissions).toContain('m-perm:read');
         expect(result.permissions).toContain('z-perm:read');
         const aIdx = result.permissions.indexOf('a-perm:read');
-        const mIdx = result.permissions.indexOf('m-perm:read');
-        expect(aIdx).toBeLessThan(mIdx);
-        expect(result.personType).toBeTruthy();
+        const zIdx = result.permissions.indexOf('z-perm:read');
+        expect(aIdx).toBeLessThan(zIdx);
+        // personType is removed from the response — make sure callers
+        // can't accidentally rely on it.
+        expect((result as any).personType).toBeUndefined();
       } finally {
         await prisma.$executeRawUnsafe(
-          `DELETE FROM platform.iam_effective_access_cache WHERE id IN ($1::uuid, $2::uuid)`,
+          `DELETE FROM platform.iam_effective_access_cache WHERE id = $1::uuid`,
           ce1,
-          ce2,
+        );
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM platform.platform_personas WHERE id = $1::uuid`,
+          personaId,
         );
       }
     });
 
-    it('person not found → null personType + null name fields', async () => {
+    it('person not found → null name fields, activePersona null, empty permissions', async () => {
       const ghostPersonId = generateId();
       const req: any = {
+        headers: {},
         user: {
           sub: testUserId,
           personId: ghostPersonId,
@@ -403,9 +427,11 @@ describe('integration:m00-platform/auth-controller', () => {
         },
       };
       const result = await controller.me(req);
-      expect(result.personType).toBeNull();
-      expect(result.firstName).toBeNull();
-      expect(result.lastName).toBeNull();
+      expect(result.user.firstName).toBeNull();
+      expect(result.user.lastName).toBeNull();
+      expect(result.activePersona).toBeNull();
+      expect(result.personas).toEqual([]);
+      expect(result.permissions).toEqual([]);
     });
   });
 });

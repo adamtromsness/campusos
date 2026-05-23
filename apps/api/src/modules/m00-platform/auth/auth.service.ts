@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { sign, verify } from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
+import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 
 /**
  * AuthService — Token Management
@@ -25,11 +27,41 @@ export interface JwtPayload {
   exp?: number;
 }
 
+export interface MeResponse {
+  user: {
+    id: string;
+    personId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    preferredName: string | null;
+    displayName: string;
+  };
+  activePersona: {
+    id: string;
+    type: string;
+    label: string;
+    schoolId: string | null;
+    schoolName: string | null;
+  } | null;
+  personas: Array<{
+    id: string;
+    type: string;
+    label: string;
+    schoolId: string | null;
+  }>;
+  permissions: string[];
+}
+
 @Injectable()
 export class AuthService {
   private jwtSecret: string;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly personaResolution: PersonaResolutionService,
+    private readonly permissionCheck: PermissionCheckService,
+  ) {
     this.jwtSecret = process.env.JWT_SECRET || 'dev-secret-change-in-production-min-32-chars!!';
   }
 
@@ -150,5 +182,129 @@ export class AuthService {
     };
 
     return { accessToken: this.generateAccessToken(payload) };
+  }
+
+  /**
+   * /auth/me response composer — identity, personas, active persona,
+   * and a permission set scoped to the active persona.
+   *
+   * Active persona selection:
+   *   1. If `activePersonaId` is provided (from the X-Active-Persona
+   *      header) and that persona belongs to the caller AND is active,
+   *      use it.
+   *   2. Otherwise fall back to the first persona returned by
+   *      PersonaResolutionService.getActivePersonas (sorted by type, label).
+   *   3. If the caller has no personas, activePersona is null and
+   *      permissions are empty (the "Getting Started" state).
+   *
+   * Permission filtering: the response surfaces only the permissions held
+   * within the active persona's scope chain (SCHOOL → PLATFORM). A
+   * Platform Admin still receives every permission because the
+   * PLATFORM-scope cache row carries them all.
+   *
+   * personType is intentionally absent from the response. activePersona.type
+   * is the canonical replacement — same vocabulary the persona switcher
+   * uses.
+   */
+  async getMe(jwt: JwtPayload, activePersonaId?: string): Promise<MeResponse> {
+    const person = await this.prisma.iamPerson.findUnique({
+      where: { id: jwt.personId },
+      select: { firstName: true, lastName: true, preferredName: true },
+    });
+
+    const personas = await this.personaResolution.getActivePersonas(jwt.personId);
+
+    let active: { id: string; type: string; label: string; schoolId: string | null } | null = null;
+    if (activePersonaId) {
+      const requested = personas.find((p) => p.id === activePersonaId);
+      if (!requested) {
+        throw new HttpException(
+          'Active persona not found or not owned by user',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      active = requested;
+    } else if (personas.length > 0) {
+      active = personas[0]!;
+    }
+
+    let schoolName: string | null = null;
+    if (active && active.schoolId) {
+      const sch = await this.prisma.school.findUnique({
+        where: { id: active.schoolId },
+        select: { name: true },
+      });
+      schoolName = sch?.name ?? null;
+    }
+
+    // Permissions: union of cache codes across the active persona's
+    // scope chain. With no active persona the user has nothing to do
+    // yet — empty array, frontend routes to /getting-started.
+    let permissions: string[] = [];
+    if (active) {
+      const scopeIds: string[] = [];
+      if (active.schoolId) {
+        const chain = await this.permissionCheck.resolveScopeChain(active.schoolId);
+        scopeIds.push(...chain);
+      } else {
+        const platformScope = await this.permissionCheck.resolvePlatformScope();
+        if (platformScope) scopeIds.push(platformScope);
+      }
+      const cacheRows = await this.prisma.iamEffectiveAccessCache.findMany({
+        where: { accountId: jwt.sub, scopeId: { in: scopeIds } },
+        select: { permissionCodes: true },
+      });
+      const seen = new Set<string>();
+      for (const row of cacheRows) {
+        for (const code of row.permissionCodes) seen.add(code);
+      }
+      permissions = Array.from(seen).sort();
+    }
+
+    return {
+      user: {
+        id: jwt.sub,
+        personId: jwt.personId,
+        email: jwt.email,
+        firstName: person?.firstName ?? null,
+        lastName: person?.lastName ?? null,
+        preferredName: person?.preferredName ?? null,
+        displayName: jwt.displayName,
+      },
+      activePersona: active
+        ? {
+            id: active.id,
+            type: active.type,
+            label: active.label,
+            schoolId: active.schoolId,
+            schoolName,
+          }
+        : null,
+      personas: personas.map((p) => ({
+        id: p.id,
+        type: p.type,
+        label: p.label,
+        schoolId: p.schoolId,
+      })),
+      permissions,
+    };
+  }
+
+  /**
+   * Switch the active persona. Validates ownership + active state, then
+   * delegates to getMe to compose the full response with new permissions.
+   */
+  async switchPersona(jwt: JwtPayload, personaId: string): Promise<MeResponse> {
+    if (!personaId) {
+      throw new HttpException('personaId is required', HttpStatus.BAD_REQUEST);
+    }
+    const row = await this.prisma.platformPersona.findUnique({
+      where: { id: personaId },
+      select: { personId: true, isActive: true },
+    });
+    if (!row || row.personId !== jwt.personId || !row.isActive) {
+      throw new HttpException('Persona not found', HttpStatus.NOT_FOUND);
+    }
+    return this.getMe(jwt, personaId);
   }
 }

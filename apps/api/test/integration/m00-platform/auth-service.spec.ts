@@ -3,9 +3,13 @@ import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { AuthService } from '@modules/m00-platform/auth/auth.service';
+import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 describe('integration:m00-platform/auth-service', () => {
   let prisma: PrismaClient;
+  let tenantPrisma: TenantPrismaService;
   let auth: AuthService;
   let testPersonId: string;
   let testUserId: string;
@@ -13,7 +17,12 @@ describe('integration:m00-platform/auth-service', () => {
   beforeAll(async () => {
     prisma = new PrismaClient();
     await prisma.$connect();
-    auth = new AuthService(prisma);
+    tenantPrisma = new TenantPrismaService();
+    auth = new AuthService(
+      prisma,
+      new PersonaResolutionService(prisma, tenantPrisma),
+      new PermissionCheckService(prisma),
+    );
     testPersonId = generateId();
     testUserId = generateId();
     // Seed a stable test user for the authenticateByEmail / refresh paths.
@@ -48,6 +57,7 @@ describe('integration:m00-platform/auth-service', () => {
       `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
       testPersonId,
     );
+    await tenantPrisma.onModuleDestroy();
     await prisma.$disconnect();
   });
 

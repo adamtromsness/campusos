@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Body, Res, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response, Request } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { Public } from '@shared/auth';
 
@@ -18,10 +17,7 @@ import { Public } from '@shared/auth';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   /**
    * Redirect to Keycloak for OIDC authentication.
@@ -200,46 +196,36 @@ export class AuthController {
   }
 
   /**
-   * Get current authenticated user — identity, persona, and permission codes.
+   * Get current authenticated user — identity, personas, active persona,
+   * and the permission codes scoped to the active persona.
    *
-   * personType drives persona-aware UI (teacher dashboard vs parent dashboard).
-   * permissions is the union of permission codes across the user's scope cache
-   * rows; the web client uses it for menu gating only — the backend guards
-   * remain the authoritative access check on every protected request.
+   * Active persona selection: the X-Active-Persona header (persona id)
+   * picks the persona; otherwise the first sorted persona is used. With
+   * zero personas, activePersona is null and the web client routes to
+   * /getting-started.
+   *
+   * The legacy `personType` field is removed — clients should read
+   * `activePersona.type` instead.
    */
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user' })
   async me(@Req() req: Request) {
-    var user = (req as any).user;
+    const user = (req as any).user;
+    const activeHeader = req.headers['x-active-persona'];
+    const activePersonaId =
+      typeof activeHeader === 'string' && activeHeader.length > 0 ? activeHeader : undefined;
+    return this.authService.getMe(user, activePersonaId);
+  }
 
-    var person = await this.prisma.iamPerson.findUnique({
-      where: { id: user.personId },
-      select: { personType: true, firstName: true, lastName: true, preferredName: true },
-    });
-
-    var caches = await this.prisma.iamEffectiveAccessCache.findMany({
-      where: { accountId: user.sub },
-      select: { permissionCodes: true },
-    });
-
-    var permSet = new Set<string>();
-    for (var i = 0; i < caches.length; i++) {
-      var codes = caches[i]!.permissionCodes;
-      for (var j = 0; j < codes.length; j++) {
-        permSet.add(codes[j] as string);
-      }
-    }
-
-    return {
-      id: user.sub,
-      personId: user.personId,
-      email: user.email,
-      displayName: user.displayName,
-      personType: person?.personType ?? null,
-      firstName: person?.firstName ?? null,
-      lastName: person?.lastName ?? null,
-      preferredName: person?.preferredName ?? null,
-      permissions: Array.from(permSet).sort(),
-    };
+  /**
+   * Switch the active persona. Returns the same shape as /auth/me with
+   * the new persona + permission set. Used by the persona switcher in
+   * the top bar.
+   */
+  @Post('switch-persona')
+  @ApiOperation({ summary: 'Switch the active persona' })
+  async switchPersona(@Req() req: Request, @Body() body: { personaId: string }) {
+    const user = (req as any).user;
+    return this.authService.switchPersona(user, body?.personaId);
   }
 }
