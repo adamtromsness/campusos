@@ -17,7 +17,7 @@ import type { AlumniProfileDto } from '@/lib/types';
 export default function AlumniPortalPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const showStaffSurfaces = isStaff || isAdmin;
 
   // Filters

@@ -16,7 +16,7 @@ import type {
 
 export default function PublicationTemplatesPage() {
   const { user } = useAuthStore();
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
   const canManage = isAdmin || isStaff;
 

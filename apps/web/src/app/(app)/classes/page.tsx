@@ -15,8 +15,8 @@ export default function ClassesPage() {
   if (!user) return null;
 
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStudent = user.personType === 'STUDENT';
-  const isStaff = user.personType === 'STAFF';
+  const isStudent = user.activePersona?.type === 'STUDENT';
+  const isStaff = user.activePersona?.type === 'STAFF';
 
   if (isStudent) return <StudentClassesView />;
   if (isAdmin) return <SchoolClassesView />;

@@ -59,7 +59,8 @@ export default function MeetingDetailPage() {
   const { data: actionItems } = useMeetingActionItems(meetingId);
   const { data: recording } = useRecording(meetingId);
 
-  const isStaffOrAdmin = user?.personType === 'STAFF' || hasAnyPermission(user, ['sch-001:admin']);
+  const isStaffOrAdmin =
+    user?.activePersona?.type === 'STAFF' || hasAnyPermission(user, ['sch-001:admin']);
   const isOrganiser = !!user && meeting?.organiserId === user.id;
   const canEdit = isOrganiser || hasAnyPermission(user, ['sch-001:admin']);
 

@@ -57,7 +57,7 @@ export default function CollegeApplicationsPage() {
     deadline: '',
   });
 
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   if (!isStudent) {
     return <CounsellorDeadlineView />;
   }

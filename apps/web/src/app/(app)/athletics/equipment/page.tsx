@@ -24,7 +24,7 @@ export default function EquipmentManagerPage() {
   const user = useAuthStore((s) => s.user);
   const isAd =
     hasAnyPermission(user, ['sch-001:admin']) ||
-    (user?.personType === 'STAFF' && hasAnyPermission(user, ['ath-004:write']));
+    (user?.activePersona?.type === 'STAFF' && hasAnyPermission(user, ['ath-004:write']));
 
   const [tab, setTab] = useState<'inventory' | 'active' | 'overdue'>('inventory');
   const equipmentQ = useEquipment();

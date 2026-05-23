@@ -16,7 +16,7 @@ import type { AchievementDto, AchievementType, AchievementSharePlatform } from '
 
 export default function AchievementsGalleryPage() {
   const { user } = useAuthStore();
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const canAward = hasAnyPermission(user, ['ach-001:write']);
   const achievements = useAchievements();
   const award = useAwardAchievement();

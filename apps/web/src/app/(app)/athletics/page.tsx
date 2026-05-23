@@ -15,10 +15,10 @@ import { useAthleticsProgrammes, useAthleticsSchedule } from '@/hooks/use-athlet
 export default function AthleticsLandingPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const isAd = isAdmin || (isStaff && hasAnyPermission(user, ['ath-001:write']));
-  const isStudent = user?.personType === 'STUDENT';
-  const isParent = user?.personType === 'GUARDIAN';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
+  const isParent = user?.activePersona?.type === 'PARENT';
 
   const programmesQ = useAthleticsProgrammes({ includeInactive: false });
   const scheduleQ = useAthleticsSchedule();

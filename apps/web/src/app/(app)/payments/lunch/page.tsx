@@ -16,7 +16,7 @@ import type { LunchAccountDto, LunchTransferType } from '@/lib/types';
 export default function LunchAccountsDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['fin-001:admin']);
-  const isGuardian = !!user && user.personType === 'GUARDIAN';
+  const isGuardian = !!user && user.activePersona?.type === 'PARENT';
   const lowBalance = useLunchLowBalance(isAdmin);
   const children = useMyChildren();
   const [transferOpen, setTransferOpen] = useState(false);

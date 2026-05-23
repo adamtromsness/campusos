@@ -36,9 +36,9 @@ import { formatItDate, formatItRelative } from '@/lib/it-advanced-format';
  */
 export default function ItHomePage() {
   const user = useAuthStore((s) => s.user);
-  const isStaff = user?.personType === 'STAFF';
-  const isStudent = user?.personType === 'STUDENT';
-  const isParent = user?.personType === 'GUARDIAN';
+  const isStaff = user?.activePersona?.type === 'STAFF';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
+  const isParent = user?.activePersona?.type === 'PARENT';
   const isAdmin = hasAnyPermission(user, ['it-002:admin', 'sch-001:admin']);
 
   const myAssignments = useMyItAssignments(!isAdmin && !!user);

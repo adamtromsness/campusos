@@ -30,7 +30,7 @@ export default function ProgrammeDetailPage() {
   const user = useAuthStore((s) => s.user);
   const isAd =
     hasAnyPermission(user, ['sch-001:admin']) ||
-    (user?.personType === 'STAFF' && hasAnyPermission(user, ['ath-001:write']));
+    (user?.activePersona?.type === 'STAFF' && hasAnyPermission(user, ['ath-001:write']));
   const { toast } = useToast();
 
   const programmeQ = useAthleticsProgramme(id ?? null);

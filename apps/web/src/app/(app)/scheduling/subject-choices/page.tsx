@@ -16,7 +16,7 @@ export default function SubjectChoicesPage() {
   const isAdmin =
     !!user &&
     (hasAnyPermission(user, ['sch-002:admin']) || hasAnyPermission(user, ['sch-001:admin']));
-  const isStaff = !!user && (isAdmin || user.personType === 'STAFF');
+  const isStaff = !!user && (isAdmin || user.activePersona?.type === 'STAFF');
 
   const choices = useSubjectChoices({}, !!user);
   const windows = useSubjectChoiceWindows(!!user);

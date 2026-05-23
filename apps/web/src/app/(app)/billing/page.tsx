@@ -14,7 +14,7 @@ import { FamilyAccountSection } from './FamilyAccountSection';
 export default function ParentBillingDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
-  const isGuardian = !!user && user.personType === 'GUARDIAN';
+  const isGuardian = !!user && user.activePersona?.type === 'PARENT';
   const isAdmin = !!user && hasAnyPermission(user, ['fin-001:admin']);
   const canRead = !!user && hasAnyPermission(user, ['fin-001:read', 'fin-001:write']);
 

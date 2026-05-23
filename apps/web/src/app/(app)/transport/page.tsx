@@ -16,7 +16,8 @@ import { ROUTE_DIRECTION_LABEL, ROUTE_STATUS_PILL } from '@/lib/transport-format
 export default function TransportLandingPage() {
   const user = useAuthStore((s) => s.user);
   const isManager = !!user && hasAnyPermission(user, ['trn-001:write']);
-  const isStudentOrParent = user?.personType === 'STUDENT' || user?.personType === 'GUARDIAN';
+  const isStudentOrParent =
+    user?.activePersona?.type === 'STUDENT' || user?.activePersona?.type === 'PARENT';
 
   const routesQ = useTransportRoutes({ status: 'ACTIVE' });
   const vehiclesQ = useVehicles({ status: 'ACTIVE' });
@@ -83,7 +84,7 @@ export default function TransportLandingPage() {
             )}
           </section>
         </div>
-        {user.personType === 'GUARDIAN' && (
+        {user.activePersona?.type === 'PARENT' && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm">
             <div className="font-medium text-amber-900">Need a one-day change?</div>
             <p className="mt-1 text-amber-800">

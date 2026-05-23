@@ -23,7 +23,7 @@ import type { AlumniNewsCategory, AlumniNewsDto } from '@/lib/types';
 export default function AlumniNewsPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const showStaffSurfaces = isStaff || isAdmin;
 
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AlumniNewsCategory>('ALL');

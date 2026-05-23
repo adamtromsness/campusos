@@ -18,7 +18,7 @@ import type { MilestoneStatusInlineDto, PathwayAssignmentDto } from '@/lib/types
  */
 export default function ReadinessPage() {
   const { user } = useAuthStore();
-  const personType = user?.personType;
+  const personType = user?.activePersona?.type;
   const isStaff = personType === 'STAFF';
   const isStudent = personType === 'STUDENT';
 

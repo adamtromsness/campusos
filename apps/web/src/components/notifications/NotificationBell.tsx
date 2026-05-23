@@ -364,8 +364,8 @@ function humanizeType(type: string): string {
 
 export function resolveDeepLink(item: NotificationItem, user: AuthUser): string | null {
   const p = item.payload;
-  const isStudent = user.personType === 'STUDENT';
-  const isGuardian = user.personType === 'GUARDIAN';
+  const isStudent = user.activePersona?.type === 'STUDENT';
+  const isGuardian = user.activePersona?.type === 'PARENT';
 
   // Grade notifications carry persona-specific links from the consumer.
   if (item.type === 'grade.published') {

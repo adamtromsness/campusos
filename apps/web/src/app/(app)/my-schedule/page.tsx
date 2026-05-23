@@ -20,8 +20,8 @@ export default function MySchedulePage() {
   const user = useAuthStore((s) => s.user);
   if (!user) return null;
 
-  if (user.personType === 'STAFF') return <TeacherScheduleView />;
-  if (user.personType === 'STUDENT') return <StudentScheduleView />;
+  if (user.activePersona?.type === 'STAFF') return <TeacherScheduleView />;
+  if (user.activePersona?.type === 'STUDENT') return <StudentScheduleView />;
 
   return (
     <div className="mx-auto max-w-3xl">

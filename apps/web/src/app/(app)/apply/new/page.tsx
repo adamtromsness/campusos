@@ -26,7 +26,7 @@ export default function NewApplicationPage() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const { toast } = useToast();
-  const isGuardian = !!user && user.personType === 'GUARDIAN';
+  const isGuardian = !!user && user.activePersona?.type === 'PARENT';
   const canApply = !!user && hasAnyPermission(user, ['stu-003:write']);
   const periods = useEnrollmentPeriods(canApply);
   const create = useCreateApplication();

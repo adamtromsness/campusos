@@ -29,7 +29,7 @@ const CATEGORY_PILL: Record<ActivityCategory, string> = {
 export default function ClubsDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const isStaff = !!user && hasAnyPermission(user, ['clb-001:write']);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const [category, setCategory] = useState<ActivityCategory | 'ALL'>('ALL');
   const activitiesQ = useActivities(
     { status: 'ACTIVE', category: category === 'ALL' ? undefined : category },

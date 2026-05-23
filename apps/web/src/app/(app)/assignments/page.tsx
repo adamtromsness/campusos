@@ -24,7 +24,7 @@ export default function StudentAssignmentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
   if (!user) return null;
-  if (user.personType !== 'STUDENT') {
+  if (user.activePersona?.type !== 'STUDENT') {
     return (
       <EmptyState
         title="Not available"

@@ -38,7 +38,7 @@ export default function InjuryDetailPage() {
   const user = useAuthStore((s) => s.user);
   const isAd =
     hasAnyPermission(user, ['sch-001:admin']) ||
-    (user?.personType === 'STAFF' && hasAnyPermission(user, ['ath-004:write']));
+    (user?.activePersona?.type === 'STAFF' && hasAnyPermission(user, ['ath-004:write']));
   const { toast } = useToast();
 
   const injuryQ = useAthleticsInjury(id ?? null);

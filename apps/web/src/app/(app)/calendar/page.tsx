@@ -88,7 +88,7 @@ const MONTH_NAMES = [
 export default function CalendarPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['sch-003:admin', 'sch-001:admin']);
-  const isGuardian = user?.personType === 'GUARDIAN';
+  const isGuardian = user?.activePersona?.type === 'PARENT';
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getUTCFullYear());

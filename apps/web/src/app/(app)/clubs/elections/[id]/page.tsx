@@ -19,7 +19,7 @@ export default function ElectionDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['clb-002:write']);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const electionQ = useElection(id, !!user);
   const canVoteQ = useCanVote(id, !!user && isStudent);
   const update = useUpdateElection(id);

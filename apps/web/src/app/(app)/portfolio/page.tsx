@@ -16,7 +16,7 @@ import {
 
 export default function PortfolioPage() {
   const { user } = useAuthStore();
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   if (isStudent) {
     return <StudentPortfolioLanding />;

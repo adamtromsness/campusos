@@ -31,7 +31,7 @@ import type { ReferralDto, SessionDto } from '@/lib/types';
 
 export default function CounsellingDashboardPage() {
   const { user } = useAuthStore();
-  const isGuardian = user?.personType === 'GUARDIAN';
+  const isGuardian = user?.activePersona?.type === 'PARENT';
 
   // Active caseloads (counsellor sees own; admin sees school-wide; parent sees own children).
   const caseloadsQ = useCaseloads({ status: 'ACTIVE' });

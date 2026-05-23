@@ -1,13 +1,36 @@
 import { create } from 'zustand';
 
-export type PersonType =
-  | 'STAFF'
-  | 'STUDENT'
-  | 'GUARDIAN'
-  | 'VOLUNTEER'
-  | 'SUBSTITUTE'
-  | 'ALUMNI'
-  | 'EXTERNAL';
+/**
+ * Persona vocabulary returned by /auth/me and /auth/switch-persona.
+ * Personas are derived from real actions (LINKED child → PARENT,
+ * hr_employees row → STAFF, etc.) — see the persona registration design
+ * doc. Replaces the legacy iam_person.person_type values surfaced as
+ * `personType` on AuthUser.
+ *
+ * Mapping from legacy personType (where applicable):
+ *   STAFF      → STAFF
+ *   STUDENT    → STUDENT
+ *   GUARDIAN   → PARENT
+ *   SUBSTITUTE → SUBSTITUTE
+ *   ALUMNI     → ALUMNI
+ *   VOLUNTEER  → (no equivalent — use COMMUNITY)
+ */
+export type PersonaType = 'PARENT' | 'STUDENT' | 'STAFF' | 'SUBSTITUTE' | 'ALUMNI' | 'COMMUNITY';
+
+export interface ActivePersona {
+  id: string;
+  type: PersonaType;
+  label: string;
+  schoolId: string | null;
+  schoolName: string | null;
+}
+
+export interface UserPersona {
+  id: string;
+  type: PersonaType;
+  label: string;
+  schoolId: string | null;
+}
 
 export interface AuthUser {
   id: string;
@@ -17,7 +40,8 @@ export interface AuthUser {
   firstName: string | null;
   lastName: string | null;
   preferredName: string | null;
-  personType: PersonType | null;
+  activePersona: ActivePersona | null;
+  personas: UserPersona[];
   permissions: string[];
 }
 

@@ -244,10 +244,10 @@ function PlaceHoldButton({ itemId }: { itemId: string }) {
 
 function ReviewsSection({ itemId }: { itemId: string }) {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const isModerator =
     !!user &&
-    user.personType !== 'STUDENT' &&
+    user.activePersona?.type !== 'STUDENT' &&
     hasAnyPermission(user, ['sch-001:admin', 'lib-003:write']);
 
   const reviewsQ = useItemReviews(itemId);

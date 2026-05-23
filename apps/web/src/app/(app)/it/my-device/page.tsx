@@ -31,8 +31,8 @@ import type { ItDeviceOptionDto, ItSelectionContext } from '@/lib/types';
  */
 export default function MyDevicePage() {
   const user = useAuthStore((s) => s.user);
-  const isParent = user?.personType === 'GUARDIAN';
-  const isStudent = user?.personType === 'STUDENT';
+  const isParent = user?.activePersona?.type === 'PARENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const children = useMyChildren();
   const options = useItDeviceOptions();
   const create = useCreateItDeviceSelection();

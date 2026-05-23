@@ -28,7 +28,7 @@ type Mode = 'ACCEPTED' | 'DECLINED' | 'DEFERRED' | null;
 export default function OfferResponsePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const user = useAuthStore((s) => s.user);
-  const isGuardian = !!user && user.personType === 'GUARDIAN';
+  const isGuardian = !!user && user.activePersona?.type === 'PARENT';
   const isAdmin = !!user && hasAnyPermission(user, ['stu-003:admin']);
   const offer = useOffer(id, !!user);
   const application = useApplication(offer.data?.applicationId ?? null, !!offer.data);

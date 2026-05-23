@@ -3,7 +3,31 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { apiFetch, attemptSilentLogin, setAccessToken, setOnUnauthenticated } from './api-client';
-import { useAuthStore, type AuthUser } from './auth-store';
+import { useAuthStore, type ActivePersona, type AuthUser, type UserPersona } from './auth-store';
+
+interface MeResponse {
+  user: {
+    id: string;
+    personId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    preferredName: string | null;
+    displayName: string;
+  };
+  activePersona: ActivePersona | null;
+  personas: UserPersona[];
+  permissions: string[];
+}
+
+function meToAuthUser(me: MeResponse): AuthUser {
+  return {
+    ...me.user,
+    activePersona: me.activePersona,
+    personas: me.personas,
+    permissions: me.permissions,
+  };
+}
 
 interface AuthContextValue {
   login: (email: string) => Promise<void>;
@@ -42,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setAccessToken(token);
       try {
-        const me = await apiFetch<AuthUser>('/api/v1/auth/me');
-        setAuth(token, me);
+        const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+        setAuth(token, meToAuthUser(me));
       } catch {
         setUnauthenticated();
       }
@@ -56,8 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email }),
     });
     setAccessToken(res.accessToken);
-    const me = await apiFetch<AuthUser>('/api/v1/auth/me');
-    setAuth(res.accessToken, me);
+    const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+    setAuth(res.accessToken, meToAuthUser(me));
     router.replace('/dashboard');
   };
 
@@ -73,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUser = async () => {
-    const me = await apiFetch<AuthUser>('/api/v1/auth/me');
-    setUser(me);
+    const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+    setUser(meToAuthUser(me));
   };
 
   return (

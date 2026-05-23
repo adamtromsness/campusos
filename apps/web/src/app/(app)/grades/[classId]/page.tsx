@@ -14,7 +14,7 @@ export default function StudentClassGradesPage() {
   const me = useMyStudent();
 
   if (!user) return null;
-  if (user.personType !== 'STUDENT') {
+  if (user.activePersona?.type !== 'STUDENT') {
     return (
       <EmptyState
         title="Not available"

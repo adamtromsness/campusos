@@ -16,7 +16,7 @@ export default function ConferenceManagerPage() {
   const user = useAuthStore((s) => s.user);
   const isAd =
     hasAnyPermission(user, ['sch-001:admin']) ||
-    (user?.personType === 'STAFF' && hasAnyPermission(user, ['ath-003:write']));
+    (user?.activePersona?.type === 'STAFF' && hasAnyPermission(user, ['ath-003:write']));
   const { toast } = useToast();
 
   const conferencesQ = useConferences();

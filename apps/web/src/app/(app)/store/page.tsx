@@ -20,7 +20,7 @@ import {
 
 export default function StoreHomePage() {
   const user = useAuthStore((s) => s.user);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const isAdmin = user ? hasAnyPermission(user, ['sch-001:admin']) : false;
   const isManager = isStaff || isAdmin;
   const stores = useStores();

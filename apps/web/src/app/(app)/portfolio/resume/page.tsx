@@ -34,7 +34,7 @@ export default function ResumePage() {
     }
   }, [resume.data]);
 
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   if (!isStudent) {
     return (
       <div className="mx-auto max-w-3xl p-6">

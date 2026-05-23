@@ -37,8 +37,8 @@ export default function ConferenceDetailPage() {
   const eventId = params.id;
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF' || isAdmin;
-  const isParent = user?.personType === 'GUARDIAN';
+  const isStaff = user?.activePersona?.type === 'STAFF' || isAdmin;
+  const isParent = user?.activePersona?.type === 'PARENT';
   const canManage = isAdmin || hasAnyPermission(user, ['mtg-002:write', 'mtg-002:admin']);
 
   const [teacherFilter, setTeacherFilter] = useState<string>('');

@@ -28,8 +28,8 @@ import {
 export default function SurveyManagerPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin', 'eng-001:admin']);
-  const isStaff = user?.personType === 'STAFF' || isAdmin;
-  const isParent = user?.personType === 'GUARDIAN';
+  const isStaff = user?.activePersona?.type === 'STAFF' || isAdmin;
+  const isParent = user?.activePersona?.type === 'PARENT';
 
   const [filter, setFilter] = useState<'all' | 'open' | 'draft' | 'closed'>('all');
   const [showCreate, setShowCreate] = useState(false);

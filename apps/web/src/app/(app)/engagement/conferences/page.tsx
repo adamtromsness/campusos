@@ -33,8 +33,8 @@ const STATUS_FILTERS: Array<{ key: 'all' | 'live' | 'completed'; label: string }
 export default function ConferenceBookingPortalPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF' || isAdmin;
-  const isParent = user?.personType === 'GUARDIAN';
+  const isStaff = user?.activePersona?.type === 'STAFF' || isAdmin;
+  const isParent = user?.activePersona?.type === 'PARENT';
   const canManageEvents = isAdmin || hasAnyPermission(user, ['mtg-002:write', 'mtg-002:admin']);
 
   const [filter, setFilter] = useState<'all' | 'live' | 'completed'>('all');

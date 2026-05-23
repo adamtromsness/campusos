@@ -14,7 +14,7 @@ export default function StudentGradesPage() {
   const gradebook = useStudentGradebook(studentId);
 
   if (!user) return null;
-  if (user.personType !== 'STUDENT') {
+  if (user.activePersona?.type !== 'STUDENT') {
     return (
       <EmptyState
         title="Not available"

@@ -27,7 +27,7 @@ import type { LibraryCatalogueItemSearchHitDto, ReadingLogDto } from '@/lib/type
  */
 export default function ReadingLogPage() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   const logQ = useReadingLog();
   const log = logQ.data ?? [];

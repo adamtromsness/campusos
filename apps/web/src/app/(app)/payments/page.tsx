@@ -9,7 +9,7 @@ export default function PaymentsAdvancedHub() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['fin-001:admin']);
   const canFinAid = !!user && hasAnyPermission(user, ['fin-002:read', 'fin-002:write']);
-  const isParent = !!user && user.personType === 'GUARDIAN';
+  const isParent = !!user && user.activePersona?.type === 'PARENT';
 
   if (!user) return null;
   if (!isAdmin && !canFinAid && !isParent) {

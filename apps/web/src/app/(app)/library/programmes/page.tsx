@@ -24,7 +24,7 @@ import type { CreateReadingProgrammePayload, ReadingProgrammeAudienceType } from
 export default function ReadingProgrammesPage() {
   const user = useAuthStore((s) => s.user);
   const isLibrarian = !!user && hasAnyPermission(user, ['sch-001:admin', 'lib-003:write']);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   const [includeInactive, setIncludeInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);

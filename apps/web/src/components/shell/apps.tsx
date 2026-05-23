@@ -122,9 +122,9 @@ export interface AppDef {
 export function getAppsForUser(user: AuthUser): AppDef[] {
   const apps: AppDef[] = [];
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user.personType === 'STAFF';
-  const isStudent = user.personType === 'STUDENT';
-  const isGuardian = user.personType === 'GUARDIAN';
+  const isStaff = user.activePersona?.type === 'STAFF';
+  const isStudent = user.activePersona?.type === 'STUDENT';
+  const isParent = user.activePersona?.type === 'PARENT';
 
   if (isAdmin || isStaff) {
     apps.push({
@@ -142,7 +142,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/classes',
       icon: ClassesIcon,
     });
-  } else if (isGuardian) {
+  } else if (isParent) {
     apps.push({
       key: 'children',
       label: 'My Children',
@@ -263,7 +263,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       routePrefix: '/admissions',
       icon: AcademicCapIcon,
     });
-  } else if (isGuardian && hasAnyPermission(user, ['stu-003:write'])) {
+  } else if (isParent && hasAnyPermission(user, ['stu-003:write'])) {
     apps.push({
       key: 'apply',
       label: 'Apply',
@@ -294,8 +294,8 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
   if (hasAnyPermission(user, ['stu-004:read', 'stu-004:write', 'stu-004:admin'])) {
     apps.push({
       key: 'enrolment-withdrawals',
-      label: isGuardian ? 'Withdrawal & Re-enrolment' : 'Withdrawals',
-      description: isGuardian
+      label: isParent ? 'Withdrawal & Re-enrolment' : 'Withdrawals',
+      description: isParent
         ? 'Confirm next year, request mid-year admission, initiate withdrawal'
         : 'Manage withdrawals, re-enrolment, mid-year admissions, exit task templates',
       href: '/enrolment/withdrawals',
@@ -308,10 +308,10 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     apps.push({
       key: 'billing',
       label: 'Billing',
-      description: isGuardian
+      description: isParent
         ? 'Your balance, invoices, and payments'
         : 'Fees, invoices, family accounts, and payments',
-      href: isGuardian ? '/billing' : '/billing/accounts',
+      href: isParent ? '/billing' : '/billing/accounts',
       routePrefix: '/billing',
       icon: BanknotesIcon,
     });
@@ -323,12 +323,12 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
   // aid applications).
   if (
     hasAnyPermission(user, ['fin-002:read', 'fin-002:write', 'fin-001:admin']) ||
-    (isGuardian && hasAnyPermission(user, ['fin-001:read']))
+    (isParent && hasAnyPermission(user, ['fin-001:read']))
   ) {
     apps.push({
       key: 'payments-advanced',
-      label: isGuardian ? 'Payments' : 'Payments+',
-      description: isGuardian
+      label: isParent ? 'Payments' : 'Payments+',
+      description: isParent
         ? 'Financial aid + lunch accounts'
         : 'Financial aid, fees, lunch, billing operations',
       href: '/payments',
@@ -353,7 +353,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     apps.push({
       key: 'behaviour',
       label: 'Behaviour',
-      description: isGuardian
+      description: isParent
         ? 'Your child’s incident history'
         : 'Report incidents and review the discipline queue',
       href: '/behaviour',
@@ -367,7 +367,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     apps.push({
       key: 'health',
       label: 'Health',
-      description: isGuardian
+      description: isParent
         ? 'Your child’s health summary'
         : 'Nurse dashboard, medications, visits, and IEPs',
       href: '/health',
@@ -380,7 +380,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     apps.push({
       key: 'counselling',
       label: 'Counselling',
-      description: isGuardian
+      description: isParent
         ? 'Your child’s caseload assignment'
         : 'Caseloads, referrals, sessions, and FERPA-protected notes',
       href: '/counselling',
@@ -465,7 +465,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Catalogue, circulation desk, and fines'
         : isStudent
           ? 'Browse the catalogue, your checkouts, and reading log'
-          : isGuardian
+          : isParent
             ? 'Browse the school library catalogue'
             : 'Catalogue and your checkouts',
       href: '/library',
@@ -489,7 +489,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Conferences, meetings, action items, IEP records'
         : isStaff
           ? 'My meetings, agenda, notes, action items'
-          : isGuardian
+          : isParent
             ? 'Conferences, my appointments, action items'
             : 'My meetings and action items',
       href: '/meetings',
@@ -507,7 +507,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Programmes, rosters, games, results, injuries'
         : isStudent
           ? 'My sports, game schedule, and stats'
-          : isGuardian
+          : isParent
             ? 'Game schedule and athletic programmes'
             : 'Athletic programmes and game schedule',
       href: '/athletics',
@@ -520,12 +520,12 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
   if (hasAnyPermission(user, ['clb-001:read'])) {
     apps.push({
       key: 'clubs',
-      label: isStudent ? 'My Clubs' : isGuardian ? "My Children's Clubs" : 'Clubs',
+      label: isStudent ? 'My Clubs' : isParent ? "My Children's Clubs" : 'Clubs',
       description: isStaff
         ? 'Activities, field trips, elections, service hours'
         : isStudent
           ? 'My clubs, elections, service hours'
-          : isGuardian
+          : isParent
             ? "Your children's activities and field trips"
             : 'Clubs and student life',
       href: isStudent ? '/clubs/my' : '/clubs',
@@ -547,7 +547,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Routes, fleet, drivers, ridership'
         : isStudent
           ? 'My route + bus pass'
-          : isGuardian
+          : isParent
             ? "Your child's route + bus pass + change requests"
             : 'Routes and bus passes',
       href: '/transport',
@@ -568,7 +568,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Menus, POS, dietary, food safety'
         : isStudent
           ? "Today's menu + my dietary profile"
-          : isGuardian
+          : isParent
             ? "Your child's menu, dietary profile, and meal history"
             : 'Menus and food service',
       href: '/food-service',
@@ -664,7 +664,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       label: 'Portfolio',
       description: isStudent
         ? 'Your academic journey — items, achievements, share links'
-        : isGuardian
+        : isParent
           ? "Your child's portfolio + achievements"
           : isStaff
             ? 'Student portfolios + award achievements'
@@ -687,7 +687,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Series, editions, sections, and distribution'
         : isStudent
           ? 'Newsletter feed and your contributions'
-          : isGuardian
+          : isParent
             ? 'School newsletter and bulletins'
             : 'School publications',
       href: '/publications',
@@ -713,7 +713,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Campaigns, donations, news, reunions, events'
         : isStudent
           ? 'Your alumni profile (after graduation) and directory'
-          : isGuardian
+          : isParent
             ? 'Alumni directory and school news'
             : 'Directory, campaigns, news, events',
       href: '/alumni',
@@ -773,7 +773,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Products, orders, fulfilment, and revenue'
         : isStudent
           ? 'School store — uniforms, supplies, yearbook'
-          : isGuardian
+          : isParent
             ? 'School store — approve and track student orders'
             : 'School store',
       href: '/store',
@@ -927,7 +927,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         ? 'Communities, announcements, and events'
         : isStudent
           ? 'My groups + announcements'
-          : isGuardian
+          : isParent
             ? 'Parent groups and community events'
             : 'Groups and communities',
       href: '/groups',
@@ -950,7 +950,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       label: 'Engagement',
       description: isStaff
         ? 'Conferences, family engagement dashboard, and parent surveys'
-        : isGuardian
+        : isParent
           ? 'Book parent-teacher conferences and respond to surveys'
           : 'Parent-teacher conferences and engagement',
       href: '/engagement/conferences',

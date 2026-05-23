@@ -18,7 +18,7 @@ import type { ReunionGroupDto, ReunionStatus } from '@/lib/types';
 export default function ReunionsPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const showStaffSurfaces = isStaff || isAdmin;
 
   const myProfileQ = useMyAlumniProfile();

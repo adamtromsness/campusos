@@ -26,11 +26,14 @@ import type {
 export default function ChildrenPage() {
   const user = useAuthStore((s) => s.user);
   const children = useMyChildren();
-  const myRequests = useChildLinkRequests(undefined, !!user && user.personType === 'GUARDIAN');
+  const myRequests = useChildLinkRequests(
+    undefined,
+    !!user && user.activePersona?.type === 'PARENT',
+  );
   const [showAdd, setShowAdd] = useState(false);
   if (!user) return null;
 
-  if (user.personType !== 'GUARDIAN') {
+  if (user.activePersona?.type !== 'PARENT') {
     return (
       <div className="mx-auto max-w-4xl">
         <PageHeader title="My Children" />

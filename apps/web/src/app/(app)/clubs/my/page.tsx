@@ -15,7 +15,7 @@ const ROLE_PILL: Record<string, string> = {
 
 export default function StudentClubsPortalPage() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const myActivitiesQ = useMyActivities(!!user && isStudent);
   const electionsQ = useElections(!!user && isStudent);
   const progressQ = useMyServiceProgress(!!user && isStudent);

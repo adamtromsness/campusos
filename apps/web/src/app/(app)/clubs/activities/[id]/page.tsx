@@ -20,7 +20,7 @@ const ROLE_PILL: Record<string, string> = {
 export default function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const activityQ = useActivity(id, !!user);
   const myMembershipsQ = useMyActivities(!!user && isStudent);
   const join = useJoinActivity(id);

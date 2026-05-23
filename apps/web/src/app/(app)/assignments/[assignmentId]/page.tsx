@@ -31,7 +31,7 @@ export default function AssignmentDetailPage() {
   const params = useParams<{ assignmentId: string }>();
   const assignmentId = params?.assignmentId ?? '';
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   const assignment = useAssignment(assignmentId);
   const mySub = useMySubmission(isStudent ? assignmentId : undefined);

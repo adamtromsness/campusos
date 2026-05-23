@@ -17,7 +17,7 @@ export default function ReenrolmentPage() {
   const canRead = hasAnyPermission(user, ['stu-004:read', 'stu-004:write', 'stu-004:admin']);
   const isAdmin = hasAnyPermission(user, ['stu-004:admin', 'sch-001:admin']);
   const canWrite = hasAnyPermission(user, ['stu-004:write', 'stu-004:admin', 'sch-001:admin']);
-  const isGuardian = user?.personType === 'GUARDIAN';
+  const isGuardian = user?.activePersona?.type === 'PARENT';
 
   const academicYears = useAcademicYears();
   const [yearId, setYearId] = useState<string>('');

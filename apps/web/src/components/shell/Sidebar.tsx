@@ -73,17 +73,19 @@ export function Sidebar({ user, schoolName = 'CampusOS', onNavigate }: SidebarPr
 }
 
 function personaLabel(user: AuthUser): string {
-  switch (user.personType) {
+  switch (user.activePersona?.type) {
     case 'STAFF':
       return hasAnyPermission(user, ['sch-001:admin']) ? 'Administrator' : 'Staff';
-    case 'GUARDIAN':
+    case 'PARENT':
       return 'Parent / Guardian';
     case 'STUDENT':
       return 'Student';
-    case 'VOLUNTEER':
-      return 'Volunteer';
     case 'SUBSTITUTE':
       return 'Substitute';
+    case 'ALUMNI':
+      return 'Alumni';
+    case 'COMMUNITY':
+      return 'Community Member';
     default:
       return 'Member';
   }

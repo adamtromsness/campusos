@@ -36,7 +36,7 @@ const COLUMNS: { key: AccActionPlanStatus; label: string }[] = [
 export default function ActionPlansPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
-  const isStaff = user?.personType === 'STAFF';
+  const isStaff = user?.activePersona?.type === 'STAFF';
   const showStaffSurfaces = isStaff || isAdmin;
 
   const plansQ = useAccActionPlans(undefined);

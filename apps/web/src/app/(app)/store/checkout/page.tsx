@@ -62,7 +62,7 @@ export default function CheckoutPage() {
       toast('Add at least one item', 'error');
       return;
     }
-    if (user?.personType === 'STUDENT' && !studentId) {
+    if (user?.activePersona?.type === 'STUDENT' && !studentId) {
       // Student places order on their own behalf — backend resolves student via personId
       // Need the student id — fetch via /students/me
       try {

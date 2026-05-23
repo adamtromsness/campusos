@@ -67,7 +67,7 @@ export default function LibraryDashboardPage() {
 
 function QuickNav() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const isLibrarian = !!user && hasAnyPermission(user, ['sch-001:admin', 'lib-001:write']);
 
   const links: { href: string; label: string }[] = [

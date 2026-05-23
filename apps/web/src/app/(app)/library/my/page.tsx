@@ -39,7 +39,7 @@ import { useToast } from '@/components/ui/Toast';
  */
 export default function MyLibraryPage() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   const checkoutsQ = useCheckouts();
   const holdsQ = useHolds();

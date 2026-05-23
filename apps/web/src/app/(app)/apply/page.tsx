@@ -17,7 +17,7 @@ import type { ApplicationDto, OfferDto } from '@/lib/types';
 
 export default function ApplyLandingPage() {
   const user = useAuthStore((s) => s.user);
-  const isGuardian = !!user && user.personType === 'GUARDIAN';
+  const isGuardian = !!user && user.activePersona?.type === 'PARENT';
   const canApply = !!user && hasAnyPermission(user, ['stu-003:write']);
   const periods = useEnrollmentPeriods(canApply);
   const apps = useApplications({}, canApply);

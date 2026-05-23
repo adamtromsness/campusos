@@ -17,7 +17,7 @@ const STATUS_PILL: Record<string, string> = {
 
 export default function ServiceHoursPage() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const isStaff = !!user && hasAnyPermission(user, ['clb-004:write']);
   const hoursQ = useServiceHours(!!user);
   const programmesQ = useServiceProgrammes(!!user && isStudent);

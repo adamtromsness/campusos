@@ -30,7 +30,7 @@ import {
 export default function EngagementDashboardPage() {
   const { user } = useAuthStore();
   const isAdmin = hasAnyPermission(user, ['sch-001:admin', 'eng-001:admin']);
-  const isStaff = user?.personType === 'STAFF' || isAdmin;
+  const isStaff = user?.activePersona?.type === 'STAFF' || isAdmin;
   const canRead =
     isAdmin ||
     (isStaff && hasAnyPermission(user, ['eng-001:read', 'eng-001:write', 'eng-001:admin']));

@@ -19,7 +19,7 @@ import { useAthleticsInjuries, useAthleticsSchedule } from '@/hooks/use-athletic
 
 export default function StudentAthleticsPortal() {
   const user = useAuthStore((s) => s.user);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
 
   const scheduleQ = useAthleticsSchedule();
   const injuriesQ = useAthleticsInjuries();

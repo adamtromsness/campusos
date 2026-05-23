@@ -51,7 +51,7 @@ export default function MeetingsDashboardPage() {
       <PageHeader
         title="Meetings"
         description={
-          user?.personType === 'GUARDIAN'
+          user?.activePersona?.type === 'PARENT'
             ? 'Upcoming conferences, your appointments, and action items.'
             : 'Conferences, meetings, action items, and IEP records.'
         }

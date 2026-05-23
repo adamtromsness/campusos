@@ -17,7 +17,7 @@ export default function RecruitingPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
   const isCoach = isAdmin || hasAnyPermission(user, ['ath-001:write']);
-  const isStudent = user?.personType === 'STUDENT';
+  const isStudent = user?.activePersona?.type === 'STUDENT';
   const profilesQ = useRecruitingProfiles();
 
   return (

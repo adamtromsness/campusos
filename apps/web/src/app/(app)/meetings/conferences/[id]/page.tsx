@@ -89,7 +89,7 @@ export default function ConferenceDetailPage() {
           <EmptyState
             title="No teacher availability set"
             description={
-              user?.personType === 'GUARDIAN'
+              user?.activePersona?.type === 'PARENT'
                 ? 'Teachers have not yet posted availability for this conference. Check back soon.'
                 : 'Create a meeting per teacher and add time slots to make availability bookable.'
             }
