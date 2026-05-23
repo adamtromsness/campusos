@@ -89,9 +89,16 @@ function LoginPageInner() {
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
 
+  // Same-origin only. The OIDC callback ignores any returnUrl in the
+  // current URL (Keycloak strips the query string before redirect),
+  // so this only matters for the dev-account shortcut path below.
+  const rawReturn = searchParams?.get('returnUrl');
+  const returnUrl = rawReturn && rawReturn.startsWith('/') ? rawReturn : null;
+  const returnQuery = returnUrl ? '?returnUrl=' + encodeURIComponent(returnUrl) : '';
+
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/dashboard');
-  }, [status, router]);
+    if (status === 'authenticated') router.replace(returnUrl ?? '/dashboard');
+  }, [status, router, returnUrl]);
 
   // Handle OIDC callback — Keycloak redirects back with ?token=
   useEffect(() => {
@@ -102,17 +109,17 @@ function LoginPageInner() {
       try {
         const me = await apiFetch<MeResponse>('/api/v1/auth/me');
         setAuth(token, meToAuthUser(me));
-        router.replace('/dashboard');
+        router.replace(returnUrl ?? '/dashboard');
       } catch {
         toast('Could not load your profile. Please try again.', 'error');
       }
     })();
-  }, [searchParams, setAuth, router, toast]);
+  }, [searchParams, setAuth, router, toast, returnUrl]);
 
   const handleLogin = async (email: string) => {
     setBusy(email);
     try {
-      await login(email);
+      await login(email, returnUrl ?? undefined);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       toast(message, 'error');
@@ -169,7 +176,10 @@ function LoginPageInner() {
         </p>
         <p className="mt-3 text-center text-sm text-gray-600">
           Don&rsquo;t have an account?{' '}
-          <Link href="/register" className="font-medium text-campus-700 hover:text-campus-600">
+          <Link
+            href={'/register' + returnQuery}
+            className="font-medium text-campus-700 hover:text-campus-600"
+          >
             Create one
           </Link>
         </p>

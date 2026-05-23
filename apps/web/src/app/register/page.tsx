@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, setAccessToken } from '@/lib/api-client';
 import {
   useAuthStore,
@@ -97,10 +97,25 @@ function validate(form: {
 }
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageInner />
+    </Suspense>
+  );
+}
+
+function RegisterPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const status = useAuthStore((s) => s.status);
   const setAuth = useAuthStore((s) => s.setAuth);
+
+  // returnUrl is honored after both auto-redirect and successful
+  // registration. Restricted to same-origin paths.
+  const rawReturn = searchParams?.get('returnUrl');
+  const returnUrl = rawReturn && rawReturn.startsWith('/') ? rawReturn : null;
+  const returnQuery = returnUrl ? '?returnUrl=' + encodeURIComponent(returnUrl) : '';
 
   const [form, setForm] = useState({
     firstName: '',
@@ -114,10 +129,11 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // If someone already has a session, send them home.
+  // If someone already has a session, honor returnUrl first, then
+  // fall back to /dashboard.
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/dashboard');
-  }, [status, router]);
+    if (status === 'authenticated') router.replace(returnUrl ?? '/dashboard');
+  }, [status, router, returnUrl]);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -148,7 +164,11 @@ export default function RegisterPage() {
       setAccessToken(res.accessToken);
       const me = await apiFetch<MeResponse>('/api/v1/auth/me');
       setAuth(res.accessToken, meToAuthUser(me));
-      router.replace('/getting-started');
+      // returnUrl wins over the default /getting-started — a user
+      // who arrived via an invitation link should land back on
+      // /invitations/accept?token=… so the accept button is one
+      // click away.
+      router.replace(returnUrl ?? '/getting-started');
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setErrors((prev) => ({
@@ -290,7 +310,10 @@ export default function RegisterPage() {
 
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-campus-700 hover:text-campus-600">
+          <Link
+            href={'/login' + returnQuery}
+            className="font-medium text-campus-700 hover:text-campus-600"
+          >
             Sign in
           </Link>
         </p>

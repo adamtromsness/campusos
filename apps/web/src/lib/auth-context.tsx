@@ -70,7 +70,16 @@ async function fetchMe(): Promise<MeResponse> {
 }
 
 interface AuthContextValue {
-  login: (email: string) => Promise<void>;
+  /**
+   * Sign in via the dev-account email shortcut. `returnUrl` lets
+   * callers redirect somewhere other than /dashboard after login —
+   * used by the public invitation page to send the user back to
+   * /invitations/accept?token=… once they're authenticated.
+   *
+   * The URL is router.replace()'d directly; callers are responsible
+   * for sanitising it (e.g. allowing only same-origin paths).
+   */
+  login: (email: string, returnUrl?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -114,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [setAuth, setUnauthenticated]);
 
-  const login = async (email: string) => {
+  const login = async (email: string, returnUrl?: string) => {
     const res = await apiFetch<{ accessToken: string }>('/api/v1/auth/dev-login', {
       method: 'POST',
       body: JSON.stringify({ email }),
@@ -122,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(res.accessToken);
     const me = await fetchMe();
     setAuth(res.accessToken, meToAuthUser(me));
-    router.replace('/dashboard');
+    router.replace(returnUrl && returnUrl.startsWith('/') ? returnUrl : '/dashboard');
   };
 
   const logout = async () => {
