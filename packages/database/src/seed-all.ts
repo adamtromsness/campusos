@@ -232,6 +232,18 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Commerce Bundle — vendor catalogues + contracts + departmental budgets + budget transfers + journal entry batches (P2-29a)',
     script: 'seed-commerce.ts',
   },
+  {
+    // Last step — populates platform_personas + David-Chen-as-Maya's-
+    // parent LINKED family_child row for the 7 demo users. Must run
+    // after seed-iam (role grants) + seed-sis (Maya's iam_person) +
+    // seed-hr (Sarah/James/Linda/Marcus hr_employees rows). The
+    // PersonaResolutionService at runtime would re-derive the same
+    // rows on the next /auth/me, but seeding them eagerly is friendly:
+    // a demo login lands straight on the launchpad instead of bouncing
+    // through /getting-started while the cache rebuilds.
+    label: 'Personas — platform_personas + Chen family_child for the 7 demo users',
+    script: 'seed-personas.ts',
+  },
 ];
 
 async function main(): Promise<void> {
