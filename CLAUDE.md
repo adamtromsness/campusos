@@ -210,8 +210,11 @@ docker exec campusos-postgres psql -U campusos -d campusos_dev -c "DROP SCHEMA I
 | parent@demo.campusos.dev     | Parent (David Chen, Maya's father)   | parent123     |
 | vp@demo.campusos.dev         | Vice Principal (Linda Park)          | vp123         |
 | counsellor@demo.campusos.dev | Counsellor (Marcus Hayes)            | counsellor123 |
+| newuser@demo.campusos.dev    | New User (Alex Thompson)             | newuser123    |
 
 The `admin@` Platform Admin persona is intentionally NOT bridged to `hr_employees` — it represents a system administrator, not a school employee. The other four staff (Mitchell via `principal@`, Rivera, Park, Hayes) each have an `hr_employees` row.
+
+`newuser@` is the dedicated 0-personas fixture for the persona-registration onboarding flow: `iam_person` + `platform_users` + an empty `platform_families` row only — no `hr_employees`, `sis_students`, `sis_guardians`, `sub_profiles`, or `platform_personas`. Logging in lands on `/getting-started` so the registration / link-code / substitute-register flows can be exercised end-to-end against a clean canvas.
 
 Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Subdomain: demo` header.
 

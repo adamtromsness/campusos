@@ -152,6 +152,22 @@
         }
       ],
       "realmRoles": ["parent"]
+    },
+    {
+      "username": "newuser@demo.campusos.dev",
+      "email": "newuser@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Alex",
+      "lastName": "Thompson",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "newuser123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
     }
   ]
 }

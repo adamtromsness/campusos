@@ -166,6 +166,17 @@ async function main() {
       email: 'counsellor@demo.campusos.dev',
       personType: 'STAFF' as const,
     },
+    {
+      // Fresh registration-flow fixture — Alex Thompson lands with no
+      // personas, no projections, no family children. Logging in as
+      // newuser@demo.campusos.dev should route straight to
+      // /getting-started so the persona-registration onboarding cards
+      // can be exercised end-to-end.
+      firstName: 'Alex',
+      lastName: 'Thompson',
+      email: 'newuser@demo.campusos.dev',
+      personType: 'EXTERNAL' as const,
+    },
   ];
 
   for (var i = 0; i < testUsers.length; i++) {
@@ -219,6 +230,43 @@ async function main() {
     }
 
     console.log('  User ' + user.email + ' created (person + account)');
+  }
+
+  // ── 5b. Empty family for the registration-flow test user ──
+  // Alex Thompson (newuser@demo.campusos.dev) is the dedicated
+  // 0-personas fixture. Per the design they get a platform_families
+  // row at registration even when they have no children yet, so the
+  // /family page loads without a lazy-create on first visit.
+  var newuser = await client.platformUser.findUnique({
+    where: { email: 'newuser@demo.campusos.dev' },
+    select: { id: true, personId: true },
+  });
+  if (newuser) {
+    var newuserHasFamily = await client.familyMember.findUnique({
+      where: { personId: newuser.personId },
+    });
+    if (!newuserHasFamily) {
+      var newuserFamilyId = generateId();
+      await client.platformFamily.create({
+        data: {
+          id: newuserFamilyId,
+          name: null,
+          homeLanguage: 'en',
+          mailingAddressSame: true,
+          members: {
+            create: [
+              {
+                id: generateId(),
+                personId: newuser.personId,
+                memberRole: 'HEAD_OF_HOUSEHOLD',
+                isPrimaryContact: true,
+              },
+            ],
+          },
+        },
+      });
+      console.log('  Empty family created for newuser@demo.campusos.dev');
+    }
   }
 
   // ── 6. Family (Chen family — Maya student + David parent) ──
@@ -285,7 +333,7 @@ async function main() {
   console.log('');
   console.log('  Seed complete!');
   console.log('');
-  console.log('  7 users:');
+  console.log('  8 users:');
   console.log('    admin@demo.campusos.dev      (Platform Admin)');
   console.log('    principal@demo.campusos.dev  (School Admin)');
   console.log('    teacher@demo.campusos.dev    (Teacher)');
@@ -293,6 +341,7 @@ async function main() {
   console.log('    parent@demo.campusos.dev     (Parent)');
   console.log('    vp@demo.campusos.dev         (Vice Principal)');
   console.log('    counsellor@demo.campusos.dev (Counsellor)');
+  console.log('    newuser@demo.campusos.dev    (0 personas — Getting Started flow)');
   console.log('');
   console.log('  1 family: Chen (David + Maya)');
   console.log('  1 IdP: Keycloak Dev');
