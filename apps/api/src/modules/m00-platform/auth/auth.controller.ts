@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Res, Req, HttpException, HttpStatus } from
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
 import { Public } from '@shared/auth';
 
 /**
@@ -150,6 +151,52 @@ export class AuthController {
   async logout(@Res() res: Response) {
     res.clearCookie('campusos_refresh', { path: '/api/v1/auth' });
     res.json({ message: 'Logged out' });
+  }
+
+  /**
+   * Public self-service registration. Creates the canonical identity
+   * trio (iam_person + platform_users + platform_families + first
+   * family_member) and auto-mints a JWT pair so the caller lands
+   * straight on /getting-started.
+   *
+   * The password field on the body is currently ignored — auth is
+   * delegated to the external IdP per ADR-036, and the IdP-side
+   * Keycloak user provisioning is a follow-up. The new account is
+   * stamped PENDING_VERIFICATION; downstream gates that require
+   * ACTIVE (e.g. payments) can refuse until verification lands.
+   */
+  @Public()
+  @Post('register')
+  @ApiOperation({ summary: 'Public self-service registration' })
+  async register(@Body() body: RegisterDto, @Res() res: Response) {
+    if (!body || !body.email || !body.firstName || !body.lastName) {
+      throw new HttpException(
+        'firstName, lastName, and email are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const result = await this.authService.register({
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      phone: body.phone,
+    });
+    res.cookie('campusos_refresh', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth',
+    });
+    res.status(HttpStatus.CREATED).json({
+      accessToken: result.accessToken,
+      user: {
+        id: result.user.sub,
+        personId: result.user.personId,
+        email: result.user.email,
+        displayName: result.user.displayName,
+      },
+    });
   }
 
   /**

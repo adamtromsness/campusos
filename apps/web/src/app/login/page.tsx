@@ -5,9 +5,38 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, setAccessToken } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
-import { useAuthStore, type AuthUser } from '@/lib/auth-store';
+import {
+  useAuthStore,
+  type ActivePersona,
+  type AuthUser,
+  type UserPersona,
+} from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
+
+interface MeResponse {
+  user: {
+    id: string;
+    personId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    preferredName: string | null;
+    displayName: string;
+  };
+  activePersona: ActivePersona | null;
+  personas: UserPersona[];
+  permissions: string[];
+}
+
+function meToAuthUser(me: MeResponse): AuthUser {
+  return {
+    ...me.user,
+    activePersona: me.activePersona,
+    personas: me.personas,
+    permissions: me.permissions,
+  };
+}
 
 interface DevAccount {
   email: string;
@@ -71,8 +100,8 @@ function LoginPageInner() {
     (async () => {
       setAccessToken(token);
       try {
-        const me = await apiFetch<AuthUser>('/api/v1/auth/me');
-        setAuth(token, me);
+        const me = await apiFetch<MeResponse>('/api/v1/auth/me');
+        setAuth(token, meToAuthUser(me));
         router.replace('/dashboard');
       } catch {
         toast('Could not load your profile. Please try again.', 'error');
@@ -138,10 +167,16 @@ function LoginPageInner() {
         <p className="mt-6 text-center text-xs text-gray-400">
           Tenant: <span className="font-mono">demo</span>
         </p>
-        <p className="mt-2 text-center text-xs text-gray-500">
+        <p className="mt-3 text-center text-sm text-gray-600">
           Don&rsquo;t have an account?{' '}
+          <Link href="/register" className="font-medium text-campus-700 hover:text-campus-600">
+            Create one
+          </Link>
+        </p>
+        <p className="mt-1 text-center text-xs text-gray-500">
+          Looking for a school?{' '}
           <Link href="/find-schools" className="font-medium text-campus-700 hover:text-campus-600">
-            Find a school accepting applications →
+            Find one accepting applications →
           </Link>
         </p>
       </div>

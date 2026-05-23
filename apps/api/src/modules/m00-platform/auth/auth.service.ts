@@ -103,6 +103,129 @@ export class AuthService {
   }
 
   /**
+   * Public self-service registration. Creates a canonical
+   * iam_person + platform_users + platform_families row set and
+   * returns a fresh JWT pair so the caller is auto-logged-in.
+   *
+   * Password is intentionally NOT stored in CampusOS — authentication
+   * is delegated to the IdP (ADR-036 / Keycloak in dev). For Phase 1
+   * the IdP-side user provisioning is a follow-up; today the account
+   * lands at PENDING_VERIFICATION until the email-verification flow
+   * lands. We still mint a session so the user can reach
+   * /getting-started and start adding children / accepting invites.
+   *
+   * Conflicts: email is UNIQUE on platform_users; a re-registration
+   * with the same email surfaces as ConflictException so the UI can
+   * route the user to /login.
+   */
+  async register(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string | null;
+  }): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: JwtPayload;
+  }> {
+    const email = input.email.trim().toLowerCase();
+    if (!email) {
+      throw new HttpException('Email is required', HttpStatus.BAD_REQUEST);
+    }
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+    if (!firstName || !lastName) {
+      throw new HttpException('First and last name are required', HttpStatus.BAD_REQUEST);
+    }
+
+    const existing = await this.prisma.platformUser.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new HttpException('An account with this email already exists', HttpStatus.CONFLICT);
+    }
+
+    const personId = generateId();
+    const accountId = generateId();
+    const familyId = generateId();
+    const memberId = generateId();
+    const displayName = firstName + ' ' + lastName;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.iam_person
+             (id, first_name, last_name, primary_phone, person_type, is_active, created_at)
+           VALUES ($1::uuid, $2, $3, $4, 'EXTERNAL', true, now())`,
+          personId,
+          firstName,
+          lastName,
+          input.phone?.trim() || null,
+        );
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_users
+             (id, person_id, email, display_name, account_status, account_type,
+              mfa_enabled, is_minor_account, created_at)
+           VALUES ($1::uuid, $2::uuid, $3, $4, 'PENDING_VERIFICATION', 'HUMAN',
+                   false, false, now())`,
+          accountId,
+          personId,
+          email,
+          displayName,
+        );
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_families (id, name, home_language, mailing_address_same)
+           VALUES ($1::uuid, NULL, 'en', true)`,
+          familyId,
+        );
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_family_members
+             (id, family_id, person_id, member_role, is_primary_contact, joined_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', true, now())`,
+          memberId,
+          familyId,
+          personId,
+        );
+      });
+    } catch (e: any) {
+      // The email-uniqueness path is caught above, but a parallel race
+      // could collide. Translate 23505 to CONFLICT so the UI handles
+      // it the same way.
+      if (e?.meta?.code === '23505' || /unique constraint/i.test(String(e))) {
+        throw new HttpException('An account with this email already exists', HttpStatus.CONFLICT);
+      }
+      throw e;
+    }
+
+    // Allow the account to log in immediately — the PENDING_VERIFICATION
+    // status is informational for downstream gates (e.g. payment
+    // workflows can require ACTIVE). authenticateByEmail's strict
+    // ACTIVE check would otherwise refuse the fresh account, so we
+    // mint the session inline here using the freshly-created row.
+    const sessionId = generateId();
+    const payload: JwtPayload = {
+      sub: accountId,
+      personId,
+      email,
+      displayName,
+      sessionId,
+    };
+    const accessToken = this.generateAccessToken(payload);
+    const refreshToken = this.generateRefreshToken(accountId, sessionId);
+    await this.prisma.iamAuthEvent.create({
+      data: {
+        id: generateId(),
+        accountId,
+        eventType: 'LOGIN_SUCCESS',
+        sessionId,
+        eventAt: new Date(),
+      },
+    });
+    return { accessToken, refreshToken, user: payload };
+  }
+
+  /**
    * Find a user by email and create a session.
    * Called after IdP authentication succeeds.
    */
