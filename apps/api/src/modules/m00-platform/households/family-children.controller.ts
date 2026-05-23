@@ -1,0 +1,114 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { FamilyChildrenService } from './family-children.service';
+import {
+  AcceptFamilyLinkDto,
+  CreateChildAccountDto,
+  CreateFamilyChildDto,
+  FamilyChildDto,
+  SendChildLinkDto,
+  UpdateFamilyChildDto,
+} from './dto/family-child.dto';
+
+interface AuthedRequest extends Request {
+  user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
+}
+
+/**
+ * /family — persona-registration Steps 5 + 6.
+ *
+ * Endpoints gate on authentication only (no @RequirePermission) — every
+ * authenticated user manages their own family. Cross-family isolation
+ * is enforced inside the service by joining
+ * platform_family_children.family_id to the caller's
+ * platform_family_members.family_id; mismatches surface as 404 (not
+ * 403) so the existence of another family's children isn't leaked.
+ */
+@ApiTags('Family')
+@ApiBearerAuth()
+@Controller('family')
+export class FamilyChildrenController {
+  constructor(private readonly children: FamilyChildrenService) {}
+
+  // ─── Step 5 — CRUD ──────────────────────────────────────────
+
+  @Get('children')
+  @ApiOperation({ summary: 'List children in the current user’s family' })
+  async list(@Req() req: AuthedRequest): Promise<FamilyChildDto[]> {
+    return this.children.listForUser(req.user!.personId);
+  }
+
+  @Post('children')
+  @ApiOperation({ summary: 'Add a child to the current user’s family (status=PLACEHOLDER)' })
+  async create(
+    @Req() req: AuthedRequest,
+    @Body() dto: CreateFamilyChildDto,
+  ): Promise<FamilyChildDto> {
+    return this.children.create(req.user!.personId, dto);
+  }
+
+  @Patch('children/:id')
+  @ApiOperation({ summary: 'Edit a PLACEHOLDER or PENDING_LINK child (LINKED is read-only)' })
+  async update(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFamilyChildDto,
+  ): Promise<FamilyChildDto> {
+    return this.children.update(req.user!.personId, id, dto);
+  }
+
+  @Delete('children/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a PLACEHOLDER child; revokes a pending invitation' })
+  async remove(@Req() req: AuthedRequest, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.children.remove(req.user!.personId, id);
+  }
+
+  // ─── Step 6 — Account creation + linking ────────────────────
+
+  @Post('children/:id/create-account')
+  @ApiOperation({
+    summary: 'Create a parent-managed minor account for a PLACEHOLDER child',
+  })
+  async createAccount(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateChildAccountDto,
+  ): Promise<FamilyChildDto> {
+    return this.children.createAccountForChild(req.user!.personId, id, dto);
+  }
+
+  @Post('children/:id/send-link')
+  @ApiOperation({
+    summary: 'Generate an 8-char link code + email it to the child (PLACEHOLDER → PENDING_LINK)',
+  })
+  async sendLink(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendChildLinkDto,
+  ): Promise<FamilyChildDto> {
+    return this.children.sendLinkInvitation(req.user!.personId, id, dto);
+  }
+
+  @Post('link')
+  @ApiOperation({ summary: 'Accept an 8-char link code — child / second parent side' })
+  async accept(
+    @Req() req: AuthedRequest,
+    @Body() dto: AcceptFamilyLinkDto,
+  ): Promise<FamilyChildDto> {
+    return this.children.acceptLinkCode(req.user!.personId, req.user!.sub, dto);
+  }
+}
