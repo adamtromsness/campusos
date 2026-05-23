@@ -17,6 +17,7 @@ export { AssignmentService } from './iam/assignment.service';
 export { GuardianAuthorizationService } from './iam/guardian-authorization.service';
 export { PersonaResolutionService } from './iam/persona-resolution.service';
 export type { Persona } from './iam/persona-resolution.service';
+export { InvitationService } from './iam/invitation.service';
 export { assertPersonInTenant, assertAccountInTenant } from './iam/person-in-tenant';
 
 // Tenant — TenantModule, TenantGuard. The Prisma + context helpers live

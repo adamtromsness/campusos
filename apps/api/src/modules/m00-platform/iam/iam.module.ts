@@ -8,6 +8,8 @@ import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
 import { PersonaResolutionService } from './persona-resolution.service';
+import { InvitationService } from './invitation.service';
+import { InvitationController } from './invitation.controller';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { RedisModule } from '@shared/cache';
 import { ObservabilityModule } from '@shared/observability/observability.module';
@@ -48,7 +50,9 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     ActorContextService,
     GuardianAuthorizationService,
     PersonaResolutionService,
+    InvitationService,
   ],
+  controllers: [InvitationController],
   exports: [
     PermissionCheckService,
     EffectiveAccessCacheService,
@@ -58,6 +62,7 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     ActorContextService,
     GuardianAuthorizationService,
     PersonaResolutionService,
+    InvitationService,
   ],
 })
 export class IamModule {}
