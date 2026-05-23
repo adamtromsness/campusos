@@ -363,6 +363,9 @@ describe('integration:m00-platform/auth-controller', () => {
         personaId,
         testPersonId,
       );
+      // The cache row includes sys-001:admin so the per-persona
+      // resolver's Platform Admin bypass returns the cache contents
+      // verbatim — synthetic codes don't need real role assignments.
       const ce1 = generateId();
       await prisma.$executeRawUnsafe(
         `INSERT INTO platform.iam_effective_access_cache
@@ -373,7 +376,7 @@ describe('integration:m00-platform/auth-controller', () => {
         ce1,
         testUserId,
         '019e0cf8-aaaa-7777-8888-00000000000d', // TEST_SCHOOL_SCOPE_ID
-        ['z-perm:read', 'a-perm:read'],
+        ['sys-001:admin', 'z-perm:read', 'a-perm:read'],
       );
       try {
         const req: any = {

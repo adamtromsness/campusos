@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
 import {
   useAcceptFamilyLink,
+  useCancelChildLink,
   useCreateChildAccount,
   useDeleteFamilyChild,
   useFamilyChildren,
@@ -137,6 +138,7 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
   const { toast } = useToast();
   const createAccount = useCreateChildAccount(child.id);
   const removeChild = useDeleteFamilyChild(child.id);
+  const cancelLink = useCancelChildLink(child.id);
 
   const age = computeAge(child.dateOfBirth);
   const isUnder13 = age !== null && age < 13;
@@ -216,14 +218,21 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
         )}
         {child.status === 'PENDING_LINK' && (
           <>
+            {/* Resend uses POST send-link, which now accepts both
+                PLACEHOLDER + PENDING_LINK (Codex review FIX 4): the
+                old code gets revoked, a fresh code + 72h timer go
+                out. */}
             <SecondaryButton onClick={onSendLink}>Resend</SecondaryButton>
             <SecondaryButton
               onClick={() =>
-                void removeChild.mutateAsync().then(() => toast('Link cancelled', 'success'))
+                void cancelLink
+                  .mutateAsync()
+                  .then(() => toast('Link cancelled', 'success'))
+                  .catch(() => toast('Could not cancel the link.', 'error'))
               }
-              disabled={removeChild.isPending}
+              disabled={cancelLink.isPending}
             >
-              {removeChild.isPending ? 'Cancelling…' : 'Cancel Link'}
+              {cancelLink.isPending ? 'Cancelling…' : 'Cancel Link'}
             </SecondaryButton>
             <SecondaryButton onClick={() => router.push(`/family/add-child?edit=${child.id}`)}>
               Edit

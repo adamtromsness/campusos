@@ -93,7 +93,8 @@ export class FamilyChildrenController {
 
   @Post('children/:id/send-link')
   @ApiOperation({
-    summary: 'Generate an 8-char link code + email it to the child (PLACEHOLDER → PENDING_LINK)',
+    summary:
+      'Generate an 8-char link code + email it to the child. Accepts PLACEHOLDER (first send) and PENDING_LINK (resend); the prior invitation is revoked.',
   })
   async sendLink(
     @Req() req: AuthedRequest,
@@ -101,6 +102,17 @@ export class FamilyChildrenController {
     @Body() dto: SendChildLinkDto,
   ): Promise<FamilyChildDto> {
     return this.children.sendLinkInvitation(req.user!.personId, id, dto);
+  }
+
+  @Post('children/:id/cancel-link')
+  @ApiOperation({
+    summary: 'Revoke the outstanding CHILD_LINK invitation and reset the child to PLACEHOLDER',
+  })
+  async cancelLink(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<FamilyChildDto> {
+    return this.children.cancelLink(req.user!.personId, id);
   }
 
   @Post('link')

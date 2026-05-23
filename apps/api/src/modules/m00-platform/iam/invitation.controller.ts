@@ -28,19 +28,23 @@ interface AuthedRequest extends Request {
 export class InvitationController {
   constructor(private readonly invitations: InvitationService) {}
 
-  @Public()
-  @Get(':token')
-  @ApiOperation({ summary: 'Public landing page details for an invitation token' })
-  async get(@Param('token') token: string): Promise<InvitationSummaryDto> {
-    return this.invitations.getByToken(token);
-  }
-
+  // GET /mine MUST be declared before GET /:token — NestJS / Express
+  // match routes in declaration order, and `mine` as a :token param
+  // would otherwise try to look up an invitation with the literal
+  // token value "mine" (Codex review FIX 5).
   @ApiBearerAuth()
   @Get('mine')
   @ApiOperation({ summary: 'List the caller’s pending invitations' })
   async mine(@Req() req: AuthedRequest): Promise<MyInvitationDto[]> {
     const u = req.user!;
     return this.invitations.listMine({ personId: u.personId, email: u.email });
+  }
+
+  @Public()
+  @Get(':token')
+  @ApiOperation({ summary: 'Public landing page details for an invitation token' })
+  async get(@Param('token') token: string): Promise<InvitationSummaryDto> {
+    return this.invitations.getByToken(token);
   }
 
   @ApiBearerAuth()

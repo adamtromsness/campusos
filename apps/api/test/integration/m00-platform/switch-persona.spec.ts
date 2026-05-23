@@ -27,6 +27,8 @@ describe('integration:m00-platform/switch-persona', () => {
   const personId = generateId();
   const accountId = generateId();
   const otherPersonId = generateId();
+  const createdRoleIds = new Set<string>();
+  const createdAssignmentIds = new Set<string>();
 
   beforeAll(async () => {
     prisma = new PrismaClient();
@@ -62,6 +64,22 @@ describe('integration:m00-platform/switch-persona', () => {
   });
 
   afterAll(async () => {
+    if (createdAssignmentIds.size > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_role_assignment WHERE id = ANY($1::uuid[])`,
+        Array.from(createdAssignmentIds),
+      );
+    }
+    if (createdRoleIds.size > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.role_permissions WHERE role_id = ANY($1::uuid[])`,
+        Array.from(createdRoleIds),
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.roles WHERE id = ANY($1::uuid[])`,
+        Array.from(createdRoleIds),
+      );
+    }
     await prisma.$executeRawUnsafe(
       `DELETE FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid`,
       accountId,
@@ -85,6 +103,24 @@ describe('integration:m00-platform/switch-persona', () => {
   });
 
   beforeEach(async () => {
+    if (createdAssignmentIds.size > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_role_assignment WHERE id = ANY($1::uuid[])`,
+        Array.from(createdAssignmentIds),
+      );
+      createdAssignmentIds.clear();
+    }
+    if (createdRoleIds.size > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.role_permissions WHERE role_id = ANY($1::uuid[])`,
+        Array.from(createdRoleIds),
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.roles WHERE id = ANY($1::uuid[])`,
+        Array.from(createdRoleIds),
+      );
+      createdRoleIds.clear();
+    }
     await prisma.$executeRawUnsafe(
       `DELETE FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid`,
       accountId,
@@ -155,26 +191,90 @@ describe('integration:m00-platform/switch-persona', () => {
     );
   }
 
+  /**
+   * Create a role with the given permissions and assign it to the
+   * test account at the scope with the supplied source. Used to
+   * exercise FIX 2 — the resolver filters cache codes by the
+   * assignment.source mapped to the active persona's type.
+   */
+  async function seedAssignment(
+    scopeId: string,
+    source: 'WORKFLOW_APPROVAL' | 'GUARDIAN_RELATIONSHIP' | 'SIS_DERIVED' | 'MANUAL',
+    permissionCodes: string[],
+  ): Promise<void> {
+    const roleId = generateId();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.roles (id, school_id, name, description, is_system)
+       VALUES ($1::uuid, $2::uuid, $3, 'test', false)`,
+      roleId,
+      TEST_SCHOOL_ID,
+      `switch-role-${source}-${roleId.slice(-6)}`,
+    );
+    createdRoleIds.add(roleId);
+
+    const perms = await prisma.permission.findMany({
+      where: { code: { in: permissionCodes } },
+      select: { id: true },
+    });
+    for (const p of perms) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.role_permissions (id, role_id, permission_id)
+         VALUES ($1::uuid, $2::uuid, $3::uuid)
+         ON CONFLICT DO NOTHING`,
+        generateId(),
+        roleId,
+        p.id,
+      );
+    }
+
+    const assignmentId = generateId();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.iam_role_assignment
+         (id, account_id, role_id, scope_id, status, source, effective_from)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'ACTIVE', $5::"AssignmentSource", now())`,
+      assignmentId,
+      accountId,
+      roleId,
+      scopeId,
+      source,
+    );
+    createdAssignmentIds.add(assignmentId);
+  }
+
   // ────────────────────────────────────────────────────────────
 
   it('switch from STAFF to PARENT → permissions reflect the new active persona', async () => {
     const staffId = await seedPersona('STAFF', TEST_SCHOOL_ID, 'Staff at Test School');
     const parentId = await seedPersona('PARENT', TEST_SCHOOL_ID, 'Parent at Test School');
-    // Both personas live at the same school, so the cache row's codes
-    // surface through either persona — but the test still confirms the
-    // active persona id flips.
-    await seedCache(TEST_SCHOOL_SCOPE_ID, ['stu-001:read', 'tch-003:read'], 'switch-test');
+    // STAFF and PARENT each get their own role + assignment at the
+    // same school scope so the cross-persona isolation check is
+    // exercised: only the matching source's permissions surface.
+    await seedAssignment(TEST_SCHOOL_SCOPE_ID, 'WORKFLOW_APPROVAL', [
+      'tch-003:read',
+      'tch-003:write',
+    ]);
+    await seedAssignment(TEST_SCHOOL_SCOPE_ID, 'GUARDIAN_RELATIONSHIP', ['stu-001:read']);
+    await seedCache(
+      TEST_SCHOOL_SCOPE_ID,
+      ['stu-001:read', 'tch-003:read', 'tch-003:write'],
+      'switch-test',
+    );
 
-    // Open as STAFF.
+    // Open as STAFF — teacher codes present, parent codes absent.
     const staffResp = await controller.switchPersona(makeReq(), { personaId: staffId });
     expect(staffResp.activePersona!.id).toBe(staffId);
     expect(staffResp.activePersona!.type).toBe('STAFF');
+    expect(staffResp.permissions).toContain('tch-003:read');
+    expect(staffResp.permissions).toContain('tch-003:write');
+    expect(staffResp.permissions).not.toContain('stu-001:read');
 
-    // Flip to PARENT.
+    // Flip to PARENT — parent codes present, teacher codes gone.
     const parentResp = await controller.switchPersona(makeReq(), { personaId: parentId });
     expect(parentResp.activePersona!.id).toBe(parentId);
     expect(parentResp.activePersona!.type).toBe('PARENT');
     expect(parentResp.permissions).toContain('stu-001:read');
+    expect(parentResp.permissions).not.toContain('tch-003:read');
+    expect(parentResp.permissions).not.toContain('tch-003:write');
   });
 
   it('switch to a persona owned by another person → 404', async () => {

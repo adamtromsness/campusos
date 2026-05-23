@@ -128,6 +128,25 @@ export function useSendChildLink(id: string) {
   });
 }
 
+/**
+ * Cancel a PENDING_LINK invitation — revokes the platform_invitations
+ * row and resets the family_child back to PLACEHOLDER. Maps to POST
+ * /api/v1/family/children/:id/cancel-link, added in the Codex review
+ * FIX 3 so cancel + delete are explicit, separate decisions.
+ */
+export function useCancelChildLink(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<FamilyChildDto>('/api/v1/family/children/' + id + '/cancel-link', {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+    },
+  });
+}
+
 export function useAcceptFamilyLink() {
   const qc = useQueryClient();
   return useMutation({

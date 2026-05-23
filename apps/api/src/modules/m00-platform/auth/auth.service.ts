@@ -320,14 +320,20 @@ export class AuthService {
    *   3. If the caller has no personas, activePersona is null and
    *      permissions are empty (the "Getting Started" state).
    *
-   * Permission filtering: the response surfaces only the permissions held
-   * within the active persona's scope chain (SCHOOL → PLATFORM). A
-   * Platform Admin still receives every permission because the
-   * PLATFORM-scope cache row carries them all.
+   * Permission filtering (Codex review FIX 2): the response surfaces
+   * only the permissions held within the active persona's scope chain
+   * (SCHOOL → PLATFORM) AND tied to role assignments matching the
+   * active persona type. Without the per-persona filter a STAFF +
+   * PARENT user at the same school would see STAFF codes even after
+   * switching to PARENT, because the iam_effective_access_cache row
+   * collapses the union at the (account, scope) level. We pivot to a
+   * fresh iam_role_assignment → role_permissions → permissions join
+   * filtered by assignment.source — the closest proxy we have for
+   * persona affinity. Platform Admin (sys-001:admin) wins regardless
+   * via the bypass below.
    *
-   * personType is intentionally absent from the response. activePersona.type
-   * is the canonical replacement — same vocabulary the persona switcher
-   * uses.
+   * The active-persona response field replaces what the old API
+   * surfaced as a flat type tag.
    */
   async getMe(jwt: JwtPayload, activePersonaId?: string): Promise<MeResponse> {
     const person = await this.prisma.iamPerson.findUnique({
@@ -360,9 +366,9 @@ export class AuthService {
       schoolName = sch?.name ?? null;
     }
 
-    // Permissions: union of cache codes across the active persona's
-    // scope chain. With no active persona the user has nothing to do
-    // yet — empty array, frontend routes to /getting-started.
+    // Permissions: persona-aware filter — see the doc comment above.
+    // With no active persona the user has nothing to do yet (empty
+    // array; frontend routes to /getting-started).
     let permissions: string[] = [];
     if (active) {
       const scopeIds: string[] = [];
@@ -373,15 +379,7 @@ export class AuthService {
         const platformScope = await this.permissionCheck.resolvePlatformScope();
         if (platformScope) scopeIds.push(platformScope);
       }
-      const cacheRows = await this.prisma.iamEffectiveAccessCache.findMany({
-        where: { accountId: jwt.sub, scopeId: { in: scopeIds } },
-        select: { permissionCodes: true },
-      });
-      const seen = new Set<string>();
-      for (const row of cacheRows) {
-        for (const code of row.permissionCodes) seen.add(code);
-      }
-      permissions = Array.from(seen).sort();
+      permissions = await this.resolvePermissionsForPersona(jwt.sub, scopeIds, active.type);
     }
 
     return {
@@ -429,5 +427,76 @@ export class AuthService {
       throw new HttpException('Persona not found', HttpStatus.NOT_FOUND);
     }
     return this.getMe(jwt, personaId);
+  }
+
+  /**
+   * Persona-affinity → assignment.source mapping. The IAM model
+   * doesn't tag iam_role_assignment rows with the persona type
+   * directly; we approximate via the source enum:
+   *
+   *   STAFF      ← HR_SYNC, WORKFLOW_APPROVAL, EMERGENCY
+   *                (the three sources used by employee onboarding +
+   *                emergency role grants)
+   *   PARENT     ← GUARDIAN_RELATIONSHIP
+   *   STUDENT    ← SIS_DERIVED
+   *   SUBSTITUTE / ALUMNI / COMMUNITY — left empty for now; these
+   *   personas have no automatic role grants today. When the
+   *   substitute / alumni / community modules grow their own role
+   *   provisioning, add the matching source to this map.
+   *
+   * MANUAL is intentionally NOT mapped to any non-STAFF persona to
+   * avoid leaking Platform Admin assignments (which are typically
+   * MANUAL) into PARENT / STUDENT contexts. Platform Admin holders
+   * still receive every permission via the bypass below.
+   */
+  private static readonly PERSONA_SOURCES: Record<string, string[]> = {
+    STAFF: ['HR_SYNC', 'WORKFLOW_APPROVAL', 'EMERGENCY'],
+    PARENT: ['GUARDIAN_RELATIONSHIP'],
+    STUDENT: ['SIS_DERIVED'],
+    SUBSTITUTE: [],
+    ALUMNI: [],
+    COMMUNITY: [],
+  };
+
+  private async resolvePermissionsForPersona(
+    accountId: string,
+    scopeIds: string[],
+    personaType: string,
+  ): Promise<string[]> {
+    if (scopeIds.length === 0) return [];
+
+    // Platform Admin bypass: if the user holds sys-001:admin anywhere
+    // in the active scope chain — regardless of which role granted it
+    // — return the full unfiltered permission set. Platform admins
+    // need every permission code visible on the wire so they can
+    // operate cross-persona without losing capabilities.
+    const cacheRows = await this.prisma.iamEffectiveAccessCache.findMany({
+      where: { accountId, scopeId: { in: scopeIds } },
+      select: { permissionCodes: true },
+    });
+    const allCodes = new Set<string>();
+    for (const r of cacheRows) for (const c of r.permissionCodes) allCodes.add(c);
+    if (allCodes.has('sys-001:admin')) {
+      return Array.from(allCodes).sort();
+    }
+
+    const sources = AuthService.PERSONA_SOURCES[personaType] ?? [];
+    if (sources.length === 0) return [];
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ code: string }>>(
+      `SELECT DISTINCT p.code AS code
+       FROM platform.iam_role_assignment ra
+       JOIN platform.role_permissions rp ON rp.role_id = ra.role_id
+       JOIN platform.permissions p ON p.id = rp.permission_id
+       WHERE ra.account_id = $1::uuid
+         AND ra.scope_id = ANY($2::uuid[])
+         AND ra.status = 'ACTIVE'
+         AND (ra.effective_to IS NULL OR ra.effective_to > now())
+         AND ra.source::text = ANY($3::text[])`,
+      accountId,
+      scopeIds,
+      sources,
+    );
+    return rows.map((r) => r.code).sort();
   }
 }

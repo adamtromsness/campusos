@@ -3,17 +3,8 @@ import { create } from 'zustand';
 /**
  * Persona vocabulary returned by /auth/me and /auth/switch-persona.
  * Personas are derived from real actions (LINKED child → PARENT,
- * hr_employees row → STAFF, etc.) — see the persona registration design
- * doc. Replaces the legacy iam_person.person_type values surfaced as
- * `personType` on AuthUser.
- *
- * Mapping from legacy personType (where applicable):
- *   STAFF      → STAFF
- *   STUDENT    → STUDENT
- *   GUARDIAN   → PARENT
- *   SUBSTITUTE → SUBSTITUTE
- *   ALUMNI     → ALUMNI
- *   VOLUNTEER  → (no equivalent — use COMMUNITY)
+ * hr_employees row → STAFF, etc.) — see the persona registration
+ * design doc.
  */
 export type PersonaType = 'PARENT' | 'STUDENT' | 'STAFF' | 'SUBSTITUTE' | 'ALUMNI' | 'COMMUNITY';
 

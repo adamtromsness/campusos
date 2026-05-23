@@ -251,8 +251,7 @@ export class AuthController {
    * zero personas, activePersona is null and the web client routes to
    * /getting-started.
    *
-   * The legacy `personType` field is removed — clients should read
-   * `activePersona.type` instead.
+   * Clients should read `activePersona.type` for the active role label.
    */
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user' })

@@ -276,11 +276,9 @@ describe('integration:m00-platform/family-children', () => {
     );
   });
 
-  it('delete PENDING_LINK child revokes the outstanding invitation', async () => {
-    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-    // Pretend we sent a link invitation. The send-link tests cover the
-    // happy path; here we just want to verify the cleanup hook.
-    const code = 'ABCD1234';
+  // Helper: drop the row to PENDING_LINK with a fixed code + invitation
+  // row so the lifecycle tests below can exercise cancel + resend.
+  async function seedPendingLink(childId: string, code: string): Promise<string> {
     const invitationId = generateId();
     await prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_invitations
@@ -293,7 +291,7 @@ describe('integration:m00-platform/family-children', () => {
       code,
       userAPersonId,
       'sofia@example.invalid',
-      c.id,
+      childId,
     );
     await prisma.$executeRawUnsafe(
       `UPDATE platform.platform_family_children
@@ -301,13 +299,70 @@ describe('integration:m00-platform/family-children', () => {
        WHERE id = $3::uuid`,
       code,
       'sofia@example.invalid',
-      c.id,
+      childId,
     );
+    return invitationId;
+  }
 
+  it('delete PENDING_LINK child → 400 (must cancel-link first)', async () => {
+    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+    await seedPendingLink(c.id, 'PENDLINK1');
+
+    await expect(controller.remove(reqA(), c.id)).rejects.toBeInstanceOf(BadRequestException);
+
+    // Row + invitation must still exist (the BadRequest is a no-op).
+    const inv = await prisma.platformInvitation.findUnique({ where: { token: 'PENDLINK1' } });
+    expect(inv!.status).toBe('PENDING');
+  });
+
+  it('cancel-link on PENDING_LINK → invitation REVOKED, row back to PLACEHOLDER', async () => {
+    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+    await seedPendingLink(c.id, 'PENDLINK2');
+
+    const after = await controller.cancelLink(reqA(), c.id);
+
+    expect(after.status).toBe('PLACEHOLDER');
+    expect(after.inviteCode).toBeNull();
+    expect(after.inviteEmail).toBeNull();
+    expect(after.inviteSentAt).toBeNull();
+
+    const inv = await prisma.platformInvitation.findUnique({ where: { token: 'PENDLINK2' } });
+    expect(inv!.status).toBe('REVOKED');
+  });
+
+  it('cancel-link → delete succeeds (PENDING_LINK → PLACEHOLDER → removed)', async () => {
+    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+    await seedPendingLink(c.id, 'PENDLINK3');
+
+    await controller.cancelLink(reqA(), c.id);
     await controller.remove(reqA(), c.id);
 
-    const inv = await prisma.platformInvitation.findUnique({ where: { id: invitationId } });
-    expect(inv!.status).toBe('REVOKED');
+    const list = await controller.list(reqA());
+    expect(list.find((x) => x.id === c.id)).toBeUndefined();
+  });
+
+  it('cancel-link on PLACEHOLDER → 400 (no pending link to cancel)', async () => {
+    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+    await expect(controller.cancelLink(reqA(), c.id)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('send-link works on PENDING_LINK — old code revoked, new code issued (resend)', async () => {
+    const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+    await seedPendingLink(c.id, 'PENDLINK4');
+
+    const after = await controller.sendLink(reqA(), c.id, { email: 'sofia@example.invalid' });
+
+    expect(after.status).toBe('PENDING_LINK');
+    expect(after.inviteCode).toMatch(/^[A-Z0-9]{8}$/);
+    expect(after.inviteCode).not.toBe('PENDLINK4');
+
+    const oldInv = await prisma.platformInvitation.findUnique({ where: { token: 'PENDLINK4' } });
+    expect(oldInv!.status).toBe('REVOKED');
+
+    const newInv = await prisma.platformInvitation.findUnique({
+      where: { token: after.inviteCode! },
+    });
+    expect(newInv!.status).toBe('PENDING');
   });
 
   // ─── Cross-family isolation ────────────────────────────────

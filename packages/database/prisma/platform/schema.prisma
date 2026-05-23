@@ -206,6 +206,7 @@ model IamPerson {
   familyMembers     FamilyMember[]
   volunteerProfile  VolunteerProfile?
   substituteProfile SubstituteProfile?
+  managedAccounts   PlatformUser[]     @relation("ManagedByPerson")
 
   @@index([nationalIdHash])
   @@index([personType, isActive])
@@ -250,6 +251,7 @@ model PlatformUser {
   lastSeenAt        DateTime?     @map("last_seen_at") @db.Timestamptz()
 
   person              IamPerson           @relation(fields: [personId], references: [id])
+  managedBy           IamPerson?          @relation("ManagedByPerson", fields: [managedByPersonId], references: [id])
   federatedIdentities FederatedIdentity[]
 
   @@index([personId])

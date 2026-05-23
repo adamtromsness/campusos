@@ -135,6 +135,15 @@ export class FamilyChildrenService {
     return this.requireById(childId);
   }
 
+  /**
+   * DELETE /family/children/:id — only PLACEHOLDER rows may be
+   * removed. Codex review FIX 3: the prior implementation would
+   * silently revoke a PENDING_LINK invitation as a side-effect of
+   * delete, which conflated "I no longer want to invite this person"
+   * with "remove this child entirely." Callers must now cancel the
+   * link explicitly via /cancel-link, which resets the row back to
+   * PLACEHOLDER; the row can then be deleted normally.
+   */
   async remove(personId: string, childId: string): Promise<void> {
     const row = await this.requireOwnedRow(personId, childId);
     if (row.status === 'LINKED') {
@@ -142,19 +151,51 @@ export class FamilyChildrenService {
         'Cannot remove a linked child. Use /unlink to detach the canonical account.',
       );
     }
-    // PENDING_LINK rows revoke the outstanding invitation first.
-    if (row.status === 'PENDING_LINK' && row.invite_code) {
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE platform.platform_invitations
-           SET status = 'REVOKED'
-         WHERE token = $1 AND status = 'PENDING'`,
-        row.invite_code,
+    if (row.status === 'PENDING_LINK') {
+      throw new BadRequestException(
+        'Cancel the link invitation first (POST /family/children/:id/cancel-link), then remove the child.',
       );
     }
     await this.prisma.$executeRawUnsafe(
       `DELETE FROM platform.platform_family_children WHERE id = $1::uuid`,
       childId,
     );
+  }
+
+  /**
+   * POST /family/children/:id/cancel-link — revokes the outstanding
+   * CHILD_LINK invitation and resets the family_child row back to
+   * PLACEHOLDER. After cancelling the row can either be deleted or
+   * have a fresh link sent.
+   */
+  async cancelLink(personId: string, childId: string): Promise<FamilyChildDto> {
+    const row = await this.requireOwnedRow(personId, childId);
+    if (row.status !== 'PENDING_LINK') {
+      throw new BadRequestException(
+        `Cannot cancel a link in status ${row.status}; expected PENDING_LINK`,
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      if (row.invite_code) {
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_invitations
+             SET status = 'REVOKED'
+           WHERE token = $1 AND status = 'PENDING'`,
+          row.invite_code,
+        );
+      }
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_children
+           SET status = 'PLACEHOLDER',
+               invite_code = NULL,
+               invite_email = NULL,
+               invite_sent_at = NULL,
+               updated_at = now()
+         WHERE id = $1::uuid`,
+        childId,
+      );
+    });
+    return this.requireById(childId);
   }
 
   // ─── Account creation + linking (Step 6) ───────────────────
@@ -243,9 +284,12 @@ export class FamilyChildrenService {
     dto: SendChildLinkDto,
   ): Promise<FamilyChildDto> {
     const row = await this.requireOwnedRow(personId, childId);
-    if (row.status !== 'PLACEHOLDER') {
+    // Codex review FIX 4 — accept both PLACEHOLDER (first send) and
+    // PENDING_LINK (resend). LINKED rows reject; the canonical
+    // account is already attached and there's nothing to invite.
+    if (row.status !== 'PLACEHOLDER' && row.status !== 'PENDING_LINK') {
       throw new BadRequestException(
-        `Cannot send link invitation for child in status ${row.status}; expected PLACEHOLDER`,
+        `Cannot send link invitation for child in status ${row.status}; expected PLACEHOLDER or PENDING_LINK`,
       );
     }
     const code = this.generateLinkCode();
@@ -253,6 +297,16 @@ export class FamilyChildrenService {
     const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
 
     await this.prisma.$transaction(async (tx) => {
+      // Revoke the previous outstanding invitation (if any) so we
+      // don't leak a still-valid old code after a resend.
+      if (row.status === 'PENDING_LINK' && row.invite_code) {
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_invitations
+             SET status = 'REVOKED'
+           WHERE token = $1 AND status = 'PENDING'`,
+          row.invite_code,
+        );
+      }
       await tx.$executeRawUnsafe(
         `INSERT INTO platform.platform_invitations
            (id, type, token, inviter_person_id, target_email, metadata, status, expires_at, created_at)
