@@ -1920,6 +1920,32 @@ async function seedIam() {
   // is wired correctly. Phase 2 cleanup: real-school deployments
   // assign specialist roles directly without Staff, then narrow the
   // Staff role's permission set.
+  //
+  // `source` per role mirrors the provenance the role would have in
+  // production: HR_SYNC for employee-side roles (so AuthService.PERSONA_SOURCES
+  // maps them to the STAFF persona), GUARDIAN_RELATIONSHIP for Parent,
+  // SIS_DERIVED for Student. Platform Admin stays MANUAL because the
+  // /auth/me bypass keys on sys-001:admin presence regardless of source,
+  // and a MANUAL grant accurately describes how a system administrator
+  // is provisioned in real deployments.
+  type AssignmentSource =
+    | 'MANUAL'
+    | 'HR_SYNC'
+    | 'SIS_DERIVED'
+    | 'GUARDIAN_RELATIONSHIP'
+    | 'WORKFLOW_APPROVAL'
+    | 'EMERGENCY';
+  var roleSourceMap: Record<string, AssignmentSource> = {
+    'Platform Admin': 'MANUAL',
+    'School Admin': 'HR_SYNC',
+    Teacher: 'HR_SYNC',
+    'Vice Principal': 'HR_SYNC',
+    Counsellor: 'HR_SYNC',
+    Staff: 'HR_SYNC',
+    Parent: 'GUARDIAN_RELATIONSHIP',
+    Student: 'SIS_DERIVED',
+  };
+
   var userRoleMap: Array<{ email: string; roles: string[]; scopeId: string }> = [
     { email: 'admin@demo.campusos.dev', roles: ['Platform Admin'], scopeId: platformScopeId },
     { email: 'principal@demo.campusos.dev', roles: ['School Admin'], scopeId: schoolScopeId },
@@ -1957,6 +1983,7 @@ async function seedIam() {
       });
       if (existingAssignment) continue;
 
+      var assignmentSource: AssignmentSource = roleSourceMap[roleName] ?? 'MANUAL';
       await client.iamRoleAssignment.create({
         data: {
           id: generateId(),
@@ -1964,11 +1991,11 @@ async function seedIam() {
           roleId: role.id,
           scopeId: mapping.scopeId,
           status: 'ACTIVE',
-          source: 'MANUAL',
+          source: assignmentSource,
         },
       });
       newAssignmentCount++;
-      console.log('  ' + mapping.email + ' -> ' + roleName);
+      console.log('  ' + mapping.email + ' -> ' + roleName + ' (' + assignmentSource + ')');
     }
   }
   if (newAssignmentCount === 0) {

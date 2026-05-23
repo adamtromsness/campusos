@@ -299,3 +299,68 @@ pnpm --filter @campusos/api exec vitest run test/integration/m00-platform/ \
   wired to the projection-write Kafka events that should trigger it
   (hr.employee.hired, sis.student.enrolled, etc.). Callers refresh
   manually for now.
+
+## Manual-QA follow-up — 2026-05-23 (post-Step-14)
+
+Three bugs surfaced during manual QA of the persona launchpad. Fixes:
+
+1. **Empty launchpad for non-admin personas.** `/auth/me` returned
+   `permissions: []` for teacher / parent / student / VP / counsellor.
+   FIX 2 in commit `620a5d9` filters role assignments by `source` per
+   active persona (STAFF ← HR_SYNC / WORKFLOW_APPROVAL / EMERGENCY,
+   PARENT ← GUARDIAN_RELATIONSHIP, STUDENT ← SIS_DERIVED), but
+   `seed-iam.ts` wrote every assignment as `source: MANUAL`. Net
+   effect: only Platform Admin (which holds `sys-001:admin` and hits
+   the bypass) and School Admin (which holds `sys-001:admin` via
+   `everyFunction`) saw any tiles; everyone else got an empty grid
+   except for the persona-branched Classes / My Classes / My Children
+   tile (which has no permission gate).
+
+   `seed-iam.ts` now writes the production-true source per role:
+
+   | Role             | Source                  |
+   |------------------|-------------------------|
+   | Platform Admin   | MANUAL (bypass key)     |
+   | School Admin     | HR_SYNC                 |
+   | Teacher          | HR_SYNC                 |
+   | Vice Principal   | HR_SYNC                 |
+   | Counsellor       | HR_SYNC                 |
+   | Staff            | HR_SYNC                 |
+   | Parent           | GUARDIAN_RELATIONSHIP   |
+   | Student          | SIS_DERIVED             |
+
+   Platform Admin stays MANUAL — the `/auth/me` bypass keys on the
+   presence of `sys-001:admin` in the cache (independent of source),
+   and MANUAL accurately reflects how a sysadmin is provisioned in
+   real deployments. Requires `pnpm db:reset` to take effect.
+
+2. **Getting Started cards looked clickable but weren't.** Only the
+   small "Add a child →" text inside each card was a `<Link>`; the
+   surrounding card surface (border, icon, title) was an inert
+   `<div>`. Refactored `LinkCard` in
+   `apps/web/src/app/(app)/getting-started/page.tsx` to render the
+   whole shell as a single Next.js `<Link>`, so the entire card is
+   the click target. `InvitationCard` stays a non-Link `Card` because
+   it expands inline into a code-entry form rather than navigating.
+
+3. **Apps catalogue persona tagging.** Added `personas: ['STAFF']` to
+   staff-only tiles (tasks, approvals, staff, leave, schedule,
+   compliance, development, expenses, finance, procurement, analytics,
+   governance, accreditation, visitors, emergency, admissions) so they
+   stay hidden if a future persona model grants the underlying
+   permission code to a non-staff role. The existing wellbeing
+   (STUDENT), apply (PARENT), and substitutes (STAFF/SUBSTITUTE) tags
+   are unchanged. The Classes / My Classes / My Children tile keeps
+   its persona-branched copy without a `personas:` allowlist (the
+   branch itself enforces the persona affinity).
+
+Verification:
+
+```
+pnpm --filter @campusos/web build                                     # ✓
+pnpm --filter @campusos/database exec tsc --noEmit                    # ✓
+pnpm db:reset                                                         # ✓ 51s
+pnpm --filter @campusos/api exec vitest run \
+  test/integration/m00-platform/auth-me-personas.spec.ts \
+  --config vitest.integration.config.ts                               # 9/9 pass
+```

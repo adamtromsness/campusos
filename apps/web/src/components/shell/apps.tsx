@@ -189,6 +189,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/tasks',
       icon: ChecklistIcon,
       badgeKey: 'tasks',
+      personas: ['STAFF'],
     });
     apps.push({
       key: 'approvals',
@@ -198,6 +199,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       routePrefix: '/approvals',
       icon: GavelIcon,
       badgeKey: 'approvals',
+      personas: ['STAFF'],
     });
   }
 
@@ -230,6 +232,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Employee directory and profiles',
       href: '/staff',
       icon: PeopleIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -240,6 +243,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Balances, requests, and approvals',
       href: '/leave',
       icon: AttendanceIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -251,6 +255,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/schedule/timetable',
       routePrefix: '/schedule',
       icon: CalendarIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -295,6 +300,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/admissions/applications',
       routePrefix: '/admissions',
       icon: AcademicCapIcon,
+      personas: ['STAFF'],
     });
   } else if (isParent && hasAnyPermission(user, ['stu-003:write'])) {
     apps.push({
@@ -448,6 +454,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'School-wide training compliance',
       href: '/compliance',
       icon: CheckCircleIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -467,6 +474,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/hr/training',
       routePrefix: '/hr',
       icon: AcademicCapIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -483,6 +491,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
           : 'Submit and track your expense claims',
       href: '/hr/expense-claims',
       icon: BanknotesIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -663,6 +672,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/accreditation',
       routePrefix: '/accreditation',
       icon: CheckCircleIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -771,6 +781,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/finance',
       routePrefix: '/finance',
       icon: CalculatorIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -791,6 +802,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/procurement',
       routePrefix: '/procurement',
       icon: ShoppingCartIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -833,6 +845,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/analytics',
       routePrefix: '/analytics',
       icon: ChartBarIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -851,6 +864,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/governance',
       routePrefix: '/governance',
       icon: ShieldIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -905,6 +919,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/visitors',
       routePrefix: '/visitors',
       icon: ShieldIcon,
+      personas: ['STAFF'],
     });
   }
 
@@ -927,6 +942,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/emergency',
       routePrefix: '/emergency',
       icon: ShieldIcon,
+      personas: ['STAFF'],
     });
   }
 

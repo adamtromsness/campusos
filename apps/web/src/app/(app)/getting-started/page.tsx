@@ -103,9 +103,10 @@ interface CardShellProps {
 }
 
 /**
- * Wrapping `<button>` and `<Link>` both share this layout. Callers
- * pass `children` so the Invitation card can swap a Link for an
- * inline input expansion.
+ * Non-clickable card wrapper used by InvitationCard, which expands
+ * into an inline form on activation rather than navigating. Anchor-
+ * style cards use LinkCard instead so the entire card surface is
+ * the click target.
  */
 function Card({ title, description, accent, icon: Icon, children }: CardShellProps) {
   const a = ACCENTS[accent];
@@ -140,22 +141,56 @@ function Card({ title, description, accent, icon: Icon, children }: CardShellPro
   );
 }
 
-interface LinkCardProps extends CardShellProps {
+interface LinkCardProps {
+  title: string;
+  description: string;
+  accent: AccentName;
+  icon: (props: { className?: string }) => React.ReactNode;
   href: string;
   cta: string;
 }
 
-function LinkCard({ href, cta, ...shell }: LinkCardProps) {
+/**
+ * Whole-card click target. The Card shell is rendered as a single
+ * `<Link>` so users can tap anywhere on the card to navigate — the
+ * earlier text-only "→" affordance made the click area unintuitively
+ * small relative to the card's visual extent.
+ */
+function LinkCard({ title, description, accent, icon: Icon, href, cta }: LinkCardProps) {
+  const a = ACCENTS[accent];
   return (
-    <Card {...shell}>
-      <Link
-        href={href}
-        className="inline-flex w-fit items-center gap-1 text-sm font-medium text-campus-700 hover:text-campus-600"
-      >
+    <Link
+      href={href}
+      className={
+        'flex flex-col gap-3 rounded-card border border-gray-200 bg-white p-5 shadow-sm transition-colors ' +
+        a.hoverBorder +
+        ' ' +
+        a.hoverBg +
+        ' focus:outline-none focus:ring-2 focus:ring-campus-500 focus:ring-offset-2'
+      }
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className={
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
+            a.iconBg +
+            ' ' +
+            a.iconText
+          }
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <p className="mt-0.5 text-sm text-gray-600">{description}</p>
+        </div>
+      </div>
+      <span className="inline-flex w-fit items-center gap-1 text-sm font-medium text-campus-700">
         {cta}
         <span aria-hidden>→</span>
-      </Link>
-    </Card>
+      </span>
+    </Link>
   );
 }
 
