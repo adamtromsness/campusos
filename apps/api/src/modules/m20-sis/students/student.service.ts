@@ -4,11 +4,13 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
+import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
 import {
   CreateStudentDto,
   UpdateStudentDto,
@@ -125,7 +127,14 @@ function visibilityClause(actor: ResolvedActor, start: number): VisibilityClause
 
 @Injectable()
 export class StudentService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    // @Optional so test fixtures that only need student CRUD can
+    // construct StudentService with a single arg (mirrors how
+    // PermissionCheckService treats RedisService + MetricsService).
+    // The auto-alumni hook short-circuits when this is undefined.
+    @Optional() private readonly personaResolution?: PersonaResolutionService,
+  ) {}
 
   async list(filters: ListStudentsQueryDto, actor: ResolvedActor): Promise<StudentResponseDto[]> {
     var tenant = getCurrentTenant();
@@ -407,6 +416,75 @@ export class StudentService {
     });
     if (affected === 0) throw new NotFoundException('Student ' + id + ' not found');
 
+    // Auto-alumni: persona-registration Step 14 (Section 4 of the
+    // design). The student.update endpoint is the only path that flips
+    // enrollment_status to GRADUATED in the codebase today (no
+    // sis.student.graduated Kafka event exists yet), so we hook the
+    // alumni-profile creation + persona-cache refresh inline. Failures
+    // here are swallowed — graduation succeeds even if alumni
+    // activation hits an unrelated snag; the next /auth/me call can
+    // re-resolve.
+    if (input.enrollmentStatus === 'GRADUATED') {
+      await this.activateAlumniPersonaSafe(id);
+    }
+
     return this.getById(id, actor);
+  }
+
+  /**
+   * Idempotent upsert into alm_alumni_profiles + persona cache
+   * refresh for the graduated student. ON CONFLICT (school_id,
+   * person_id) DO NOTHING means a re-graduation (e.g. accidental
+   * status flip back-and-forth) does not duplicate the row. The
+   * graduation_year column is NOT NULL on alm_alumni_profiles and
+   * sis_students doesn't carry one — we use the current UTC year as
+   * a sensible default; a richer "expected graduation year" capture
+   * lands when the SIS gains a graduation_year column.
+   */
+  private async activateAlumniPersonaSafe(studentId: string): Promise<void> {
+    try {
+      const personId = await this.tenantPrisma.executeInTenantContext(async (tx) => {
+        const studentRows = await tx.$queryRawUnsafe<
+          Array<{ school_id: string; platform_student_id: string }>
+        >(
+          'SELECT school_id::text AS school_id, platform_student_id::text AS platform_student_id ' +
+            'FROM sis_students WHERE id = $1::uuid LIMIT 1',
+          studentId,
+        );
+        if (studentRows.length === 0) return null;
+        const schoolId = studentRows[0]!.school_id;
+        const platformStudentId = studentRows[0]!.platform_student_id;
+        const platformStudent = await tx.$queryRawUnsafe<Array<{ person_id: string }>>(
+          'SELECT person_id::text AS person_id FROM platform.platform_students WHERE id = $1::uuid LIMIT 1',
+          platformStudentId,
+        );
+        if (platformStudent.length === 0) return null;
+        const personId = platformStudent[0]!.person_id;
+
+        const gradYear = new Date().getUTCFullYear();
+        await tx.$executeRawUnsafe(
+          `INSERT INTO alm_alumni_profiles
+             (id, school_id, person_id, graduation_year, is_opted_in)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::int, true)
+           ON CONFLICT (school_id, person_id) DO NOTHING`,
+          generateId(),
+          schoolId,
+          personId,
+          gradYear,
+        );
+        return personId;
+      });
+      if (personId && this.personaResolution) {
+        await this.personaResolution.refreshPersonaCache(personId);
+      }
+    } catch (err: any) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[student.activateAlumniPersona] failed for student=' +
+          studentId +
+          ': ' +
+          (err?.message ?? err),
+      );
+    }
   }
 }
