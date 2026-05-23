@@ -7,6 +7,7 @@ import { AssignmentService } from './assignment.service';
 import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
+import { PersonaResolutionService } from './persona-resolution.service';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { RedisModule } from '@shared/cache';
 import { ObservabilityModule } from '@shared/observability/observability.module';
@@ -46,6 +47,7 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     ScopeService,
     ActorContextService,
     GuardianAuthorizationService,
+    PersonaResolutionService,
   ],
   exports: [
     PermissionCheckService,
@@ -55,6 +57,7 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     ScopeService,
     ActorContextService,
     GuardianAuthorizationService,
+    PersonaResolutionService,
   ],
 })
 export class IamModule {}
