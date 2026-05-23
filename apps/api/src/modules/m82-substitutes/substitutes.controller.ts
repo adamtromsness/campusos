@@ -27,6 +27,7 @@ import {
   CreateSubstituteProfileDto,
   JobPostingResponseDto,
   PostJobDto,
+  RegisterSubstituteSelfDto,
   SchoolPoolMemberResponseDto,
   SubstituteProfileResponseDto,
   SubstituteSearchDto,
@@ -94,6 +95,21 @@ export class SubstitutesController {
   ): Promise<SubstituteProfileResponseDto> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.profiles.create(input, actor);
+  }
+
+  // Self-service onboarding from /substitute/register on the web.
+  // Auth-only (no @RequirePermission): a brand-new user with no
+  // SUB-001:write code can still register. Idempotent — a second call
+  // returns the existing profile. The SUBSTITUTE persona activates
+  // via the persona-cache refresh inside the service.
+  @Post('register')
+  @ApiOperation({ summary: 'Self-service substitute registration (activates SUBSTITUTE persona).' })
+  async registerSelf(
+    @Body() input: RegisterSubstituteSelfDto,
+    @Req() req: AuthedRequest,
+  ): Promise<SubstituteProfileResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.profiles.registerSelf(input, actor);
   }
 
   @Get('search')

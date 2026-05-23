@@ -1,12 +1,21 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
+import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
 import { generateId } from '@campusos/database';
 import {
   CreateSubstituteProfileDto,
+  RegisterSubstituteSelfDto,
   SubstituteProfileResponseDto,
   SubstituteSearchDto,
 } from './dto/substitutes.dto';
@@ -30,6 +39,13 @@ export class SubstituteProfileService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
+    // @Optional — existing test fixtures construct the service with
+    // two args; the persona-cache refresh on self-registration is a
+    // soft requirement (the next /auth/me reads from the cache, which
+    // PersonaResolutionService will rebuild on the next access if
+    // needed). Tests that exercise the self-registration path supply
+    // the resolver.
+    @Optional() private readonly personaResolution?: PersonaResolutionService,
   ) {}
 
   /**
@@ -129,6 +145,81 @@ export class SubstituteProfileService {
         isActive: true,
       },
     });
+    return this.rowToDto(created);
+  }
+
+  /**
+   * Self-service registration as a substitute teacher. Bound to the
+   * caller's own personId — no `personId` field on the DTO, no admin-
+   * on-behalf path. Used by the Getting Started "I want to substitute
+   * teach" card, where the user holds no IAM permissions yet.
+   *
+   * Idempotent: a second call on the same person returns the existing
+   * profile rather than 409, so the registration page is safe to retry
+   * after a network blip. The persona cache is refreshed so SUBSTITUTE
+   * surfaces on the next /auth/me without a manual log-out.
+   */
+  async registerSelf(
+    input: RegisterSubstituteSelfDto,
+    actor: ResolvedActor,
+  ): Promise<SubstituteProfileResponseDto> {
+    if (!actor.personId) {
+      throw new ForbiddenException('Anonymous registration is not supported');
+    }
+    const platform = this.tenantPrisma.getPlatformClient();
+
+    // Idempotent — return the existing profile if the caller already
+    // registered. This lets the UI safely retry after a network blip
+    // without surfacing a confusing 409.
+    const existing = await platform.substituteProfile.findUnique({
+      where: { personId: actor.personId },
+    });
+    if (existing) {
+      return this.rowToDto(existing);
+    }
+
+    if (!input.gradeLevels || input.gradeLevels.length === 0) {
+      throw new BadRequestException('Pick at least one grade band.');
+    }
+
+    const id = generateId();
+    let created;
+    try {
+      created = await platform.substituteProfile.create({
+        data: {
+          id,
+          personId: actor.personId,
+          accountId: actor.accountId,
+          displayName: input.displayName ?? 'Substitute',
+          bio: input.bio ?? null,
+          gradeLevels: input.gradeLevels,
+          subjectAreas: input.subjectAreas ?? [],
+          yearsExperience: input.yearsExperience ?? null,
+          maxDistanceMiles: input.maxDistanceMiles ?? null,
+          isAvailable: true,
+          isActive: true,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // Race with a parallel registration — re-read the winning row.
+        const after = await platform.substituteProfile.findUnique({
+          where: { personId: actor.personId },
+        });
+        if (after) return this.rowToDto(after);
+        throw new ConflictException('A substitute profile already exists for this person');
+      }
+      throw e;
+    }
+
+    if (this.personaResolution) {
+      try {
+        await this.personaResolution.refreshPersonaCache(actor.personId);
+      } catch {
+        // Best-effort — next /auth/me will re-resolve.
+      }
+    }
+
     return this.rowToDto(created);
   }
 

@@ -90,6 +90,28 @@ export class CreateSubstituteProfileDto {
   maxTravelMiles?: number;
 }
 
+/**
+ * Self-service registration body — no personId field; the caller's
+ * JWT subject is the canonical identity. Used by the Getting Started
+ * "I want to substitute teach" card where the user holds no IAM
+ * permissions yet.
+ */
+export class RegisterSubstituteSelfDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() displayName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() bio?: string;
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  gradeLevels!: string[];
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  subjectAreas?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) yearsExperience?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) maxDistanceMiles?: number;
+}
+
 export class SubstituteProfileResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() personId!: string;
