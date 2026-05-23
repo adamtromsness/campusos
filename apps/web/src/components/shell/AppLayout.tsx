@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
 import { Sidebar } from './Sidebar';
@@ -9,10 +9,13 @@ import { TopBar } from './TopBar';
 import { CloseIcon } from './icons';
 import { EmergencyAlertBanner } from '@/components/notifications/EmergencyAlertBanner';
 
+const GETTING_STARTED_PATH = '/getting-started';
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
+  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -20,6 +23,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
       router.replace('/login');
     }
   }, [status, router]);
+
+  // Persona-presence routing — Section 2 Step 3 of the
+  // persona-registration design. A 0-persona user lands on
+  // /getting-started; a user with one or more personas should never
+  // see the onboarding page (it would be a dead end). Same logic
+  // both directions so back-button + page reload + persona switcher
+  // all stay coherent.
+  useEffect(() => {
+    if (status !== 'authenticated' || !user) return;
+    const onGettingStarted = pathname === GETTING_STARTED_PATH;
+    if (user.personas.length === 0 && !onGettingStarted) {
+      router.replace(GETTING_STARTED_PATH);
+    } else if (user.personas.length > 0 && onGettingStarted) {
+      router.replace('/dashboard');
+    }
+  }, [status, user, pathname, router]);
 
   if (status === 'loading' || !user) {
     return <PageLoader label="Loading CampusOS…" />;
