@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Persona, Registration &amp; Child Management Design</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.container{max-width:960px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);margin:36px 0 10px;padding-top:16px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:12px}
+h3{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+h4{font-size:13px;font-weight:600;color:var(--text);margin:12px 0 4px}
+p,li{font-size:13px;line-height:1.8}
+.sub{font-size:15px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+th{background:#d5e8f0;padding:6px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:5px 10px;border:1px solid #ddd;vertical-align:top}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11px}
+pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto;font-size:11px;line-height:1.6;margin:10px 0}
+ol,ul{padding-left:20px;margin:8px 0}
+.box{border-radius:10px;padding:16px 20px;margin:14px 0;border-left:5px solid}
+.box-blue{background:var(--blue-bg);border-color:var(--blue)}
+.box-green{background:var(--green-bg);border-color:var(--green)}
+.box-amber{background:var(--amber-bg);border-color:var(--amber)}
+.box-red{background:var(--red-bg);border-color:var(--red)}
+.box-purple{background:var(--purple-bg);border-color:var(--purple)}
+.decision{background:#f0f4ff;border:2px solid #4a6fa5;border-radius:10px;padding:14px 18px;margin:14px 0}
+.decision h4{color:#4a6fa5;margin-top:0}
+.flow-step{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin:8px 0}
+.flow-step strong{color:var(--accent)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;margin-right:4px}
+.tag-api{background:#e0e7ff;color:#3730a3}
+.tag-web{background:#fce7f3;color:#9d174d}
+.tag-db{background:#d1fae5;color:#065f46}
+.tag-worker{background:#fef3c7;color:#92400e}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">CampusOS</span><span class="sep">|</span><a href="design-hub/index.html">Design Hub</a><span class="sep">|</span><span style="color:#ffd700;font-size:13px;font-weight:600">PERSONA &amp; REGISTRATION DESIGN</span></div>
+<div class="container">
+<h1>Persona, Registration &amp; Child Management</h1>
+<p class="sub">How users register, discover their personas, manage children, link canonical accounts, and switch active context in the UI. Prerequisite for enrolment, billing, messaging, and every persona-gated workflow.</p>
+
+<div class="box box-blue">
+<h4 style="margin-top:0">Core Principle</h4>
+<p>CampusOS never asks "what are you?" at registration. A person registers as a <strong>person</strong>. Personas are <strong>discovered through actions</strong>: add a child → parent, accept an offer → employee, graduate → alumni, register availability → substitute. The system derives what you are from what you do.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>1. Identity Model (existing + changes)</h2>
+
+<h3>What already exists</h3>
+<table>
+<tr><th>Table</th><th>Purpose</th><th>Schema</th></tr>
+<tr><td><code>iam_person</code></td><td>Canonical human identity. One row per real person.</td><td>platform</td></tr>
+<tr><td><code>platform_users</code></td><td>Auth credentials + audit (last_login, refresh_token). FK → iam_person.</td><td>platform</td></tr>
+<tr><td><code>platform_families</code></td><td>Family unit container.</td><td>platform</td></tr>
+<tr><td><code>platform_students</code></td><td>Cross-school student portability. FK → iam_person.</td><td>platform</td></tr>
+<tr><td><code>sis_students</code></td><td>Per-school student projection. FK → platform_students.</td><td>tenant</td></tr>
+<tr><td><code>sis_guardians</code></td><td>Per-school guardian projection. FK → iam_person.</td><td>tenant</td></tr>
+<tr><td><code>sis_student_guardians</code></td><td>Links guardians to students with custody arrangement.</td><td>tenant</td></tr>
+<tr><td><code>hr_employees</code></td><td>Employee projection. FK → iam_person.</td><td>tenant</td></tr>
+<tr><td><code>sub_profiles</code></td><td>Substitute teacher profile. FK → iam_person.</td><td>tenant/platform</td></tr>
+<tr><td><code>alm_profiles</code></td><td>Alumni profile. FK → iam_person.</td><td>tenant</td></tr>
+</table>
+
+<h3>What's new</h3>
+
+<h4>platform_family_children (new table)</h4>
+<p>Represents a child within a family. The child may or may not have a canonical <code>iam_person</code> account. This is the parent's view of their children <strong>before</strong> any school relationship exists.</p>
+
+<pre>
+CREATE TABLE IF NOT EXISTS platform.platform_family_children (
+  id              UUID PRIMARY KEY,           -- UUIDv7
+  family_id       UUID NOT NULL REFERENCES platform.platform_families(id),
+  person_id       UUID REFERENCES platform.iam_person(id),  -- NULL = placeholder
+  first_name      TEXT NOT NULL,              -- always set (for display)
+  last_name       TEXT NOT NULL,
+  date_of_birth   DATE,
+  gender          TEXT,
+  status          TEXT NOT NULL DEFAULT 'PLACEHOLDER'
+                    CHECK (status IN ('PLACEHOLDER','PENDING_LINK','LINKED')),
+  invite_code     TEXT,                       -- 8-char code for account linking
+  invite_email    TEXT,                       -- where to send the link invite
+  invite_sent_at  TIMESTAMPTZ,
+  linked_at       TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ,
+  UNIQUE (family_id, person_id)               -- one link per child per family
+);
+</pre>
+
+<div class="decision">
+<h4>DECISION — Three child states</h4>
+<table>
+<tr><th>Status</th><th>person_id</th><th>Meaning</th><th>Can enrol?</th></tr>
+<tr><td><code>PLACEHOLDER</code></td><td>NULL</td><td>Parent added basic info (name, DOB). No canonical account exists yet. This is just the parent's record of their child.</td><td>No — must link first</td></tr>
+<tr><td><code>PENDING_LINK</code></td><td>NULL</td><td>Parent requested a link. An invite code was generated and optionally emailed. Waiting for the child (or another parent) to enter the code.</td><td>No — must complete link</td></tr>
+<tr><td><code>LINKED</code></td><td>Set</td><td>The child's canonical <code>iam_person</code> is linked. The child can now be enrolled, messaged, and participate in the platform.</td><td>Yes</td></tr>
+</table>
+</div>
+
+<h4>platform_personas (new table)</h4>
+<p>Tracks which personas a person holds. Derived from data projections but cached here for fast lookup by <code>/auth/me</code>.</p>
+
+<pre>
+CREATE TABLE IF NOT EXISTS platform.platform_personas (
+  id          UUID PRIMARY KEY,
+  person_id   UUID NOT NULL REFERENCES platform.iam_person(id),
+  type        TEXT NOT NULL
+                CHECK (type IN ('PARENT','STUDENT','STAFF','SUBSTITUTE','ALUMNI','COMMUNITY')),
+  school_id   UUID REFERENCES platform.schools(id),  -- NULL for platform-wide personas
+  label       TEXT NOT NULL,                -- display label ("Teacher at Lincoln Elementary")
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (person_id, type, COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid))
+);
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>2. Registration Flow</h2>
+
+<p>Registration creates a canonical account. No persona assignment yet — that comes from subsequent actions.</p>
+
+<div class="flow-step"><strong>Step 1 — Sign up</strong><br>
+User visits <code>/register</code>. Provides: first name, last name, email, phone (optional). CampusOS creates:<br>
+• <code>iam_person</code> row (canonical identity)<br>
+• <code>platform_users</code> row (auth credentials via Keycloak OIDC)<br>
+• <code>platform_families</code> row (every person gets a family unit — even singles)<br>
+No persona assigned. No school linked.
+</div>
+
+<div class="flow-step"><strong>Step 2 — Email verification</strong><br>
+Standard email verification flow via Keycloak. Until verified, the user can access the "Getting Started" page but cannot perform platform actions.
+</div>
+
+<div class="flow-step"><strong>Step 3 — Getting Started page</strong><br>
+After login, if the user has zero personas, they land on <code>/getting-started</code> instead of the launchpad. This page offers action cards:
+<ul>
+<li><strong>"I have children"</strong> → Add children flow (Section 3)</li>
+<li><strong>"I received an invitation"</strong> → Enter invite code → Accept position/link (Section 5)</li>
+<li><strong>"I want to substitute teach"</strong> → Sub profile registration</li>
+<li><strong>"I'm looking for a school"</strong> → Public school finder → Enrolment application</li>
+</ul>
+The page disappears once the user has at least one persona. They can always return via settings.
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>3. Adding Children (Pre-School)</h2>
+
+<p>A parent adds children to their family <strong>before</strong> any school relationship. This is the parent's private family record. The child may or may not have a CampusOS account.</p>
+
+<h3>Add child flow</h3>
+
+<div class="flow-step"><strong>Step 1 — Basic info</strong><br>
+Parent provides: first name, last name, date of birth, gender (optional).<br>
+Creates a <code>platform_family_children</code> row with <code>status=PLACEHOLDER</code>, <code>person_id=NULL</code>.
+</div>
+
+<div class="flow-step"><strong>Step 2 — Does this child have a CampusOS account?</strong><br>
+Three options:
+
+<p><strong>A) "No — they don't have an account yet"</strong><br>
+Child stays as <code>PLACEHOLDER</code>. Parent can proceed with browsing schools, but <strong>cannot submit an enrolment application</strong> until the child is linked to a canonical account. The UI shows a yellow badge: "Account needed for enrolment".</p>
+
+<p><strong>B) "Yes — I have their link code"</strong><br>
+Parent enters the child's 8-character link code. The system looks up the code, finds the <code>iam_person</code>, and links:<br>
+• Sets <code>person_id</code> on the family_children row<br>
+• Sets <code>status=LINKED</code>, <code>linked_at=now()</code><br>
+• Creates a <code>platform_personas</code> row for the parent (type=PARENT) if not already present<br>
+The parent persona activates immediately.</p>
+
+<p><strong>C) "I want to create an account for them"</strong><br>
+For young children who won't manage their own account. Parent provides an email (or skips email for under-13). The system creates:<br>
+• <code>iam_person</code> row for the child<br>
+• <code>platform_users</code> row (parent-managed, flagged as minor account)<br>
+• Links the family_children row: <code>person_id</code> set, <code>status=LINKED</code><br>
+• Creates parent persona if not present<br>
+For under-13 accounts, the parent is the account manager (COPPA/FERPA compliance).
+</p>
+</div>
+
+<div class="flow-step"><strong>Step 3 — Send a link invitation (optional)</strong><br>
+If the child is a <code>PLACEHOLDER</code> and the parent knows their email:<br>
+• Parent enters the child's email address<br>
+• System generates an 8-character <code>invite_code</code> and sends an email: "Your parent [name] wants to link your CampusOS account to their family. Enter this code in your profile: <strong>ABCD-1234</strong>"<br>
+• Status changes to <code>PENDING_LINK</code><br>
+• When the child (or their other parent) enters the code on their own account, the link completes → <code>LINKED</code>
+</div>
+
+<h3>Accepting a link code (child's side)</h3>
+
+<div class="flow-step">
+The child (or their other parent/guardian) goes to <code>/settings/family</code> and clicks "Link to a family". They enter the 8-character code. The system:<br>
+• Validates the code exists and is not expired (72-hour TTL)<br>
+• Sets <code>person_id</code> on the <code>platform_family_children</code> row<br>
+• Sets <code>status=LINKED</code><br>
+• Creates the PARENT persona for the inviting parent if not present<br>
+• Optionally creates a reciprocal family_children row for the child's family (so the child sees the parent too)
+</div>
+
+<div class="box box-amber">
+<h4 style="margin-top:0">Enrolment gate</h4>
+<p>The enrolment application form (<code>/enrolment/apply</code>) requires the child to be in <code>LINKED</code> status. If the child is <code>PLACEHOLDER</code> or <code>PENDING_LINK</code>, the form shows: "This child needs a CampusOS account before you can apply. [Create account] [Send link invitation]". This ensures the school always receives an application tied to a real canonical identity.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>4. Persona Discovery &amp; Activation</h2>
+
+<p>Personas are never assigned by an admin dropdown. They're activated by real actions:</p>
+
+<table>
+<tr><th>Action</th><th>Persona activated</th><th>Trigger</th></tr>
+<tr><td>Link a child to your family</td><td><code>PARENT</code></td><td><code>platform_family_children.status</code> → LINKED and linking person is an adult</td></tr>
+<tr><td>Get enrolled by a school</td><td><code>STUDENT</code></td><td><code>sis_students</code> row created by school during enrolment</td></tr>
+<tr><td>Accept an employment offer</td><td><code>STAFF</code></td><td><code>hr_employees</code> row created, <code>iam_role_assignment</code> granted</td></tr>
+<tr><td>Register as substitute</td><td><code>SUBSTITUTE</code></td><td><code>sub_profiles</code> row created</td></tr>
+<tr><td>Graduate</td><td><code>ALUMNI</code></td><td><code>alm_profiles</code> row created by graduation worker</td></tr>
+<tr><td>Join a community group</td><td><code>COMMUNITY</code></td><td><code>grp_members</code> row created (no school affiliation required)</td></tr>
+</table>
+
+<h3>Persona resolution service</h3>
+<p><span class="tag tag-api">API</span> <code>PersonaResolutionService.resolveForPerson(personId)</code></p>
+<p>Queries all projection tables and returns the complete persona set. Called on login, on persona-changing actions, and cached in <code>platform_personas</code>.</p>
+
+<pre>
+async resolveForPerson(personId: string): Promise&lt;Persona[]&gt; {
+  const personas: Persona[] = [];
+
+  // PARENT: has any LINKED children in platform_family_children
+  const linkedChildren = await this.countLinkedChildren(personId);
+  if (linkedChildren > 0) {
+    // Find schools where children are enrolled for school-specific parent personas
+    const childSchools = await this.getChildSchools(personId);
+    for (const school of childSchools) {
+      personas.push({ type: 'PARENT', schoolId: school.id, label: `Parent at ${school.name}` });
+    }
+    if (childSchools.length === 0) {
+      // Parent with linked children but no school enrolment yet
+      personas.push({ type: 'PARENT', schoolId: null, label: 'Parent' });
+    }
+  }
+
+  // STAFF: has hr_employees row(s)
+  const employments = await this.getActiveEmployments(personId);
+  for (const emp of employments) {
+    personas.push({ type: 'STAFF', schoolId: emp.schoolId, label: `${emp.jobTitle} at ${emp.schoolName}` });
+  }
+
+  // STUDENT: has sis_students row(s) via platform_students
+  const enrolments = await this.getActiveEnrolments(personId);
+  for (const enr of enrolments) {
+    personas.push({ type: 'STUDENT', schoolId: enr.schoolId, label: `Student at ${enr.schoolName}` });
+  }
+
+  // SUBSTITUTE: has sub_profiles row
+  const subProfile = await this.getSubProfile(personId);
+  if (subProfile) {
+    personas.push({ type: 'SUBSTITUTE', schoolId: null, label: 'Substitute Teacher' });
+  }
+
+  // ALUMNI: has alm_profiles row(s)
+  const alumniProfiles = await this.getAlumniProfiles(personId);
+  for (const alm of alumniProfiles) {
+    personas.push({ type: 'ALUMNI', schoolId: alm.schoolId, label: `Alumni — ${alm.schoolName} ${alm.gradYear}` });
+  }
+
+  return personas;
+}
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>5. Invitation &amp; Linking Flows</h2>
+
+<h3>A. Employee invitation</h3>
+<div class="flow-step">
+<strong>School admin</strong> creates a position offer in <code>/hr/recruitment</code>.<br>
+System generates a unique invite token and emails the candidate.<br>
+Candidate clicks the link → lands on <code>/invitations/accept?token=xxx</code>.<br>
+If they don't have a CampusOS account → redirected to <code>/register</code> with token preserved.<br>
+After registration (or login), the invitation page shows position details.<br>
+Candidate clicks "Accept" →<br>
+• <code>hr_employees</code> row created<br>
+• <code>iam_role_assignment</code> granted for the position's role<br>
+• <code>platform_personas</code> row: type=STAFF, school=hiring school<br>
+• Redirect to launchpad with STAFF persona active
+</div>
+
+<h3>B. Child account linking</h3>
+<div class="flow-step">
+<strong>Parent A</strong> adds a child as PLACEHOLDER → requests link → enters child's email.<br>
+System generates 8-char <code>invite_code</code>, emails it to the child (or Parent B).<br>
+<strong>Child/Parent B</strong> logs in → goes to <code>/settings/family</code> → "Enter link code" → enters code.<br>
+System validates → links <code>platform_family_children.person_id</code> → status=LINKED.<br>
+Both Parent A and the child now see each other in their family view.
+</div>
+
+<h3>C. Student-to-parent linking (school-initiated)</h3>
+<div class="flow-step">
+School already has the student enrolled. School admin goes to the student's profile → "Invite parent/guardian".<br>
+Enters parent email → system generates invite.<br>
+Parent receives email → registers or logs in → accepts → <br>
+• <code>sis_student_guardians</code> row created with custody arrangement<br>
+• <code>platform_family_children</code> row created (LINKED, since both accounts exist)<br>
+• PARENT persona activated
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>6. Persona Switcher (UI)</h2>
+
+<h3>Top bar component</h3>
+<p><span class="tag tag-web">WEB</span> A pill/dropdown in the top bar showing the active persona. Clicking opens a menu of all available personas.</p>
+
+<div class="decision">
+<h4>DECISION — Persona switcher behaviour</h4>
+<ul>
+<li><strong>Location:</strong> Top bar, between the search icon and the notification bell. Shows: persona icon + label (e.g. 👩‍🏫 "Teacher at Lincoln Elementary").</li>
+<li><strong>Dropdown:</strong> Lists all personas. Grouped by type. Active persona has a checkmark.</li>
+<li><strong>On switch:</strong> Frontend calls <code>POST /auth/switch-persona</code> → API returns new permission set → app grid, sidebar, and badge counts refresh → current page reloads if it's persona-specific.</li>
+<li><strong>Persistence:</strong> Active persona stored in <code>localStorage</code> as <code>activePersonaId</code>. On login, if stored persona still exists, resume it. Otherwise default to the first persona.</li>
+<li><strong>Cross-school switching:</strong> If a persona has a schoolId, switching to it also switches the active school context (changes <code>X-Tenant-Subdomain</code> header).</li>
+</ul>
+</div>
+
+<h3>/auth/me response (updated)</h3>
+<pre>
+{
+  "user": {
+    "id": "...",
+    "personId": "...",
+    "email": "teacher@demo.campusos.dev",
+    "firstName": "James",
+    "lastName": "Rivera"
+  },
+  "activePersona": {
+    "id": "...",
+    "type": "STAFF",
+    "label": "Teacher at Lincoln Elementary",
+    "schoolId": "...",
+    "schoolName": "Lincoln Elementary"
+  },
+  "personas": [
+    { "id": "...", "type": "STAFF", "label": "Teacher at Lincoln Elementary", "schoolId": "..." },
+    { "id": "...", "type": "PARENT", "label": "Parent at Lincoln Elementary", "schoolId": "..." },
+    { "id": "...", "type": "ALUMNI", "label": "Alumni — Washington High 2005", "schoolId": "..." }
+  ],
+  "permissions": ["tch-003:read", "tch-003:write", "att-001:read", ...],
+  "personType": "STAFF"   // deprecated — kept for backward compat, matches activePersona.type
+}
+</pre>
+
+<h3>POST /auth/switch-persona</h3>
+<pre>
+// Request
+{ "personaId": "..." }
+
+// Response — same shape as /auth/me but with new activePersona + filtered permissions
+{
+  "activePersona": { "id": "...", "type": "PARENT", ... },
+  "personas": [...],
+  "permissions": ["stu-001:read", "pay-001:read", ...]   // parent-scoped permissions only
+}
+</pre>
+
+<h3>App catalogue filtering</h3>
+<p><span class="tag tag-web">WEB</span> Each app in <code>apps.tsx</code> gets a <code>personas</code> array. The app only shows when the active persona matches:</p>
+
+<pre>
+// apps.tsx catalogue entry
+{
+  name: 'Gradebook',
+  icon: BookOpen,
+  href: '/gradebook',
+  permission: 'tch-003:read',
+  personas: ['STAFF'],           // only visible when STAFF persona is active
+  routePrefix: '/gradebook',
+},
+{
+  name: 'My Children',
+  icon: Users,
+  href: '/children',
+  permission: 'stu-001:read',
+  personas: ['PARENT'],          // only visible when PARENT persona is active
+  routePrefix: '/children',
+},
+{
+  name: 'My Classes',
+  icon: GraduationCap,
+  href: '/my-classes',
+  permission: 'stu-001:read',
+  personas: ['STUDENT'],         // only visible when STUDENT persona is active
+  routePrefix: '/my-classes',
+},
+{
+  name: 'Billing',
+  icon: CreditCard,
+  href: '/billing',
+  permission: 'pay-001:read',
+  personas: ['PARENT'],
+  routePrefix: '/billing',
+},
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>7. Permission Model Changes</h2>
+
+<div class="box box-purple">
+<h4 style="margin-top:0">UI filtering vs API enforcement</h4>
+<p><strong>Phase 1 (now):</strong> Persona switching only filters the UI. The API returns permissions scoped to the active persona's role assignments. The backend <code>PermissionGuard</code> continues to check full permissions — if a parent somehow hits a teacher-only endpoint, the permission check still denies it because the parent doesn't hold that permission code.</p>
+<p><strong>Phase 2 (later):</strong> Optional server-side persona enforcement — the API only evaluates permissions for the active persona's role assignments, not the union of all roles. This is stricter but requires session-state management on the server.</p>
+</div>
+
+<h3>How permission filtering works</h3>
+<p>When a user switches persona, the API resolves permissions for <strong>only the role assignments associated with that persona</strong>:</p>
+<ul>
+<li>STAFF persona at School A → permissions from role assignments where scope = School A</li>
+<li>PARENT persona at School A → permissions from the "Parent" role (stu-001:read, pay-001:read, etc.)</li>
+<li>Switching to PARENT hides teacher permissions from the response, so the frontend never shows teacher apps</li>
+<li>The backend guard still works on the full permission set as a safety net</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>8. Data Model Summary</h2>
+
+<h3>New tables</h3>
+<table>
+<tr><th>Table</th><th>Schema</th><th>Purpose</th></tr>
+<tr><td><code>platform_family_children</code></td><td>platform</td><td>Parent's view of their children. PLACEHOLDER → PENDING_LINK → LINKED lifecycle.</td></tr>
+<tr><td><code>platform_personas</code></td><td>platform</td><td>Cached persona set per person. Refreshed on persona-changing actions.</td></tr>
+<tr><td><code>platform_invitations</code></td><td>platform</td><td>Generic invitation table for employee offers, child linking, parent linking. Token + type + expires_at.</td></tr>
+</table>
+
+<h3>Modified tables</h3>
+<table>
+<tr><th>Table</th><th>Change</th></tr>
+<tr><td><code>platform_users</code></td><td>Add <code>is_minor_account BOOLEAN DEFAULT false</code>, <code>managed_by_person_id UUID</code> (for parent-managed child accounts).</td></tr>
+<tr><td><code>iam_person</code></td><td>No changes. Already correct as canonical identity.</td></tr>
+</table>
+
+<h3>New API endpoints</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+<tr><td>POST</td><td><code>/auth/register</code></td><td>Create canonical account (iam_person + platform_users + platform_families)</td></tr>
+<tr><td>GET</td><td><code>/auth/me</code></td><td>Updated: returns <code>personas[]</code> + <code>activePersona</code></td></tr>
+<tr><td>POST</td><td><code>/auth/switch-persona</code></td><td>Switch active persona, return updated permissions</td></tr>
+<tr><td>GET</td><td><code>/family/children</code></td><td>List children in the current user's family</td></tr>
+<tr><td>POST</td><td><code>/family/children</code></td><td>Add a child (PLACEHOLDER)</td></tr>
+<tr><td>POST</td><td><code>/family/children/:id/create-account</code></td><td>Create a canonical account for a placeholder child</td></tr>
+<tr><td>POST</td><td><code>/family/children/:id/send-link</code></td><td>Generate invite code + send email</td></tr>
+<tr><td>POST</td><td><code>/family/link</code></td><td>Accept a link code (child's side)</td></tr>
+<tr><td>GET</td><td><code>/invitations/:token</code></td><td>View invitation details</td></tr>
+<tr><td>POST</td><td><code>/invitations/:token/accept</code></td><td>Accept invitation (employment, linking, etc.)</td></tr>
+</table>
+
+<h3>New web pages</h3>
+<table>
+<tr><th>Route</th><th>Purpose</th></tr>
+<tr><td><code>/register</code></td><td>Public registration page</td></tr>
+<tr><td><code>/getting-started</code></td><td>Post-registration onboarding (shown when 0 personas)</td></tr>
+<tr><td><code>/family</code></td><td>Family management — list children, add child, link status</td></tr>
+<tr><td><code>/family/add-child</code></td><td>Add child wizard (basic info → account decision → link)</td></tr>
+<tr><td><code>/settings/family</code></td><td>"Enter link code" for child/parent accepting an invitation</td></tr>
+<tr><td><code>/invitations/accept</code></td><td>Accept invitation landing page (works for all invitation types)</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>9. Scenarios Walkthrough</h2>
+
+<h3>Scenario A — New parent with two children</h3>
+<ol>
+<li>Maria visits <code>/register</code>. Creates account. Lands on Getting Started.</li>
+<li>Clicks "I have children". Adds "Sofia, age 14" and "Lucas, age 8".</li>
+<li>Both children are PLACEHOLDER. Maria sees them in <code>/family</code> with yellow badges.</li>
+<li>Sofia already has a CampusOS account (from a previous school). Maria clicks "Send link invitation" → enters Sofia's email. Status → PENDING_LINK.</li>
+<li>Sofia gets email, logs into her account, enters the code at <code>/settings/family</code>. Status → LINKED. Maria's PARENT persona activates.</li>
+<li>Lucas is 8 — Maria clicks "Create account for them". System creates Lucas's account (minor, parent-managed). Status → LINKED.</li>
+<li>Maria now has two LINKED children. She can browse schools and submit enrolment applications for both.</li>
+<li>Maria's launchpad shows parent apps: My Children, Billing, Conferences, Messaging.</li>
+</ol>
+
+<h3>Scenario B — Teacher who is also a parent</h3>
+<ol>
+<li>James Rivera is already registered as a teacher at Lincoln Elementary (STAFF persona).</li>
+<li>His daughter Maya is enrolled at the same school. The school admin links James as Maya's parent.</li>
+<li>James now has two personas: STAFF (Teacher) + PARENT.</li>
+<li>The top bar shows "👩‍🏫 Teacher at Lincoln Elementary" with a dropdown arrow.</li>
+<li>James clicks the dropdown, selects "👨‍👧 Parent at Lincoln Elementary".</li>
+<li>The launchpad switches from teacher apps to parent apps. James sees Maya's grades, billing, conferences.</li>
+<li>James switches back to Teacher to enter grades for his own class.</li>
+</ol>
+
+<h3>Scenario C — Student graduates, becomes alumni</h3>
+<ol>
+<li>Maya Chen is a student at Lincoln Elementary. She has a STUDENT persona.</li>
+<li>Maya graduates. The graduation process creates an <code>alm_profiles</code> row.</li>
+<li>PersonaResolutionService detects the new alumni profile.</li>
+<li>Maya now has: STUDENT (inactive/graduated) + ALUMNI.</li>
+<li>Maya's launchpad shows alumni apps: Alumni Network, Events, Giving.</li>
+</ol>
+
+<h3>Scenario D — Substitute registers</h3>
+<ol>
+<li>Alex visits <code>/register</code>. Creates account. Lands on Getting Started.</li>
+<li>Clicks "I want to substitute teach". Fills out sub profile (qualifications, availability, schools of interest).</li>
+<li>SUBSTITUTE persona activates. Alex sees: Available Assignments, My Schedule, Credentials.</li>
+<li>Alex gets assigned to Lincoln Elementary for a day. While there, Alex can access classroom tools for the assigned class only (time-scoped, class-scoped permissions).</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>10. Implementation Order</h2>
+
+<table>
+<tr><th>#</th><th>Component</th><th>Tags</th><th>Depends on</th><th>Est.</th></tr>
+<tr><td>1</td><td>Schema: <code>platform_family_children</code> + <code>platform_personas</code> + <code>platform_invitations</code></td><td><span class="tag tag-db">DB</span></td><td>—</td><td>1 day</td></tr>
+<tr><td>2</td><td><code>PersonaResolutionService</code> + persona cache refresh</td><td><span class="tag tag-api">API</span></td><td>#1</td><td>2 days</td></tr>
+<tr><td>3</td><td>Update <code>/auth/me</code> to return <code>personas[]</code> + <code>activePersona</code></td><td><span class="tag tag-api">API</span></td><td>#2</td><td>1 day</td></tr>
+<tr><td>4</td><td><code>POST /auth/switch-persona</code> endpoint</td><td><span class="tag tag-api">API</span></td><td>#3</td><td>1 day</td></tr>
+<tr><td>5</td><td>Family children CRUD endpoints</td><td><span class="tag tag-api">API</span></td><td>#1</td><td>2 days</td></tr>
+<tr><td>6</td><td>Child account creation + linking flow</td><td><span class="tag tag-api">API</span></td><td>#5</td><td>2 days</td></tr>
+<tr><td>7</td><td>Invitation system (generic: employee, child link, parent link)</td><td><span class="tag tag-api">API</span></td><td>#1</td><td>2 days</td></tr>
+<tr><td>8</td><td>Persona switcher component (top bar)</td><td><span class="tag tag-web">WEB</span></td><td>#3, #4</td><td>2 days</td></tr>
+<tr><td>9</td><td>App catalogue <code>personas</code> filter</td><td><span class="tag tag-web">WEB</span></td><td>#8</td><td>1 day</td></tr>
+<tr><td>10</td><td>Registration page (<code>/register</code>)</td><td><span class="tag tag-web">WEB</span></td><td>#3</td><td>2 days</td></tr>
+<tr><td>11</td><td>Getting Started page</td><td><span class="tag tag-web">WEB</span></td><td>#8, #10</td><td>2 days</td></tr>
+<tr><td>12</td><td>Family management pages (<code>/family</code>, add child, link)</td><td><span class="tag tag-web">WEB</span></td><td>#5, #6</td><td>3 days</td></tr>
+<tr><td>13</td><td>Invitation acceptance page</td><td><span class="tag tag-web">WEB</span></td><td>#7</td><td>1 day</td></tr>
+<tr><td>14</td><td>Auto-alumni worker (graduation → alumni persona)</td><td><span class="tag tag-worker">WORKER</span></td><td>#2</td><td>1 day</td></tr>
+<tr><td>15</td><td>Integration tests for all new flows</td><td><span class="tag tag-api">API</span></td><td>#1-7</td><td>3 days</td></tr>
+</table>
+
+<div class="box box-green">
+<h4 style="margin-top:0">Total estimate: ~25 days</h4>
+<p>This is a foundational feature that affects every user's first experience with the platform. Steps 1-4 (schema + persona resolution + auth updates) should be built and tested before any UI work begins. The persona switcher (#8) is the highest-impact UI change — once that works, all other pages benefit automatically.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>11. Risks &amp; Decisions Needed</h2>
+
+<table>
+<tr><th>Risk / Decision</th><th>Options</th><th>Recommendation</th></tr>
+<tr><td>Link code security — 8-char codes could be brute-forced</td><td>A) 8-char alphanumeric (2.8 trillion combos). B) 12-char. C) UUID token as URL param.</td><td>8-char with rate limiting (5 attempts per 15 min per IP). Codes expire in 72 hours. Log all attempts.</td></tr>
+<tr><td>Minor account management — COPPA requires parental consent for under-13</td><td>A) No email for under-13, parent manages fully. B) Email with parent approval gate.</td><td>Option A for under-13. Option B for 13-17. Full self-service for 18+.</td></tr>
+<tr><td>Multi-school parent — parent has children at different schools</td><td>A) One PARENT persona per school. B) One PARENT persona, school selector within it.</td><td>One PARENT persona per school (matches existing school-scoped permission model). Persona switcher handles school switching naturally.</td></tr>
+<tr><td>Persona removal — what happens when last child leaves a school?</td><td>A) PARENT persona stays (historical access). B) PARENT persona deactivated. C) Grace period.</td><td>PARENT persona stays with <code>is_active=false</code> after 90-day grace period. Reactivates if a new child enrolls.</td></tr>
+<tr><td>Backward compatibility — existing <code>personType</code> field</td><td>A) Remove immediately. B) Keep as deprecated alias for activePersona.type.</td><td>Keep as deprecated. Maps to activePersona.type. Remove in next major version.</td></tr>
+</table>
+
+</div>
+</body>
+</html>
