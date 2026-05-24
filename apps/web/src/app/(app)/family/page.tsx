@@ -358,14 +358,19 @@ function ParentsAndGuardiansSection({
           >
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
-                {[m.preferredName ?? m.firstName, m.lastName].filter(Boolean).join(' ')}
+                {[m.firstName, m.lastName].filter(Boolean).join(' ')}
                 {m.isCurrentUser && (
                   <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
                 )}
               </p>
               <p className="text-xs text-gray-500">
-                Parent / Guardian
-                {m.isPrimaryContact ? ' · primary contact' : ''}
+                {[
+                  goesByLabel(m.firstName, m.preferredName),
+                  'Parent / Guardian',
+                  m.isPrimaryContact ? 'primary contact' : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
             </div>
             {m.isCurrentUser && (
@@ -465,7 +470,12 @@ function ChildViewerSiblingsSection({
                       <StatusBadgeForChild status={s.status} />
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      {age !== null ? `age ${age}` : 'No DOB'}
+                      {[
+                        goesByLabel(s.firstName, s.preferredName),
+                        age !== null ? `age ${age}` : 'No DOB',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </p>
                   </div>
                 </li>
@@ -486,7 +496,12 @@ function ChildViewerSiblingsSection({
               <p className="mt-1 text-xs text-gray-500">
                 {(() => {
                   const age = computeAge(me.dateOfBirth);
-                  return age !== null ? `age ${age}` : 'No DOB';
+                  return [
+                    goesByLabel(me.firstName, me.preferredName),
+                    age !== null ? `age ${age}` : 'No DOB',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ');
                 })()}
               </p>
             </div>
@@ -587,9 +602,14 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
             <StatusBadgeForChild status={child.status} />
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            {child.dateOfBirth ? formatDate(child.dateOfBirth) : 'No DOB'}
-            {age !== null && ` · age ${age}`}
-            {isUnder13 && ' · under 13'}
+            {[
+              goesByLabel(child.firstName, child.preferredName),
+              child.dateOfBirth ? formatDate(child.dateOfBirth) : 'No DOB',
+              age !== null ? `age ${age}` : null,
+              isUnder13 ? 'under 13' : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
           {child.status === 'PENDING_LINK' && child.inviteCode && (
             <p className="mt-2 text-xs text-gray-600">
@@ -848,6 +868,20 @@ function DangerButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLBut
 }
 
 // ─── helpers ───────────────────────────────────────────────
+
+/**
+ * Returns `Goes by "Liv"` when preferredName is set and different
+ * from firstName (case-insensitive trim). Null otherwise so the
+ * caller can drop it from a `·`-joined metadata line without an
+ * empty leading separator.
+ */
+function goesByLabel(firstName: string, preferredName: string | null | undefined): string | null {
+  if (!preferredName) return null;
+  const a = firstName.trim().toLowerCase();
+  const b = preferredName.trim().toLowerCase();
+  if (!b || a === b) return null;
+  return `Goes by "${preferredName}"`;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
