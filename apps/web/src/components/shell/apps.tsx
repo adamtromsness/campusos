@@ -172,11 +172,22 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       icon: ClassesIcon,
     });
   } else if (isParent) {
+    // /family is the canonical landing for parents now — it lists
+    // every child the parent has on file (LINKED / PENDING_LINK /
+    // PLACEHOLDER) from platform_family_children, which works whether
+    // or not the child is enrolled at a school yet. The old /children
+    // page reads sis_student_guardians and silently drops any child
+    // who isn't enrolled, which is the common state right after the
+    // PARENT persona activates from a fresh family-children row.
+    // Per-enrolled-child detail surfaces (attendance, schedule, etc.)
+    // still live under /children/[id]/* and are linked from /family
+    // once the child has an enrolment.
     apps.push({
       key: 'children',
       label: 'My Children',
-      description: 'Attendance, grades, and absence requests',
-      href: '/children',
+      description: 'Your children, profiles, and school enrolment',
+      href: '/family',
+      routePrefix: '/family',
       icon: ChildrenIcon,
     });
   }
