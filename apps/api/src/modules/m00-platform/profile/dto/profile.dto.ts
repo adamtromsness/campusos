@@ -95,11 +95,25 @@ export class UpdateEmergencyContactDto {
 
 /**
  * PATCH /profile/me — fields a user is allowed to edit on themself.
- * Identity fields (first_name, last_name, login email, date_of_birth
- * after initial set) are intentionally absent and only editable via
- * the admin path PATCH /profile/:personId gated on iam-001:write.
+ *
+ * Identity fields (first_name, last_name, date_of_birth) are now
+ * self-editable. The 0-persona registration flow (`/auth/register`)
+ * lets users type their own names, so locking edits to an admin path
+ * before any school relationship exists would mean a typo at signup
+ * is unfixable until the user enrols somewhere. Once the user is a
+ * STAFF / STUDENT in a tenant the school can override via the admin
+ * PATCH /profile/:personId path (unchanged), and operational policy
+ * — not API surface — decides who is allowed to change their own
+ * name post-enrolment.
+ *
+ * Login email is still NOT editable here — changing it requires an
+ * email-verification flow that isn't built yet, and the admin path
+ * doesn't surface it either (managed via the IdP).
  */
 export class UpdateMyProfileDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) firstName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsISO8601() dateOfBirth?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) middleName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) preferredName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) suffix?: string | null;
@@ -148,15 +162,11 @@ export class UpdateMyProfileDto {
 
 /**
  * PATCH /profile/:personId — admin path.
- * Adds identity fields (first_name, last_name, date_of_birth) on top
- * of the self-service allow-list. Demographics fields beyond
- * primary_language are also admin-only.
+ * Adds demographics fields (gender, ethnicity, etc.) that remain
+ * admin-only on top of the self-service allow-list (which already
+ * includes first_name, last_name, date_of_birth as of 2026-05-24).
  */
 export class UpdateAdminProfileDto extends UpdateMyProfileDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) firstName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsISO8601() dateOfBirth?: string | null;
-
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) ethnicity?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) birthCountry?: string | null;

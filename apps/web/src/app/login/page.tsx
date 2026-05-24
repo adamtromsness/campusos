@@ -26,6 +26,7 @@ interface MeResponse {
     personId: string;
     email: string;
     firstName: string | null;
+    middleName: string | null;
     lastName: string | null;
     preferredName: string | null;
     displayName: string;

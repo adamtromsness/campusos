@@ -247,13 +247,18 @@ export class ProfileService {
 
   private buildIamPersonPatch(
     dto: UpdateAdminProfileDto,
-    current: IamPersonRow,
-    isAdmin: boolean,
+    _current: IamPersonRow,
+    _isAdmin: boolean,
   ): Record<string, unknown> {
     const out: Record<string, unknown> = {};
 
-    // Always-allowed (self + admin) personal fields.
-    const alwaysAllowed: Array<keyof UpdateAdminProfileDto> = [
+    // Identity + personal fields. Identity (first_name, last_name,
+    // date_of_birth) is now self-editable — see the doc comment on
+    // UpdateMyProfileDto. Login email is intentionally absent; that
+    // change requires email verification that isn't built yet.
+    const allowed: Array<keyof UpdateAdminProfileDto> = [
+      'firstName',
+      'lastName',
       'middleName',
       'preferredName',
       'suffix',
@@ -267,34 +272,11 @@ export class ProfileService {
       'preferredLanguage',
       'notes',
     ];
-    for (const k of alwaysAllowed) {
+    for (const k of allowed) {
       if (dto[k] !== undefined) out[k as string] = dto[k];
     }
 
-    // Admin-only identity fields. Self-service rejects with 400.
-    if (dto.firstName !== undefined) {
-      if (!isAdmin) {
-        throw new BadRequestException(
-          'first_name is admin-only. Contact your school administrator to change it.',
-        );
-      }
-      out.firstName = dto.firstName;
-    }
-    if (dto.lastName !== undefined) {
-      if (!isAdmin) {
-        throw new BadRequestException(
-          'last_name is admin-only. Contact your school administrator to change it.',
-        );
-      }
-      out.lastName = dto.lastName;
-    }
     if (dto.dateOfBirth !== undefined) {
-      // Post-set self edits rejected; admin can edit anytime.
-      if (!isAdmin && current.date_of_birth) {
-        throw new BadRequestException(
-          'date_of_birth is admin-only after initial set. Contact your school administrator to change it.',
-        );
-      }
       out.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
     }
 

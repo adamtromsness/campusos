@@ -29,6 +29,7 @@ export interface AuthUser {
   email: string;
   displayName: string;
   firstName: string | null;
+  middleName: string | null;
   lastName: string | null;
   preferredName: string | null;
   activePersona: ActivePersona | null;

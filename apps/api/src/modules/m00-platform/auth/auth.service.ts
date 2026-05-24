@@ -33,6 +33,7 @@ export interface MeResponse {
     personId: string;
     email: string;
     firstName: string | null;
+    middleName: string | null;
     lastName: string | null;
     preferredName: string | null;
     displayName: string;
@@ -352,7 +353,7 @@ export class AuthService {
   async getMe(jwt: JwtPayload, activePersonaId?: string): Promise<MeResponse> {
     const person = await this.prisma.iamPerson.findUnique({
       where: { id: jwt.personId },
-      select: { firstName: true, lastName: true, preferredName: true },
+      select: { firstName: true, middleName: true, lastName: true, preferredName: true },
     });
 
     const personas = await this.personaResolution.getActivePersonas(jwt.personId);
@@ -402,6 +403,7 @@ export class AuthService {
         personId: jwt.personId,
         email: jwt.email,
         firstName: person?.firstName ?? null,
+        middleName: person?.middleName ?? null,
         lastName: person?.lastName ?? null,
         preferredName: person?.preferredName ?? null,
         displayName: jwt.displayName,

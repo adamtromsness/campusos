@@ -1863,6 +1863,9 @@ export interface UpdateEmergencyContactPayload {
 }
 
 export interface UpdateProfilePayload {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string | null;
   middleName?: string | null;
   preferredName?: string | null;
   suffix?: string | null;
@@ -1884,9 +1887,9 @@ export interface UpdateProfilePayload {
 }
 
 export interface UpdateAdminProfilePayload extends UpdateProfilePayload {
-  firstName?: string;
-  lastName?: string;
-  dateOfBirth?: string | null;
+  // firstName / lastName / dateOfBirth live on UpdateProfilePayload now —
+  // they're self-editable since the persona-registration flow shipped.
+  // Admin-only fields here are demographics + medical alerts.
   gender?: string | null;
   ethnicity?: string | null;
   birthCountry?: string | null;
