@@ -21,6 +21,7 @@ import {
   FamilyChildDto,
   FamilyLinkResultDto,
   FamilyViewDto,
+  GenerateFamilyCodeDto,
   GenerateLinkCodeDto,
   InviteGuardianDto,
   SendChildLinkDto,
@@ -147,10 +148,13 @@ export class FamilyChildrenController {
   @Post('generate-code')
   @ApiOperation({
     summary:
-      'Generate a FAMILY_INVITE code. Any authenticated user who accepts it joins the caller\'s family as a LINKED child.',
+      'Generate a FAMILY_INVITE code. Any authenticated user who accepts it joins the caller\'s family as a LINKED child. Optional email lands on target_email for the future send-email worker.',
   })
-  async generateCode(@Req() req: AuthedRequest): Promise<GenerateLinkCodeDto> {
-    return this.children.generateFamilyCode(req.user!.personId);
+  async generateCode(
+    @Req() req: AuthedRequest,
+    @Body() dto: GenerateFamilyCodeDto = {},
+  ): Promise<GenerateLinkCodeDto> {
+    return this.children.generateFamilyCode(req.user!.personId, dto);
   }
 
   @Post('generate-child-code')

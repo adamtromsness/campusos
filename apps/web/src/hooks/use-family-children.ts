@@ -230,6 +230,13 @@ export interface GenerateLinkCodeDto {
 
 export interface InviteGuardianPayload {
   email?: string;
+  firstName?: string;
+  lastName?: string;
+  relationship?: string;
+}
+
+export interface GenerateFamilyCodePayload {
+  email?: string;
 }
 
 /**
@@ -250,13 +257,15 @@ export function useInviteGuardian() {
 /**
  * POST /family/generate-code — parent generates a FAMILY_INVITE code
  * that any authenticated user can accept to join the caller's family
- * as a LINKED child.
+ * as a LINKED child. Optional email lands on target_email for the
+ * future send-email worker.
  */
 export function useGenerateFamilyCode() {
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: GenerateFamilyCodePayload = {}) =>
       apiFetch<GenerateLinkCodeDto>('/api/v1/family/generate-code', {
         method: 'POST',
+        body: JSON.stringify(payload),
       }),
   });
 }

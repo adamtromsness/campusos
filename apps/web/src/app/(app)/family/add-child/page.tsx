@@ -454,7 +454,7 @@ function OptionD({
     setBusy(true);
     try {
       await persistPlaceholder();
-      const r = await generate.mutateAsync();
+      const r = await generate.mutateAsync({});
       setCode(r);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not generate a code.';

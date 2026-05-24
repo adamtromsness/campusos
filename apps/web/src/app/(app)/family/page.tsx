@@ -10,6 +10,7 @@ import {
   useCreateChildAccount,
   useDeleteFamilyChild,
   useFamilyView,
+  useGenerateFamilyCode,
   useInviteGuardian,
   useSendChildLink,
   type FamilyChildDto,
@@ -49,7 +50,9 @@ import { cn } from '@/components/ui/cn';
 export default function FamilyPage() {
   const { data, isLoading, error } = useFamilyView();
   const [linkInviteFor, setLinkInviteFor] = useState<FamilyChildDto | null>(null);
-  const [guardianModalOpen, setGuardianModalOpen] = useState(false);
+  const [inviteGuardianOpen, setInviteGuardianOpen] = useState(false);
+  const [addGuardianOpen, setAddGuardianOpen] = useState(false);
+  const [inviteChildOpen, setInviteChildOpen] = useState(false);
 
   if (isLoading) return <PageLoader label="Loading your family…" />;
   if (error) {
@@ -97,35 +100,21 @@ export default function FamilyPage() {
             ? "Your family and how everyone is connected to CampusOS."
             : 'Your family — read-only view.'
         }
-        actions={
-          isParent ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setGuardianModalOpen(true)}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-              >
-                Invite a Guardian
-              </button>
-              <Link
-                href="/family/add-child"
-                className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
-              >
-                <span aria-hidden>+</span>
-                Add Child
-              </Link>
-            </div>
-          ) : null
-        }
       />
 
-      <ParentsAndGuardiansSection members={data.members} viewerRole={data.viewerRole} />
+      <ParentsAndGuardiansSection
+        members={data.members}
+        viewerRole={data.viewerRole}
+        onInvite={() => setInviteGuardianOpen(true)}
+        onAdd={() => setAddGuardianOpen(true)}
+      />
 
       {isParent ? (
         <ChildrenSection
           items={children}
           hasChildren={hasChildren}
           onSendLink={(c) => setLinkInviteFor(c)}
+          onInvite={() => setInviteChildOpen(true)}
         />
       ) : (
         <ChildViewerSiblingsSection
@@ -142,8 +131,47 @@ export default function FamilyPage() {
         onClose={() => setLinkInviteFor(null)}
       />
 
-      <InviteGuardianModal open={guardianModalOpen} onClose={() => setGuardianModalOpen(false)} />
+      <InviteGuardianModal
+        open={inviteGuardianOpen}
+        onClose={() => setInviteGuardianOpen(false)}
+      />
+      <AddGuardianModal open={addGuardianOpen} onClose={() => setAddGuardianOpen(false)} />
+      <InviteChildModal open={inviteChildOpen} onClose={() => setInviteChildOpen(false)} />
     </div>
+  );
+}
+
+// ─── Section header row ──────────────────────────────────
+
+/**
+ * Section title + right-aligned action buttons. Replaces the old
+ * page-level header bar; per-section buttons keep Invite / Add
+ * scoped to whichever group of people they affect.
+ */
+function SectionHeader({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{title}</h2>
+      {children && <div className="flex items-center gap-2">{children}</div>}
+    </div>
+  );
+}
+
+function OutlineButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -331,6 +359,359 @@ function CodeDisplay({ code, onCopy }: { code: GenerateLinkCodeDto; onCopy: () =
   );
 }
 
+// ─── Add-a-guardian modal (form-based) ───────────────────
+
+/**
+ * Captures first / last / email / relationship for a guardian and
+ * fires POST /family/invite-guardian. The accepter's own iam_person
+ * is canonical for their name post-accept; the form fields exist so
+ * the parent has a clearer "I'm inviting Jane Doe (co-parent)" UI
+ * and so the values can land on invitation.metadata for the email
+ * worker. Code is shown inline on success so the parent can copy +
+ * paste if the email send (still a TODO) doesn't land.
+ */
+const RELATIONSHIPS = [
+  { value: 'CO_PARENT', label: 'Co-parent' },
+  { value: 'GRANDPARENT', label: 'Grandparent' },
+  { value: 'LEGAL_GUARDIAN', label: 'Legal guardian' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const invite = useInviteGuardian();
+  const { toast } = useToast();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [relationship, setRelationship] = useState(RELATIONSHIPS[0]!.value);
+  const [generated, setGenerated] = useState<GenerateLinkCodeDto | null>(null);
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; email?: string }>(
+    {},
+  );
+
+  function close() {
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setRelationship(RELATIONSHIPS[0]!.value);
+    setGenerated(null);
+    setErrors({});
+    onClose();
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const v: typeof errors = {};
+    if (!firstName.trim()) v.firstName = 'First name is required';
+    if (!lastName.trim()) v.lastName = 'Last name is required';
+    if (!email.trim()) v.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      v.email = 'Enter a valid email address';
+    if (Object.keys(v).length > 0) {
+      setErrors(v);
+      return;
+    }
+    setErrors({});
+    try {
+      const r = await invite.mutateAsync({
+        email: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        relationship,
+      });
+      setGenerated(r);
+      toast('Invitation prepared for ' + firstName.trim(), 'success');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Could not send the invitation. Try again.';
+      toast(message, 'error');
+    }
+  }
+
+  async function copyCode() {
+    if (!generated) return;
+    try {
+      await navigator.clipboard.writeText(generated.code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Add a Guardian"
+      footer={
+        <button
+          type="button"
+          onClick={close}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Done
+        </button>
+      }
+    >
+      <p className="text-sm text-gray-600">
+        Send a co-parent, grandparent, or legal guardian an invitation to join your family.
+        They&rsquo;ll have full read/write access to every child once they accept.
+      </p>
+      <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ModalField
+            id="ag-first"
+            label="First name"
+            value={firstName}
+            onChange={setFirstName}
+            error={errors.firstName}
+            required
+          />
+          <ModalField
+            id="ag-last"
+            label="Last name"
+            value={lastName}
+            onChange={setLastName}
+            error={errors.lastName}
+            required
+          />
+        </div>
+        <ModalField
+          id="ag-email"
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          error={errors.email}
+          required
+        />
+        <div>
+          <label htmlFor="ag-relationship" className="block text-xs font-medium text-gray-700">
+            Relationship
+          </label>
+          <select
+            id="ag-relationship"
+            value={relationship}
+            onChange={(e) => setRelationship(e.target.value)}
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          >
+            {RELATIONSHIPS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <button
+            type="submit"
+            disabled={invite.isPending}
+            className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {invite.isPending && <LoadingSpinner size="sm" />}
+            <span>{invite.isPending ? 'Sending…' : 'Send Invitation'}</span>
+          </button>
+        </div>
+        {generated && <CodeDisplay code={generated} onCopy={copyCode} />}
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Invite-a-child modal (two-tab) ──────────────────────
+
+/**
+ * Two-tab modal for inviting a child. Both tabs hit POST
+ * /family/generate-code which mints a FAMILY_INVITE; the email tab
+ * additionally stamps target_email so the future send-email worker
+ * has the address.
+ *
+ * Generate code   — empty payload, shows the 8-char code immediately.
+ * Send by email   — captures an email, prepares the same code.
+ */
+function InviteChildModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const generate = useGenerateFamilyCode();
+  const { toast } = useToast();
+  const [tab, setTab] = useState<'code' | 'email'>('code');
+  const [email, setEmail] = useState('');
+  const [generated, setGenerated] = useState<GenerateLinkCodeDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function close() {
+    setTab('code');
+    setEmail('');
+    setGenerated(null);
+    setError(null);
+    onClose();
+  }
+
+  async function generateNoEmail() {
+    setError(null);
+    try {
+      const r = await generate.mutateAsync({});
+      setGenerated(r);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate a code.');
+    }
+  }
+
+  async function generateWithEmail(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    try {
+      const r = await generate.mutateAsync({ email: trimmed });
+      setGenerated(r);
+      toast('Invitation prepared for ' + trimmed, 'success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate a code.');
+    }
+  }
+
+  async function copyCode() {
+    if (!generated) return;
+    try {
+      await navigator.clipboard.writeText(generated.code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Invite a Child"
+      footer={
+        <button
+          type="button"
+          onClick={close}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Done
+        </button>
+      }
+    >
+      <p className="text-sm text-gray-600">
+        Share a code your child can enter on CampusOS to join your family.
+      </p>
+
+      <div className="mt-4 inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5 text-xs font-medium">
+        <button
+          type="button"
+          onClick={() => setTab('code')}
+          className={cn(
+            'rounded px-3 py-1.5',
+            tab === 'code' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600',
+          )}
+        >
+          Generate code
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('email')}
+          className={cn(
+            'rounded px-3 py-1.5',
+            tab === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600',
+          )}
+        >
+          Send by email
+        </button>
+      </div>
+
+      {tab === 'code' ? (
+        <div className="mt-4">
+          {!generated ? (
+            <button
+              type="button"
+              onClick={() => void generateNoEmail()}
+              disabled={generate.isPending}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {generate.isPending ? 'Generating…' : 'Generate code'}
+            </button>
+          ) : (
+            <CodeDisplay code={generated} onCopy={copyCode} />
+          )}
+        </div>
+      ) : (
+        <form onSubmit={generateWithEmail} className="mt-4 flex flex-col gap-2">
+          <label htmlFor="invite-child-email" className="text-xs font-medium text-gray-700">
+            Email
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="invite-child-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="kid@example.com"
+              autoComplete="email"
+              required
+              className="block flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+            />
+            <button
+              type="submit"
+              disabled={generate.isPending}
+              className="inline-flex items-center justify-center rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {generate.isPending ? 'Sending…' : 'Send Invitation'}
+            </button>
+          </div>
+          {generated && <CodeDisplay code={generated} onCopy={copyCode} />}
+        </form>
+      )}
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </Modal>
+  );
+}
+
+function ModalField({
+  id,
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        aria-invalid={!!error}
+        className={
+          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+          (error ? 'border-red-300' : 'border-gray-300')
+        }
+      />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 // ─── Parents & Guardians ─────────────────────────────────
 
 /**
@@ -342,36 +723,48 @@ function CodeDisplay({ code, onCopy }: { code: GenerateLinkCodeDto; onCopy: () =
 function ParentsAndGuardiansSection({
   members,
   viewerRole,
+  onInvite,
+  onAdd,
 }: {
   members: FamilyMemberDto[];
   viewerRole: FamilyViewerRole;
+  onInvite: () => void;
+  onAdd: () => void;
 }) {
   if (members.length === 0) return null;
+  const isParent = viewerRole === 'PARENT';
   return (
-    <section className="mt-2">
-      <h2 className="mb-2 text-sm font-semibold text-gray-900">Parents &amp; Guardians</h2>
-      <ul className="flex flex-col gap-2">
+    <section className="mt-6">
+      <SectionHeader title="Parents & Guardians">
+        {isParent && (
+          <>
+            <OutlineButton onClick={onInvite}>Invite</OutlineButton>
+            <OutlineButton onClick={onAdd}>Add</OutlineButton>
+          </>
+        )}
+      </SectionHeader>
+      <ul className="flex flex-col gap-3">
         {members.map((m) => (
           <li
             key={m.personId}
-            className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm"
+            className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white p-5 transition-shadow hover:shadow-sm"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                {[m.firstName, m.lastName].filter(Boolean).join(' ')}
-                {m.isCurrentUser && (
-                  <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
-                )}
-              </p>
-              <p className="text-xs text-gray-500">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="text-xl font-semibold text-gray-900">
+                  {m.preferredName?.trim() ? m.preferredName : m.firstName}
+                </p>
+                {m.isCurrentUser && <span className="text-xs text-gray-500">(you)</span>}
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
                 {[
-                  goesByLabel(m.firstName, m.preferredName),
+                  [m.firstName, m.lastName].filter(Boolean).join(' '),
                   'Parent / Guardian',
-                  m.isPrimaryContact ? 'primary contact' : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+                ].join(' · ')}
               </p>
+              {m.isPrimaryContact && (
+                <p className="mt-0.5 text-xs text-gray-500">Primary contact</p>
+              )}
             </div>
             {m.isCurrentUser && (
               <Link
@@ -381,8 +774,6 @@ function ParentsAndGuardiansSection({
                 Edit profile
               </Link>
             )}
-            {/* Non-current adults render read-only regardless of viewerRole. */}
-            {viewerRole === 'CHILD' && !m.isCurrentUser && null}
           </li>
         ))}
       </ul>
@@ -396,14 +787,20 @@ function ChildrenSection({
   items,
   hasChildren,
   onSendLink,
+  onInvite,
 }: {
   items: FamilyChildDto[];
   hasChildren: boolean;
   onSendLink: (child: FamilyChildDto) => void;
+  onInvite: () => void;
 }) {
+  const router = useRouter();
   return (
-    <section className="mt-6">
-      <h2 className="mb-2 text-sm font-semibold text-gray-900">Children</h2>
+    <section className="mt-8">
+      <SectionHeader title="Children">
+        <OutlineButton onClick={onInvite}>Invite</OutlineButton>
+        <OutlineButton onClick={() => router.push('/family/add-child')}>Add</OutlineButton>
+      </SectionHeader>
       {hasChildren ? (
         <ul className="flex flex-col gap-3">
           {items.map((child) => (
@@ -591,23 +988,25 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
     }
   }
 
+  const heroName = child.preferredName?.trim() ? child.preferredName : child.firstName;
   return (
-    <div className="rounded-card border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="rounded-lg border border-gray-200 bg-white p-5 transition-shadow hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-900">
-              {child.firstName} {child.lastName}
-            </h2>
+            <p className="text-xl font-semibold text-gray-900">{heroName}</p>
             <StatusBadgeForChild status={child.status} />
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-sm text-gray-500">
             {[
-              goesByLabel(child.firstName, child.preferredName),
+              [child.firstName, child.middleName, child.lastName].filter(Boolean).join(' '),
               child.dateOfBirth ? formatDate(child.dateOfBirth) : 'No DOB',
-              age !== null ? `age ${age}` : null,
-              isUnder13 ? 'under 13' : null,
             ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {[age !== null ? `age ${age}` : null, isUnder13 ? 'under 13' : null]
               .filter(Boolean)
               .join(' · ')}
           </p>
@@ -718,11 +1117,10 @@ function LinkCodeSection() {
   }
 
   return (
-    <section className="mt-10 rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-sm font-semibold text-gray-900">Have a link code?</h2>
+    <section className="mt-10 rounded-lg border border-gray-200 bg-gray-50/40 p-5">
+      <h3 className="text-sm font-semibold text-gray-900">Have a link code?</h3>
       <p className="mt-1 text-xs text-gray-600">
-        Enter a child&rsquo;s code to add them to your family, or a parent&rsquo;s family code
-        to join theirs.
+        Enter a code from a child, parent, or school.
       </p>
       <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input

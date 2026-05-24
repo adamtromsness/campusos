@@ -88,8 +88,26 @@ export type InvitationType = (typeof INVITATION_TYPES)[number];
  * email-send path (currently a TODO that logs the code) has the
  * address to use; the code itself is shareable out-of-band so the
  * caller can also copy + paste it.
+ *
+ * firstName / lastName / relationship are informational hints for
+ * the eventual email body — the accepter's own iam_person is the
+ * canonical source for their name, so we stash these as
+ * invitation.metadata rather than overwriting anything.
  */
 export class InviteGuardianDto {
+  @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) firstName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) relationship?: string;
+}
+
+/**
+ * POST /family/generate-code — parent generates a FAMILY_INVITE.
+ * Optional email is recorded on target_email so a future email
+ * worker can send a "Join {Family} on CampusOS" message; the
+ * caller can also copy + paste the code directly.
+ */
+export class GenerateFamilyCodeDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
 }
 

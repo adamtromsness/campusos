@@ -20,6 +20,7 @@ import {
   FamilyMemberDto,
   FamilyViewDto,
   FamilyViewerRole,
+  GenerateFamilyCodeDto,
   GenerateLinkCodeDto,
   InviteGuardianDto,
   SendChildLinkDto,
@@ -613,7 +614,10 @@ export class FamilyChildrenService {
    * normally seeds one; this is a safety net for accounts that
    * pre-date that flow).
    */
-  async generateFamilyCode(personId: string): Promise<GenerateLinkCodeDto> {
+  async generateFamilyCode(
+    personId: string,
+    dto: GenerateFamilyCodeDto = {},
+  ): Promise<GenerateLinkCodeDto> {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
     const code = this.generateLinkCode();
@@ -621,16 +625,23 @@ export class FamilyChildrenService {
     const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_invitations
-         (id, type, token, inviter_person_id, metadata, status, expires_at, created_at)
-       VALUES ($1::uuid, 'FAMILY_INVITE', $2, $3::uuid,
-               jsonb_build_object('familyId', $4::text),
-               'PENDING', $5::timestamptz, now())`,
+         (id, type, token, inviter_person_id, target_email, metadata, status, expires_at, created_at)
+       VALUES ($1::uuid, 'FAMILY_INVITE', $2, $3::uuid, $4,
+               jsonb_build_object('familyId', $5::text),
+               'PENDING', $6::timestamptz, now())`,
       invitationId,
       code,
       personId,
+      dto.email ?? null,
       familyId,
       expiresAt.toISOString(),
     );
+    if (dto.email) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[family-invite] family=${familyId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
+      );
+    }
     return { code, expiresAt: expiresAt.toISOString(), type: 'FAMILY_INVITE' };
   }
 
@@ -653,17 +664,24 @@ export class FamilyChildrenService {
     const code = this.generateLinkCode();
     const invitationId = generateId();
     const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
+    // The accepter's iam_person is the canonical source for their
+    // name post-accept; firstName/lastName/relationship sit on the
+    // invitation as informational hints for the eventual email body
+    // and any pre-accept display in /invitations/mine.
+    const metadata: Record<string, unknown> = { familyId };
+    if (dto.firstName) metadata.targetFirstName = dto.firstName.trim();
+    if (dto.lastName) metadata.targetLastName = dto.lastName.trim();
+    if (dto.relationship) metadata.relationship = dto.relationship.trim();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_invitations
          (id, type, token, inviter_person_id, target_email, metadata, status, expires_at, created_at)
-       VALUES ($1::uuid, 'GUARDIAN_INVITE', $2, $3::uuid, $4,
-               jsonb_build_object('familyId', $5::text),
+       VALUES ($1::uuid, 'GUARDIAN_INVITE', $2, $3::uuid, $4, $5::jsonb,
                'PENDING', $6::timestamptz, now())`,
       invitationId,
       code,
       personId,
       dto.email ?? null,
-      familyId,
+      JSON.stringify(metadata),
       expiresAt.toISOString(),
     );
     if (dto.email) {
