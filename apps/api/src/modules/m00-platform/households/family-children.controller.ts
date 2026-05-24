@@ -19,6 +19,7 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  FamilyViewDto,
   GenerateLinkCodeDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
@@ -43,6 +44,17 @@ interface AuthedRequest extends Request {
 @Controller('family')
 export class FamilyChildrenController {
   constructor(private readonly children: FamilyChildrenService) {}
+
+  // ─── Composite view ─────────────────────────────────────────
+
+  @Get()
+  @ApiOperation({
+    summary:
+      'Composite family view — returns family + members + children + viewerRole (PARENT or CHILD) so the client can pick the right render path.',
+  })
+  async getFamily(@Req() req: AuthedRequest): Promise<FamilyViewDto | null> {
+    return this.children.getFamilyView(req.user!.personId);
+  }
 
   // ─── Step 5 — CRUD ──────────────────────────────────────────
 

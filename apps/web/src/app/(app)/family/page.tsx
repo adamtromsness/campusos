@@ -9,11 +9,13 @@ import {
   useCancelChildLink,
   useCreateChildAccount,
   useDeleteFamilyChild,
-  useFamilyChildren,
+  useFamilyView,
   useGenerateFamilyCode,
   useSendChildLink,
   type FamilyChildDto,
   type FamilyChildStatus,
+  type FamilyMemberDto,
+  type FamilyViewerRole,
   type GenerateLinkCodeDto,
 } from '@/hooks/use-family-children';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -24,21 +26,28 @@ import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 
 /**
- * /family — overview of the caller's family children. Section 3 of
- * the persona-registration design.
+ * /family — composite family view. Renders one of two paths driven by
+ * the API's viewerRole:
  *
- * Each child renders as a card with a status-coded badge and a
- * per-status action set:
- *   PLACEHOLDER   → Create Account, Send Link Invitation, Edit, Remove
- *   PENDING_LINK  → Resend, Cancel Link, Edit
- *   LINKED        → View Profile
+ *   PARENT view — the caller is a family_members row in this family.
+ *     Page header shows Generate Family Code + Add Child. Each child
+ *     card carries the full action set (Create Account, Send Link,
+ *     Edit, Remove, View Profile per status). LinkCodeSection lets
+ *     them paste a child-issued code to add a kid by name match.
  *
- * The page is intentionally simple — every mutating action goes
- * through the dedicated hooks in use-family-children.ts so the React
- * Query cache stays the single source of truth.
+ *   CHILD view — the caller is a LINKED platform_family_children row
+ *     in this family with no kids of their own. Page header has no
+ *     write actions. Each sibling renders read-only (no buttons), and
+ *     the viewer's own card surfaces an "Edit my profile" link to
+ *     /profile. LinkCodeSection is hidden — children don't manage the
+ *     family they're in.
+ *
+ * The API's viewerRole resolution is what gates write paths server-
+ * side; the UI just mirrors that decision so we don't dangle controls
+ * the API would 403.
  */
 export default function FamilyPage() {
-  const { data, isLoading, error } = useFamilyChildren();
+  const { data, isLoading, error } = useFamilyView();
   const [linkInviteFor, setLinkInviteFor] = useState<FamilyChildDto | null>(null);
   const [generatedCode, setGeneratedCode] = useState<GenerateLinkCodeDto | null>(null);
   const generateCode = useGenerateFamilyCode();
@@ -53,42 +62,172 @@ export default function FamilyPage() {
     );
   }
 
-  const children = data ?? [];
+  if (!data) {
+    // No family resolved — registration usually seeds one, but the
+    // fallback path here surfaces a recovery action rather than a
+    // dead screen.
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <PageHeader title="My Family" />
+        <EmptyState
+          title="No family set up yet"
+          description="Add a child to your family or enter a parent's link code to get started."
+          action={
+            <Link
+              href="/family/add-child"
+              className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
+            >
+              Add a child
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const isParent = data.viewerRole === 'PARENT';
+  const children = data.children;
   const hasChildren = children.length > 0;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PageHeader
         title="My Family"
-        description="Your children and how they're connected to CampusOS."
+        description={
+          isParent
+            ? "Your family and how everyone is connected to CampusOS."
+            : 'Your family — read-only view.'
+        }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                void generateCode.mutateAsync().then(setGeneratedCode);
-              }}
-              disabled={generateCode.isPending}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
-            >
-              {generateCode.isPending ? 'Generating…' : 'Generate Family Code'}
-            </button>
-            <Link
-              href="/family/add-child"
-              className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
-            >
-              <span aria-hidden>+</span>
-              Add Child
-            </Link>
-          </div>
+          isParent ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void generateCode.mutateAsync().then(setGeneratedCode);
+                }}
+                disabled={generateCode.isPending}
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+              >
+                {generateCode.isPending ? 'Generating…' : 'Generate Family Code'}
+              </button>
+              <Link
+                href="/family/add-child"
+                className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
+              >
+                <span aria-hidden>+</span>
+                Add Child
+              </Link>
+            </div>
+          ) : null
         }
       />
 
+      <ParentsAndGuardiansSection members={data.members} viewerRole={data.viewerRole} />
+
+      {isParent ? (
+        <ChildrenSection
+          items={children}
+          hasChildren={hasChildren}
+          onSendLink={(c) => setLinkInviteFor(c)}
+        />
+      ) : (
+        <ChildViewerSiblingsSection
+          items={children}
+          viewerPersonId={data.viewerPersonId}
+        />
+      )}
+
+      {isParent && <LinkCodeSection />}
+
+      <SendLinkModal
+        child={linkInviteFor}
+        open={linkInviteFor !== null}
+        onClose={() => setLinkInviteFor(null)}
+      />
+
+      <GeneratedCodeModal
+        code={generatedCode}
+        open={generatedCode !== null}
+        onClose={() => setGeneratedCode(null)}
+      />
+    </div>
+  );
+}
+
+// ─── Parents & Guardians ─────────────────────────────────
+
+/**
+ * Renders the adults of the family. The caller's own row gets an
+ * "Edit profile" link to /profile (the only writeable edit they get
+ * through this surface — other adults' info is intentionally
+ * read-only here per the family-role spec).
+ */
+function ParentsAndGuardiansSection({
+  members,
+  viewerRole,
+}: {
+  members: FamilyMemberDto[];
+  viewerRole: FamilyViewerRole;
+}) {
+  if (members.length === 0) return null;
+  return (
+    <section className="mt-2">
+      <h2 className="mb-2 text-sm font-semibold text-gray-900">Parents &amp; Guardians</h2>
+      <ul className="flex flex-col gap-2">
+        {members.map((m) => (
+          <li
+            key={m.personId}
+            className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">
+                {[m.preferredName ?? m.firstName, m.lastName].filter(Boolean).join(' ')}
+                {m.isCurrentUser && (
+                  <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
+                )}
+              </p>
+              <p className="text-xs text-gray-500">
+                Parent / Guardian
+                {m.isPrimaryContact ? ' · primary contact' : ''}
+              </p>
+            </div>
+            {m.isCurrentUser && (
+              <Link
+                href="/profile"
+                className="inline-flex shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Edit profile
+              </Link>
+            )}
+            {/* Non-current adults render read-only regardless of viewerRole. */}
+            {viewerRole === 'CHILD' && !m.isCurrentUser && null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ─── Children — PARENT viewer's variant ──────────────────
+
+function ChildrenSection({
+  items,
+  hasChildren,
+  onSendLink,
+}: {
+  items: FamilyChildDto[];
+  hasChildren: boolean;
+  onSendLink: (child: FamilyChildDto) => void;
+}) {
+  return (
+    <section className="mt-6">
+      <h2 className="mb-2 text-sm font-semibold text-gray-900">Children</h2>
       {hasChildren ? (
         <ul className="flex flex-col gap-3">
-          {children.map((child) => (
+          {items.map((child) => (
             <li key={child.id}>
-              <ChildCard child={child} onSendLink={() => setLinkInviteFor(child)} />
+              <ChildCard child={child} onSendLink={() => onSendLink(child)} />
             </li>
           ))}
         </ul>
@@ -106,21 +245,85 @@ export default function FamilyPage() {
           }
         />
       )}
+    </section>
+  );
+}
 
-      <LinkCodeSection />
+// ─── Children — CHILD viewer's variant ───────────────────
 
-      <SendLinkModal
-        child={linkInviteFor}
-        open={linkInviteFor !== null}
-        onClose={() => setLinkInviteFor(null)}
-      />
+/**
+ * From a child's perspective the children[] list contains the viewer
+ * themself + their siblings. We split the two and render the viewer
+ * with an Edit-my-profile link, the siblings as read-only badges-only
+ * rows. No status badges on the viewer's row — the LINKED status is
+ * implicit and a "Connected" badge under your own name reads oddly.
+ */
+function ChildViewerSiblingsSection({
+  items,
+  viewerPersonId,
+}: {
+  items: FamilyChildDto[];
+  viewerPersonId: string;
+}) {
+  const me = items.find((c) => c.personId === viewerPersonId) ?? null;
+  const siblings = items.filter((c) => c.personId !== viewerPersonId);
 
-      <GeneratedCodeModal
-        code={generatedCode}
-        open={generatedCode !== null}
-        onClose={() => setGeneratedCode(null)}
-      />
-    </div>
+  return (
+    <>
+      {siblings.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-900">Siblings</h2>
+          <ul className="flex flex-col gap-2">
+            {siblings.map((s) => {
+              const age = computeAge(s.dateOfBirth);
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900">
+                        {s.firstName} {s.lastName}
+                      </p>
+                      <StatusBadgeForChild status={s.status} />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {age !== null ? `age ${age}` : 'No DOB'}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {me && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-900">My profile</h2>
+          <div className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">
+                {me.firstName} {me.lastName}
+                <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                {(() => {
+                  const age = computeAge(me.dateOfBirth);
+                  return age !== null ? `age ${age}` : 'No DOB';
+                })()}
+              </p>
+            </div>
+            <Link
+              href="/profile"
+              className="inline-flex shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Edit my profile
+            </Link>
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 

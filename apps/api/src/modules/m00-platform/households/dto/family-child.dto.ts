@@ -92,3 +92,44 @@ export class GenerateLinkCodeDto {
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ enum: INVITATION_TYPES }) type!: InvitationType;
 }
+
+// ─── /family — full family structure ───────────────────────
+
+export type FamilyViewerRole = 'PARENT' | 'CHILD';
+
+/**
+ * One row from platform_family_members + iam_person. Adults of the
+ * family. Every entry is a "parent/guardian" for the purposes of the
+ * UI label; the underlying member_role distinguishes HEAD_OF_HOUSEHOLD
+ * / SPOUSE / GUARDIAN / etc. when the caller cares.
+ */
+export class FamilyMemberDto {
+  @ApiProperty() personId!: string;
+  @ApiProperty() firstName!: string;
+  @ApiProperty() lastName!: string;
+  @ApiPropertyOptional() preferredName?: string | null;
+  @ApiProperty() memberRole!: string;
+  @ApiProperty() isPrimaryContact!: boolean;
+  @ApiProperty() isCurrentUser!: boolean;
+}
+
+export class FamilyHeaderDto {
+  @ApiProperty() id!: string;
+  @ApiPropertyOptional() name?: string | null;
+}
+
+/**
+ * GET /family — composite shape used by the /family page. Returned
+ * with viewerRole so the client can pick the appropriate render path
+ * (PARENT sees write controls; CHILD sees read-only siblings + own
+ * profile shortcut). children[] uses the existing FamilyChildDto
+ * shape so legacy /family/children consumers don't have to learn a
+ * new type.
+ */
+export class FamilyViewDto {
+  @ApiProperty({ type: FamilyHeaderDto }) family!: FamilyHeaderDto;
+  @ApiProperty({ enum: ['PARENT', 'CHILD'] }) viewerRole!: FamilyViewerRole;
+  @ApiProperty() viewerPersonId!: string;
+  @ApiProperty({ type: [FamilyMemberDto] }) members!: FamilyMemberDto[];
+  @ApiProperty({ type: [FamilyChildDto] }) children!: FamilyChildDto[];
+}

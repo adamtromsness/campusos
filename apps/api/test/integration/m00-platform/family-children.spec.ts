@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -497,6 +497,69 @@ describe('integration:m00-platform/family-children', () => {
         userAPersonId,
       );
       expect(result.familyId).toBe(familyRow[0]!.family_id);
+    });
+  });
+
+  // ─── GET /family — composite view + viewer role ───────────
+
+  describe('getFamily', () => {
+    it('returns null when the caller has no family yet', async () => {
+      const view = await controller.getFamily(reqA());
+      expect(view).toBeNull();
+    });
+
+    it('returns PARENT view of the caller’s own family with children listed', async () => {
+      await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      await controller.create(reqA(), { firstName: 'Lucas', lastName: 'A' });
+      const view = await controller.getFamily(reqA());
+      expect(view).not.toBeNull();
+      expect(view!.viewerRole).toBe('PARENT');
+      expect(view!.viewerPersonId).toBe(userAPersonId);
+      // The caller is a family_members row in their own family.
+      expect(view!.members.map((m) => m.personId)).toEqual([userAPersonId]);
+      expect(view!.members[0]!.isCurrentUser).toBe(true);
+      // Both placeholder children show up regardless of LINKED status.
+      const names = view!.children.map((c) => c.firstName).sort();
+      expect(names).toEqual(['Lucas', 'Sofia']);
+    });
+
+    it('returns CHILD view of the inviter’s family for a LINKED family_child', async () => {
+      // user A invites user B as a child via FAMILY_INVITE.
+      const code = (await controller.generateCode(reqA())).code;
+      await controller.accept(reqB(), { code });
+      // user B is now LINKED in user A's family with no kids of their
+      // own → CHILD viewer of A's family.
+      const view = await controller.getFamily(reqB());
+      expect(view).not.toBeNull();
+      expect(view!.viewerRole).toBe('CHILD');
+      expect(view!.viewerPersonId).toBe(userBPersonId);
+      // The parent (A) shows up in members.
+      expect(view!.members.map((m) => m.personId)).toEqual([userAPersonId]);
+      expect(view!.members[0]!.isCurrentUser).toBe(false);
+      // children[] includes the viewer themself (B).
+      const linkedPersonIds = view!.children
+        .filter((c) => c.status === 'LINKED')
+        .map((c) => c.personId);
+      expect(linkedPersonIds).toContain(userBPersonId);
+    });
+  });
+
+  // ─── Role-gated writes ─────────────────────────────────────
+
+  describe('parent-only writes', () => {
+    it('create refuses a CHILD viewer with 403', async () => {
+      // Link user B as a child in A's family so B becomes a CHILD viewer.
+      const code = (await controller.generateCode(reqA())).code;
+      await controller.accept(reqB(), { code });
+      await expect(
+        controller.create(reqB(), { firstName: 'WontHappen', lastName: 'B' }),
+      ).rejects.toMatchObject({ status: HttpException.prototype.constructor.name ? 403 : 403 });
+    });
+
+    it('generate-code refuses a CHILD viewer with 403', async () => {
+      const code = (await controller.generateCode(reqA())).code;
+      await controller.accept(reqB(), { code });
+      await expect(controller.generateCode(reqB())).rejects.toMatchObject({ status: 403 });
     });
   });
 });

@@ -15,6 +15,9 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  FamilyMemberDto,
+  FamilyViewDto,
+  FamilyViewerRole,
   GenerateLinkCodeDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
@@ -67,6 +70,148 @@ export class FamilyChildrenService {
     private readonly redis: RedisService,
   ) {}
 
+  // ─── /family — composite view ──────────────────────────────
+
+  /**
+   * GET /family — composite view of the caller's family.
+   *
+   * Viewer-family resolution:
+   *   1. If the caller is a family_members row in a family that has
+   *      any platform_family_children rows → that family, PARENT view.
+   *   2. Else if the caller is a LINKED family_child anywhere → that
+   *      family, CHILD view. (A user can be LINKED in multiple
+   *      families; we pick the most-recently-linked one.)
+   *   3. Else if the caller is a family_members row anywhere (empty
+   *      singleton from registration) → that family, PARENT view.
+   *   4. Otherwise null — the caller has no family at all. The
+   *      controller returns null and the frontend falls back to its
+   *      empty state.
+   *
+   * Step (1) ordering is important — once an adult has children of
+   * their own they should land on their OWN family even if they're
+   * also still LINKED in their parent's family.
+   */
+  async getFamilyView(personId: string): Promise<FamilyViewDto | null> {
+    const resolved = await this.resolveViewerFamily(personId);
+    if (!resolved) return null;
+
+    const family = await this.prisma.platformFamily.findUnique({
+      where: { id: resolved.familyId },
+      select: { id: true, name: true },
+    });
+    if (!family) return null;
+
+    const memberRows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        person_id: string;
+        first_name: string;
+        last_name: string;
+        preferred_name: string | null;
+        member_role: string;
+        is_primary_contact: boolean;
+      }>
+    >(
+      `SELECT pfm.person_id::text AS person_id,
+              p.first_name,
+              p.last_name,
+              p.preferred_name,
+              pfm.member_role::text AS member_role,
+              pfm.is_primary_contact
+       FROM platform.platform_family_members pfm
+       JOIN platform.iam_person p ON p.id = pfm.person_id
+       WHERE pfm.family_id = $1::uuid
+       ORDER BY pfm.is_primary_contact DESC, pfm.joined_at ASC`,
+      resolved.familyId,
+    );
+    const members: FamilyMemberDto[] = memberRows.map((r) => ({
+      personId: r.person_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      preferredName: r.preferred_name,
+      memberRole: r.member_role,
+      isPrimaryContact: r.is_primary_contact,
+      isCurrentUser: r.person_id === personId,
+    }));
+
+    const childRows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
+      this.selectSql() + 'WHERE family_id = $1::uuid ORDER BY created_at ASC',
+      resolved.familyId,
+    );
+
+    return {
+      family: { id: family.id, name: family.name },
+      viewerRole: resolved.role,
+      viewerPersonId: personId,
+      members,
+      children: childRows.map((r) => this.toDto(r)),
+    };
+  }
+
+  /**
+   * Pick the family that should drive the /family page for this user.
+   * Returns null if the user has no family of any kind (registration
+   * normally seeds one, but the unauth-by-API-token case can land
+   * here). Documented at length on getFamilyView above.
+   */
+  private async resolveViewerFamily(
+    personId: string,
+  ): Promise<{ familyId: string; role: FamilyViewerRole } | null> {
+    const myMemberFamilyId = await this.findFamilyForPerson(personId);
+
+    if (myMemberFamilyId) {
+      const childCountRows = await this.prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*)::bigint AS cnt
+         FROM platform.platform_family_children
+         WHERE family_id = $1::uuid`,
+        myMemberFamilyId,
+      );
+      if (Number(childCountRows[0]?.cnt ?? 0n) > 0) {
+        return { familyId: myMemberFamilyId, role: 'PARENT' };
+      }
+    }
+
+    const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
+      `SELECT family_id::text AS family_id
+       FROM platform.platform_family_children
+       WHERE person_id = $1::uuid AND status = 'LINKED'
+       ORDER BY linked_at DESC NULLS LAST
+       LIMIT 1`,
+      personId,
+    );
+    if (linkedRows[0]) {
+      return { familyId: linkedRows[0].family_id, role: 'CHILD' };
+    }
+
+    if (myMemberFamilyId) {
+      return { familyId: myMemberFamilyId, role: 'PARENT' };
+    }
+    return null;
+  }
+
+  /**
+   * Refuse a parent-write when the caller's primary family view is
+   * CHILD (they're LINKED into someone else's family with no kids of
+   * their own). PATCH/DELETE/send-link/create-account already gate
+   * via requireOwnedRow's family_members membership check; this
+   * helper covers POST /family/children and generate-code where the
+   * caller has no existing target row to check against.
+   *
+   * `resolveViewerFamily` ordering prefers PARENT-with-kids first
+   * and falls through to LINKED-child-elsewhere, so a fresh parent
+   * with an empty singleton family still passes — only "I am a
+   * LINKED child somewhere AND have no kids of my own" trips the
+   * 403.
+   */
+  private async assertNotChildViewer(personId: string): Promise<void> {
+    const resolved = await this.resolveViewerFamily(personId);
+    if (resolved?.role === 'CHILD') {
+      throw new HttpException(
+        'Only parents/guardians can perform this action',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+  }
+
   // ─── CRUD (Step 5) ─────────────────────────────────────────
 
   async listForUser(personId: string): Promise<FamilyChildDto[]> {
@@ -80,6 +225,7 @@ export class FamilyChildrenService {
   }
 
   async create(personId: string, dto: CreateFamilyChildDto): Promise<FamilyChildDto> {
+    await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
     const id = generateId();
     await this.prisma.$executeRawUnsafe(
@@ -426,6 +572,7 @@ export class FamilyChildrenService {
    * pre-date that flow).
    */
   async generateFamilyCode(personId: string): Promise<GenerateLinkCodeDto> {
+    await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
     const code = this.generateLinkCode();
     const invitationId = generateId();

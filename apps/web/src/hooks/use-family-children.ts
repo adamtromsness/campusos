@@ -48,6 +48,51 @@ export interface AcceptFamilyLinkPayload {
 }
 
 const KEY = ['family', 'children'] as const;
+// Broader prefix used by every mutation's invalidation so both
+// useFamilyChildren and useFamilyView (and any future ['family', ...]
+// query) refresh together.
+const INVALIDATE = ['family'] as const;
+
+// ─── Composite family view — Parents + Children + viewer role ─
+
+export type FamilyViewerRole = 'PARENT' | 'CHILD';
+
+export interface FamilyMemberDto {
+  personId: string;
+  firstName: string;
+  lastName: string;
+  preferredName: string | null;
+  memberRole: string;
+  isPrimaryContact: boolean;
+  isCurrentUser: boolean;
+}
+
+export interface FamilyHeaderDto {
+  id: string;
+  name: string | null;
+}
+
+export interface FamilyViewDto {
+  family: FamilyHeaderDto;
+  viewerRole: FamilyViewerRole;
+  viewerPersonId: string;
+  members: FamilyMemberDto[];
+  children: FamilyChildDto[];
+}
+
+/**
+ * GET /family — composite shape used by /family/page.tsx. viewerRole
+ * picks the render path; CHILD viewers see read-only siblings + own
+ * profile card, PARENT viewers see the existing per-child action set.
+ */
+export function useFamilyView(enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'view'] as const,
+    queryFn: () => apiFetch<FamilyViewDto | null>('/api/v1/family'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
 
 export function useFamilyChildren(enabled = true) {
   return useQuery({
@@ -67,7 +112,7 @@ export function useCreateFamilyChild() {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
     },
   });
 }
@@ -81,7 +126,7 @@ export function useUpdateFamilyChild(id: string) {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
     },
   });
 }
@@ -91,7 +136,7 @@ export function useDeleteFamilyChild(id: string) {
   return useMutation({
     mutationFn: () => apiFetch<void>('/api/v1/family/children/' + id, { method: 'DELETE' }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
     },
   });
 }
@@ -105,7 +150,7 @@ export function useCreateChildAccount(id: string) {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
       // /auth/me lives in the Zustand auth store, not React Query —
       // callers must invoke refreshUser() from useAuthActions after this
       // mutation succeeds so the new PARENT persona activates without a
@@ -124,7 +169,7 @@ export function useSendChildLink(id: string) {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
     },
   });
 }
@@ -143,7 +188,7 @@ export function useCancelChildLink(id: string) {
         method: 'POST',
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
     },
   });
 }
@@ -157,7 +202,7 @@ export function useAcceptFamilyLink() {
         body: JSON.stringify({ code: payload.code }),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
       // Callers must invoke refreshUser() from useAuthActions — see the
       // comment on useCreateChildAccount above.
     },
