@@ -18,6 +18,16 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const { logout } = useAuthActions();
 
+  // Prefer the preferred-name form when the user has set one — the
+  // dashboard greeting already does the same. Falls back to
+  // displayName (which is firstName + lastName at registration time)
+  // so accounts without a preferred name still render their full
+  // name, not just the first.
+  const displayed =
+    user.preferredName && user.lastName
+      ? `${user.preferredName} ${user.lastName}`
+      : (user.preferredName ?? user.displayName);
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
       <div className="flex items-center gap-3">
@@ -42,9 +52,9 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
             onClick={() => setOpen((v) => !v)}
             className="flex items-center gap-3 rounded-full px-2 py-1 text-left hover:bg-gray-50"
           >
-            <Avatar name={user.displayName} size="sm" />
+            <Avatar name={displayed} size="sm" />
             <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
+              <p className="text-sm font-medium text-gray-900">{displayed}</p>
               <p className="text-xs text-gray-500">{user.email}</p>
             </div>
           </button>
@@ -55,7 +65,7 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
               onMouseLeave={() => setOpen(false)}
             >
               <div className="border-b border-gray-100 px-4 py-3">
-                <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
+                <p className="text-sm font-medium text-gray-900">{displayed}</p>
                 <p className="mt-0.5 text-xs text-gray-500">{user.email}</p>
               </div>
               {/* My Profile is intentionally not gated on usr-001:read.
