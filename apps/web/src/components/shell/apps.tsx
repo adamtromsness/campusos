@@ -41,6 +41,7 @@ import {
 export type AppKey =
   | 'classes'
   | 'children'
+  | 'family'
   | 'messages'
   | 'announcements'
   | 'tasks'
@@ -147,9 +148,34 @@ export interface AppDef {
  * personas.
  */
 export function getAppsForUser(user: AuthUser): AppDef[] {
-  if (!user.activePersona) return [];
-
   const apps: AppDef[] = [];
+
+  // Universal — visible to every authenticated user including
+  // 0-persona accounts. Family management isn't persona-gated: a
+  // brand-new user with a PLACEHOLDER child needs a persistent
+  // sidebar path to /family, and a staff member who's also a parent
+  // shouldn't lose access to their children when they're active as
+  // STAFF. This tile supersedes the prior PARENT-only "My Children"
+  // entry — /family lists every child the parent has on file (LINKED
+  // / PENDING_LINK / PLACEHOLDER) from platform_family_children and
+  // works whether or not the child is enrolled at a school yet.
+  apps.push({
+    key: 'family',
+    label: 'My Family',
+    description: 'Your children and how they connect to CampusOS',
+    href: '/family',
+    routePrefix: '/family',
+    icon: ChildrenIcon,
+  });
+
+  if (!user.activePersona) {
+    // 0-persona accounts only see the universal tiles. Persona-gated
+    // catalogue entries below depend on activePersona.type to pick
+    // labels / hrefs, and the AppLayout has already routed this user
+    // to /getting-started so the launchpad isn't the active surface.
+    return apps;
+  }
+
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
   const isStaff = user.activePersona.type === 'STAFF';
   const isStudent = user.activePersona.type === 'STUDENT';
@@ -170,25 +196,6 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Your classes and grades',
       href: '/classes',
       icon: ClassesIcon,
-    });
-  } else if (isParent) {
-    // /family is the canonical landing for parents now — it lists
-    // every child the parent has on file (LINKED / PENDING_LINK /
-    // PLACEHOLDER) from platform_family_children, which works whether
-    // or not the child is enrolled at a school yet. The old /children
-    // page reads sis_student_guardians and silently drops any child
-    // who isn't enrolled, which is the common state right after the
-    // PARENT persona activates from a fresh family-children row.
-    // Per-enrolled-child detail surfaces (attendance, schedule, etc.)
-    // still live under /children/[id]/* and are linked from /family
-    // once the child has an enrolment.
-    apps.push({
-      key: 'children',
-      label: 'My Children',
-      description: 'Your children, profiles, and school enrolment',
-      href: '/family',
-      routePrefix: '/family',
-      icon: ChildrenIcon,
     });
   }
 

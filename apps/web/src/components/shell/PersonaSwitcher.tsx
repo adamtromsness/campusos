@@ -183,17 +183,24 @@ export function PersonaSwitcher() {
     if (!open) setStaffInviteOpen(false);
   }, [open]);
 
-  if (!user || !user.activePersona || user.personas.length === 0) {
+  if (!user) {
     return null;
   }
 
+  // 0-persona users get a "Set up your profile" pill that opens the
+  // dropdown straight into the Add a profile section. This gives them
+  // a persistent entry into the staff-invite + substitute-register
+  // flows from any page in the (app) onboarding allowlist, not just
+  // /getting-started.
   const active = user.activePersona;
-  const ActiveIcon = TYPE_ICON[active.type];
+  const ActiveIcon = active ? TYPE_ICON[active.type] : null;
+  const hasAnyPersona = user.personas.length > 0;
 
   // "Add a profile" entries are the addable types the user doesn't
   // already hold. A user with STAFF + PARENT sees only Substitute in
   // the add section; a user with everything sees no add section at all
-  // and the switcher falls back to plain persona switching.
+  // and the switcher falls back to plain persona switching. A
+  // 0-persona user sees the full ADDABLE_TYPES list.
   const activeTypes = new Set(user.personas.map((p) => p.type));
   const addOptions = ADDABLE_TYPES.filter((t) => !activeTypes.has(t));
 
@@ -307,9 +314,15 @@ export function PersonaSwitcher() {
           'text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50'
         }
       >
-        <ActiveIcon className="h-4 w-4 text-gray-600" />
-        <span className="hidden truncate sm:inline">{truncate(active.label, 28)}</span>
-        <span className="inline sm:hidden">{TYPE_LABEL[active.type]}</span>
+        {active && ActiveIcon ? (
+          <>
+            <ActiveIcon className="h-4 w-4 text-gray-600" />
+            <span className="hidden truncate sm:inline">{truncate(active.label, 28)}</span>
+            <span className="inline sm:hidden">{TYPE_LABEL[active.type]}</span>
+          </>
+        ) : (
+          <span className="truncate">Set up your profile</span>
+        )}
         <ChevronDownIcon className="h-4 w-4 text-gray-500" />
       </button>
 
@@ -319,45 +332,48 @@ export function PersonaSwitcher() {
           aria-label="Persona switcher"
           className="absolute right-0 top-11 z-40 w-80 overflow-hidden rounded-card border border-gray-200 bg-white shadow-elevated"
         >
-          {/* Active personas — switch list. */}
-          {groupedPersonas.map(([type, list], i) => (
-            <div key={type}>
-              {i > 0 && <div className="border-t border-gray-100" />}
-              <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                {TYPE_LABEL[type]}
+          {/* Active personas — switch list. Skipped entirely when the
+              user has 0 personas so the dropdown opens straight into
+              Add a profile. */}
+          {hasAnyPersona &&
+            groupedPersonas.map(([type, list], i) => (
+              <div key={type}>
+                {i > 0 && <div className="border-t border-gray-100" />}
+                <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  {TYPE_LABEL[type]}
+                </div>
+                {list.map((p) => {
+                  const Icon = TYPE_ICON[p.type];
+                  const isActive = p.id === active?.id;
+                  const isSwitching = switching === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="menuitem"
+                      aria-current={isActive}
+                      disabled={isSwitching}
+                      onClick={() => void handleSelect(p)}
+                      className={
+                        'flex w-full items-center gap-3 px-3 py-2 text-left text-sm ' +
+                        (isActive ? 'bg-gray-50 text-gray-900' : 'text-gray-700 hover:bg-gray-50') +
+                        (isSwitching ? ' opacity-60' : '')
+                      }
+                    >
+                      <Icon className="h-4 w-4 text-gray-600" />
+                      <span className="flex-1 truncate">{p.label}</span>
+                      {isActive && <CheckIcon className="h-4 w-4 text-campus-700" />}
+                    </button>
+                  );
+                })}
               </div>
-              {list.map((p) => {
-                const Icon = TYPE_ICON[p.type];
-                const isActive = p.id === active.id;
-                const isSwitching = switching === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="menuitem"
-                    aria-current={isActive}
-                    disabled={isSwitching}
-                    onClick={() => void handleSelect(p)}
-                    className={
-                      'flex w-full items-center gap-3 px-3 py-2 text-left text-sm ' +
-                      (isActive ? 'bg-gray-50 text-gray-900' : 'text-gray-700 hover:bg-gray-50') +
-                      (isSwitching ? ' opacity-60' : '')
-                    }
-                  >
-                    <Icon className="h-4 w-4 text-gray-600" />
-                    <span className="flex-1 truncate">{p.label}</span>
-                    {isActive && <CheckIcon className="h-4 w-4 text-campus-700" />}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+            ))}
 
           {/* Add a profile — only render when there's at least one
               addable type the user doesn't already hold. */}
           {addOptions.length > 0 && (
             <div>
-              <div className="border-t border-gray-200" />
+              {hasAnyPersona && <div className="border-t border-gray-200" />}
               <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 Add a profile
               </div>
