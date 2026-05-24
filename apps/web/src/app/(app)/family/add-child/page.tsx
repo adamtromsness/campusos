@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@/lib/api-client';
+import { useAuthActions } from '@/lib/auth-context';
 import { useAcceptFamilyLink, useCreateFamilyChild } from '@/hooks/use-family-children';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -38,6 +39,7 @@ import { useToast } from '@/components/ui/Toast';
 export default function AddChildPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { refreshUser } = useAuthActions();
   const createChild = useCreateFamilyChild();
   const acceptLink = useAcceptFamilyLink();
   // We pre-bind the per-child account mutation lazily — see step-2
@@ -181,7 +183,11 @@ export default function AddChildPage() {
           <OptionB
             persistPlaceholder={persistPlaceholder}
             acceptLink={acceptLink.mutateAsync}
-            onSuccess={() => {
+            onSuccess={async () => {
+              // The accept-link tx flipped a family_child row to
+              // LINKED; pull /auth/me into Zustand so the PARENT
+              // persona activates before we leave the page.
+              await refreshUser();
               toast(`${basic.firstName} is now linked`, 'success');
               router.replace('/family');
             }}
@@ -189,7 +195,8 @@ export default function AddChildPage() {
           <OptionC
             persistPlaceholder={persistPlaceholder}
             childAge={age}
-            onSuccess={() => {
+            onSuccess={async () => {
+              await refreshUser();
               toast(`${basic.firstName} now has a CampusOS account`, 'success');
               router.replace('/family');
             }}

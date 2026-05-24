@@ -106,10 +106,11 @@ export function useCreateChildAccount(id: string) {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: KEY });
-      // The /auth/me persona cache also refreshes server-side after a
-      // LINKED transition; the AppLayout re-fetches on the next render
-      // window when invalidated below.
-      void qc.invalidateQueries({ queryKey: ['auth', 'me'] });
+      // /auth/me lives in the Zustand auth store, not React Query —
+      // callers must invoke refreshUser() from useAuthActions after this
+      // mutation succeeds so the new PARENT persona activates without a
+      // page reload. The server-side persona-cache refresh runs inside
+      // createAccountForChild, so /auth/me will return the PARENT row.
     },
   });
 }
@@ -157,7 +158,8 @@ export function useAcceptFamilyLink() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: KEY });
-      void qc.invalidateQueries({ queryKey: ['auth', 'me'] });
+      // Callers must invoke refreshUser() from useAuthActions — see the
+      // comment on useCreateChildAccount above.
     },
   });
 }

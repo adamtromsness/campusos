@@ -7,6 +7,11 @@ import { ApiError, apiFetch } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ChildrenIcon, MailIcon, SearchIcon, UserCheckIcon } from '@/components/shell/icons';
+import {
+  useFamilyChildren,
+  type FamilyChildDto,
+  type FamilyChildStatus,
+} from '@/hooks/use-family-children';
 
 /**
  * Getting Started — Section 2 / Step 3 of the persona-registration
@@ -31,6 +36,16 @@ export default function GettingStartedPage() {
     ? `Welcome to CampusOS, ${user.firstName}!`
     : 'Welcome to CampusOS!';
 
+  // Once the user has added children, the "I have children" card is a
+  // dead-end repeat. Swap it for a family-progress summary that surfaces
+  // each child's link status and points at /family for management. We
+  // only render the summary when the API has answered with a non-empty
+  // list — the loading flicker would otherwise replace the action card
+  // with a spinner on every fresh visit.
+  const familyQuery = useFamilyChildren();
+  const children = familyQuery.data ?? [];
+  const hasChildren = children.length > 0;
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col px-4 pb-16 pt-10 sm:pt-16">
       <div className="text-center">
@@ -43,7 +58,7 @@ export default function GettingStartedPage() {
       </div>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        <ChildrenCard />
+        {hasChildren ? <FamilySummaryCard items={children} /> : <ChildrenCard />}
         <InvitationCard />
         <SubstituteCard />
         <FindSchoolCard />
@@ -232,6 +247,97 @@ function FindSchoolCard() {
       href="/find-schools"
       cta="Browse schools"
     />
+  );
+}
+
+// ─── Family progress card ────────────────────────────────
+
+const STATUS_LABELS: Record<FamilyChildStatus, { label: string; tone: string }> = {
+  LINKED: { label: 'Connected', tone: 'bg-green-50 text-green-700 ring-green-600/20' },
+  PENDING_LINK: { label: 'Invite pending', tone: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
+  PLACEHOLDER: { label: 'Account needed', tone: 'bg-gray-100 text-gray-700 ring-gray-500/20' },
+};
+
+/**
+ * Replacement for the "I have children" card once the user has at
+ * least one child on file. Shows each child with a status badge and
+ * funnels to /family for management or /family/add-child for the next
+ * child. Sized to match the other launchpad cards (single grid cell).
+ *
+ * Children are intentionally not clickable here — the AppLayout
+ * persona-presence redirect would bounce the user off any per-child
+ * detail route until a persona activates. /family itself is in the
+ * onboarding allowlist so the Manage button always works.
+ */
+function FamilySummaryCard({ items }: { items: FamilyChildDto[] }) {
+  const a = ACCENTS.blue;
+  return (
+    <div
+      className={
+        'flex flex-col gap-3 rounded-card border border-gray-200 bg-white p-5 shadow-sm transition-colors ' +
+        a.hoverBorder +
+        ' ' +
+        a.hoverBg
+      }
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className={
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
+            a.iconBg +
+            ' ' +
+            a.iconText
+          }
+        >
+          <ChildrenIcon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">My family</h2>
+          <p className="mt-0.5 text-sm text-gray-600">
+            {items.length === 1 ? '1 child on file' : `${items.length} children on file`}
+          </p>
+        </div>
+      </div>
+
+      <ul className="flex flex-col gap-1.5 text-sm">
+        {items.map((c) => {
+          const badge = STATUS_LABELS[c.status];
+          return (
+            <li key={c.id} className="flex items-center justify-between gap-2">
+              <span className="truncate text-gray-800">
+                {c.firstName} {c.lastName}
+              </span>
+              <span
+                className={
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' +
+                  badge.tone
+                }
+              >
+                {badge.label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="mt-1 flex flex-wrap gap-3 text-sm font-medium">
+        <Link
+          href="/family"
+          className="inline-flex items-center gap-1 text-campus-700 hover:text-campus-600"
+        >
+          Manage family
+          <span aria-hidden>→</span>
+        </Link>
+        <Link
+          href="/family/add-child"
+          className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700"
+        >
+          Add another
+          <span aria-hidden>→</span>
+        </Link>
+      </div>
+    </div>
   );
 }
 
