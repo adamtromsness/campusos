@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { ApiError } from '@/lib/api-client';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useAuthActions } from '@/lib/auth-context';
 import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile';
+import { useAcceptFamilyLink, useGenerateChildCode } from '@/hooks/use-family-children';
 
 /**
  * /profile — self-service identity editor.
@@ -204,6 +206,8 @@ export default function MyProfilePage() {
           </button>
         </div>
       </form>
+
+      <FamilyConnectionSection />
     </div>
   );
 }
@@ -268,6 +272,190 @@ function Field({
           {hint}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+// ─── Family connection ───────────────────────────────────
+
+/**
+ * Self-service surface for the bidirectional family-link feature.
+ * The page doesn't know whether the caller is already LINKED into a
+ * family (there's no endpoint that resolves "am I a child somewhere?"
+ * yet), so we always show both options. If the user is already linked,
+ * the accept endpoint surfaces a 400 inline.
+ *
+ *   Generate a code for your parent — POST /family/generate-child-code.
+ *     Returns an 8-char CHILD_LINK token the parent enters at /family
+ *     to add the user to their family as a LINKED child.
+ *
+ *   Enter a parent's family code — POST /family/link.
+ *     Accepts both a parent's FAMILY_INVITE code (user joins the
+ *     parent's family) and a parent-issued CHILD_LINK that named
+ *     this user. The API dispatches on type + metadata.
+ */
+function FamilyConnectionSection() {
+  return (
+    <section className="mt-6 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
+      <h2 className="text-sm font-semibold text-gray-900">Family connection</h2>
+      <p className="mt-1 text-xs text-gray-600">
+        Connect your account to a parent&rsquo;s family, or hand them a code so they can connect
+        you.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <GenerateChildCodeBlock />
+        <EnterParentCodeBlock />
+      </div>
+    </section>
+  );
+}
+
+function GenerateChildCodeBlock() {
+  const generate = useGenerateChildCode();
+  const [code, setCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  async function onClick() {
+    if (code) return;
+    try {
+      const r = await generate.mutateAsync();
+      setCode(r.code);
+      setExpiresAt(r.expiresAt);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Could not generate a code. Please try again.';
+      toast(message, 'error');
+    }
+  }
+
+  async function copy() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+      <p className="text-sm font-medium text-gray-900">Generate a code for your parent</p>
+      <p className="text-xs text-gray-600">
+        Your parent enters this code on CampusOS to add you to their family.
+      </p>
+      {!code ? (
+        <button
+          type="button"
+          onClick={() => void onClick()}
+          disabled={generate.isPending}
+          className="mt-1 inline-flex w-fit items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+        >
+          {generate.isPending ? 'Generating…' : 'Generate code'}
+        </button>
+      ) : (
+        <>
+          <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2">
+            <code className="font-mono text-base font-semibold tracking-[0.2em] text-gray-900">
+              {code}
+            </code>
+            <button
+              type="button"
+              onClick={() => void copy()}
+              className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+            >
+              Copy
+            </button>
+          </div>
+          {expiresAt && (
+            <p className="text-xs text-gray-500">
+              Expires{' '}
+              {new Date(expiresAt).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+              .
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EnterParentCodeBlock() {
+  const accept = useAcceptFamilyLink();
+  const { refreshUser } = useAuthActions();
+  const { toast } = useToast();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = code.trim().toUpperCase().replace(/-/g, '');
+    if (trimmed.length !== 8) {
+      setError('Codes are 8 characters.');
+      return;
+    }
+    setError(null);
+    try {
+      await accept.mutateAsync({ code: trimmed });
+      // Linking activates the inviter's persona, not necessarily the
+      // caller's, but the wire shape may still change (e.g. linked_at
+      // visible to the user). Refresh /auth/me so any persona derived
+      // from this link surfaces in the top bar.
+      await refreshUser();
+      toast("You're connected to your family", 'success');
+      setCode('');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setError('Invalid or expired code.');
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError('Too many attempts. Try again in a few minutes.');
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError('That code can’t link here. You may already be connected.');
+      } else {
+        setError('Could not link. Please try again.');
+      }
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+      <p className="text-sm font-medium text-gray-900">Enter a parent&rsquo;s family code</p>
+      <p className="text-xs text-gray-600">
+        Use the 8-character code your parent generated to join their family.
+      </p>
+      <form onSubmit={onSubmit} className="mt-1 flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="ABCD1234"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          aria-invalid={!!error}
+          className={
+            'block flex-1 rounded-md border bg-white px-3 py-2 font-mono text-sm uppercase tracking-wider text-gray-900 ' +
+            'shadow-sm placeholder:font-mono placeholder:text-gray-300 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+            (error ? 'border-red-300' : 'border-gray-300')
+          }
+        />
+        <button
+          type="submit"
+          disabled={accept.isPending}
+          className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+        >
+          {accept.isPending && <LoadingSpinner size="sm" />}
+          <span>{accept.isPending ? 'Linking…' : 'Link'}</span>
+        </button>
+      </form>
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

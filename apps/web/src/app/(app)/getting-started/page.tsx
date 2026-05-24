@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { useFamilyChildren } from '@/hooks/use-family-children';
+import { useFamilyChildren, useGenerateChildCode } from '@/hooks/use-family-children';
 
 /**
  * Getting Started — role-aware onboarding.
@@ -83,9 +83,10 @@ const ROLES: RoleDef[] = [
 
 type ActionDef =
   | { type: 'link'; label: string; href: string }
-  | { type: 'invitation'; label: string; expectType?: InvitationType };
+  | { type: 'invitation'; label: string; expectType?: InvitationType }
+  | { type: 'generate-child-code'; label: string };
 
-type InvitationType = 'EMPLOYEE' | 'CHILD_LINK' | 'PARENT_LINK' | 'SUBSTITUTE';
+type InvitationType = 'EMPLOYEE' | 'CHILD_LINK' | 'PARENT_LINK' | 'SUBSTITUTE' | 'FAMILY_INVITE';
 
 const ROLE_ACTIONS: Record<RoleKey, ActionDef[]> = {
   parent: [
@@ -94,7 +95,8 @@ const ROLE_ACTIONS: Record<RoleKey, ActionDef[]> = {
     { type: 'invitation', label: 'Enter an invitation code' },
   ],
   student: [
-    { type: 'invitation', label: 'Enter a link code from your parent or school' },
+    { type: 'invitation', label: 'Enter a code from your parent or school' },
+    { type: 'generate-child-code', label: 'Generate a code for your parent' },
     { type: 'link', label: 'Find a school to apply to', href: '/find-schools' },
     { type: 'link', label: 'Set up your profile', href: '/profile' },
   ],
@@ -110,6 +112,7 @@ const INVITATION_TYPE_LABEL: Record<InvitationType, string> = {
   CHILD_LINK: 'family',
   PARENT_LINK: 'parent',
   SUBSTITUTE: 'substitute teacher',
+  FAMILY_INVITE: 'family',
 };
 
 interface PendingInvitation {
@@ -319,25 +322,35 @@ function RoleActionsCard({ role }: { role: RoleDef }) {
         <h3 className="text-sm font-semibold text-gray-900">{role.title}</h3>
       </div>
       <ul className="mt-3 flex flex-col gap-1">
-        {actions.map((action, i) =>
-          action.type === 'link' ? (
+        {actions.map((action, i) => {
+          if (action.type === 'link') {
+            return (
+              <li key={i}>
+                <Link
+                  href={action.href}
+                  className="flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                >
+                  <span>{action.label}</span>
+                  <span aria-hidden className="text-gray-400">
+                    →
+                  </span>
+                </Link>
+              </li>
+            );
+          }
+          if (action.type === 'invitation') {
+            return (
+              <li key={i}>
+                <InvitationActionRow label={action.label} expectType={action.expectType} />
+              </li>
+            );
+          }
+          return (
             <li key={i}>
-              <Link
-                href={action.href}
-                className="flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-gray-800 hover:bg-gray-50"
-              >
-                <span>{action.label}</span>
-                <span aria-hidden className="text-gray-400">
-                  →
-                </span>
-              </Link>
+              <GenerateChildCodeRow label={action.label} />
             </li>
-          ) : (
-            <li key={i}>
-              <InvitationActionRow label={action.label} expectType={action.expectType} />
-            </li>
-          ),
-        )}
+          );
+        })}
       </ul>
     </div>
   );
@@ -454,5 +467,92 @@ function InvitationActionRow({
         </p>
       )}
     </form>
+  );
+}
+
+// ─── Generate child code row ─────────────────────────────
+
+/**
+ * Student-side counterpart to the InvitationActionRow. Generates a
+ * CHILD_LINK code with no familyChildId metadata (POST
+ * /family/generate-child-code) and shows the resulting 8-char code
+ * inline with a copy button. The parent who accepts the code at
+ * /family adds the student to their family as a LINKED child.
+ *
+ * The code persists in row state for the lifetime of the page so
+ * the student can copy it again if the clipboard write fails.
+ */
+function GenerateChildCodeRow({ label }: { label: string }) {
+  const generate = useGenerateChildCode();
+  const [code, setCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  async function onClick() {
+    if (code) return;
+    try {
+      const result = await generate.mutateAsync();
+      setCode(result.code);
+      setExpiresAt(result.expiresAt);
+    } catch {
+      // Surface as a small error inline via copyState? Keep it simple
+      // and let the hook's isPending flag the failure path. A toast
+      // would be heavier than the action warrants here.
+    }
+  }
+
+  async function copy() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 1500);
+    } catch {
+      setCopyState('error');
+    }
+  }
+
+  if (!code) {
+    return (
+      <button
+        type="button"
+        onClick={() => void onClick()}
+        disabled={generate.isPending}
+        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+      >
+        <span>{generate.isPending ? 'Generating…' : label}</span>
+        <span aria-hidden className="text-gray-400">
+          →
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-md bg-gray-50/60 p-3">
+      <p className="text-xs font-medium text-gray-700">{label}</p>
+      <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2">
+        <code className="font-mono text-base font-semibold tracking-[0.2em] text-gray-900">
+          {code}
+        </code>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+        >
+          {copyState === 'copied' ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        Share this code with your parent. They enter it on CampusOS to add you to their family.
+        {expiresAt &&
+          ' Expires ' +
+            new Date(expiresAt).toLocaleString(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            }) +
+            '.'}
+      </p>
+    </div>
   );
 }

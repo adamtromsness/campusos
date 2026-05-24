@@ -19,6 +19,7 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  GenerateLinkCodeDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
 } from './dto/family-child.dto';
@@ -116,11 +117,34 @@ export class FamilyChildrenController {
   }
 
   @Post('link')
-  @ApiOperation({ summary: 'Accept an 8-char link code — child / second parent side' })
+  @ApiOperation({
+    summary:
+      'Accept an 8-char link code — dispatches on type/metadata: FAMILY_INVITE (child joins parent\'s family), CHILD_LINK with familyChildId (existing parent-issued path), CHILD_LINK without familyChildId (parent accepts child-issued code).',
+  })
   async accept(
     @Req() req: AuthedRequest,
     @Body() dto: AcceptFamilyLinkDto,
   ): Promise<FamilyChildDto> {
     return this.children.acceptLinkCode(req.user!.personId, req.user!.sub, dto);
+  }
+
+  // ─── Bidirectional family-link generators ─────────────────
+
+  @Post('generate-code')
+  @ApiOperation({
+    summary:
+      'Generate a FAMILY_INVITE code. Any authenticated user who accepts it joins the caller\'s family as a LINKED child.',
+  })
+  async generateCode(@Req() req: AuthedRequest): Promise<GenerateLinkCodeDto> {
+    return this.children.generateFamilyCode(req.user!.personId);
+  }
+
+  @Post('generate-child-code')
+  @ApiOperation({
+    summary:
+      'Generate a CHILD_LINK code (no familyChildId metadata). A parent who accepts the code adds the caller as a LINKED child in the parent\'s family — auto-matched against same-name PLACEHOLDER rows.',
+  })
+  async generateChildCode(@Req() req: AuthedRequest): Promise<GenerateLinkCodeDto> {
+    return this.children.generateChildCode(req.user!.personId);
   }
 }

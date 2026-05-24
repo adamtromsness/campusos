@@ -10,9 +10,11 @@ import {
   useCreateChildAccount,
   useDeleteFamilyChild,
   useFamilyChildren,
+  useGenerateFamilyCode,
   useSendChildLink,
   type FamilyChildDto,
   type FamilyChildStatus,
+  type GenerateLinkCodeDto,
 } from '@/hooks/use-family-children';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
@@ -38,6 +40,8 @@ import { cn } from '@/components/ui/cn';
 export default function FamilyPage() {
   const { data, isLoading, error } = useFamilyChildren();
   const [linkInviteFor, setLinkInviteFor] = useState<FamilyChildDto | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<GenerateLinkCodeDto | null>(null);
+  const generateCode = useGenerateFamilyCode();
 
   if (isLoading) return <PageLoader label="Loading your family…" />;
   if (error) {
@@ -58,13 +62,25 @@ export default function FamilyPage() {
         title="My Family"
         description="Your children and how they're connected to CampusOS."
         actions={
-          <Link
-            href="/family/add-child"
-            className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
-          >
-            <span aria-hidden>+</span>
-            Add Child
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void generateCode.mutateAsync().then(setGeneratedCode);
+              }}
+              disabled={generateCode.isPending}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+            >
+              {generateCode.isPending ? 'Generating…' : 'Generate Family Code'}
+            </button>
+            <Link
+              href="/family/add-child"
+              className="inline-flex items-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
+            >
+              <span aria-hidden>+</span>
+              Add Child
+            </Link>
+          </div>
         }
       />
 
@@ -98,7 +114,72 @@ export default function FamilyPage() {
         open={linkInviteFor !== null}
         onClose={() => setLinkInviteFor(null)}
       />
+
+      <GeneratedCodeModal
+        code={generatedCode}
+        open={generatedCode !== null}
+        onClose={() => setGeneratedCode(null)}
+      />
     </div>
+  );
+}
+
+// ─── Generated family-code modal ──────────────────────────
+
+function GeneratedCodeModal({
+  code,
+  open,
+  onClose,
+}: {
+  code: GenerateLinkCodeDto | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  if (!code) return null;
+  const expiry = new Date(code.expiresAt);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code!.code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Your family code"
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Done
+        </button>
+      }
+    >
+      <p className="text-sm text-gray-600">
+        Share this code with your child. They enter it on CampusOS to join your family.
+      </p>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+        <code className="font-mono text-xl font-semibold tracking-[0.25em] text-gray-900">
+          {code.code}
+        </code>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+        >
+          Copy
+        </button>
+      </div>
+      <p className="mt-3 text-xs text-gray-500">
+        Expires {expiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.
+      </p>
+    </Modal>
   );
 }
 
@@ -290,7 +371,8 @@ function LinkCodeSection() {
     <section className="mt-10 rounded-card border border-gray-200 bg-white p-5 shadow-sm">
       <h2 className="text-sm font-semibold text-gray-900">Have a link code?</h2>
       <p className="mt-1 text-xs text-gray-600">
-        Enter it here to connect to a family that invited you.
+        Enter a child&rsquo;s code to add them to your family, or a parent&rsquo;s family code
+        to join theirs.
       </p>
       <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input

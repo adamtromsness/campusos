@@ -50,7 +50,13 @@ export class AcceptFamilyLinkDto {
   @ApiProperty() @IsString() @Length(8, 8) code!: string;
 }
 
-export const INVITATION_TYPES = ['EMPLOYEE', 'CHILD_LINK', 'PARENT_LINK', 'SUBSTITUTE'] as const;
+export const INVITATION_TYPES = [
+  'EMPLOYEE',
+  'CHILD_LINK',
+  'PARENT_LINK',
+  'SUBSTITUTE',
+  'FAMILY_INVITE',
+] as const;
 export type InvitationType = (typeof INVITATION_TYPES)[number];
 
 export class InvitationSummaryDto {
@@ -74,4 +80,15 @@ export class AcceptInvitationResultDto {
   @ApiPropertyOptional() personaType!: string | null;
   @ApiPropertyOptional() personaId!: string | null;
   @ApiPropertyOptional() schoolId!: string | null;
+}
+
+/**
+ * Response for POST /family/generate-code (FAMILY_INVITE, parent
+ * side) and POST /family/generate-child-code (CHILD_LINK without a
+ * family_child placeholder, child side).
+ */
+export class GenerateLinkCodeDto {
+  @ApiProperty() code!: string;
+  @ApiProperty() expiresAt!: string;
+  @ApiProperty({ enum: INVITATION_TYPES }) type!: InvitationType;
 }

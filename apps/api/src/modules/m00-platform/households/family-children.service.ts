@@ -15,6 +15,7 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  GenerateLinkCodeDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
 } from './dto/family-child.dto';
@@ -343,10 +344,33 @@ export class FamilyChildrenService {
   }
 
   /**
-   * POST /family/link — accept a child-link invitation as the child or
-   * a second parent. Validates code, rate-limits per caller, and
-   * stamps the platform_family_children row + the invitation row in
-   * one tx. On success refreshes the INVITER's persona cache.
+   * POST /family/link — accept a family-link invitation. Dispatches on
+   * invitation type + metadata shape:
+   *
+   *   FAMILY_INVITE
+   *     A PARENT issued an open code via /family/generate-code. The
+   *     accepter (current user) joins the inviter's family as a
+   *     LINKED child. Auto-matches a same-name PLACEHOLDER row in
+   *     the inviter's family if one exists; otherwise creates a
+   *     fresh row using the accepter's iam_person identity.
+   *
+   *   CHILD_LINK with metadata.familyChildId
+   *     Existing parent-issued path. The accepter is the CHILD
+   *     (or second parent) named on the PLACEHOLDER family_child
+   *     row; we stamp person_id + status=LINKED on that row.
+   *
+   *   CHILD_LINK without metadata.familyChildId
+   *     New path — a CHILD issued the code via
+   *     /family/generate-child-code. The accepter (current user) is
+   *     the PARENT. We add the child to the parent's family the
+   *     same way as FAMILY_INVITE but with inviter/accepter
+   *     reversed — auto-match against a same-name PLACEHOLDER or
+   *     create a fresh LINKED row using the child's iam_person.
+   *
+   * Persona refresh: whichever side is the PARENT (FAMILY_INVITE
+   * inviter, parent-issued CHILD_LINK inviter, or child-issued
+   * CHILD_LINK accepter) has their persona cache refreshed so PARENT
+   * activates immediately.
    */
   async acceptLinkCode(
     personId: string,
@@ -369,26 +393,95 @@ export class FamilyChildrenService {
     });
     if (
       !invitation ||
-      invitation.type !== 'CHILD_LINK' ||
       invitation.status !== 'PENDING' ||
       invitation.expiresAt.getTime() <= Date.now()
     ) {
       throw new NotFoundException('Invalid or expired link code');
     }
 
-    const metadata = invitation.metadata as { familyChildId?: string } | null;
-    const familyChildId = metadata?.familyChildId;
-    if (!familyChildId) {
-      throw new NotFoundException('Invalid or expired link code');
+    if (invitation.type === 'FAMILY_INVITE') {
+      return this.acceptFamilyInvite(personId, invitation);
+    }
+    if (invitation.type === 'CHILD_LINK') {
+      const metadata = invitation.metadata as { familyChildId?: string } | null;
+      if (metadata?.familyChildId) {
+        return this.acceptParentIssuedChildLink(personId, invitation, metadata.familyChildId);
+      }
+      return this.acceptChildIssuedLink(personId, invitation);
     }
 
+    // Other invitation types (EMPLOYEE / PARENT_LINK / SUBSTITUTE)
+    // have their own dispatcher in InvitationService. /family/link is
+    // family-only — surface as NotFound rather than leak the type.
+    throw new NotFoundException('Invalid or expired link code');
+  }
+
+  // ─── Generate codes — bidirectional family-link feature ─────
+
+  /**
+   * POST /family/generate-code — parent generates a FAMILY_INVITE
+   * code. The accepter joins the parent's family as a LINKED child.
+   * Ensures the caller has a platform_families row first (registration
+   * normally seeds one; this is a safety net for accounts that
+   * pre-date that flow).
+   */
+  async generateFamilyCode(personId: string): Promise<GenerateLinkCodeDto> {
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const code = this.generateLinkCode();
+    const invitationId = generateId();
+    const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_invitations
+         (id, type, token, inviter_person_id, metadata, status, expires_at, created_at)
+       VALUES ($1::uuid, 'FAMILY_INVITE', $2, $3::uuid,
+               jsonb_build_object('familyId', $4::text),
+               'PENDING', $5::timestamptz, now())`,
+      invitationId,
+      code,
+      personId,
+      familyId,
+      expiresAt.toISOString(),
+    );
+    return { code, expiresAt: expiresAt.toISOString(), type: 'FAMILY_INVITE' };
+  }
+
+  /**
+   * POST /family/generate-child-code — child generates a CHILD_LINK
+   * code with NO familyChildId metadata. The parent who accepts
+   * adds this person as a LINKED child in the parent's family
+   * (auto-match against PLACEHOLDER if names line up, otherwise
+   * fresh row).
+   */
+  async generateChildCode(personId: string): Promise<GenerateLinkCodeDto> {
+    const code = this.generateLinkCode();
+    const invitationId = generateId();
+    const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_invitations
+         (id, type, token, inviter_person_id, metadata, status, expires_at, created_at)
+       VALUES ($1::uuid, 'CHILD_LINK', $2, $3::uuid, NULL,
+               'PENDING', $4::timestamptz, now())`,
+      invitationId,
+      code,
+      personId,
+      expiresAt.toISOString(),
+    );
+    return { code, expiresAt: expiresAt.toISOString(), type: 'CHILD_LINK' };
+  }
+
+  // ─── Internal accept-flow dispatchers ───────────────────────
+
+  private async acceptParentIssuedChildLink(
+    personId: string,
+    invitation: { id: string; inviterPersonId: string },
+    familyChildId: string,
+  ): Promise<FamilyChildDto> {
     const child = await this.findById(familyChildId);
     if (!child || child.status === 'LINKED') {
-      // Child was already linked through another flow — return 404 to
-      // avoid leaking the family_child id state.
+      // Child was already linked through another flow — 404 so we
+      // don't leak the family_child id state.
       throw new NotFoundException('Invalid or expired link code');
     }
-
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
         `UPDATE platform.platform_family_children
@@ -410,9 +503,171 @@ export class FamilyChildrenService {
         invitation.id,
       );
     });
-
     await this.refreshPersonaCacheSafe(invitation.inviterPersonId);
     return this.requireById(familyChildId);
+  }
+
+  private async acceptFamilyInvite(
+    personId: string,
+    invitation: { id: string; inviterPersonId: string; metadata: unknown },
+  ): Promise<FamilyChildDto> {
+    const metadata = invitation.metadata as { familyId?: string } | null;
+    const familyId = metadata?.familyId;
+    if (!familyId) {
+      throw new NotFoundException('Invalid or expired link code');
+    }
+    if (personId === invitation.inviterPersonId) {
+      throw new BadRequestException('You cannot accept your own family code');
+    }
+    const newChildId = await this.upsertLinkedChildRow({
+      familyId,
+      childPersonId: personId,
+      invitationId: invitation.id,
+    });
+    await this.refreshPersonaCacheSafe(invitation.inviterPersonId);
+    return this.requireById(newChildId);
+  }
+
+  private async acceptChildIssuedLink(
+    personId: string,
+    invitation: { id: string; inviterPersonId: string },
+  ): Promise<FamilyChildDto> {
+    if (personId === invitation.inviterPersonId) {
+      throw new BadRequestException('You cannot accept your own family code');
+    }
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const newChildId = await this.upsertLinkedChildRow({
+      familyId,
+      childPersonId: invitation.inviterPersonId,
+      invitationId: invitation.id,
+      accepterPersonId: personId,
+    });
+    // The CALLER is the parent here; refresh their persona cache.
+    await this.refreshPersonaCacheSafe(personId);
+    return this.requireById(newChildId);
+  }
+
+  /**
+   * Shared write path for both FAMILY_INVITE and child-issued
+   * CHILD_LINK accepts. Auto-matches a same-name PLACEHOLDER row in
+   * the target family; if none (or multiple — ambiguous), creates a
+   * fresh LINKED row using the child's iam_person identity.
+   *
+   * Refuses the write if a family_children row already exists for
+   * (familyId, childPersonId) so re-accepting an already-LINKED code
+   * surfaces as a clean 409 rather than a UNIQUE-constraint error.
+   *
+   * Returns the family_children id (existing PLACEHOLDER or
+   * newly-inserted) so the caller can refetch the row for the
+   * response.
+   */
+  private async upsertLinkedChildRow(opts: {
+    familyId: string;
+    childPersonId: string;
+    invitationId: string;
+    accepterPersonId?: string;
+  }): Promise<string> {
+    const { familyId, childPersonId, invitationId, accepterPersonId } = opts;
+
+    const existing = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id
+       FROM platform.platform_family_children
+       WHERE family_id = $1::uuid AND person_id = $2::uuid
+       LIMIT 1`,
+      familyId,
+      childPersonId,
+    );
+    if (existing.length > 0) {
+      throw new BadRequestException('This person is already linked to the family');
+    }
+
+    const child = await this.prisma.iamPerson.findUnique({
+      where: { id: childPersonId },
+      select: {
+        firstName: true,
+        lastName: true,
+        dateOfBirth: true,
+        // gender lives on sis_student_demographics, not iam_person —
+        // leave NULL on the family_children row and let the parent
+        // edit it through the wizard if it matters.
+      },
+    });
+    if (!child) {
+      throw new NotFoundException('Invalid or expired link code');
+    }
+
+    const placeholder = await this.findMatchingPlaceholder(
+      familyId,
+      child.firstName,
+      child.lastName,
+    );
+    const dob = child.dateOfBirth ? child.dateOfBirth.toISOString().slice(0, 10) : null;
+    const newId = placeholder?.id ?? generateId();
+    const targetPersonForInvitation = accepterPersonId ?? childPersonId;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (placeholder) {
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_children
+             SET person_id = $1::uuid,
+                 status = 'LINKED',
+                 linked_at = now(),
+                 updated_at = now()
+           WHERE id = $2::uuid`,
+          childPersonId,
+          placeholder.id,
+        );
+      } else {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_family_children
+             (id, family_id, person_id, first_name, last_name, date_of_birth, gender,
+              status, linked_at, created_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::date, NULL,
+                   'LINKED', now(), now())`,
+          newId,
+          familyId,
+          childPersonId,
+          child.firstName,
+          child.lastName,
+          dob,
+        );
+      }
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_invitations
+           SET status = 'ACCEPTED',
+               target_person_id = $1::uuid,
+               accepted_at = now()
+         WHERE id = $2::uuid`,
+        targetPersonForInvitation,
+        invitationId,
+      );
+    });
+
+    return newId;
+  }
+
+  private async findMatchingPlaceholder(
+    familyId: string,
+    firstName: string,
+    lastName: string,
+  ): Promise<{ id: string } | null> {
+    // Case-insensitive exact-match on first + last. If 0 or 2+ rows
+    // match we return null and let the caller create a fresh row;
+    // ambiguity is safer to resolve by adding a new row than by
+    // guessing which placeholder the parent meant.
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id
+       FROM platform.platform_family_children
+       WHERE family_id = $1::uuid
+         AND status = 'PLACEHOLDER'
+         AND lower(first_name) = lower($2)
+         AND lower(last_name) = lower($3)
+       LIMIT 2`,
+      familyId,
+      firstName.trim(),
+      lastName.trim(),
+    );
+    return rows.length === 1 ? rows[0]! : null;
   }
 
   // ─── helpers ───────────────────────────────────────────────

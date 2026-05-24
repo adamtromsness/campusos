@@ -81,6 +81,25 @@ describe('integration:m00-platform/family-children', () => {
            (SELECT family_id FROM platform.platform_family_members)`,
       );
     }
+    // Drop persona-cache rows from any link-accept flows that called
+    // refreshPersonaCacheSafe. platform_personas FKs iam_person, so
+    // these have to go before the iam_person delete below.
+    for (const personId of [userAPersonId, userBPersonId]) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_personas WHERE person_id = $1::uuid`,
+        personId,
+      );
+    }
+    // Drop any invitations issued by or targeted at these users —
+    // platform_invitations FKs iam_person via both inviter_person_id
+    // and target_person_id.
+    for (const personId of [userAPersonId, userBPersonId]) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_invitations
+         WHERE inviter_person_id = $1::uuid OR target_person_id = $1::uuid`,
+        personId,
+      );
+    }
     for (const accountId of [userAAccountId, userBAccountId]) {
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_users WHERE id = $1::uuid`,
@@ -113,6 +132,13 @@ describe('integration:m00-platform/family-children', () => {
       );
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_family_members WHERE person_id = $1::uuid`,
+        personId,
+      );
+      // Reset persona-cache so each test starts from 0 personas. The
+      // accept-flow tests refresh the parent's cache on success; without
+      // this wipe a re-run would see a stale PARENT row.
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_personas WHERE person_id = $1::uuid`,
         personId,
       );
     }
@@ -383,5 +409,94 @@ describe('integration:m00-platform/family-children', () => {
   it('user B cannot delete user A’s child (404)', async () => {
     const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
     await expect(controller.remove(reqB(), c.id)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  // ─── Bidirectional family-link feature ─────────────────────
+
+  // Direction A — Parent generates FAMILY_INVITE, child accepts.
+  describe('FAMILY_INVITE — parent generates, child accepts', () => {
+    it('generate-code creates a PENDING FAMILY_INVITE with familyId metadata', async () => {
+      const result = await controller.generateCode(reqA());
+      expect(result.code).toMatch(/^[A-Z0-9]{8}$/);
+      expect(result.type).toBe('FAMILY_INVITE');
+      const row = await prisma.platformInvitation.findUnique({
+        where: { token: result.code },
+        select: { type: true, status: true, inviterPersonId: true, metadata: true },
+      });
+      expect(row?.type).toBe('FAMILY_INVITE');
+      expect(row?.status).toBe('PENDING');
+      expect(row?.inviterPersonId).toBe(userAPersonId);
+      expect((row?.metadata as { familyId?: string }).familyId).toBeTruthy();
+    });
+
+    it('child accepting FAMILY_INVITE creates LINKED family_child + refreshes parent persona', async () => {
+      const code = (await controller.generateCode(reqA())).code;
+      const result = await controller.accept(reqB(), { code });
+      expect(result.status).toBe('LINKED');
+      expect(result.personId).toBe(userBPersonId);
+
+      // The child is in user A's family.
+      const familyRow = await prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
+        `SELECT family_id::text AS family_id FROM platform.platform_family_members WHERE person_id = $1::uuid LIMIT 1`,
+        userAPersonId,
+      );
+      const aFamilyId = familyRow[0]!.family_id;
+      expect(result.familyId).toBe(aFamilyId);
+
+      // The invitation is ACCEPTED.
+      const invitation = await prisma.platformInvitation.findUnique({
+        where: { token: code },
+        select: { status: true, targetPersonId: true },
+      });
+      expect(invitation?.status).toBe('ACCEPTED');
+      expect(invitation?.targetPersonId).toBe(userBPersonId);
+    });
+
+    it('FAMILY_INVITE auto-matches a same-name PLACEHOLDER row instead of inserting a duplicate', async () => {
+      // Parent pre-creates the child as a PLACEHOLDER with the SAME
+      // name the accepter will resolve to from iam_person.
+      const placeholder = await controller.create(reqA(), { firstName: 'B', lastName: 'Parent' });
+      const code = (await controller.generateCode(reqA())).code;
+      const accepted = await controller.accept(reqB(), { code });
+      expect(accepted.id).toBe(placeholder.id);
+      expect(accepted.status).toBe('LINKED');
+      expect(accepted.personId).toBe(userBPersonId);
+    });
+
+    it('refuses when the inviter accepts their own FAMILY_INVITE code', async () => {
+      const code = (await controller.generateCode(reqA())).code;
+      await expect(controller.accept(reqA(), { code })).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  // Direction B — Child generates CHILD_LINK (no familyChildId),
+  // parent accepts.
+  describe('CHILD_LINK without familyChildId — child generates, parent accepts', () => {
+    it('generate-child-code creates a PENDING CHILD_LINK with NULL metadata', async () => {
+      const result = await controller.generateChildCode(reqB());
+      expect(result.type).toBe('CHILD_LINK');
+      const row = await prisma.platformInvitation.findUnique({
+        where: { token: result.code },
+        select: { type: true, status: true, inviterPersonId: true, metadata: true },
+      });
+      expect(row?.type).toBe('CHILD_LINK');
+      expect(row?.status).toBe('PENDING');
+      expect(row?.inviterPersonId).toBe(userBPersonId);
+      expect(row?.metadata).toBeNull();
+    });
+
+    it('parent accepting child-issued CHILD_LINK creates LINKED row in parent family + refreshes parent persona', async () => {
+      const code = (await controller.generateChildCode(reqB())).code;
+      const result = await controller.accept(reqA(), { code });
+      expect(result.status).toBe('LINKED');
+      // The child stored on the row is the INVITER (user B), the
+      // family is the ACCEPTER's (user A).
+      expect(result.personId).toBe(userBPersonId);
+      const familyRow = await prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
+        `SELECT family_id::text AS family_id FROM platform.platform_family_members WHERE person_id = $1::uuid LIMIT 1`,
+        userAPersonId,
+      );
+      expect(result.familyId).toBe(familyRow[0]!.family_id);
+    });
   });
 });
