@@ -153,6 +153,49 @@ describe('integration:m00-platform/auth-service', () => {
       const result = await auth.authenticateByEmail(email);
       expect(result).toBeNull();
     });
+
+    it('returns null for a PENDING_VERIFICATION user by default', async () => {
+      // Default allowStatuses is ['ACTIVE'] — the production OIDC
+      // callback path. Newly-registered accounts (PENDING_VERIFICATION)
+      // must not authenticate through it.
+      const email = 'authtest-' + testUserId.slice(-6) + '@test.integration';
+      await prisma.$executeRawUnsafe(
+        `UPDATE platform.platform_users SET account_status = 'PENDING_VERIFICATION' WHERE id = $1::uuid`,
+        testUserId,
+      );
+      const result = await auth.authenticateByEmail(email);
+      expect(result).toBeNull();
+    });
+
+    it('accepts a PENDING_VERIFICATION user when allowStatuses opts in', async () => {
+      // The dev-login path. /auth/register writes PENDING_VERIFICATION
+      // and there's no email-verification flow yet, so this widened
+      // set lets fresh accounts sign in via the dev shortcut.
+      const email = 'authtest-' + testUserId.slice(-6) + '@test.integration';
+      await prisma.$executeRawUnsafe(
+        `UPDATE platform.platform_users SET account_status = 'PENDING_VERIFICATION' WHERE id = $1::uuid`,
+        testUserId,
+      );
+      const result = await auth.authenticateByEmail(email, {
+        allowStatuses: ['ACTIVE', 'PENDING_VERIFICATION'],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.user.sub).toBe(testUserId);
+    });
+
+    it('still rejects SUSPENDED even when allowStatuses widens the set', async () => {
+      // SUSPENDED means explicitly disabled — neither the OIDC path
+      // nor dev-login should ever let it in.
+      const email = 'authtest-' + testUserId.slice(-6) + '@test.integration';
+      await prisma.$executeRawUnsafe(
+        `UPDATE platform.platform_users SET account_status = 'SUSPENDED' WHERE id = $1::uuid`,
+        testUserId,
+      );
+      const result = await auth.authenticateByEmail(email, {
+        allowStatuses: ['ACTIVE', 'PENDING_VERIFICATION'],
+      });
+      expect(result).toBeNull();
+    });
   });
 
   describe('refreshAccessToken', () => {

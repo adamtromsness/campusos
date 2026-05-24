@@ -216,7 +216,14 @@ export class AuthController {
       throw new HttpException('Email is required', HttpStatus.BAD_REQUEST);
     }
 
-    var result = await this.authService.authenticateByEmail(body.email);
+    // Dev-login accepts ACTIVE and PENDING_VERIFICATION so accounts
+    // freshly created through /auth/register can sign in via the dev
+    // shortcut — the email-verification flow that would promote them
+    // to ACTIVE isn't built yet. SUSPENDED stays rejected (the
+    // default authenticateByEmail set never includes it).
+    var result = await this.authService.authenticateByEmail(body.email, {
+      allowStatuses: ['ACTIVE', 'PENDING_VERIFICATION'],
+    });
 
     if (!result) {
       throw new HttpException('User not found: ' + body.email, HttpStatus.NOT_FOUND);

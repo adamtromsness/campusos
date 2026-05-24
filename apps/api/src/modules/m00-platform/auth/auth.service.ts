@@ -228,8 +228,21 @@ export class AuthService {
   /**
    * Find a user by email and create a session.
    * Called after IdP authentication succeeds.
+   *
+   * `allowStatuses` controls which platform_users.account_status
+   * values can authenticate. Defaults to ['ACTIVE'] for the
+   * production OIDC callback. Dev-login passes ['ACTIVE',
+   * 'PENDING_VERIFICATION'] so accounts freshly created through
+   * /auth/register (which writes PENDING_VERIFICATION pending the
+   * email-verification flow that isn't built yet) can still sign
+   * in via the dev shortcut. SUSPENDED is intentionally never
+   * accepted — that status means the account was explicitly
+   * disabled and must not log in regardless of caller.
    */
-  async authenticateByEmail(email: string): Promise<{
+  async authenticateByEmail(
+    email: string,
+    options?: { allowStatuses?: readonly string[] },
+  ): Promise<{
     accessToken: string;
     refreshToken: string;
     user: JwtPayload;
@@ -239,7 +252,8 @@ export class AuthService {
       include: { person: true },
     });
 
-    if (!user || user.accountStatus !== 'ACTIVE') {
+    const allowed = options?.allowStatuses ?? ['ACTIVE'];
+    if (!user || !allowed.includes(user.accountStatus)) {
       return null;
     }
 
