@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client';
+import { ApiError, apiFetch } from '@/lib/api-client';
 import {
   useAuthStore,
   type ActivePersona,
@@ -23,15 +24,28 @@ import {
 
 /**
  * Persona switcher pill — top-bar entry point for changing the active
- * persona. Renders nothing when the user has zero personas (the
- * Getting Started state); renders a non-interactive pill when the
- * user has exactly one persona; and renders a clickable pill with a
- * grouped dropdown when there are two or more.
+ * persona AND adding new profiles.
  *
- * On switch the component POSTs to /auth/switch-persona, drops the
- * fresh MeResponse into the Zustand auth store, and invalidates
- * every React Query cache so the launchpad + sidebar + per-app data
- * refetch under the new persona's permission set.
+ * Dropdown layout:
+ *   ── Active personas (grouped by type) ──
+ *     ✓ Parent
+ *     ✓ Staff at Lincoln Elementary
+ *   ── Add a profile ─────────────────────
+ *     Staff             (expands inline invite-code form)
+ *     Substitute        (navigates to /substitute/register)
+ *
+ * Switch flow: POST /auth/switch-persona, drop the fresh MeResponse
+ * into Zustand, invalidate every React Query so per-app data refetches.
+ *
+ * Add flow (Staff): GET /invitations/:token to validate EMPLOYEE type,
+ * POST /invitations/:token/accept to materialise the hr_employees row,
+ * then POST /auth/switch-persona with the returned personaId so the
+ * new STAFF persona becomes active immediately.
+ *
+ * The dropdown is interactive whenever the user has at least one
+ * persona — even with a single persona we want to surface the
+ * "Add a profile" options. The pill is hidden entirely for 0-persona
+ * users (AppLayout has already routed them to /getting-started).
  */
 
 type IconComponent = (props: { className?: string }) => React.ReactNode;
@@ -68,6 +82,19 @@ const TYPE_ORDER: PersonaType[] = [
   'COMMUNITY',
 ];
 
+// Persona types that have a self-serve "add" flow. PARENT is added by
+// linking a child; STUDENT comes from enrolment; ALUMNI is provisioned
+// by the school's graduation worker; COMMUNITY follows group membership.
+// Only STAFF (invite code) and SUBSTITUTE (registration form) are
+// surfaced as user-initiated profile additions here.
+type AddablePersonaType = 'STAFF' | 'SUBSTITUTE';
+const ADDABLE_TYPES: AddablePersonaType[] = ['STAFF', 'SUBSTITUTE'];
+
+const ADD_OPTION_COPY: Record<AddablePersonaType, { label: string; hint: string }> = {
+  STAFF: { label: 'Staff', hint: 'Enter an employee invitation code' },
+  SUBSTITUTE: { label: 'Substitute Teacher', hint: 'Register as a substitute' },
+};
+
 interface MeResponse {
   user: {
     id: string;
@@ -81,6 +108,25 @@ interface MeResponse {
   activePersona: ActivePersona | null;
   personas: UserPersona[];
   permissions: string[];
+}
+
+interface InvitationSummary {
+  id: string;
+  type: 'EMPLOYEE' | 'CHILD_LINK' | 'PARENT_LINK' | 'SUBSTITUTE';
+  inviterName: string;
+  schoolId: string | null;
+  schoolName: string | null;
+  jobTitle: string | null;
+  expiresAt: string;
+  status: string;
+}
+
+interface AcceptInvitationResult {
+  invitationId: string;
+  type: InvitationSummary['type'];
+  personaType: string | null;
+  personaId: string | null;
+  schoolId: string | null;
 }
 
 function truncate(s: string, max: number): string {
@@ -98,11 +144,13 @@ function meToAuthUser(me: MeResponse): AuthUser {
 }
 
 export function PersonaSwitcher() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [staffInviteOpen, setStaffInviteOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   // Close on click-outside or Escape. Two listeners share one cleanup.
@@ -112,10 +160,14 @@ export function PersonaSwitcher() {
       if (!wrapperRef.current) return;
       if (!wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setStaffInviteOpen(false);
       }
     }
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setStaffInviteOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickAway);
     document.addEventListener('keydown', handleEscape);
@@ -125,13 +177,25 @@ export function PersonaSwitcher() {
     };
   }, [open]);
 
+  // Reset the inline staff invite form whenever the dropdown closes so
+  // a re-open starts from the option list, not a stale form.
+  useEffect(() => {
+    if (!open) setStaffInviteOpen(false);
+  }, [open]);
+
   if (!user || !user.activePersona || user.personas.length === 0) {
     return null;
   }
 
   const active = user.activePersona;
   const ActiveIcon = TYPE_ICON[active.type];
-  const onlyOne = user.personas.length === 1;
+
+  // "Add a profile" entries are the addable types the user doesn't
+  // already hold. A user with STAFF + PARENT sees only Substitute in
+  // the add section; a user with everything sees no add section at all
+  // and the switcher falls back to plain persona switching.
+  const activeTypes = new Set(user.personas.map((p) => p.type));
+  const addOptions = ADDABLE_TYPES.filter((t) => !activeTypes.has(t));
 
   async function handleSelect(persona: UserPersona) {
     if (!user) return;
@@ -146,10 +210,6 @@ export function PersonaSwitcher() {
         body: JSON.stringify({ personaId: persona.id }),
       });
       setUser(meToAuthUser(next));
-      // Persist the choice — useful when the page reloads or the
-      // user opens a fresh tab; AuthContext can rehydrate the
-      // persona via the X-Active-Persona header on the next
-      // /auth/me. Best-effort, swallow QuotaExceededError etc.
       try {
         window.localStorage.setItem('activePersonaId', persona.id);
       } catch {
@@ -169,6 +229,68 @@ export function PersonaSwitcher() {
     }
   }
 
+  function handleAddOption(type: AddablePersonaType) {
+    if (type === 'SUBSTITUTE') {
+      setOpen(false);
+      router.push('/substitute/register');
+      return;
+    }
+    if (type === 'STAFF') {
+      setStaffInviteOpen(true);
+    }
+  }
+
+  // The whole sequence runs while the dropdown is open so the user
+  // sees inline progress / error feedback without a page navigation.
+  async function acceptStaffInvite(code: string): Promise<{ personaId: string } | { error: string }> {
+    const token = code.trim();
+    if (!token) return { error: 'Enter the code from your invitation email.' };
+    try {
+      const summary = await apiFetch<InvitationSummary>(
+        '/api/v1/invitations/' + encodeURIComponent(token),
+      );
+      if (summary.type !== 'EMPLOYEE') {
+        return {
+          error:
+            "That code isn't an employee invitation. Use Getting Started → I received an invitation.",
+        };
+      }
+      const result = await apiFetch<AcceptInvitationResult>(
+        '/api/v1/invitations/' + encodeURIComponent(token) + '/accept',
+        { method: 'POST' },
+      );
+      if (!result.personaId) {
+        return {
+          error: 'Invitation accepted but no persona was returned. Try refreshing the page.',
+        };
+      }
+      return { personaId: result.personaId };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return { error: "We couldn't find that invitation. Check the code and try again." };
+      }
+      if (err instanceof ApiError && err.status === 410) {
+        return { error: 'That invitation has expired. Ask your school admin to resend it.' };
+      }
+      return { error: 'Something went wrong validating your code. Please try again.' };
+    }
+  }
+
+  async function switchToPersonaId(personaId: string) {
+    if (!user) return;
+    const next = await apiFetch<MeResponse>('/api/v1/auth/switch-persona', {
+      method: 'POST',
+      body: JSON.stringify({ personaId }),
+    });
+    setUser(meToAuthUser(next));
+    try {
+      window.localStorage.setItem('activePersonaId', personaId);
+    } catch {
+      // Ignore.
+    }
+    await queryClient.invalidateQueries();
+  }
+
   const groupedPersonas: Array<[PersonaType, UserPersona[]]> = TYPE_ORDER.map(
     (t): [PersonaType, UserPersona[]] => [t, user.personas.filter((p) => p.type === t)],
   ).filter(([, list]) => list.length > 0);
@@ -177,30 +299,27 @@ export function PersonaSwitcher() {
     <div className="relative" ref={wrapperRef}>
       <button
         type="button"
-        onClick={() => {
-          if (!onlyOne) setOpen((v) => !v);
-        }}
-        aria-haspopup={onlyOne ? undefined : 'listbox'}
-        aria-expanded={onlyOne ? undefined : open}
-        disabled={onlyOne}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={
           'flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 ' +
-          'text-sm font-medium text-gray-800 transition-colors ' +
-          (onlyOne ? 'cursor-default' : 'hover:bg-gray-50')
+          'text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50'
         }
       >
         <ActiveIcon className="h-4 w-4 text-gray-600" />
         <span className="hidden truncate sm:inline">{truncate(active.label, 28)}</span>
         <span className="inline sm:hidden">{TYPE_LABEL[active.type]}</span>
-        {!onlyOne && <ChevronDownIcon className="h-4 w-4 text-gray-500" />}
+        <ChevronDownIcon className="h-4 w-4 text-gray-500" />
       </button>
 
-      {open && !onlyOne && (
+      {open && (
         <div
-          role="listbox"
-          aria-label="Switch persona"
-          className="absolute right-0 top-11 z-40 w-72 overflow-hidden rounded-card border border-gray-200 bg-white shadow-elevated"
+          role="menu"
+          aria-label="Persona switcher"
+          className="absolute right-0 top-11 z-40 w-80 overflow-hidden rounded-card border border-gray-200 bg-white shadow-elevated"
         >
+          {/* Active personas — switch list. */}
           {groupedPersonas.map(([type, list], i) => (
             <div key={type}>
               {i > 0 && <div className="border-t border-gray-100" />}
@@ -215,8 +334,8 @@ export function PersonaSwitcher() {
                   <button
                     key={p.id}
                     type="button"
-                    role="option"
-                    aria-selected={isActive}
+                    role="menuitem"
+                    aria-current={isActive}
                     disabled={isSwitching}
                     onClick={() => void handleSelect(p)}
                     className={
@@ -233,8 +352,130 @@ export function PersonaSwitcher() {
               })}
             </div>
           ))}
+
+          {/* Add a profile — only render when there's at least one
+              addable type the user doesn't already hold. */}
+          {addOptions.length > 0 && (
+            <div>
+              <div className="border-t border-gray-200" />
+              <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Add a profile
+              </div>
+              {addOptions.map((type) => {
+                const Icon = TYPE_ICON[type];
+                const copy = ADD_OPTION_COPY[type];
+                if (type === 'STAFF' && staffInviteOpen) {
+                  return (
+                    <StaffInviteForm
+                      key={type}
+                      onCancel={() => setStaffInviteOpen(false)}
+                      onSubmit={async (code) => {
+                        const r = await acceptStaffInvite(code);
+                        if ('error' in r) return r;
+                        await switchToPersonaId(r.personaId);
+                        setOpen(false);
+                        setStaffInviteOpen(false);
+                        return null;
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleAddOption(type)}
+                    className="flex w-full items-start gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 text-gray-600" />
+                    <span className="flex-1">
+                      <span className="block">{copy.label}</span>
+                      <span className="block text-xs text-gray-500">{copy.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Inline form rendered in place of the "Staff" option when the user
+ * clicks it. Submits the 8-char code, calls back with a typed result
+ * — null on success (parent closes the dropdown), { error } on a
+ * validation / network failure (the form shows it inline and stays
+ * open so the user can correct + retry).
+ */
+function StaffInviteForm({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (code: string) => Promise<{ error: string } | null>;
+}) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const result = await onSubmit(code);
+    if (result && 'error' in result) {
+      setError(result.error);
+      setBusy(false);
+    }
+    // On success the parent unmounts the dropdown; no setBusy(false).
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 px-3 pb-3 pt-1">
+      <label htmlFor="staff-invite-code" className="sr-only">
+        Employee invitation code
+      </label>
+      <input
+        id="staff-invite-code"
+        type="text"
+        value={code}
+        onChange={(e) => {
+          setCode(e.target.value);
+          if (error) setError(null);
+        }}
+        placeholder="Invitation code"
+        autoComplete="off"
+        autoCapitalize="characters"
+        spellCheck={false}
+        aria-invalid={!!error}
+        className={
+          'block w-full rounded-md border bg-white px-3 py-2 font-mono text-sm uppercase tracking-wider text-gray-900 ' +
+          'shadow-sm placeholder:font-mono placeholder:text-gray-400 ' +
+          'focus:outline-none focus:ring-2 focus:ring-campus-500 focus:border-campus-500 ' +
+          (error ? 'border-red-300' : 'border-gray-300')
+        }
+      />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={busy}
+          className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+        >
+          {busy ? 'Checking…' : 'Continue'}
+        </button>
+      </div>
+    </form>
   );
 }

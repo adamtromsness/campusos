@@ -14,7 +14,6 @@ import {
   type FamilyChildDto,
   type FamilyChildStatus,
 } from '@/hooks/use-family-children';
-import { useAuthStore, type PersonaType } from '@/lib/auth-store';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
@@ -92,8 +91,6 @@ export default function FamilyPage() {
         />
       )}
 
-      <YourProfilesSection />
-
       <LinkCodeSection />
 
       <SendLinkModal
@@ -101,98 +98,6 @@ export default function FamilyPage() {
         open={linkInviteFor !== null}
         onClose={() => setLinkInviteFor(null)}
       />
-    </div>
-  );
-}
-
-// ─── Your Profiles ────────────────────────────────────────
-
-/**
- * Discovery surface for the non-PARENT roles a person can take on at
- * the school. Reads `user.personas` to detect which roles are already
- * active; shows a Register CTA when not active and a Manage CTA when
- * active. Volunteer is a forward-looking card — no /engagement/volunteer
- * page exists yet, so it's a "Coming soon" state rather than a 404.
- */
-function YourProfilesSection() {
-  const user = useAuthStore((s) => s.user);
-  const personas = user?.personas ?? [];
-  const hasPersona = (type: PersonaType) => personas.some((p) => p.type === type);
-  const isSubstitute = hasPersona('SUBSTITUTE');
-  const isAlumni = hasPersona('ALUMNI');
-
-  return (
-    <section className="mt-10">
-      <h2 className="text-sm font-semibold text-gray-900">Your profiles</h2>
-      <p className="mt-1 text-xs text-gray-600">
-        Other ways you can participate in the school community.
-      </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <ProfileCard
-          title="Substitute Teacher"
-          description={
-            isSubstitute
-              ? 'Pick up assignments and manage your availability.'
-              : 'Register as a substitute teacher to pick up assignments.'
-          }
-          status={isSubstitute ? 'active' : 'inactive'}
-          href={isSubstitute ? '/substitutes/profile' : '/substitute/register'}
-          cta={isSubstitute ? 'Manage profile' : 'Register'}
-        />
-        {isAlumni && (
-          <ProfileCard
-            title="Alumni"
-            description="View the alumni directory, news, and reunions."
-            status="active"
-            href="/alumni"
-            cta="View alumni network"
-          />
-        )}
-        <ProfileCard
-          title="Volunteer"
-          description="Sign up to help with school events and activities."
-          status="coming-soon"
-        />
-      </div>
-    </section>
-  );
-}
-
-function ProfileCard(props: {
-  title: string;
-  description: string;
-  status: 'active' | 'inactive' | 'coming-soon';
-  href?: string;
-  cta?: string;
-}) {
-  const { title, description, status, href, cta } = props;
-  const isActive = status === 'active';
-  const isComingSoon = status === 'coming-soon';
-  return (
-    <div className="flex flex-col gap-2 rounded-card border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {isActive && (
-          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-800">
-            Active
-          </span>
-        )}
-        {isComingSoon && (
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-            Coming soon
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-gray-600">{description}</p>
-      {href && cta && !isComingSoon && (
-        <Link
-          href={href}
-          className="mt-1 inline-flex w-fit items-center gap-1 text-sm font-medium text-campus-700 hover:text-campus-600"
-        >
-          {cta}
-          <span aria-hidden>→</span>
-        </Link>
-      )}
     </div>
   );
 }
