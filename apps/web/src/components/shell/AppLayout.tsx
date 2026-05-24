@@ -19,8 +19,14 @@ const GETTING_STARTED_PATH = '/getting-started';
  * destinations that the Getting Started cards link to. Matching is
  * prefix-based so nested routes (e.g. /family/add-child/step-2) stay
  * reachable.
+ *
+ * /profile and /settings are also allowlisted because the TopBar
+ * user menu surfaces them to every authenticated user including
+ * 0-persona accounts — bouncing back to /getting-started would make
+ * the menu items look broken even though the API endpoints accept
+ * the request.
  */
-const ONBOARDING_ALLOWED_PREFIXES = ['/family', '/substitute'];
+const ONBOARDING_ALLOWED_PREFIXES = ['/family', '/substitute', '/profile', '/settings'];
 
 function isOnboardingRoute(pathname: string): boolean {
   if (pathname === GETTING_STARTED_PATH) return true;

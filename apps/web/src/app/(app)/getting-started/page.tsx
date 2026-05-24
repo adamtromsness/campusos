@@ -1,50 +1,181 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { ChildrenIcon, MailIcon, SearchIcon, UserCheckIcon } from '@/components/shell/icons';
-import {
-  useFamilyChildren,
-  type FamilyChildDto,
-  type FamilyChildStatus,
-} from '@/hooks/use-family-children';
+import { useFamilyChildren } from '@/hooks/use-family-children';
 
 /**
- * Getting Started — Section 2 / Step 3 of the persona-registration
- * design. Replaces the launchpad until the user activates a persona
- * (link a LINKED child, accept an invitation, register as a sub,
- * enrol via a school).
+ * Getting Started — role-aware onboarding.
  *
- * The four action cards mirror the design doc's "What brings you
- * here?" question. The Invitation card expands inline into an input
- * field; on submit we GET /invitations/:token to validate, then
- * navigate to /invitations/accept?token=… for confirmation. Bad codes
- * surface as inline errors so we never throw a toast for an expected
- * "wrong code" path.
+ * Replaces the previous fixed 4-card layout that assumed every visitor
+ * was a parent. The page now has three vertical sections:
  *
- * The persona-presence redirect lives in
- * apps/web/src/components/shell/AppLayout.tsx — this page renders
- * unconditionally; the shell decides whether the user belongs here.
+ *   1. Pending invitations banner. Anything in /invitations/mine —
+ *      whether the school sent an EMPLOYEE / PARENT_LINK / SUBSTITUTE
+ *      invite, or a parent issued a CHILD_LINK code — surfaces here
+ *      with a one-click Accept link. This is the highest-priority
+ *      onboarding action because the school or parent has already
+ *      done the upstream work.
+ *
+ *   2. Role selection. Five multi-select cards: parent, student,
+ *      job-offer, substitute, exploring. State is local — no API call
+ *      until the user actually starts an action. Parent is
+ *      pre-selected when the user already has children on file (the
+ *      family-children projection committed them to that role).
+ *
+ *   3. Role-specific actions. Per selected role we render a small
+ *      card listing its actions. Link-style actions navigate; the
+ *      "Enter an invitation code" rows expand into an inline form that
+ *      validates via GET /invitations/:token and routes to
+ *      /invitations/accept?token=… for the type-dispatched accept.
+ *
+ * Persona-presence redirect — once a user activates ANY persona the
+ * AppLayout effect routes them off /getting-started to /dashboard. The
+ * page is only the active surface for the 0-persona window.
  */
+
+type RoleKey = 'parent' | 'student' | 'job-offer' | 'substitute' | 'exploring';
+
+interface RoleDef {
+  key: RoleKey;
+  emoji: string;
+  title: string;
+  description: string;
+}
+
+const ROLES: RoleDef[] = [
+  {
+    key: 'parent',
+    emoji: '👨‍👩‍👧',
+    title: "I'm a parent or guardian",
+    description: 'Add your children and connect them to a school.',
+  },
+  {
+    key: 'student',
+    emoji: '🎓',
+    title: "I'm a student",
+    description: 'Connect to your school or accept a parent’s link code.',
+  },
+  {
+    key: 'job-offer',
+    emoji: '💼',
+    title: 'I received a job offer from a school',
+    description: 'Enter the employee invitation code from your hiring email.',
+  },
+  {
+    key: 'substitute',
+    emoji: '📚',
+    title: 'I want to substitute teach',
+    description: 'Create a substitute teacher profile to pick up assignments.',
+  },
+  {
+    key: 'exploring',
+    emoji: '🔍',
+    title: "I'm just exploring",
+    description: 'Browse schools and learn about CampusOS.',
+  },
+];
+
+type ActionDef =
+  | { type: 'link'; label: string; href: string }
+  | { type: 'invitation'; label: string; expectType?: InvitationType };
+
+type InvitationType = 'EMPLOYEE' | 'CHILD_LINK' | 'PARENT_LINK' | 'SUBSTITUTE';
+
+const ROLE_ACTIONS: Record<RoleKey, ActionDef[]> = {
+  parent: [
+    { type: 'link', label: 'Add your children', href: '/family/add-child' },
+    { type: 'link', label: 'Find a school', href: '/find-schools' },
+    { type: 'invitation', label: 'Enter an invitation code' },
+  ],
+  student: [
+    { type: 'invitation', label: 'Enter a link code from your parent or school' },
+    { type: 'link', label: 'Find a school to apply to', href: '/find-schools' },
+    { type: 'link', label: 'Set up your profile', href: '/profile' },
+  ],
+  'job-offer': [{ type: 'invitation', label: 'Enter your invitation code', expectType: 'EMPLOYEE' }],
+  substitute: [
+    { type: 'link', label: 'Create your substitute profile', href: '/substitute/register' },
+  ],
+  exploring: [{ type: 'link', label: 'Browse schools', href: '/find-schools' }],
+};
+
+const INVITATION_TYPE_LABEL: Record<InvitationType, string> = {
+  EMPLOYEE: 'employee',
+  CHILD_LINK: 'family',
+  PARENT_LINK: 'parent',
+  SUBSTITUTE: 'substitute teacher',
+};
+
+interface PendingInvitation {
+  id: string;
+  type: InvitationType;
+  token: string;
+  inviterName: string;
+  schoolId: string | null;
+  schoolName: string | null;
+  jobTitle: string | null;
+  expiresAt: string;
+  status: string;
+}
+
 export default function GettingStartedPage() {
   const user = useAuthStore((s) => s.user);
-  const greeting = user?.firstName
-    ? `Welcome to CampusOS, ${user.firstName}!`
+  const greeting = user?.preferredName || user?.firstName
+    ? `Welcome to CampusOS, ${user.preferredName || user.firstName}!`
     : 'Welcome to CampusOS!';
 
-  // Once the user has added children, the "I have children" card is a
-  // dead-end repeat. Swap it for a family-progress summary that surfaces
-  // each child's link status and points at /family for management. We
-  // only render the summary when the API has answered with a non-empty
-  // list — the loading flicker would otherwise replace the action card
-  // with a spinner on every fresh visit.
   const familyQuery = useFamilyChildren();
-  const children = familyQuery.data ?? [];
-  const hasChildren = children.length > 0;
+  const hasChildren = (familyQuery.data ?? []).length > 0;
+
+  // /invitations/mine returns PENDING invitations targeting either
+  // this user's account or their registration email. Surfaced as the
+  // top-of-page banner because accepting a pending invite is the
+  // fastest path off /getting-started.
+  const invitationsQuery = useQuery<PendingInvitation[]>({
+    queryKey: ['invitations', 'mine'],
+    queryFn: () => apiFetch<PendingInvitation[]>('/api/v1/invitations/mine'),
+    staleTime: 60_000,
+  });
+  const pendingInvitations = invitationsQuery.data ?? [];
+
+  // Local role-selection state. Seeded once from the persistent
+  // signals we know about (children → parent, pending EMPLOYEE invite
+  // → job-offer, pending SUBSTITUTE invite → substitute) so the user
+  // doesn't have to redundantly tell us things we already know.
+  const [selectedRoles, setSelectedRoles] = useState<Set<RoleKey>>(() => new Set());
+  const seededRef = useState({ current: false })[0];
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (familyQuery.isLoading || invitationsQuery.isLoading) return;
+    const seeded = new Set<RoleKey>();
+    if (hasChildren) seeded.add('parent');
+    for (const inv of pendingInvitations) {
+      if (inv.type === 'EMPLOYEE') seeded.add('job-offer');
+      if (inv.type === 'SUBSTITUTE') seeded.add('substitute');
+    }
+    if (seeded.size > 0) setSelectedRoles(seeded);
+    seededRef.current = true;
+  }, [familyQuery.isLoading, invitationsQuery.isLoading, hasChildren, pendingInvitations, seededRef]);
+
+  function toggleRole(key: RoleKey) {
+    setSelectedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const orderedSelected = useMemo(
+    () => ROLES.filter((r) => selectedRoles.has(r.key)),
+    [selectedRoles],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col px-4 pb-16 pt-10 sm:pt-16">
@@ -53,302 +184,182 @@ export default function GettingStartedPage() {
           {greeting}
         </h1>
         <p className="mt-3 text-sm text-gray-600 sm:text-base">
-          Let&rsquo;s get you set up. What brings you here?
+          Let&rsquo;s get you set up.
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        {hasChildren ? <FamilySummaryCard items={children} /> : <ChildrenCard />}
-        <InvitationCard />
-        <SubstituteCard />
-        <FindSchoolCard />
-      </div>
+      {pendingInvitations.length > 0 && (
+        <PendingInvitationsBanner invitations={pendingInvitations} />
+      )}
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold text-gray-900">Tell us about yourself</h2>
+        <p className="mt-1 text-xs text-gray-600">
+          Pick everything that applies. We&rsquo;ll show the next steps based on your choices.
+        </p>
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          {ROLES.map((role) => (
+            <li key={role.key}>
+              <RoleCard role={role} selected={selectedRoles.has(role.key)} onToggle={toggleRole} />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {orderedSelected.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold text-gray-900">Your next steps</h2>
+          <div className="mt-3 flex flex-col gap-4">
+            {orderedSelected.map((role) => (
+              <RoleActionsCard key={role.key} role={role} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <p className="mt-10 text-center text-xs text-gray-400">
-        You can always come back here from your profile menu.
+        You can come back here from your profile menu at any time.
       </p>
     </div>
   );
 }
 
-// ─── Card primitives ──────────────────────────────────────
+// ─── Pending invitations banner ──────────────────────────
 
-type AccentName = 'blue' | 'green' | 'purple' | 'amber';
-
-interface AccentStyle {
-  iconBg: string;
-  iconText: string;
-  hoverBorder: string;
-  hoverBg: string;
-}
-
-const ACCENTS: Record<AccentName, AccentStyle> = {
-  blue: {
-    iconBg: 'bg-blue-50',
-    iconText: 'text-blue-600',
-    hoverBorder: 'hover:border-blue-300',
-    hoverBg: 'hover:bg-blue-50/40',
-  },
-  green: {
-    iconBg: 'bg-green-50',
-    iconText: 'text-green-600',
-    hoverBorder: 'hover:border-green-300',
-    hoverBg: 'hover:bg-green-50/40',
-  },
-  purple: {
-    iconBg: 'bg-purple-50',
-    iconText: 'text-purple-600',
-    hoverBorder: 'hover:border-purple-300',
-    hoverBg: 'hover:bg-purple-50/40',
-  },
-  amber: {
-    iconBg: 'bg-amber-50',
-    iconText: 'text-amber-600',
-    hoverBorder: 'hover:border-amber-300',
-    hoverBg: 'hover:bg-amber-50/40',
-  },
-};
-
-interface CardShellProps {
-  title: string;
-  description: string;
-  accent: AccentName;
-  icon: (props: { className?: string }) => React.ReactNode;
-  children?: React.ReactNode;
-}
-
-/**
- * Non-clickable card wrapper used by InvitationCard, which expands
- * into an inline form on activation rather than navigating. Anchor-
- * style cards use LinkCard instead so the entire card surface is
- * the click target.
- */
-function Card({ title, description, accent, icon: Icon, children }: CardShellProps) {
-  const a = ACCENTS[accent];
+function PendingInvitationsBanner({ invitations }: { invitations: PendingInvitation[] }) {
   return (
-    <div
-      className={
-        'flex flex-col gap-3 rounded-card border border-gray-200 bg-white p-5 shadow-sm transition-colors ' +
-        a.hoverBorder +
-        ' ' +
-        a.hoverBg
-      }
-    >
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className={
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
-            a.iconBg +
-            ' ' +
-            a.iconText
-          }
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <p className="mt-0.5 text-sm text-gray-600">{description}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-interface LinkCardProps {
-  title: string;
-  description: string;
-  accent: AccentName;
-  icon: (props: { className?: string }) => React.ReactNode;
-  href: string;
-  cta: string;
-}
-
-/**
- * Whole-card click target. The Card shell is rendered as a single
- * `<Link>` so users can tap anywhere on the card to navigate — the
- * earlier text-only "→" affordance made the click area unintuitively
- * small relative to the card's visual extent.
- */
-function LinkCard({ title, description, accent, icon: Icon, href, cta }: LinkCardProps) {
-  const a = ACCENTS[accent];
-  return (
-    <Link
-      href={href}
-      className={
-        'flex flex-col gap-3 rounded-card border border-gray-200 bg-white p-5 shadow-sm transition-colors ' +
-        a.hoverBorder +
-        ' ' +
-        a.hoverBg +
-        ' focus:outline-none focus:ring-2 focus:ring-campus-500 focus:ring-offset-2'
-      }
-    >
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className={
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
-            a.iconBg +
-            ' ' +
-            a.iconText
-          }
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <p className="mt-0.5 text-sm text-gray-600">{description}</p>
-        </div>
-      </div>
-      <span className="inline-flex w-fit items-center gap-1 text-sm font-medium text-campus-700">
-        {cta}
-        <span aria-hidden>→</span>
-      </span>
-    </Link>
-  );
-}
-
-// ─── Concrete cards ──────────────────────────────────────
-
-function ChildrenCard() {
-  return (
-    <LinkCard
-      title="I have children"
-      description="Add your children and find schools for them."
-      accent="blue"
-      icon={ChildrenIcon}
-      href="/family/add-child"
-      cta="Add a child"
-    />
-  );
-}
-
-function SubstituteCard() {
-  return (
-    <LinkCard
-      title="I want to substitute teach"
-      description="Create a substitute teacher profile."
-      accent="purple"
-      icon={UserCheckIcon}
-      href="/substitute/register"
-      cta="Get started"
-    />
-  );
-}
-
-function FindSchoolCard() {
-  return (
-    <LinkCard
-      title="I'm looking for a school"
-      description="Browse schools and start an enrolment application."
-      accent="amber"
-      icon={SearchIcon}
-      href="/find-schools"
-      cta="Browse schools"
-    />
-  );
-}
-
-// ─── Family progress card ────────────────────────────────
-
-const STATUS_LABELS: Record<FamilyChildStatus, { label: string; tone: string }> = {
-  LINKED: { label: 'Connected', tone: 'bg-green-50 text-green-700 ring-green-600/20' },
-  PENDING_LINK: { label: 'Invite pending', tone: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
-  PLACEHOLDER: { label: 'Account needed', tone: 'bg-gray-100 text-gray-700 ring-gray-500/20' },
-};
-
-/**
- * Replacement for the "I have children" card once the user has at
- * least one child on file. Shows each child with a status badge and
- * funnels to /family for management or /family/add-child for the next
- * child. Sized to match the other launchpad cards (single grid cell).
- *
- * Children are intentionally not clickable here — the AppLayout
- * persona-presence redirect would bounce the user off any per-child
- * detail route until a persona activates. /family itself is in the
- * onboarding allowlist so the Manage button always works.
- */
-function FamilySummaryCard({ items }: { items: FamilyChildDto[] }) {
-  const a = ACCENTS.blue;
-  return (
-    <div
-      className={
-        'flex flex-col gap-3 rounded-card border border-gray-200 bg-white p-5 shadow-sm transition-colors ' +
-        a.hoverBorder +
-        ' ' +
-        a.hoverBg
-      }
-    >
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className={
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
-            a.iconBg +
-            ' ' +
-            a.iconText
-          }
-        >
-          <ChildrenIcon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900">My family</h2>
-          <p className="mt-0.5 text-sm text-gray-600">
-            {items.length === 1 ? '1 child on file' : `${items.length} children on file`}
-          </p>
-        </div>
-      </div>
-
-      <ul className="flex flex-col gap-1.5 text-sm">
-        {items.map((c) => {
-          const badge = STATUS_LABELS[c.status];
-          return (
-            <li key={c.id} className="flex items-center justify-between gap-2">
-              <span className="truncate text-gray-800">
-                {c.firstName} {c.lastName}
-              </span>
-              <span
-                className={
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' +
-                  badge.tone
-                }
-              >
-                {badge.label}
-              </span>
-            </li>
-          );
-        })}
+    <section className="mt-8 rounded-card border border-campus-200 bg-campus-50/40 p-5 shadow-sm">
+      <h2 className="text-sm font-semibold text-campus-800">
+        {invitations.length === 1
+          ? 'You have a pending invitation'
+          : `You have ${invitations.length} pending invitations`}
+      </h2>
+      <ul className="mt-3 flex flex-col gap-2">
+        {invitations.map((inv) => (
+          <li
+            key={inv.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/60 bg-white p-3 text-sm"
+          >
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900">
+                {inv.schoolName ?? inv.inviterName} invited you as{' '}
+                {INVITATION_TYPE_LABEL[inv.type]}
+                {inv.jobTitle ? ` — ${inv.jobTitle}` : ''}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Expires {new Date(inv.expiresAt).toLocaleDateString()}
+              </p>
+            </div>
+            <Link
+              href={`/invitations/accept?token=${encodeURIComponent(inv.token)}`}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+            >
+              Accept
+            </Link>
+          </li>
+        ))}
       </ul>
+    </section>
+  );
+}
 
-      <div className="mt-1 flex flex-wrap gap-3 text-sm font-medium">
-        <Link
-          href="/family"
-          className="inline-flex items-center gap-1 text-campus-700 hover:text-campus-600"
-        >
-          Manage family
-          <span aria-hidden>→</span>
-        </Link>
-        <Link
-          href="/family/add-child"
-          className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700"
-        >
-          Add another
-          <span aria-hidden>→</span>
-        </Link>
+// ─── Role selection card ─────────────────────────────────
+
+function RoleCard({
+  role,
+  selected,
+  onToggle,
+}: {
+  role: RoleDef;
+  selected: boolean;
+  onToggle: (key: RoleKey) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      onClick={() => onToggle(role.key)}
+      className={
+        'flex w-full items-start gap-3 rounded-card border bg-white p-4 text-left shadow-sm transition-colors ' +
+        (selected
+          ? 'border-campus-500 ring-2 ring-campus-100'
+          : 'border-gray-200 hover:border-campus-300 hover:bg-campus-50/40')
+      }
+    >
+      <span aria-hidden className="text-2xl leading-none">
+        {role.emoji}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-gray-900">{role.title}</p>
+        <p className="mt-0.5 text-xs text-gray-600">{role.description}</p>
       </div>
+      {selected && (
+        <span
+          aria-hidden
+          className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campus-700 text-[12px] text-white"
+        >
+          ✓
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ─── Role actions card ───────────────────────────────────
+
+function RoleActionsCard({ role }: { role: RoleDef }) {
+  const actions = ROLE_ACTIONS[role.key];
+  return (
+    <div className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="text-lg leading-none">
+          {role.emoji}
+        </span>
+        <h3 className="text-sm font-semibold text-gray-900">{role.title}</h3>
+      </div>
+      <ul className="mt-3 flex flex-col gap-1">
+        {actions.map((action, i) =>
+          action.type === 'link' ? (
+            <li key={i}>
+              <Link
+                href={action.href}
+                className="flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-gray-800 hover:bg-gray-50"
+              >
+                <span>{action.label}</span>
+                <span aria-hidden className="text-gray-400">
+                  →
+                </span>
+              </Link>
+            </li>
+          ) : (
+            <li key={i}>
+              <InvitationActionRow label={action.label} expectType={action.expectType} />
+            </li>
+          ),
+        )}
+      </ul>
     </div>
   );
 }
 
+// ─── Invitation action row ──────────────────────────────
+
 /**
- * Expandable card: tap "Enter code" to reveal the inline input. We
- * validate the code on submit via GET /invitations/:token (public),
- * then push the caller to /invitations/accept?token=… where they
- * confirm the details and complete the type-specific projection
- * write.
+ * Renders an "Enter invitation code" row that expands into an inline
+ * form on click. The form validates the token via the public
+ * GET /invitations/:token, optionally enforces an expected type
+ * (used by the job-offer role to refuse non-EMPLOYEE codes), and on
+ * success routes to /invitations/accept?token=… where the
+ * type-dispatched accept lives.
  */
-function InvitationCard() {
+function InvitationActionRow({
+  label,
+  expectType,
+}: {
+  label: string;
+  expectType?: InvitationType;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState('');
@@ -359,16 +370,22 @@ function InvitationCard() {
     e.preventDefault();
     const trimmed = code.trim();
     if (!trimmed) {
-      setError('Enter the code from your invitation email.');
+      setError('Enter the code from your invitation.');
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
-      // GET is public — the token itself is the auth. We don't need
-      // the response body; the 404/200 status tells us whether to
-      // proceed.
-      await apiFetch(`/api/v1/invitations/${encodeURIComponent(trimmed)}`);
+      const summary = await apiFetch<{ type: InvitationType }>(
+        `/api/v1/invitations/${encodeURIComponent(trimmed)}`,
+      );
+      if (expectType && summary.type !== expectType) {
+        setError(
+          `That code isn't an ${INVITATION_TYPE_LABEL[expectType]} invitation. Use the matching role above.`,
+        );
+        setSubmitting(false);
+        return;
+      }
       router.push(`/invitations/accept?token=${encodeURIComponent(trimmed)}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -380,71 +397,62 @@ function InvitationCard() {
     }
   }
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+      >
+        <span>{label}</span>
+        <span aria-hidden className="text-gray-400">
+          →
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <Card
-      title="I received an invitation"
-      description="Enter an invite code from a school or employer."
-      accent="green"
-      icon={MailIcon}
-    >
-      {!open ? (
+    <form onSubmit={onSubmit} className="rounded-md bg-gray-50/60 p-3">
+      <label htmlFor={`invite-${label}`} className="block text-xs font-medium text-gray-700">
+        {label}
+      </label>
+      <div className="mt-1 flex gap-2">
+        <input
+          id={`invite-${label}`}
+          type="text"
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="ABCD1234"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          aria-invalid={!!error}
+          aria-describedby={error ? `invite-${label}-error` : undefined}
+          className={
+            'block flex-1 rounded-md border bg-white px-3 py-2 font-mono text-sm uppercase tracking-wider text-gray-900 ' +
+            'shadow-sm placeholder:font-mono placeholder:text-gray-300 ' +
+            'focus:outline-none focus:ring-2 focus:ring-campus-500 focus:border-campus-500 ' +
+            (error ? 'border-red-300' : 'border-gray-300')
+          }
+        />
         <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex w-fit items-center gap-1 text-sm font-medium text-campus-700 hover:text-campus-600"
+          type="submit"
+          disabled={submitting}
+          className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
         >
-          Enter code
-          <span aria-hidden>→</span>
+          {submitting && <LoadingSpinner size="sm" />}
+          <span>{submitting ? 'Checking…' : 'Continue'}</span>
         </button>
-      ) : (
-        <form onSubmit={onSubmit} className="flex flex-col gap-2">
-          <label htmlFor="invite-code" className="sr-only">
-            Invitation code
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="invite-code"
-              name="invite-code"
-              type="text"
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="ABCD1234"
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              aria-invalid={!!error}
-              aria-describedby={error ? 'invite-code-error' : undefined}
-              className={
-                'block flex-1 rounded-md border bg-white px-3 py-2 font-mono text-sm uppercase tracking-wider text-gray-900 ' +
-                'shadow-sm placeholder:font-mono placeholder:text-gray-300 ' +
-                'focus:outline-none focus:ring-2 focus:ring-campus-500 focus:border-campus-500 ' +
-                (error ? 'border-red-300' : 'border-gray-300')
-              }
-            />
-            <button
-              type="submit"
-              disabled={submitting}
-              className={
-                'inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 ' +
-                'text-sm font-semibold text-white shadow-sm transition-colors ' +
-                'hover:bg-campus-600 focus:outline-none focus:ring-2 focus:ring-campus-500 focus:ring-offset-2 ' +
-                'disabled:opacity-60'
-              }
-            >
-              {submitting && <LoadingSpinner size="sm" />}
-              <span>{submitting ? 'Checking…' : 'Continue'}</span>
-            </button>
-          </div>
-          {error && (
-            <p id="invite-code-error" className="text-xs text-red-600">
-              {error}
-            </p>
-          )}
-        </form>
+      </div>
+      {error && (
+        <p id={`invite-${label}-error`} className="mt-1 text-xs text-red-600">
+          {error}
+        </p>
       )}
-    </Card>
+    </form>
   );
 }
