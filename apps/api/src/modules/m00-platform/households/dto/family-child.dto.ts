@@ -29,7 +29,9 @@ export class FamilyChildDto {
 
 export class CreateFamilyChildDto {
   @ApiProperty() @IsString() @MaxLength(100) firstName!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) middleName?: string;
   @ApiProperty() @IsString() @MaxLength(100) lastName!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) preferredName?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfBirth?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
 }

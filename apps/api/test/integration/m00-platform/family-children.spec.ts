@@ -715,5 +715,35 @@ describe('integration:m00-platform/family-children', () => {
       expect(updated.lastName).toBe('Edited');
       expect(updated.personId).toBeNull();
     });
+
+    it('PLACEHOLDER row stores + returns middleName + preferredName on create', async () => {
+      const child = await controller.create(reqA(), {
+        firstName: 'Alivia',
+        middleName: 'Rae',
+        lastName: 'A',
+        preferredName: 'Liv',
+      });
+      expect(child.firstName).toBe('Alivia');
+      expect(child.middleName).toBe('Rae');
+      expect(child.lastName).toBe('A');
+      expect(child.preferredName).toBe('Liv');
+
+      // Refetch via the list endpoint to confirm the columns persist
+      // (not just the synchronous post-insert response).
+      const list = await controller.list(reqA());
+      const found = list.find((c) => c.id === child.id);
+      expect(found?.middleName).toBe('Rae');
+      expect(found?.preferredName).toBe('Liv');
+    });
+
+    it('PLACEHOLDER row updates middleName + preferredName via PATCH', async () => {
+      const child = await controller.create(reqA(), { firstName: 'Alivia', lastName: 'A' });
+      const updated = await controller.update(reqA(), child.id, {
+        middleName: 'Rae',
+        preferredName: 'Liv',
+      });
+      expect(updated.middleName).toBe('Rae');
+      expect(updated.preferredName).toBe('Liv');
+    });
   });
 });

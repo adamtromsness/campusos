@@ -30,7 +30,9 @@ export interface FamilyChildDto {
 
 export interface CreateFamilyChildPayload {
   firstName: string;
+  middleName?: string;
   lastName: string;
+  preferredName?: string;
   dateOfBirth?: string;
   gender?: string;
 }

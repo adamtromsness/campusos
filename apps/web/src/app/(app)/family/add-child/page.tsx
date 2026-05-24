@@ -59,7 +59,9 @@ export default function AddChildPage() {
   // surname; we only seed lastName).
   const [basic, setBasic] = useState({
     firstName: '',
+    middleName: '',
     lastName: user?.lastName ?? '',
+    preferredName: '',
     dateOfBirth: '',
     gender: '',
   });
@@ -94,7 +96,9 @@ export default function AddChildPage() {
   async function persistPlaceholder(): Promise<string> {
     const child = await createChild.mutateAsync({
       firstName: basic.firstName.trim(),
+      middleName: basic.middleName.trim() || undefined,
       lastName: basic.lastName.trim(),
+      preferredName: basic.preferredName.trim() || undefined,
       dateOfBirth: basic.dateOfBirth || undefined,
       gender: basic.gender || undefined,
     });
@@ -150,6 +154,12 @@ export default function AddChildPage() {
               required
             />
             <Field
+              id="middleName"
+              label="Middle name"
+              value={basic.middleName}
+              onChange={(v) => setBasic((b) => ({ ...b, middleName: v }))}
+            />
+            <Field
               id="lastName"
               label="Last name"
               value={basic.lastName}
@@ -157,21 +167,26 @@ export default function AddChildPage() {
               error={basicErrors.lastName}
               required
             />
-          </div>
-          <Field
-            id="dateOfBirth"
-            label="Date of birth"
-            type="date"
-            value={basic.dateOfBirth}
-            onChange={(v) => setBasic((b) => ({ ...b, dateOfBirth: v }))}
-            error={basicErrors.dateOfBirth}
-            className="mt-3"
-          />
-          <div className="mt-3">
-            <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
-              Gender (optional)
-            </label>
-            <select
+            <Field
+              id="preferredName"
+              label="Preferred name"
+              value={basic.preferredName}
+              onChange={(v) => setBasic((b) => ({ ...b, preferredName: v }))}
+              hint="Used throughout CampusOS instead of their first name."
+            />
+            <Field
+              id="dateOfBirth"
+              label="Date of birth"
+              type="date"
+              value={basic.dateOfBirth}
+              onChange={(v) => setBasic((b) => ({ ...b, dateOfBirth: v }))}
+              error={basicErrors.dateOfBirth}
+            />
+            <div>
+              <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
+                Gender (optional)
+              </label>
+              <select
               id="gender"
               name="gender"
               value={basic.gender}
@@ -184,6 +199,7 @@ export default function AddChildPage() {
               <option value="X">Non-binary</option>
               <option value="O">Other</option>
             </select>
+            </div>
           </div>
           <div className="mt-5 flex justify-end">
             <button
@@ -575,6 +591,7 @@ function Field({
   type = 'text',
   required,
   className,
+  hint,
 }: {
   id: string;
   label: string;
@@ -584,6 +601,7 @@ function Field({
   type?: string;
   required?: boolean;
   className?: string;
+  hint?: string;
 }) {
   return (
     <div className={className}>
@@ -598,12 +616,21 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         aria-invalid={!!error}
+        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
         className={
           'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
           (error ? 'border-red-300' : 'border-gray-300')
         }
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error ? (
+        <p id={`${id}-error`} className="mt-1 text-xs text-red-600">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${id}-hint`} className="mt-1 text-xs text-gray-500">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

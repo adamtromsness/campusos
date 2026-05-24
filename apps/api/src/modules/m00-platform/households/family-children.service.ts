@@ -238,12 +238,15 @@ export class FamilyChildrenService {
     const id = generateId();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_family_children
-         (id, family_id, person_id, first_name, last_name, date_of_birth, gender, status, created_at)
-       VALUES ($1::uuid, $2::uuid, NULL, $3, $4, $5::date, $6, 'PLACEHOLDER', now())`,
+         (id, family_id, person_id, first_name, middle_name, last_name, preferred_name,
+          date_of_birth, gender, status, created_at)
+       VALUES ($1::uuid, $2::uuid, NULL, $3, $4, $5, $6, $7::date, $8, 'PLACEHOLDER', now())`,
       id,
       familyId,
       dto.firstName,
+      dto.middleName ?? null,
       dto.lastName,
+      dto.preferredName ?? null,
       dto.dateOfBirth ?? null,
       dto.gender ?? null,
     );
@@ -272,9 +275,17 @@ export class FamilyChildrenService {
       childSet.push('first_name = $' + ci++);
       childArgs.push(dto.firstName);
     }
+    if (dto.middleName !== undefined) {
+      childSet.push('middle_name = $' + ci++);
+      childArgs.push(dto.middleName);
+    }
     if (dto.lastName !== undefined) {
       childSet.push('last_name = $' + ci++);
       childArgs.push(dto.lastName);
+    }
+    if (dto.preferredName !== undefined) {
+      childSet.push('preferred_name = $' + ci++);
+      childArgs.push(dto.preferredName);
     }
     if (dto.dateOfBirth !== undefined) {
       childSet.push('date_of_birth = $' + ci++ + '::date');
@@ -1098,9 +1109,9 @@ export class FamilyChildrenService {
       '  pfc.family_id::text AS family_id, ' +
       '  pfc.person_id::text AS person_id, ' +
       '  COALESCE(p.first_name, pfc.first_name) AS first_name, ' +
-      '  p.middle_name AS middle_name, ' +
+      '  COALESCE(p.middle_name, pfc.middle_name) AS middle_name, ' +
       '  COALESCE(p.last_name, pfc.last_name) AS last_name, ' +
-      '  p.preferred_name AS preferred_name, ' +
+      '  COALESCE(p.preferred_name, pfc.preferred_name) AS preferred_name, ' +
       '  COALESCE(p.date_of_birth::text, pfc.date_of_birth::text) AS date_of_birth, ' +
       '  pfc.gender AS gender, ' +
       '  p.primary_phone AS primary_phone, ' +
