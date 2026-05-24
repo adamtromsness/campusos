@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, setAccessToken } from '@/lib/api-client';
@@ -13,6 +13,12 @@ import {
 } from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
+
+// Sentinel value used as the `busy` marker when the custom-email
+// form is mid-submit; the preset buttons key their loading state on
+// the account email, so a distinct token keeps the two paths from
+// fighting over the same state.
+const CUSTOM_EMAIL_BUSY = '__custom__';
 
 interface MeResponse {
   user: {
@@ -70,6 +76,11 @@ const DEV_ACCOUNTS: DevAccount[] = [
     label: 'Parent (David Chen)',
     description: "Maya Chen's father",
   },
+  {
+    email: 'newuser@demo.campusos.dev',
+    label: 'New User (Alex Thompson)',
+    description: 'Fresh account, no personas — exercises Getting Started',
+  },
 ];
 
 export default function LoginPage() {
@@ -88,6 +99,8 @@ function LoginPageInner() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const [customEmail, setCustomEmail] = useState('');
+  const [customError, setCustomError] = useState<string | null>(null);
 
   // Same-origin only. The OIDC callback ignores any returnUrl in the
   // current URL (Keycloak strips the query string before redirect),
@@ -123,6 +136,35 @@ function LoginPageInner() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       toast(message, 'error');
+      setBusy(null);
+    }
+  };
+
+  // Custom-email dev sign-in. Same /auth/dev-login backend as the
+  // preset buttons (login() handles the POST + /auth/me follow-up) —
+  // this just exposes a typed-in email path so accounts registered
+  // through /register can sign in without being added to DEV_ACCOUNTS.
+  const handleCustomSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = customEmail.trim();
+    if (!trimmed) {
+      setCustomError('Enter an email address.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setCustomError('Enter a valid email address.');
+      return;
+    }
+    setCustomError(null);
+    setBusy(CUSTOM_EMAIL_BUSY);
+    try {
+      await login(trimmed, returnUrl ?? undefined);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Login failed. Check the email and try again.';
+      // Surface the failure inline so the user can correct without
+      // dismissing a toast — same pattern as the registration form.
+      setCustomError(message);
       setBusy(null);
     }
   };
@@ -169,6 +211,54 @@ function LoginPageInner() {
               );
             })}
           </ul>
+
+          <div className="border-t border-gray-100 bg-gray-50/60 px-5 py-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-px flex-1 bg-gray-200" aria-hidden />
+              <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                Or sign in with email
+              </span>
+              <span className="h-px flex-1 bg-gray-200" aria-hidden />
+            </div>
+            <form onSubmit={handleCustomSubmit} className="flex flex-col gap-2 sm:flex-row">
+              <label htmlFor="custom-email" className="sr-only">
+                Email
+              </label>
+              <input
+                id="custom-email"
+                type="email"
+                value={customEmail}
+                onChange={(e) => {
+                  setCustomEmail(e.target.value);
+                  if (customError) setCustomError(null);
+                }}
+                placeholder="email@example.com"
+                autoComplete="email"
+                aria-invalid={!!customError}
+                aria-describedby={customError ? 'custom-email-error' : undefined}
+                disabled={busy !== null}
+                className={
+                  'block flex-1 rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ' +
+                  'placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+                  'disabled:opacity-60 ' +
+                  (customError ? 'border-red-300' : 'border-gray-300')
+                }
+              />
+              <button
+                type="submit"
+                disabled={busy !== null}
+                className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+              >
+                {busy === CUSTOM_EMAIL_BUSY && <LoadingSpinner size="sm" />}
+                <span>{busy === CUSTOM_EMAIL_BUSY ? 'Signing in…' : 'Sign In'}</span>
+              </button>
+            </form>
+            {customError && (
+              <p id="custom-email-error" className="mt-2 text-xs text-red-600">
+                {customError}
+              </p>
+            )}
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400">
