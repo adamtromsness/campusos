@@ -375,29 +375,42 @@ function EditChildForm({ child }: { child: FamilyChildDto }) {
 
   const [form, setForm] = useState({
     firstName: child.firstName ?? '',
-    middleName: '',
+    middleName: child.middleName ?? '',
     lastName: child.lastName ?? '',
-    preferredName: '',
+    preferredName: child.preferredName ?? '',
     dateOfBirth: child.dateOfBirth ?? '',
     gender: child.gender ?? '',
-    primaryPhone: '',
-    notes: '',
+    primaryPhone: child.primaryPhone ?? '',
+    notes: child.notes ?? '',
   });
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
 
-  // Re-sync when the underlying child row changes (after Save).
+  // Re-sync when the underlying child row changes (after Save). All
+  // identity fields come from the GET response — for LINKED children
+  // the API joins iam_person and surfaces middle/preferred/phone/
+  // notes too, so the form round-trips every input the user touched.
   useEffect(() => {
     setForm({
       firstName: child.firstName ?? '',
-      middleName: '',
+      middleName: child.middleName ?? '',
       lastName: child.lastName ?? '',
-      preferredName: '',
+      preferredName: child.preferredName ?? '',
       dateOfBirth: child.dateOfBirth ?? '',
       gender: child.gender ?? '',
-      primaryPhone: '',
-      notes: '',
+      primaryPhone: child.primaryPhone ?? '',
+      notes: child.notes ?? '',
     });
-  }, [child.id, child.firstName, child.lastName, child.dateOfBirth, child.gender]);
+  }, [
+    child.id,
+    child.firstName,
+    child.middleName,
+    child.lastName,
+    child.preferredName,
+    child.dateOfBirth,
+    child.gender,
+    child.primaryPhone,
+    child.notes,
+  ]);
 
   function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

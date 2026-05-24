@@ -10,9 +10,16 @@ export interface FamilyChildDto {
   familyId: string;
   personId: string | null;
   firstName: string;
+  middleName: string | null;
   lastName: string;
+  preferredName: string | null;
   dateOfBirth: string | null;
   gender: string | null;
+  // primaryPhone + notes live on iam_person and are populated for
+  // LINKED children only. PLACEHOLDER / PENDING_LINK rows have no
+  // iam_person yet and these will be null on the wire.
+  primaryPhone: string | null;
+  notes: string | null;
   status: FamilyChildStatus;
   inviteCode: string | null;
   inviteEmail: string | null;

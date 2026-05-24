@@ -670,10 +670,17 @@ describe('integration:m00-platform/family-children', () => {
         primaryPhone: '+1-555-0100',
         notes: 'allergic to peanuts',
       });
-      // family_children mirror shows the new name + DOB.
+      // The GET response now joins iam_person, so every field the
+      // parent edited round-trips on the wire. The form's useEffect
+      // re-seeds from this DTO after every save — anything missing
+      // here silently vanishes from the inputs.
       expect(updated.firstName).toBe('Renamed');
       expect(updated.lastName).toBe('Surname');
+      expect(updated.middleName).toBe('Middle');
+      expect(updated.preferredName).toBe('Nick');
       expect(updated.dateOfBirth).toBe('2010-04-12');
+      expect(updated.primaryPhone).toBe('+1-555-0100');
+      expect(updated.notes).toBe('allergic to peanuts');
 
       // iam_person carries the full set of identity fields.
       const person = await prisma.iamPerson.findUnique({

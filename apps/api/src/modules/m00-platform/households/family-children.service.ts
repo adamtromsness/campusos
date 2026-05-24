@@ -31,9 +31,13 @@ interface FamilyChildRow {
   family_id: string;
   person_id: string | null;
   first_name: string;
+  middle_name: string | null;
   last_name: string;
+  preferred_name: string | null;
   date_of_birth: string | null;
   gender: string | null;
+  primary_phone: string | null;
+  notes: string | null;
   status: string;
   invite_code: string | null;
   invite_email: string | null;
@@ -137,7 +141,7 @@ export class FamilyChildrenService {
     }));
 
     const childRows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
-      this.selectSql() + 'WHERE family_id = $1::uuid ORDER BY created_at ASC',
+      this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       resolved.familyId,
     );
 
@@ -221,7 +225,7 @@ export class FamilyChildrenService {
     const familyId = await this.findFamilyForPerson(personId);
     if (!familyId) return [];
     const rows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
-      this.selectSql() + 'WHERE family_id = $1::uuid ORDER BY created_at ASC',
+      this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       familyId,
     );
     return rows.map((r) => this.toDto(r));
@@ -1028,7 +1032,7 @@ export class FamilyChildrenService {
   private async requireOwnedRow(personId: string, childId: string): Promise<FamilyChildRow> {
     const familyId = await this.findFamilyForPerson(personId);
     const rows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
-      this.selectSql() + 'WHERE id = $1::uuid',
+      this.selectSql() + 'WHERE pfc.id = $1::uuid',
       childId,
     );
     const row = rows[0];
@@ -1048,19 +1052,48 @@ export class FamilyChildrenService {
 
   private async findById(childId: string): Promise<FamilyChildRow | null> {
     const rows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
-      this.selectSql() + 'WHERE id = $1::uuid',
+      this.selectSql() + 'WHERE pfc.id = $1::uuid',
       childId,
     );
     return rows[0] ?? null;
   }
 
+  /**
+   * LEFT JOIN iam_person so LINKED rows surface the canonical identity
+   * fields (middle_name / preferred_name / primary_phone / notes) that
+   * don't have mirror columns on platform_family_children. For
+   * first_name / last_name / date_of_birth — which DO have mirrors —
+   * we COALESCE to the iam_person value first so a stale mirror (e.g.
+   * after an out-of-band iam_person edit) doesn't shadow the
+   * canonical name. PLACEHOLDER rows have person_id IS NULL so the
+   * LEFT JOIN produces NULL columns and the COALESCE falls back to
+   * the placeholder values.
+   *
+   * Required for the parent-edit form to round-trip middle_name /
+   * preferred_name / phone / notes — the form's useEffect re-seeds
+   * from this DTO after every save, so anything not on the wire
+   * silently disappears from the inputs.
+   */
   private selectSql(): string {
     return (
-      'SELECT id::text AS id, family_id::text AS family_id, person_id::text AS person_id, ' +
-      'first_name, last_name, date_of_birth::text AS date_of_birth, gender, status, ' +
-      'invite_code, invite_email, invite_sent_at::text AS invite_sent_at, ' +
-      'linked_at::text AS linked_at, created_at::text AS created_at ' +
-      'FROM platform.platform_family_children '
+      'SELECT pfc.id::text AS id, ' +
+      '  pfc.family_id::text AS family_id, ' +
+      '  pfc.person_id::text AS person_id, ' +
+      '  COALESCE(p.first_name, pfc.first_name) AS first_name, ' +
+      '  p.middle_name AS middle_name, ' +
+      '  COALESCE(p.last_name, pfc.last_name) AS last_name, ' +
+      '  p.preferred_name AS preferred_name, ' +
+      '  COALESCE(p.date_of_birth::text, pfc.date_of_birth::text) AS date_of_birth, ' +
+      '  pfc.gender AS gender, ' +
+      '  p.primary_phone AS primary_phone, ' +
+      '  p.notes AS notes, ' +
+      '  pfc.status, ' +
+      '  pfc.invite_code, pfc.invite_email, ' +
+      '  pfc.invite_sent_at::text AS invite_sent_at, ' +
+      '  pfc.linked_at::text AS linked_at, ' +
+      '  pfc.created_at::text AS created_at ' +
+      'FROM platform.platform_family_children pfc ' +
+      'LEFT JOIN platform.iam_person p ON p.id = pfc.person_id '
     );
   }
 
@@ -1070,9 +1103,13 @@ export class FamilyChildrenService {
       familyId: r.family_id,
       personId: r.person_id,
       firstName: r.first_name,
+      middleName: r.middle_name,
       lastName: r.last_name,
+      preferredName: r.preferred_name,
       dateOfBirth: r.date_of_birth,
       gender: r.gender,
+      primaryPhone: r.primary_phone,
+      notes: r.notes,
       status: r.status as FamilyChildDto['status'],
       inviteCode: r.invite_code,
       inviteEmail: r.invite_email,

@@ -9,9 +9,16 @@ export class FamilyChildDto {
   @ApiProperty() familyId!: string;
   @ApiPropertyOptional() personId!: string | null;
   @ApiProperty() firstName!: string;
+  @ApiPropertyOptional() middleName!: string | null;
   @ApiProperty() lastName!: string;
+  @ApiPropertyOptional() preferredName!: string | null;
   @ApiPropertyOptional() dateOfBirth!: string | null;
   @ApiPropertyOptional() gender!: string | null;
+  // primaryPhone + notes live on iam_person and are surfaced for
+  // LINKED children only — PLACEHOLDER / PENDING_LINK rows have no
+  // iam_person yet and these will be null.
+  @ApiPropertyOptional() primaryPhone!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
   @ApiProperty({ enum: FAMILY_CHILD_STATUSES }) status!: FamilyChildStatus;
   @ApiPropertyOptional() inviteCode!: string | null;
   @ApiPropertyOptional() inviteEmail!: string | null;
