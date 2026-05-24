@@ -27,11 +27,26 @@ export class CreateFamilyChildDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
 }
 
+/**
+ * PATCH /family/children/:id — parent-write fields.
+ *
+ * Identity fields (firstName, middleName, lastName, preferredName,
+ * primaryPhone, notes) apply to the iam_person row when the child
+ * is LINKED, and are no-ops when the child is PLACEHOLDER (no
+ * iam_person exists yet). dateOfBirth and gender always update the
+ * platform_family_children row; dateOfBirth additionally syncs to
+ * iam_person.date_of_birth on LINKED rows so the canonical identity
+ * stays consistent with the family-children mirror.
+ */
 export class UpdateFamilyChildDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) firstName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) middleName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) preferredName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfBirth?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryPhone?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) notes?: string | null;
 }
 
 export class CreateChildAccountDto {
@@ -56,8 +71,20 @@ export const INVITATION_TYPES = [
   'PARENT_LINK',
   'SUBSTITUTE',
   'FAMILY_INVITE',
+  'GUARDIAN_INVITE',
 ] as const;
 export type InvitationType = (typeof INVITATION_TYPES)[number];
+
+/**
+ * POST /family/invite-guardian — generate a GUARDIAN_INVITE code.
+ * Optional target_email is recorded on platform_invitations so the
+ * email-send path (currently a TODO that logs the code) has the
+ * address to use; the code itself is shareable out-of-band so the
+ * caller can also copy + paste it.
+ */
+export class InviteGuardianDto {
+  @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
+}
 
 export class InvitationSummaryDto {
   @ApiProperty() id!: string;
@@ -133,3 +160,31 @@ export class FamilyViewDto {
   @ApiProperty({ type: [FamilyMemberDto] }) members!: FamilyMemberDto[];
   @ApiProperty({ type: [FamilyChildDto] }) children!: FamilyChildDto[];
 }
+
+// ─── /family/link — discriminated response ────────────────
+
+/**
+ * POST /family/link can resolve to either a child-shaped result
+ * (FAMILY_INVITE / CHILD_LINK paths) or a guardian-shaped result
+ * (GUARDIAN_INVITE). The `kind` tag tells the client which view
+ * to render next:
+ *
+ *   CHILD     → "you are linked to family X as a child", or
+ *               "a child has been added to your family"
+ *   GUARDIAN  → "you joined family X as a parent/guardian"
+ *
+ * Existing call sites that ignore the response value (just toast
+ * + redirect on success) keep working unchanged.
+ */
+export class FamilyLinkChildResultDto {
+  @ApiProperty({ enum: ['CHILD'] }) kind!: 'CHILD';
+  @ApiProperty({ type: FamilyChildDto }) child!: FamilyChildDto;
+}
+
+export class FamilyLinkGuardianResultDto {
+  @ApiProperty({ enum: ['GUARDIAN'] }) kind!: 'GUARDIAN';
+  @ApiProperty({ type: FamilyHeaderDto }) family!: FamilyHeaderDto;
+  @ApiProperty() inviterName!: string;
+}
+
+export type FamilyLinkResultDto = FamilyLinkChildResultDto | FamilyLinkGuardianResultDto;

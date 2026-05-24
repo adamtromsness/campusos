@@ -10,7 +10,7 @@ import {
   useCreateChildAccount,
   useDeleteFamilyChild,
   useFamilyView,
-  useGenerateFamilyCode,
+  useInviteGuardian,
   useSendChildLink,
   type FamilyChildDto,
   type FamilyChildStatus,
@@ -49,8 +49,7 @@ import { cn } from '@/components/ui/cn';
 export default function FamilyPage() {
   const { data, isLoading, error } = useFamilyView();
   const [linkInviteFor, setLinkInviteFor] = useState<FamilyChildDto | null>(null);
-  const [generatedCode, setGeneratedCode] = useState<GenerateLinkCodeDto | null>(null);
-  const generateCode = useGenerateFamilyCode();
+  const [guardianModalOpen, setGuardianModalOpen] = useState(false);
 
   if (isLoading) return <PageLoader label="Loading your family…" />;
   if (error) {
@@ -103,13 +102,10 @@ export default function FamilyPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  void generateCode.mutateAsync().then(setGeneratedCode);
-                }}
-                disabled={generateCode.isPending}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+                onClick={() => setGuardianModalOpen(true)}
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
               >
-                {generateCode.isPending ? 'Generating…' : 'Generate Family Code'}
+                Invite a Guardian
               </button>
               <Link
                 href="/family/add-child"
@@ -146,11 +142,191 @@ export default function FamilyPage() {
         onClose={() => setLinkInviteFor(null)}
       />
 
-      <GeneratedCodeModal
-        code={generatedCode}
-        open={generatedCode !== null}
-        onClose={() => setGeneratedCode(null)}
-      />
+      <InviteGuardianModal open={guardianModalOpen} onClose={() => setGuardianModalOpen(false)} />
+    </div>
+  );
+}
+
+// ─── Invite-a-guardian modal ─────────────────────────────
+
+/**
+ * Two-tab guardian-invite modal:
+ *
+ *   Generate a code — POST /family/invite-guardian with no email.
+ *     Reveals the 8-char code with a Copy button. The parent shares
+ *     it out-of-band; the recipient enters it on their own /family
+ *     "Have a link code?" form.
+ *
+ *   Send by email — same endpoint, with an email payload. The API
+ *     records target_email; an actual outbound email is still a TODO
+ *     (the service logs the code to stdout for dev). The UI shows the
+ *     generated code so the parent can also copy + paste if email
+ *     fails.
+ */
+function InviteGuardianModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const invite = useInviteGuardian();
+  const { toast } = useToast();
+  const [tab, setTab] = useState<'code' | 'email'>('code');
+  const [email, setEmail] = useState('');
+  const [generated, setGenerated] = useState<GenerateLinkCodeDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function close() {
+    setTab('code');
+    setEmail('');
+    setGenerated(null);
+    setError(null);
+    onClose();
+  }
+
+  async function generateNoEmail() {
+    setError(null);
+    try {
+      const r = await invite.mutateAsync({});
+      setGenerated(r);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate a code.');
+    }
+  }
+
+  async function generateWithEmail(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    try {
+      const r = await invite.mutateAsync({ email: trimmed });
+      setGenerated(r);
+      toast('Invitation prepared for ' + trimmed, 'success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate a code.');
+    }
+  }
+
+  async function copyCode() {
+    if (!generated) return;
+    try {
+      await navigator.clipboard.writeText(generated.code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Invite a Guardian"
+      footer={
+        <button
+          type="button"
+          onClick={close}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Done
+        </button>
+      }
+    >
+      <p className="text-sm text-gray-600">
+        Invite someone to join your family as a parent or guardian. They&rsquo;ll have full access
+        to manage your children&rsquo;s information.
+      </p>
+
+      <div className="mt-4 inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5 text-xs font-medium">
+        <button
+          type="button"
+          onClick={() => setTab('code')}
+          className={cn(
+            'rounded px-3 py-1.5',
+            tab === 'code' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600',
+          )}
+        >
+          Generate a code
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('email')}
+          className={cn(
+            'rounded px-3 py-1.5',
+            tab === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600',
+          )}
+        >
+          Send by email
+        </button>
+      </div>
+
+      {tab === 'code' ? (
+        <div className="mt-4">
+          {!generated ? (
+            <button
+              type="button"
+              onClick={() => void generateNoEmail()}
+              disabled={invite.isPending}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {invite.isPending ? 'Generating…' : 'Generate Code'}
+            </button>
+          ) : (
+            <CodeDisplay code={generated} onCopy={copyCode} />
+          )}
+        </div>
+      ) : (
+        <form onSubmit={generateWithEmail} className="mt-4 flex flex-col gap-2">
+          <label htmlFor="guardian-email" className="text-xs font-medium text-gray-700">
+            Email
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="guardian-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="coparent@example.com"
+              autoComplete="email"
+              required
+              className="block flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+            />
+            <button
+              type="submit"
+              disabled={invite.isPending}
+              className="inline-flex items-center justify-center rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {invite.isPending ? 'Sending…' : 'Send Invitation'}
+            </button>
+          </div>
+          {generated && <CodeDisplay code={generated} onCopy={copyCode} />}
+        </form>
+      )}
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </Modal>
+  );
+}
+
+function CodeDisplay({ code, onCopy }: { code: GenerateLinkCodeDto; onCopy: () => void }) {
+  const expiry = new Date(code.expiresAt);
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+        <code className="font-mono text-xl font-semibold tracking-[0.25em] text-gray-900">
+          {code.code}
+        </code>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+        >
+          Copy
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        Share this code with your co-parent or guardian. They enter it on their /family page.
+        Expires {expiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.
+      </p>
     </div>
   );
 }
@@ -327,65 +503,6 @@ function ChildViewerSiblingsSection({
   );
 }
 
-// ─── Generated family-code modal ──────────────────────────
-
-function GeneratedCodeModal({
-  code,
-  open,
-  onClose,
-}: {
-  code: GenerateLinkCodeDto | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const { toast } = useToast();
-  if (!code) return null;
-  const expiry = new Date(code.expiresAt);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(code!.code);
-      toast('Code copied', 'success');
-    } catch {
-      toast("Couldn't copy. Select the code and copy manually.", 'error');
-    }
-  }
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Your family code"
-      footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Done
-        </button>
-      }
-    >
-      <p className="text-sm text-gray-600">
-        Share this code with your child. They enter it on CampusOS to join your family.
-      </p>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-        <code className="font-mono text-xl font-semibold tracking-[0.25em] text-gray-900">
-          {code.code}
-        </code>
-        <button
-          type="button"
-          onClick={() => void copy()}
-          className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
-        >
-          Copy
-        </button>
-      </div>
-      <p className="mt-3 text-xs text-gray-500">
-        Expires {expiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.
-      </p>
-    </Modal>
-  );
-}
-
 // ─── Status badge ──────────────────────────────────────────
 
 interface BadgeStyle {
@@ -524,16 +641,16 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
           </>
         )}
         {child.status === 'LINKED' && (
-          // The /profile/[personId] route is the admin profile viewer
-          // and 403s parents — and it never resolves a PLACEHOLDER
-          // family child (no iam_person). We point at the family-child
-          // detail page instead, which reads platform_family_children
-          // and surfaces enrolment actions.
+          // /family/children/[id] is the parent's edit surface — it
+          // patches both iam_person and platform_family_children for
+          // LINKED children in one transaction. The /profile/[personId]
+          // route is admin-only and 403s parents, so this is the
+          // canonical "view + edit a kid" entry point.
           <Link
             href={`/family/children/${child.id}`}
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            View Profile
+            View / Edit
           </Link>
         )}
       </div>

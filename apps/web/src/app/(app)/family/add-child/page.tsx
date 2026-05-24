@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
-import { useAcceptFamilyLink, useCreateFamilyChild } from '@/hooks/use-family-children';
+import {
+  useAcceptFamilyLink,
+  useCreateFamilyChild,
+  useGenerateFamilyCode,
+  type GenerateLinkCodeDto,
+} from '@/hooks/use-family-children';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
@@ -200,6 +205,10 @@ export default function AddChildPage() {
               toast(`${basic.firstName} now has a CampusOS account`, 'success');
               router.replace('/family');
             }}
+          />
+          <OptionD
+            persistPlaceholder={persistPlaceholder}
+            childName={basic.firstName}
           />
           <div className="mt-2 flex justify-start">
             <button
@@ -404,6 +413,90 @@ function OptionC({
             <span>{busy ? 'Creating…' : 'Create & finish'}</span>
           </PrimaryButton>
         </form>
+      }
+    />
+  );
+}
+
+/**
+ * Option D — parent generates a FAMILY_INVITE code, the child accepts
+ * it on their own CampusOS account. Persists the placeholder first
+ * so the FAMILY_INVITE acceptance can auto-match against the named
+ * row instead of inserting a duplicate. The code is shown inline
+ * with a Copy button; no navigation away from the wizard.
+ */
+function OptionD({
+  persistPlaceholder,
+  childName,
+}: {
+  persistPlaceholder: () => Promise<string>;
+  childName: string;
+}) {
+  const { toast } = useToast();
+  const generate = useGenerateFamilyCode();
+  const [code, setCode] = useState<GenerateLinkCodeDto | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onGenerate() {
+    if (code) return;
+    setBusy(true);
+    try {
+      await persistPlaceholder();
+      const r = await generate.mutateAsync();
+      setCode(r);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not generate a code.';
+      toast(message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code.code);
+      toast('Code copied', 'success');
+    } catch {
+      toast("Couldn't copy. Select the code and copy manually.", 'error');
+    }
+  }
+
+  return (
+    <Card
+      title="Generate a code for them to enter"
+      description="Share an 8-character family code. They sign up on CampusOS and enter it to join your family — no email setup required from you."
+      accent="amber"
+      footer={
+        !code ? (
+          <PrimaryButton onClick={() => void onGenerate()} disabled={busy}>
+            {busy && <LoadingSpinner size="sm" />}
+            <span>{busy ? 'Generating…' : 'Generate code'}</span>
+          </PrimaryButton>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <code className="font-mono text-base font-semibold tracking-[0.2em] text-gray-900">
+                {code.code}
+              </code>
+              <button
+                type="button"
+                onClick={() => void copy()}
+                className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Share with {childName || 'your child'}. Expires{' '}
+              {new Date(code.expiresAt).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+              .
+            </p>
+          </div>
+        )
       }
     />
   );

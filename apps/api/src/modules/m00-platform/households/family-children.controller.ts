@@ -19,8 +19,10 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  FamilyLinkResultDto,
   FamilyViewDto,
   GenerateLinkCodeDto,
+  InviteGuardianDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
 } from './dto/family-child.dto';
@@ -131,12 +133,12 @@ export class FamilyChildrenController {
   @Post('link')
   @ApiOperation({
     summary:
-      'Accept an 8-char link code — dispatches on type/metadata: FAMILY_INVITE (child joins parent\'s family), CHILD_LINK with familyChildId (existing parent-issued path), CHILD_LINK without familyChildId (parent accepts child-issued code).',
+      'Accept an 8-char link code — dispatches on type/metadata. FAMILY_INVITE / CHILD_LINK return { kind: CHILD, child }; GUARDIAN_INVITE returns { kind: GUARDIAN, family, inviterName }.',
   })
   async accept(
     @Req() req: AuthedRequest,
     @Body() dto: AcceptFamilyLinkDto,
-  ): Promise<FamilyChildDto> {
+  ): Promise<FamilyLinkResultDto> {
     return this.children.acceptLinkCode(req.user!.personId, req.user!.sub, dto);
   }
 
@@ -158,5 +160,17 @@ export class FamilyChildrenController {
   })
   async generateChildCode(@Req() req: AuthedRequest): Promise<GenerateLinkCodeDto> {
     return this.children.generateChildCode(req.user!.personId);
+  }
+
+  @Post('invite-guardian')
+  @ApiOperation({
+    summary:
+      'Generate a GUARDIAN_INVITE code. Whoever accepts is added to the caller\'s family as a co-parent with full read/write on every child.',
+  })
+  async inviteGuardian(
+    @Req() req: AuthedRequest,
+    @Body() dto: InviteGuardianDto,
+  ): Promise<GenerateLinkCodeDto> {
+    return this.children.generateGuardianInvite(req.user!.personId, dto);
   }
 }

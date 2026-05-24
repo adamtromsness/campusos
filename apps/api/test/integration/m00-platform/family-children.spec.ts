@@ -118,6 +118,14 @@ describe('integration:m00-platform/family-children', () => {
   });
 
   beforeEach(async () => {
+    // Clear the per-account link-accept rate-limit counter — the new
+    // GUARDIAN_INVITE + update-LINKED tests fire enough accepts on
+    // userBAccountId that the 5-per-15-minute window in
+    // assertLinkRateLimit trips otherwise.
+    await redis.cacheInvalidate(
+      'family:link-attempts:' + userAAccountId,
+      'family:link-attempts:' + userBAccountId,
+    );
     // Wipe each user's family children + family between tests so order
     // doesn't matter and `ensureFamilyForPerson` re-creates the family.
     for (const personId of [userAPersonId, userBPersonId]) {
@@ -228,9 +236,12 @@ describe('integration:m00-platform/family-children', () => {
     expect(updated.lastName).toBe('A');
   });
 
-  it('patch LINKED child → 400 (read-only)', async () => {
+  it('patch LINKED child writes to iam_person and mirrors to family_children', async () => {
+    // Promote a placeholder to LINKED directly, then exercise the
+    // dual-table write path. The dedicated test suite for the full
+    // GUARDIAN_INVITE → LINKED happy-path lives in "update — LINKED
+    // child" at the bottom of this file.
     const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-    // Promote to LINKED directly by stamping the row.
     const linkedPersonId = generateId();
     await prisma.$executeRawUnsafe(
       `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)
@@ -245,9 +256,13 @@ describe('integration:m00-platform/family-children', () => {
       c.id,
     );
 
-    await expect(controller.update(reqA(), c.id, { firstName: 'Sophie' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie' });
+    expect(updated.firstName).toBe('Sophie');
+    const person = await prisma.iamPerson.findUnique({
+      where: { id: linkedPersonId },
+      select: { firstName: true },
+    });
+    expect(person?.firstName).toBe('Sophie');
 
     // Unlink before deleting the iam_person row — the FK from
     // platform_family_children would otherwise block cleanup.
@@ -432,8 +447,9 @@ describe('integration:m00-platform/family-children', () => {
     it('child accepting FAMILY_INVITE creates LINKED family_child + refreshes parent persona', async () => {
       const code = (await controller.generateCode(reqA())).code;
       const result = await controller.accept(reqB(), { code });
-      expect(result.status).toBe('LINKED');
-      expect(result.personId).toBe(userBPersonId);
+      if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
+      expect(result.child.status).toBe('LINKED');
+      expect(result.child.personId).toBe(userBPersonId);
 
       // The child is in user A's family.
       const familyRow = await prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
@@ -441,7 +457,7 @@ describe('integration:m00-platform/family-children', () => {
         userAPersonId,
       );
       const aFamilyId = familyRow[0]!.family_id;
-      expect(result.familyId).toBe(aFamilyId);
+      expect(result.child.familyId).toBe(aFamilyId);
 
       // The invitation is ACCEPTED.
       const invitation = await prisma.platformInvitation.findUnique({
@@ -458,9 +474,10 @@ describe('integration:m00-platform/family-children', () => {
       const placeholder = await controller.create(reqA(), { firstName: 'B', lastName: 'Parent' });
       const code = (await controller.generateCode(reqA())).code;
       const accepted = await controller.accept(reqB(), { code });
-      expect(accepted.id).toBe(placeholder.id);
-      expect(accepted.status).toBe('LINKED');
-      expect(accepted.personId).toBe(userBPersonId);
+      if (accepted.kind !== 'CHILD') throw new Error('expected CHILD result');
+      expect(accepted.child.id).toBe(placeholder.id);
+      expect(accepted.child.status).toBe('LINKED');
+      expect(accepted.child.personId).toBe(userBPersonId);
     });
 
     it('refuses when the inviter accepts their own FAMILY_INVITE code', async () => {
@@ -488,15 +505,16 @@ describe('integration:m00-platform/family-children', () => {
     it('parent accepting child-issued CHILD_LINK creates LINKED row in parent family + refreshes parent persona', async () => {
       const code = (await controller.generateChildCode(reqB())).code;
       const result = await controller.accept(reqA(), { code });
-      expect(result.status).toBe('LINKED');
+      if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
+      expect(result.child.status).toBe('LINKED');
       // The child stored on the row is the INVITER (user B), the
       // family is the ACCEPTER's (user A).
-      expect(result.personId).toBe(userBPersonId);
+      expect(result.child.personId).toBe(userBPersonId);
       const familyRow = await prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
         `SELECT family_id::text AS family_id FROM platform.platform_family_members WHERE person_id = $1::uuid LIMIT 1`,
         userAPersonId,
       );
-      expect(result.familyId).toBe(familyRow[0]!.family_id);
+      expect(result.child.familyId).toBe(familyRow[0]!.family_id);
     });
   });
 
@@ -560,6 +578,135 @@ describe('integration:m00-platform/family-children', () => {
       const code = (await controller.generateCode(reqA())).code;
       await controller.accept(reqB(), { code });
       await expect(controller.generateCode(reqB())).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  // ─── GUARDIAN_INVITE — parent generates, co-parent accepts ──
+
+  describe('GUARDIAN_INVITE', () => {
+    it('invite-guardian creates a PENDING GUARDIAN_INVITE with familyId metadata', async () => {
+      const result = await controller.inviteGuardian(reqA(), {});
+      expect(result.type).toBe('GUARDIAN_INVITE');
+      const row = await prisma.platformInvitation.findUnique({
+        where: { token: result.code },
+        select: { type: true, status: true, inviterPersonId: true, metadata: true, targetEmail: true },
+      });
+      expect(row?.type).toBe('GUARDIAN_INVITE');
+      expect(row?.status).toBe('PENDING');
+      expect(row?.inviterPersonId).toBe(userAPersonId);
+      expect((row?.metadata as { familyId?: string }).familyId).toBeTruthy();
+      expect(row?.targetEmail).toBeNull();
+    });
+
+    it('invite-guardian records target_email when provided', async () => {
+      const result = await controller.inviteGuardian(reqA(), { email: 'coparent@example.test' });
+      const row = await prisma.platformInvitation.findUnique({
+        where: { token: result.code },
+        select: { targetEmail: true },
+      });
+      expect(row?.targetEmail).toBe('coparent@example.test');
+    });
+
+    it('accepting GUARDIAN_INVITE adds caller to family_members + returns GUARDIAN result', async () => {
+      // Seed user A's family so the invitation has a target.
+      await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      const result = await controller.accept(reqB(), { code });
+      if (result.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+      expect(result.family.id).toBeTruthy();
+      expect(result.inviterName).toContain('A');
+
+      // user B is now a family_members row in user A's family.
+      const member = await prisma.familyMember.findUnique({
+        where: { personId: userBPersonId },
+        select: { familyId: true, memberRole: true, isPrimaryContact: true },
+      });
+      expect(member?.familyId).toBe(result.family.id);
+      expect(member?.isPrimaryContact).toBe(false);
+
+      // The invitation is ACCEPTED.
+      const invitation = await prisma.platformInvitation.findUnique({
+        where: { token: code },
+        select: { status: true, targetPersonId: true },
+      });
+      expect(invitation?.status).toBe('ACCEPTED');
+      expect(invitation?.targetPersonId).toBe(userBPersonId);
+    });
+
+    it('refuses a caller already in a family with a 400', async () => {
+      // user B is HoH of their own family — registration normally
+      // creates one; for the test, lazy-create by adding a placeholder.
+      await controller.create(reqB(), { firstName: 'B', lastName: 'Child' });
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      await expect(controller.accept(reqB(), { code })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('refuses the inviter accepting their own GUARDIAN_INVITE', async () => {
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      await expect(controller.accept(reqA(), { code })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+  });
+
+  // ─── LINKED-child edit — sync iam_person + family_children ──
+
+  describe('update — LINKED child', () => {
+    it('writes name + DOB + middleName + preferredName + notes to iam_person and mirrors to family_children', async () => {
+      // Create the LINKED row via FAMILY_INVITE so iam_person exists.
+      const code = (await controller.generateCode(reqA())).code;
+      const acceptResult = await controller.accept(reqB(), { code });
+      if (acceptResult.kind !== 'CHILD') throw new Error('expected CHILD result');
+      const linkedChildId = acceptResult.child.id;
+
+      const updated = await controller.update(reqA(), linkedChildId, {
+        firstName: 'Renamed',
+        lastName: 'Surname',
+        middleName: 'Middle',
+        preferredName: 'Nick',
+        dateOfBirth: '2010-04-12',
+        primaryPhone: '+1-555-0100',
+        notes: 'allergic to peanuts',
+      });
+      // family_children mirror shows the new name + DOB.
+      expect(updated.firstName).toBe('Renamed');
+      expect(updated.lastName).toBe('Surname');
+      expect(updated.dateOfBirth).toBe('2010-04-12');
+
+      // iam_person carries the full set of identity fields.
+      const person = await prisma.iamPerson.findUnique({
+        where: { id: userBPersonId },
+        select: {
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          preferredName: true,
+          primaryPhone: true,
+          notes: true,
+          dateOfBirth: true,
+        },
+      });
+      expect(person?.firstName).toBe('Renamed');
+      expect(person?.middleName).toBe('Middle');
+      expect(person?.lastName).toBe('Surname');
+      expect(person?.preferredName).toBe('Nick');
+      expect(person?.primaryPhone).toBe('+1-555-0100');
+      expect(person?.notes).toBe('allergic to peanuts');
+      // ISO date stored as 2010-04-12T00:00:00.000Z.
+      expect(person?.dateOfBirth?.toISOString().slice(0, 10)).toBe('2010-04-12');
+    });
+
+    it('PLACEHOLDER children still edit family_children directly and skip iam_person writes', async () => {
+      const child = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      const updated = await controller.update(reqA(), child.id, {
+        firstName: 'Sofie',
+        lastName: 'Edited',
+      });
+      expect(updated.firstName).toBe('Sofie');
+      expect(updated.lastName).toBe('Edited');
+      expect(updated.personId).toBeNull();
     });
   });
 });

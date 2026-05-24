@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -9,6 +9,7 @@ import {
   useDeleteFamilyChild,
   useFamilyChildren,
   useSendChildLink,
+  useUpdateFamilyChild,
   type FamilyChildDto,
   type FamilyChildStatus,
 } from '@/hooks/use-family-children';
@@ -125,7 +126,6 @@ function DetailCard({
   const removeChild = useDeleteFamilyChild(child.id);
   const cancelLink = useCancelChildLink(child.id);
   const badge = BADGES[child.status];
-  const age = computeAge(child.dateOfBirth);
 
   async function onCreateAccount() {
     try {
@@ -174,11 +174,7 @@ function DetailCard({
         )}
       </div>
 
-      <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <Field label="Date of birth" value={child.dateOfBirth ? formatDate(child.dateOfBirth) : '—'} />
-        <Field label="Age" value={age !== null ? `${age}` : '—'} />
-        <Field label="Gender" value={genderLabel(child.gender)} />
-      </dl>
+      <EditChildForm child={child} />
 
       {child.status === 'PENDING_LINK' && child.inviteCode && (
         <div className="mt-4 rounded-md border border-blue-100 bg-blue-50/40 p-3 text-xs text-blue-900">
@@ -198,9 +194,6 @@ function DetailCard({
               {createAccount.isPending ? 'Creating…' : 'Create Account'}
             </SecondaryButton>
             <SecondaryButton onClick={onSendLink}>Send Link Invitation</SecondaryButton>
-            <SecondaryButton onClick={() => router.push(`/family/add-child?edit=${child.id}`)}>
-              Edit
-            </SecondaryButton>
             <DangerButton onClick={onRemove} disabled={removeChild.isPending}>
               {removeChild.isPending ? 'Removing…' : 'Remove'}
             </DangerButton>
@@ -219,9 +212,6 @@ function DetailCard({
               disabled={cancelLink.isPending}
             >
               {cancelLink.isPending ? 'Cancelling…' : 'Cancel Link'}
-            </SecondaryButton>
-            <SecondaryButton onClick={() => router.push(`/family/add-child?edit=${child.id}`)}>
-              Edit
             </SecondaryButton>
           </>
         )}
@@ -362,16 +352,236 @@ function SendLinkModal({
   );
 }
 
-// ─── Small primitives + helpers ───────────────────────────
+// ─── Parent-edit form for the child ──────────────────────
 
-function Field({ label, value }: { label: string; value: string }) {
+/**
+ * Inline edit form for parents to maintain their child's info. The
+ * server's PATCH /family/children/:id endpoint accepts an extended
+ * payload — for LINKED children it writes the identity fields to
+ * iam_person and mirrors name/DOB onto platform_family_children;
+ * for PLACEHOLDER it writes only the family_children row (no
+ * iam_person exists yet).
+ *
+ * Field visibility:
+ *   PLACEHOLDER  → first / last / DOB / gender
+ *   PENDING_LINK → same as PLACEHOLDER (still no iam_person)
+ *   LINKED       → all of the above PLUS middle / preferred / phone /
+ *                  notes (iam_person fields)
+ */
+function EditChildForm({ child }: { child: FamilyChildDto }) {
+  const { toast } = useToast();
+  const update = useUpdateFamilyChild(child.id);
+  const isLinked = child.status === 'LINKED';
+
+  const [form, setForm] = useState({
+    firstName: child.firstName ?? '',
+    middleName: '',
+    lastName: child.lastName ?? '',
+    preferredName: '',
+    dateOfBirth: child.dateOfBirth ?? '',
+    gender: child.gender ?? '',
+    primaryPhone: '',
+    notes: '',
+  });
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+
+  // Re-sync when the underlying child row changes (after Save).
+  useEffect(() => {
+    setForm({
+      firstName: child.firstName ?? '',
+      middleName: '',
+      lastName: child.lastName ?? '',
+      preferredName: '',
+      dateOfBirth: child.dateOfBirth ?? '',
+      gender: child.gender ?? '',
+      primaryPhone: '',
+      notes: '',
+    });
+  }, [child.id, child.firstName, child.lastName, child.dateOfBirth, child.gender]);
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const v: typeof errors = {};
+    if (!form.firstName.trim()) v.firstName = 'First name is required';
+    if (!form.lastName.trim()) v.lastName = 'Last name is required';
+    if (Object.keys(v).length > 0) {
+      setErrors(v);
+      return;
+    }
+    try {
+      await update.mutateAsync({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        ...(isLinked
+          ? {
+              middleName: form.middleName.trim() || null,
+              preferredName: form.preferredName.trim() || null,
+              primaryPhone: form.primaryPhone.trim() || null,
+              notes: form.notes.trim() || null,
+            }
+          : {}),
+      });
+      toast('Saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="mt-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <EditField
+          id="firstName"
+          label="First name"
+          value={form.firstName}
+          onChange={(v) => setField('firstName', v)}
+          error={errors.firstName}
+          required
+        />
+        {isLinked && (
+          <EditField
+            id="middleName"
+            label="Middle name"
+            value={form.middleName}
+            onChange={(v) => setField('middleName', v)}
+          />
+        )}
+        <EditField
+          id="lastName"
+          label="Last name"
+          value={form.lastName}
+          onChange={(v) => setField('lastName', v)}
+          error={errors.lastName}
+          required
+        />
+        {isLinked && (
+          <EditField
+            id="preferredName"
+            label="Preferred name"
+            value={form.preferredName}
+            onChange={(v) => setField('preferredName', v)}
+            hint="Used throughout CampusOS instead of their first name."
+          />
+        )}
+        <EditField
+          id="dateOfBirth"
+          label="Date of birth"
+          type="date"
+          value={form.dateOfBirth}
+          onChange={(v) => setField('dateOfBirth', v)}
+        />
+        <div>
+          <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
+            Gender
+          </label>
+          <select
+            id="gender"
+            value={form.gender}
+            onChange={(e) => setField('gender', e.target.value)}
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          >
+            <option value="">Prefer not to say</option>
+            <option value="F">Female</option>
+            <option value="M">Male</option>
+            <option value="X">Non-binary</option>
+            <option value="O">Other</option>
+          </select>
+        </div>
+        {isLinked && (
+          <EditField
+            id="primaryPhone"
+            label="Phone"
+            type="tel"
+            value={form.primaryPhone}
+            onChange={(v) => setField('primaryPhone', v)}
+          />
+        )}
+      </div>
+
+      {isLinked && (
+        <div className="mt-4">
+          <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
+            Notes
+          </label>
+          <textarea
+            id="notes"
+            value={form.notes}
+            onChange={(e) => setField('notes', e.target.value)}
+            rows={3}
+            placeholder="Allergies, accommodations, things teachers should know…"
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+        </div>
+      )}
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="submit"
+          disabled={update.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+        >
+          {update.isPending && <LoadingSpinner size="sm" />}
+          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EditField({
+  id,
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required,
+  hint,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  hint?: string;
+  error?: string;
+}) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-900">{value}</dd>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        aria-invalid={!!error}
+        className={
+          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+          (error ? 'border-red-300' : 'border-gray-300')
+        }
+      />
+      {error ? (
+        <p className="mt-1 text-xs text-red-600">{error}</p>
+      ) : hint ? (
+        <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      ) : null}
     </div>
   );
 }
+
+// ─── Small primitives + helpers ───────────────────────────
 
 function SecondaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
@@ -403,29 +613,3 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function computeAge(iso: string | null): number | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getUTCFullYear() - d.getUTCFullYear();
-  const m = now.getUTCMonth() - d.getUTCMonth();
-  if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) age--;
-  return age;
-}
-
-function genderLabel(g: string | null): string {
-  if (!g) return '—';
-  switch (g) {
-    case 'F':
-      return 'Female';
-    case 'M':
-      return 'Male';
-    case 'X':
-      return 'Non-binary';
-    case 'O':
-      return 'Other';
-    default:
-      return g;
-  }
-}

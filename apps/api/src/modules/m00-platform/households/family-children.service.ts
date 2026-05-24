@@ -15,10 +15,13 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   FamilyChildDto,
+  FamilyHeaderDto,
+  FamilyLinkResultDto,
   FamilyMemberDto,
   FamilyViewDto,
   FamilyViewerRole,
   GenerateLinkCodeDto,
+  InviteGuardianDto,
   SendChildLinkDto,
   UpdateFamilyChildDto,
 } from './dto/family-child.dto';
@@ -248,37 +251,68 @@ export class FamilyChildrenService {
     dto: UpdateFamilyChildDto,
   ): Promise<FamilyChildDto> {
     const row = await this.requireOwnedRow(personId, childId);
-    if (row.status === 'LINKED') {
-      throw new BadRequestException(
-        'Cannot edit a LINKED child — name comes from iam_person; use the profile API',
-      );
-    }
-    const set: string[] = [];
-    const args: unknown[] = [];
-    let i = 1;
+
+    // For LINKED children, the iam_person row is the canonical source
+    // of name + DOB. Mirror those fields onto platform_family_children
+    // so the existing /family/children GET (which reads from the
+    // mirror) stays consistent without a join. middle_name +
+    // preferred_name + primary_phone + notes only exist on iam_person,
+    // so they're skipped silently for PLACEHOLDER children. gender
+    // lives on family_children for everyone — there's no
+    // iam_person.gender column.
+    const childSet: string[] = [];
+    const childArgs: unknown[] = [];
+    let ci = 1;
     if (dto.firstName !== undefined) {
-      set.push('first_name = $' + i++);
-      args.push(dto.firstName);
+      childSet.push('first_name = $' + ci++);
+      childArgs.push(dto.firstName);
     }
     if (dto.lastName !== undefined) {
-      set.push('last_name = $' + i++);
-      args.push(dto.lastName);
+      childSet.push('last_name = $' + ci++);
+      childArgs.push(dto.lastName);
     }
     if (dto.dateOfBirth !== undefined) {
-      set.push('date_of_birth = $' + i++ + '::date');
-      args.push(dto.dateOfBirth);
+      childSet.push('date_of_birth = $' + ci++ + '::date');
+      childArgs.push(dto.dateOfBirth);
     }
     if (dto.gender !== undefined) {
-      set.push('gender = $' + i++);
-      args.push(dto.gender);
+      childSet.push('gender = $' + ci++);
+      childArgs.push(dto.gender);
     }
-    if (set.length === 0) return this.toDto(row);
-    set.push('updated_at = now()');
-    args.push(childId);
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE platform.platform_family_children SET ${set.join(', ')} WHERE id = $${i}::uuid`,
-      ...args,
-    );
+
+    const personPatch: Record<string, unknown> = {};
+    if (row.status === 'LINKED' && row.person_id) {
+      if (dto.firstName !== undefined) personPatch.firstName = dto.firstName;
+      if (dto.middleName !== undefined) personPatch.middleName = dto.middleName;
+      if (dto.lastName !== undefined) personPatch.lastName = dto.lastName;
+      if (dto.preferredName !== undefined) personPatch.preferredName = dto.preferredName;
+      if (dto.primaryPhone !== undefined) personPatch.primaryPhone = dto.primaryPhone;
+      if (dto.notes !== undefined) personPatch.notes = dto.notes;
+      if (dto.dateOfBirth !== undefined) {
+        personPatch.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
+      }
+    }
+
+    if (childSet.length === 0 && Object.keys(personPatch).length === 0) {
+      return this.toDto(row);
+    }
+
+    const linkedPersonId = row.person_id;
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(personPatch).length > 0 && linkedPersonId) {
+        await tx.iamPerson.update({ where: { id: linkedPersonId }, data: personPatch });
+      }
+      if (childSet.length > 0) {
+        childSet.push('updated_at = now()');
+        childArgs.push(childId);
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_children
+           SET ${childSet.join(', ')}
+           WHERE id = $${ci}::uuid`,
+          ...childArgs,
+        );
+      }
+    });
     return this.requireById(childId);
   }
 
@@ -522,7 +556,7 @@ export class FamilyChildrenService {
     personId: string,
     accountId: string,
     dto: AcceptFamilyLinkDto,
-  ): Promise<FamilyChildDto> {
+  ): Promise<FamilyLinkResultDto> {
     await this.assertLinkRateLimit(accountId);
 
     const codeUpper = dto.code.toUpperCase();
@@ -545,15 +579,19 @@ export class FamilyChildrenService {
       throw new NotFoundException('Invalid or expired link code');
     }
 
+    if (invitation.type === 'GUARDIAN_INVITE') {
+      return this.acceptGuardianInvite(personId, invitation);
+    }
     if (invitation.type === 'FAMILY_INVITE') {
-      return this.acceptFamilyInvite(personId, invitation);
+      const child = await this.acceptFamilyInvite(personId, invitation);
+      return { kind: 'CHILD', child };
     }
     if (invitation.type === 'CHILD_LINK') {
       const metadata = invitation.metadata as { familyChildId?: string } | null;
-      if (metadata?.familyChildId) {
-        return this.acceptParentIssuedChildLink(personId, invitation, metadata.familyChildId);
-      }
-      return this.acceptChildIssuedLink(personId, invitation);
+      const child = metadata?.familyChildId
+        ? await this.acceptParentIssuedChildLink(personId, invitation, metadata.familyChildId)
+        : await this.acceptChildIssuedLink(personId, invitation);
+      return { kind: 'CHILD', child };
     }
 
     // Other invitation types (EMPLOYEE / PARENT_LINK / SUBSTITUTE)
@@ -590,6 +628,47 @@ export class FamilyChildrenService {
       expiresAt.toISOString(),
     );
     return { code, expiresAt: expiresAt.toISOString(), type: 'FAMILY_INVITE' };
+  }
+
+  /**
+   * POST /family/invite-guardian — parent generates a GUARDIAN_INVITE
+   * code. Whoever accepts is added to the family as a co-parent (a
+   * second HEAD_OF_HOUSEHOLD row in platform_family_members) and
+   * gains full read/write on every child in the family.
+   *
+   * Optional `email` lands on target_email so a future email-send
+   * worker has the address to use; the code itself is shareable out
+   * of band so the caller can also copy + paste it.
+   */
+  async generateGuardianInvite(
+    personId: string,
+    dto: InviteGuardianDto,
+  ): Promise<GenerateLinkCodeDto> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const code = this.generateLinkCode();
+    const invitationId = generateId();
+    const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_invitations
+         (id, type, token, inviter_person_id, target_email, metadata, status, expires_at, created_at)
+       VALUES ($1::uuid, 'GUARDIAN_INVITE', $2, $3::uuid, $4,
+               jsonb_build_object('familyId', $5::text),
+               'PENDING', $6::timestamptz, now())`,
+      invitationId,
+      code,
+      personId,
+      dto.email ?? null,
+      familyId,
+      expiresAt.toISOString(),
+    );
+    if (dto.email) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[guardian-invite] family=${familyId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
+      );
+    }
+    return { code, expiresAt: expiresAt.toISOString(), type: 'GUARDIAN_INVITE' };
   }
 
   /**
@@ -652,6 +731,81 @@ export class FamilyChildrenService {
     });
     await this.refreshPersonaCacheSafe(invitation.inviterPersonId);
     return this.requireById(familyChildId);
+  }
+
+  /**
+   * Accept a GUARDIAN_INVITE — add the caller as a co-parent on the
+   * inviter's family. Inserts a HEAD_OF_HOUSEHOLD (or upgrades a
+   * pre-existing row to is_primary_contact=false) so the new
+   * guardian appears alongside the inviter in /family.members[].
+   * Refuses if the caller is already a member (idempotent re-accept
+   * surfaces as a 400 rather than a UNIQUE-violation).
+   */
+  private async acceptGuardianInvite(
+    personId: string,
+    invitation: { id: string; inviterPersonId: string; metadata: unknown },
+  ): Promise<FamilyLinkResultDto> {
+    const metadata = invitation.metadata as { familyId?: string } | null;
+    const familyId = metadata?.familyId;
+    if (!familyId) {
+      throw new NotFoundException('Invalid or expired link code');
+    }
+    if (personId === invitation.inviterPersonId) {
+      throw new BadRequestException('You cannot accept your own family code');
+    }
+
+    // platform_family_members.person_id is UNIQUE — a person can only
+    // be a member of one family. If the caller is already a member of
+    // ANY family, refuse with a clear 400.
+    const existing = await this.prisma.familyMember.findUnique({
+      where: { personId },
+      select: { familyId: true },
+    });
+    if (existing) {
+      if (existing.familyId === familyId) {
+        throw new BadRequestException('You are already a guardian of this family');
+      }
+      throw new BadRequestException(
+        'You are already a member of another family. Leave that family before joining a new one.',
+      );
+    }
+
+    const memberId = generateId();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `INSERT INTO platform.platform_family_members
+           (id, family_id, person_id, member_role, is_primary_contact, joined_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, now())`,
+        memberId,
+        familyId,
+        personId,
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_invitations
+           SET status = 'ACCEPTED', target_person_id = $1::uuid, accepted_at = now()
+         WHERE id = $2::uuid`,
+        personId,
+        invitation.id,
+      );
+    });
+    // The new guardian gains a PARENT persona via /auth/me's
+    // resolveForPerson — the cache refresh below kicks that in
+    // immediately without waiting for a re-login.
+    await this.refreshPersonaCacheSafe(personId);
+
+    const family = await this.prisma.platformFamily.findUnique({
+      where: { id: familyId },
+      select: { id: true, name: true },
+    });
+    const inviter = await this.prisma.iamPerson.findUnique({
+      where: { id: invitation.inviterPersonId },
+      select: { firstName: true, lastName: true, preferredName: true },
+    });
+    const inviterName = inviter
+      ? [inviter.preferredName ?? inviter.firstName, inviter.lastName].filter(Boolean).join(' ')
+      : 'a parent';
+    const familyHeader: FamilyHeaderDto = { id: family?.id ?? familyId, name: family?.name ?? null };
+    return { kind: 'GUARDIAN', family: familyHeader, inviterName };
   }
 
   private async acceptFamilyInvite(

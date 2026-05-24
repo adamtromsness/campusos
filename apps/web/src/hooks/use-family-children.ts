@@ -30,9 +30,13 @@ export interface CreateFamilyChildPayload {
 
 export interface UpdateFamilyChildPayload {
   firstName?: string;
+  middleName?: string | null;
   lastName?: string;
+  preferredName?: string | null;
   dateOfBirth?: string;
   gender?: string;
+  primaryPhone?: string | null;
+  notes?: string | null;
 }
 
 export interface CreateChildAccountPayload {
@@ -214,7 +218,26 @@ export function useAcceptFamilyLink() {
 export interface GenerateLinkCodeDto {
   code: string;
   expiresAt: string;
-  type: 'FAMILY_INVITE' | 'CHILD_LINK';
+  type: 'FAMILY_INVITE' | 'CHILD_LINK' | 'GUARDIAN_INVITE';
+}
+
+export interface InviteGuardianPayload {
+  email?: string;
+}
+
+/**
+ * POST /family/invite-guardian — parent generates a GUARDIAN_INVITE
+ * code. Whoever accepts joins the family as a co-parent and gains
+ * full read/write on every child.
+ */
+export function useInviteGuardian() {
+  return useMutation({
+    mutationFn: (payload: InviteGuardianPayload) =>
+      apiFetch<GenerateLinkCodeDto>('/api/v1/family/invite-guardian', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+  });
 }
 
 /**
