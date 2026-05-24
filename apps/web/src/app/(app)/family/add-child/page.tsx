@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
+import { useAuthStore } from '@/lib/auth-store';
 import {
   useAcceptFamilyLink,
   useCreateFamilyChild,
@@ -45,12 +46,23 @@ export default function AddChildPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { refreshUser } = useAuthActions();
+  const user = useAuthStore((s) => s.user);
   const createChild = useCreateFamilyChild();
   const acceptLink = useAcceptFamilyLink();
   // We pre-bind the per-child account mutation lazily — see step-2
   // submit handlers below.
   const [step, setStep] = useState<1 | 2>(1);
-  const [basic, setBasic] = useState({ firstName: '', lastName: '', dateOfBirth: '', gender: '' });
+  // Default the child's last name to the parent's surname — most
+  // kids share it, and the parent can edit if not. First name stays
+  // blank because there's no sensible default. Reads from the
+  // Zustand auth store (preferredName/firstName aren't used as a
+  // surname; we only seed lastName).
+  const [basic, setBasic] = useState({
+    firstName: '',
+    lastName: user?.lastName ?? '',
+    dateOfBirth: '',
+    gender: '',
+  });
   const [basicErrors, setBasicErrors] = useState<{
     firstName?: string;
     lastName?: string;

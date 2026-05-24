@@ -609,7 +609,12 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
               {createAccount.isPending ? 'Creating…' : 'Create Account'}
             </SecondaryButton>
             <SecondaryButton onClick={onSendLink}>Send Link Invitation</SecondaryButton>
-            <SecondaryButton onClick={() => router.push(`/family/add-child?edit=${child.id}`)}>
+            {/* Edit lives on the detail page — its EditChildForm
+                pre-fills from the GET /family/children DTO, which now
+                joins iam_person for LINKED rows. The old route
+                /family/add-child?edit=… ignored the query param and
+                landed the parent on an empty wizard. */}
+            <SecondaryButton onClick={() => router.push(`/family/children/${child.id}`)}>
               Edit
             </SecondaryButton>
             <DangerButton onClick={onRemove} disabled={removeChild.isPending}>
@@ -635,7 +640,12 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
             >
               {cancelLink.isPending ? 'Cancelling…' : 'Cancel Link'}
             </SecondaryButton>
-            <SecondaryButton onClick={() => router.push(`/family/add-child?edit=${child.id}`)}>
+            {/* Edit lives on the detail page — its EditChildForm
+                pre-fills from the GET /family/children DTO, which now
+                joins iam_person for LINKED rows. The old route
+                /family/add-child?edit=… ignored the query param and
+                landed the parent on an empty wizard. */}
+            <SecondaryButton onClick={() => router.push(`/family/children/${child.id}`)}>
               Edit
             </SecondaryButton>
           </>
