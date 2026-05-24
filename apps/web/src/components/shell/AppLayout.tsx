@@ -11,6 +11,24 @@ import { EmergencyAlertBanner } from '@/components/notifications/EmergencyAlertB
 
 const GETTING_STARTED_PATH = '/getting-started';
 
+/**
+ * Routes a 0-persona user is allowed to reach from /getting-started.
+ * The unauthenticated public routes /find-schools and /invitations live
+ * outside the (app) group so they aren't subject to AppLayout's
+ * persona-presence bounce; this list covers the (app)-group onboarding
+ * destinations that the Getting Started cards link to. Matching is
+ * prefix-based so nested routes (e.g. /family/add-child/step-2) stay
+ * reachable.
+ */
+const ONBOARDING_ALLOWED_PREFIXES = ['/family', '/substitute'];
+
+function isOnboardingRoute(pathname: string): boolean {
+  if (pathname === GETTING_STARTED_PATH) return true;
+  return ONBOARDING_ALLOWED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p + '/'),
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
@@ -30,10 +48,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // see the onboarding page (it would be a dead end). Same logic
   // both directions so back-button + page reload + persona switcher
   // all stay coherent.
+  //
+  // Exception: a 0-persona user must be able to reach the (app)-group
+  // onboarding destinations linked from /getting-started (Add a child,
+  // Substitute register, and their sub-pages). Without this carve-out
+  // the launchpad cards appear inert — they navigate, then this effect
+  // immediately bounces the user back to /getting-started.
   useEffect(() => {
     if (status !== 'authenticated' || !user) return;
     const onGettingStarted = pathname === GETTING_STARTED_PATH;
-    if (user.personas.length === 0 && !onGettingStarted) {
+    if (user.personas.length === 0 && !isOnboardingRoute(pathname)) {
       router.replace(GETTING_STARTED_PATH);
     } else if (user.personas.length > 0 && onGettingStarted) {
       router.replace('/dashboard');
