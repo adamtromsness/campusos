@@ -292,11 +292,24 @@ export class ChildFoodAllergyEntry {
   @ApiPropertyOptional() notes?: string;
 }
 
+export const MEDICAL_SOURCES = ['FAMILY', 'CUSTOM'] as const;
+export type MedicalSource = (typeof MEDICAL_SOURCES)[number];
+
 export class ChildMedicalInfoDto {
   @ApiProperty() personId!: string;
   @ApiProperty({ type: [ChildAllergyEntry] }) allergies!: ChildAllergyEntry[];
   @ApiProperty({ type: [ChildMedicationEntry] }) medications!: ChildMedicationEntry[];
   @ApiProperty({ type: [ChildConditionEntry] }) conditions!: ChildConditionEntry[];
+  // 'FAMILY' (doctor + insurance inherit from the family record) or
+  // 'CUSTOM' (use the per-child columns). Defaults to FAMILY at
+  // insert time — most households share a doctor + insurance.
+  @ApiProperty({ enum: MEDICAL_SOURCES }) medicalSource!: MedicalSource;
+  // Doctor + insurance fields on the wire: when medicalSource is
+  // 'FAMILY' the server returns the family-level values here so the
+  // UI can render them without a second fetch; the per-child columns
+  // are still preserved for if the user toggles back to CUSTOM.
+  // The DTO doesn't distinguish — clients should display whatever
+  // the server sends.
   @ApiPropertyOptional() doctorName?: string | null;
   @ApiPropertyOptional() doctorPhone?: string | null;
   @ApiPropertyOptional() doctorClinic?: string | null;
@@ -318,6 +331,13 @@ export class UpdateChildMedicalInfoDto {
   @ApiPropertyOptional({ type: [ChildConditionEntry] })
   @IsOptional()
   conditions?: ChildConditionEntry[];
+  // Set to 'FAMILY' to inherit doctor + insurance from the family;
+  // set to 'CUSTOM' to use the per-child doctor* / insurance*
+  // columns sent in this same payload (or pre-existing on the row).
+  @ApiPropertyOptional({ enum: MEDICAL_SOURCES })
+  @IsOptional()
+  @IsIn(MEDICAL_SOURCES)
+  medicalSource?: MedicalSource;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) doctorPhone?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorClinic?: string | null;

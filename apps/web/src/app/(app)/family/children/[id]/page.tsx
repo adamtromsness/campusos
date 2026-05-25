@@ -13,6 +13,7 @@ import {
   useDeleteChildEmergencyContact,
   useDeleteFamilyChild,
   useFamilyChildren,
+  useFamilySettings,
   useSendChildLink,
   useUpdateChildDietary,
   useUpdateChildMedical,
@@ -23,6 +24,7 @@ import {
   type DietaryType,
   type FamilyChildDto,
   type FamilyChildStatus,
+  type MedicalSource,
 } from '@/hooks/use-family-children';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
@@ -627,19 +629,50 @@ function ContactTab({ child }: { child: FamilyChildDto }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <AddressPlaceholder />
+      <FamilyAddressCard />
       <PhoneNotesCard child={child} readOnly={readOnly} />
     </div>
   );
 }
 
-function AddressPlaceholder() {
+/**
+ * Family-inherited address card. The /family/settings record is the
+ * source of truth for now; per-child custom addresses are a future
+ * commit (would need new columns on the child row + a source toggle
+ * the same shape as Medical's). Today we always render the family
+ * address read-only with a deep-link to edit at the family level.
+ */
+function FamilyAddressCard() {
+  const { data, isLoading } = useFamilySettings();
   return (
-    <SectionCard title="Address" description="Coming soon — inherit from family or set a custom address per child.">
-      <p className="text-xs text-gray-500">
-        Family-level address settings ship next. Until then, address lives on each child&rsquo;s
-        school enrolment record.
-      </p>
+    <SectionCard
+      title="Address"
+      description="Inherited from your family settings. To use a different address for this child, contact support — per-child overrides are coming soon."
+    >
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : !data ||
+        (!data.addressLine1 && !data.city && !data.state && !data.postalCode) ? (
+        <p className="text-sm text-gray-500">No family address on file yet.</p>
+      ) : (
+        <div className="text-sm text-gray-700">
+          <p>{[data.addressLine1, data.addressLine2].filter(Boolean).join(', ')}</p>
+          <p>
+            {[data.city, data.state, data.postalCode].filter(Boolean).join(', ')}
+            {data.country && (data.city || data.state || data.postalCode) ? ', ' : ''}
+            {data.country}
+          </p>
+          {data.homePhone && <p className="mt-1 text-xs text-gray-500">Home phone: {data.homePhone}</p>}
+        </div>
+      )}
+      <div className="mt-3">
+        <Link
+          href="/family/settings"
+          className="text-sm font-medium text-campus-700 hover:text-campus-600"
+        >
+          Edit family address →
+        </Link>
+      </div>
     </SectionCard>
   );
 }
@@ -751,6 +784,7 @@ function MedicalSection({ childId }: { childId: string }) {
   const { data, isLoading } = useChildMedical(childId);
   const update = useUpdateChildMedical(childId);
   const { toast } = useToast();
+  const [source, setSource] = useState<MedicalSource>('FAMILY');
   const [doctor, setDoctor] = useState({
     name: '',
     phone: '',
@@ -765,6 +799,7 @@ function MedicalSection({ childId }: { childId: string }) {
 
   useEffect(() => {
     if (!data) return;
+    setSource(data.medicalSource);
     setDoctor({
       name: data.doctorName ?? '',
       phone: data.doctorPhone ?? '',
@@ -783,18 +818,47 @@ function MedicalSection({ childId }: { childId: string }) {
     setDoctorDirty(true);
   }
 
+  async function flipSource(next: MedicalSource) {
+    if (next === source) return;
+    try {
+      await update.mutateAsync({ medicalSource: next });
+      setSource(next);
+      toast(
+        next === 'FAMILY'
+          ? 'Now using family doctor & insurance'
+          : 'Switched to custom doctor & insurance for this child',
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not change source.', 'error');
+    }
+  }
+
   async function saveDoctor() {
     try {
-      await update.mutateAsync({
-        doctorName: doctor.name.trim() || null,
-        doctorPhone: doctor.phone.trim() || null,
-        doctorClinic: doctor.clinic.trim() || null,
-        insuranceProvider: doctor.insuranceProvider.trim() || null,
-        insurancePolicy: doctor.insurancePolicy.trim() || null,
-        insuranceGroup: doctor.insuranceGroup.trim() || null,
-        bloodType: doctor.bloodType.trim() || null,
-        medicalNotes: doctor.medicalNotes.trim() || null,
-      });
+      // When source is FAMILY the doctor/insurance fields are
+      // read-only (inherited); only the per-child bloodType and
+      // medicalNotes are writable in that mode. Server still accepts
+      // the full payload, but we send only the editable subset to
+      // avoid stomping the inherited values back onto the per-child
+      // columns.
+      const payload =
+        source === 'CUSTOM'
+          ? {
+              doctorName: doctor.name.trim() || null,
+              doctorPhone: doctor.phone.trim() || null,
+              doctorClinic: doctor.clinic.trim() || null,
+              insuranceProvider: doctor.insuranceProvider.trim() || null,
+              insurancePolicy: doctor.insurancePolicy.trim() || null,
+              insuranceGroup: doctor.insuranceGroup.trim() || null,
+              bloodType: doctor.bloodType.trim() || null,
+              medicalNotes: doctor.medicalNotes.trim() || null,
+            }
+          : {
+              bloodType: doctor.bloodType.trim() || null,
+              medicalNotes: doctor.medicalNotes.trim() || null,
+            };
+      await update.mutateAsync(payload);
       toast('Medical details saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
@@ -841,16 +905,54 @@ function MedicalSection({ childId }: { childId: string }) {
       />
 
       <div className="mt-4 rounded-md border border-gray-200 bg-gray-50/40 p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Doctor &amp; Insurance
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Doctor &amp; Insurance
+          </h3>
+          <SourceToggle
+            value={source}
+            onChange={(next) => void flipSource(next)}
+            busy={update.isPending}
+            familyLabel="Use family"
+            customLabel="Use custom"
+          />
+        </div>
+
+        {source === 'FAMILY' ? (
+          <>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
+              <ReadOnlyField label="Doctor name" value={doctor.name} />
+              <ReadOnlyField label="Doctor phone" value={doctor.phone} />
+              <div className="sm:col-span-2">
+                <ReadOnlyField label="Clinic" value={doctor.clinic} />
+              </div>
+              <ReadOnlyField label="Insurance provider" value={doctor.insuranceProvider} />
+              <ReadOnlyField label="Policy number" value={doctor.insurancePolicy} />
+              <ReadOnlyField label="Group number" value={doctor.insuranceGroup} />
+            </div>
+            <div className="mt-3">
+              <Link
+                href="/family/settings"
+                className="text-sm font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family medical info →
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <SectionField label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
+            <SectionField label="Doctor phone" value={doctor.phone} onChange={(v) => patchDoctor('phone', v)} />
+            <SectionField label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
+            <SectionField label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
+            <SectionField label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />
+            <SectionField label="Group number" value={doctor.insuranceGroup} onChange={(v) => patchDoctor('insuranceGroup', v)} />
+          </div>
+        )}
+
+        {/* bloodType + medicalNotes are per-child regardless of source —
+            a family-level "blood type" doesn't make sense. */}
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <SectionField label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
-          <SectionField label="Doctor phone" value={doctor.phone} onChange={(v) => patchDoctor('phone', v)} />
-          <SectionField label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
-          <SectionField label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
-          <SectionField label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />
-          <SectionField label="Group number" value={doctor.insuranceGroup} onChange={(v) => patchDoctor('insuranceGroup', v)} />
           <SectionField label="Blood type" value={doctor.bloodType} onChange={(v) => patchDoctor('bloodType', v)} />
         </div>
         <div className="mt-3">
@@ -876,6 +978,55 @@ function MedicalSection({ childId }: { childId: string }) {
         </div>
       </div>
     </SectionCard>
+  );
+}
+
+/**
+ * Compact two-state toggle used for the inheritance pickers. Doesn't
+ * carry a "modified" indicator — flipping it persists immediately
+ * because the source choice is a single field and a save-button per
+ * toggle would feel heavier than necessary.
+ */
+function SourceToggle({
+  value,
+  onChange,
+  busy,
+  familyLabel,
+  customLabel,
+}: {
+  value: MedicalSource;
+  onChange: (next: MedicalSource) => void;
+  busy: boolean;
+  familyLabel: string;
+  customLabel: string;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
+      <button
+        type="button"
+        onClick={() => onChange('FAMILY')}
+        disabled={busy}
+        className={cn(
+          'rounded px-3 py-1',
+          value === 'FAMILY' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
+          busy && 'opacity-60',
+        )}
+      >
+        {familyLabel}
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('CUSTOM')}
+        disabled={busy}
+        className={cn(
+          'rounded px-3 py-1',
+          value === 'CUSTOM' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
+          busy && 'opacity-60',
+        )}
+      >
+        {customLabel}
+      </button>
+    </div>
   );
 }
 

@@ -1909,11 +1909,12 @@ export class FamilyChildrenService {
   }
 
   async getChildMedical(callerPersonId: string, childId: string): Promise<ChildMedicalInfoDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     const row = await this.prisma.platformChildMedicalInfo.findUnique({
       where: { personId },
     });
-    return this.toMedicalDto(personId, row);
+    const family = await this.loadFamilyDoctorInsurance(familyId);
+    return this.toMedicalDto(personId, row, family);
   }
 
   async updateChildMedical(
@@ -1926,26 +1927,28 @@ export class FamilyChildrenService {
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_child_medical_info
          (id, person_id, family_id, allergies, medications, conditions,
-          doctor_name, doctor_phone, doctor_clinic,
+          medical_source, doctor_name, doctor_phone, doctor_clinic,
           insurance_provider, insurance_policy, insurance_group,
           blood_type, medical_notes)
        VALUES ($1::uuid, $2::uuid, $3::uuid,
                COALESCE($4::jsonb, '[]'::jsonb),
                COALESCE($5::jsonb, '[]'::jsonb),
                COALESCE($6::jsonb, '[]'::jsonb),
-               $7, $8, $9, $10, $11, $12, $13, $14)
+               COALESCE($7, 'FAMILY'),
+               $8, $9, $10, $11, $12, $13, $14, $15)
        ON CONFLICT (person_id) DO UPDATE SET
          allergies = COALESCE(EXCLUDED.allergies, platform_child_medical_info.allergies),
          medications = COALESCE(EXCLUDED.medications, platform_child_medical_info.medications),
          conditions = COALESCE(EXCLUDED.conditions, platform_child_medical_info.conditions),
-         doctor_name = COALESCE($7, platform_child_medical_info.doctor_name),
-         doctor_phone = COALESCE($8, platform_child_medical_info.doctor_phone),
-         doctor_clinic = COALESCE($9, platform_child_medical_info.doctor_clinic),
-         insurance_provider = COALESCE($10, platform_child_medical_info.insurance_provider),
-         insurance_policy = COALESCE($11, platform_child_medical_info.insurance_policy),
-         insurance_group = COALESCE($12, platform_child_medical_info.insurance_group),
-         blood_type = COALESCE($13, platform_child_medical_info.blood_type),
-         medical_notes = COALESCE($14, platform_child_medical_info.medical_notes),
+         medical_source = COALESCE($7, platform_child_medical_info.medical_source),
+         doctor_name = COALESCE($8, platform_child_medical_info.doctor_name),
+         doctor_phone = COALESCE($9, platform_child_medical_info.doctor_phone),
+         doctor_clinic = COALESCE($10, platform_child_medical_info.doctor_clinic),
+         insurance_provider = COALESCE($11, platform_child_medical_info.insurance_provider),
+         insurance_policy = COALESCE($12, platform_child_medical_info.insurance_policy),
+         insurance_group = COALESCE($13, platform_child_medical_info.insurance_group),
+         blood_type = COALESCE($14, platform_child_medical_info.blood_type),
+         medical_notes = COALESCE($15, platform_child_medical_info.medical_notes),
          updated_at = now()`,
       upsertId,
       personId,
@@ -1953,6 +1956,7 @@ export class FamilyChildrenService {
       dto.allergies !== undefined ? JSON.stringify(dto.allergies) : null,
       dto.medications !== undefined ? JSON.stringify(dto.medications) : null,
       dto.conditions !== undefined ? JSON.stringify(dto.conditions) : null,
+      dto.medicalSource ?? null,
       dto.doctorName ?? null,
       dto.doctorPhone ?? null,
       dto.doctorClinic ?? null,
@@ -1965,12 +1969,53 @@ export class FamilyChildrenService {
     return this.getChildMedical(callerPersonId, childId);
   }
 
+  /**
+   * Pulls just the doctor + insurance fields off the platform_families
+   * row so the per-child Medical DTO can render the inherited view
+   * without a second round-trip from the client.
+   */
+  private async loadFamilyDoctorInsurance(familyId: string): Promise<{
+    doctorName: string | null;
+    doctorPhone: string | null;
+    doctorClinic: string | null;
+    insuranceProvider: string | null;
+    insurancePolicy: string | null;
+    insuranceGroup: string | null;
+  } | null> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        doctor_name: string | null;
+        doctor_phone: string | null;
+        doctor_clinic: string | null;
+        insurance_provider: string | null;
+        insurance_policy: string | null;
+        insurance_group: string | null;
+      }>
+    >(
+      `SELECT doctor_name, doctor_phone, doctor_clinic,
+              insurance_provider, insurance_policy, insurance_group
+       FROM platform.platform_families WHERE id = $1::uuid LIMIT 1`,
+      familyId,
+    );
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      doctorName: r.doctor_name,
+      doctorPhone: r.doctor_phone,
+      doctorClinic: r.doctor_clinic,
+      insuranceProvider: r.insurance_provider,
+      insurancePolicy: r.insurance_policy,
+      insuranceGroup: r.insurance_group,
+    };
+  }
+
   private toMedicalDto(
     personId: string,
     row: {
       allergies: unknown;
       medications: unknown;
       conditions: unknown;
+      medicalSource: string;
       doctorName: string | null;
       doctorPhone: string | null;
       doctorClinic: string | null;
@@ -1980,26 +2025,37 @@ export class FamilyChildrenService {
       bloodType: string | null;
       medicalNotes: string | null;
     } | null,
+    family: {
+      doctorName: string | null;
+      doctorPhone: string | null;
+      doctorClinic: string | null;
+      insuranceProvider: string | null;
+      insurancePolicy: string | null;
+      insuranceGroup: string | null;
+    } | null,
   ): ChildMedicalInfoDto {
     if (!row) {
-      // Don't write an empty row eagerly — the upsert path handles
-      // first-write. Returning the empty shape lets the form render
-      // without an explicit 404 case.
+      // No per-child row yet — default to FAMILY-mode, with the
+      // family-record doctor + insurance surfaced on the wire so the
+      // UI can render them straight away.
       return {
         personId,
         allergies: [],
         medications: [],
         conditions: [],
-        doctorName: null,
-        doctorPhone: null,
-        doctorClinic: null,
-        insuranceProvider: null,
-        insurancePolicy: null,
-        insuranceGroup: null,
+        medicalSource: 'FAMILY',
+        doctorName: family?.doctorName ?? null,
+        doctorPhone: family?.doctorPhone ?? null,
+        doctorClinic: family?.doctorClinic ?? null,
+        insuranceProvider: family?.insuranceProvider ?? null,
+        insurancePolicy: family?.insurancePolicy ?? null,
+        insuranceGroup: family?.insuranceGroup ?? null,
         bloodType: null,
         medicalNotes: null,
       };
     }
+    const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
+    const useFamily = source === 'FAMILY' && family !== null;
     return {
       personId,
       allergies: Array.isArray(row.allergies) ? (row.allergies as ChildAllergyEntry[]) : [],
@@ -2007,12 +2063,13 @@ export class FamilyChildrenService {
         ? (row.medications as ChildMedicationEntry[])
         : [],
       conditions: Array.isArray(row.conditions) ? (row.conditions as ChildConditionEntry[]) : [],
-      doctorName: row.doctorName,
-      doctorPhone: row.doctorPhone,
-      doctorClinic: row.doctorClinic,
-      insuranceProvider: row.insuranceProvider,
-      insurancePolicy: row.insurancePolicy,
-      insuranceGroup: row.insuranceGroup,
+      medicalSource: source,
+      doctorName: useFamily ? family!.doctorName : row.doctorName,
+      doctorPhone: useFamily ? family!.doctorPhone : row.doctorPhone,
+      doctorClinic: useFamily ? family!.doctorClinic : row.doctorClinic,
+      insuranceProvider: useFamily ? family!.insuranceProvider : row.insuranceProvider,
+      insurancePolicy: useFamily ? family!.insurancePolicy : row.insurancePolicy,
+      insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
     };

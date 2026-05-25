@@ -437,11 +437,18 @@ export interface ChildFoodAllergyEntry {
   notes?: string;
 }
 
+export type MedicalSource = 'FAMILY' | 'CUSTOM';
+
 export interface ChildMedicalInfoDto {
   personId: string;
   allergies: ChildAllergyEntry[];
   medications: ChildMedicationEntry[];
   conditions: ChildConditionEntry[];
+  // When 'FAMILY' (default), the doctor/insurance fields below are
+  // inherited from the family record — clients render them read-only
+  // with a deep-link to /family/settings for edits. When 'CUSTOM',
+  // the per-child values are authoritative and editable.
+  medicalSource: MedicalSource;
   doctorName: string | null;
   doctorPhone: string | null;
   doctorClinic: string | null;
@@ -455,6 +462,7 @@ export interface UpdateChildMedicalInfoPayload {
   allergies?: ChildAllergyEntry[];
   medications?: ChildMedicationEntry[];
   conditions?: ChildConditionEntry[];
+  medicalSource?: MedicalSource;
   doctorName?: string | null;
   doctorPhone?: string | null;
   doctorClinic?: string | null;

@@ -446,6 +446,10 @@ model PlatformChildMedicalInfo {
   medications       Json     @default("[]")
   // JSONB list of { name, diagnosedDate, notes }
   conditions        Json     @default("[]")
+  // 'FAMILY' (inherit doctor + insurance from platform_families) or
+  // 'CUSTOM' (use the doctorName/doctorPhone/etc columns below).
+  // CHECK constraint enforces the enum at the DB level.
+  medicalSource     String   @default("FAMILY") @map("medical_source")
   doctorName        String?  @map("doctor_name")
   doctorPhone       String?  @map("doctor_phone")
   doctorClinic      String?  @map("doctor_clinic")
