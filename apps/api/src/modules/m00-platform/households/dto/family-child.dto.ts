@@ -4,6 +4,25 @@ import { IsDateString, IsEmail, IsOptional, IsString, Length, MaxLength } from '
 export const FAMILY_CHILD_STATUSES = ['PLACEHOLDER', 'PENDING_LINK', 'LINKED'] as const;
 export type FamilyChildStatus = (typeof FAMILY_CHILD_STATUSES)[number];
 
+/**
+ * accessLevel is the caller-relative authority on a family row. The
+ * server derives it from platform_users.managed_by_person_id and the
+ * authenticated caller's iam_person.id:
+ *
+ *   PLACEHOLDER   — status is PLACEHOLDER / PENDING_LINK / PENDING_INVITE.
+ *                   No linked iam_person yet. Edits go to the family
+ *                   row directly; access is parent-only.
+ *   MANAGED       — the linked iam_person's platform_users row has
+ *                   managed_by_person_id = caller. The caller is the
+ *                   account custodian and has full edit access.
+ *   INDEPENDENT   — the linked iam_person's account is either
+ *                   unmanaged (NULL managed_by) or managed by someone
+ *                   other than the caller. The caller can read but
+ *                   not write to the row's identity fields.
+ */
+export const FAMILY_ACCESS_LEVELS = ['PLACEHOLDER', 'MANAGED', 'INDEPENDENT'] as const;
+export type FamilyAccessLevel = (typeof FAMILY_ACCESS_LEVELS)[number];
+
 export class FamilyChildDto {
   @ApiProperty() id!: string;
   @ApiProperty() familyId!: string;
@@ -20,6 +39,7 @@ export class FamilyChildDto {
   @ApiPropertyOptional() primaryPhone!: string | null;
   @ApiPropertyOptional() notes!: string | null;
   @ApiProperty({ enum: FAMILY_CHILD_STATUSES }) status!: FamilyChildStatus;
+  @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
   @ApiPropertyOptional() inviteCode!: string | null;
   @ApiPropertyOptional() inviteEmail!: string | null;
   @ApiPropertyOptional() inviteSentAt!: string | null;
@@ -172,6 +192,7 @@ export class FamilyMemberDto {
   @ApiProperty() isPrimaryContact!: boolean;
   @ApiProperty() isCurrentUser!: boolean;
   @ApiProperty({ enum: FAMILY_MEMBER_STATUSES }) status!: FamilyMemberStatus;
+  @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
   @ApiPropertyOptional() inviteCode?: string | null;
   @ApiPropertyOptional() inviteSentAt?: string | null;
 }

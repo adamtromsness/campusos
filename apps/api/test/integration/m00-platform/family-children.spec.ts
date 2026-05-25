@@ -126,11 +126,41 @@ describe('integration:m00-platform/family-children', () => {
       'family:link-attempts:' + userAAccountId,
       'family:link-attempts:' + userBAccountId,
     );
-    // Wipe each user's family children + family between tests so order
-    // doesn't matter and `ensureFamilyForPerson` re-creates the family.
+    // Tear down everything we created on behalf of the two test
+    // users, in FK-safe order.
+    //
+    // The createAccountForChild + createAccountForMember flows
+    // synthesise iam_person + platform_users rows whose
+    // managed_by_person_id points back to one of the test users.
+    // UNIQUE(email) on platform_users would otherwise collide on
+    // re-runs that reuse the same synthetic + parent-typed emails.
+    //
+    // The broader "orphan iam_person" sweep we tried earlier
+    // misfired because other modules' test fixtures (sis_students,
+    // hr_employees, etc.) create iam_person rows too, and the
+    // platform.platform_students FK refused our DELETE. Track only
+    // the ids we touched here.
+    // Track every iam_person we'll need to delete: rows synthesised
+    // by createAccountForChild / createAccountForMember (managed_by =
+    // a test user) AND rows referenced by family_children in the
+    // test users' families (e.g. createChildAccount minors that
+    // managed_by catches; FAMILY_INVITE accept paths that don't
+    // create new iam_person rows are not in this set and aren't
+    // ours to delete anyway).
+    const managedRows = await prisma.$queryRawUnsafe<Array<{ person_id: string }>>(
+      `SELECT person_id::text AS person_id FROM platform.platform_users
+       WHERE managed_by_person_id = $1::uuid OR managed_by_person_id = $2::uuid`,
+      userAPersonId,
+      userBPersonId,
+    );
+    const managedPersonIds = managedRows.map((r) => r.person_id);
     for (const personId of [userAPersonId, userBPersonId]) {
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_invitations WHERE inviter_person_id = $1::uuid`,
+        personId,
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_users WHERE managed_by_person_id = $1::uuid`,
         personId,
       );
       await prisma.$executeRawUnsafe(
@@ -138,8 +168,15 @@ describe('integration:m00-platform/family-children', () => {
            (SELECT family_id FROM platform.platform_family_members WHERE person_id = $1::uuid)`,
         personId,
       );
+      // Delete every member row in the test user's family — not just
+      // their own. createAccountForMember adds rows whose person_id
+      // is a synthesised managed user (not the test user), and
+      // sendMemberInvite leaves rows with person_id NULL; both must
+      // be wiped before we can drop the managed iam_persons further
+      // below.
       await prisma.$executeRawUnsafe(
-        `DELETE FROM platform.platform_family_members WHERE person_id = $1::uuid`,
+        `DELETE FROM platform.platform_family_members WHERE family_id IN
+           (SELECT family_id FROM platform.platform_family_members WHERE person_id = $1::uuid)`,
         personId,
       );
       // Reset persona-cache so each test starts from 0 personas. The
@@ -148,6 +185,20 @@ describe('integration:m00-platform/family-children', () => {
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_personas WHERE person_id = $1::uuid`,
         personId,
+      );
+    }
+    // Drop persona-cache + iam_person rows for the managed accounts
+    // we just deleted. By this point: platform_users / family_members /
+    // family_children references are gone; only platform_personas could
+    // still hold a pointer. Wipe in that order.
+    if (managedPersonIds.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_personas WHERE person_id = ANY($1::uuid[])`,
+        managedPersonIds,
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_person WHERE id = ANY($1::uuid[])`,
+        managedPersonIds,
       );
     }
     await prisma.$executeRawUnsafe(
@@ -236,45 +287,36 @@ describe('integration:m00-platform/family-children', () => {
     expect(updated.lastName).toBe('A');
   });
 
-  it('patch LINKED child writes to iam_person and mirrors to family_children', async () => {
-    // Promote a placeholder to LINKED directly, then exercise the
-    // dual-table write path. The dedicated test suite for the full
-    // GUARDIAN_INVITE → LINKED happy-path lives in "update — LINKED
-    // child" at the bottom of this file.
+  it('patch MANAGED LINKED child writes to iam_person and mirrors to family_children', async () => {
+    // The dual-table write only fires for MANAGED children (the
+    // caller is the account custodian). Use createChildAccount which
+    // stamps platform_users.managed_by_person_id = caller. The
+    // INDEPENDENT-rejection contract is locked by a separate spec
+    // below.
     const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-    const linkedPersonId = generateId();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)
-       VALUES ($1::uuid, 'Sofia', 'A', 'STUDENT', true)`,
-      linkedPersonId,
-    );
-    await prisma.$executeRawUnsafe(
-      `UPDATE platform.platform_family_children
-         SET person_id = $1::uuid, status = 'LINKED', linked_at = now()
-       WHERE id = $2::uuid`,
-      linkedPersonId,
-      c.id,
-    );
+    const linked = await controller.createAccount(reqA(), c.id, {});
+    expect(linked.accessLevel).toBe('MANAGED');
 
     const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie' });
     expect(updated.firstName).toBe('Sophie');
     const person = await prisma.iamPerson.findUnique({
-      where: { id: linkedPersonId },
+      where: { id: linked.personId! },
       select: { firstName: true },
     });
     expect(person?.firstName).toBe('Sophie');
+  });
 
-    // Unlink before deleting the iam_person row — the FK from
-    // platform_family_children would otherwise block cleanup.
-    await prisma.$executeRawUnsafe(
-      `UPDATE platform.platform_family_children SET person_id = NULL, status = 'PLACEHOLDER'
-       WHERE id = $1::uuid`,
-      c.id,
-    );
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
-      linkedPersonId,
-    );
+  it('patch INDEPENDENT LINKED child → 403', async () => {
+    // user B accepts user A's FAMILY_INVITE → B is LINKED in A's
+    // family with their own (unmanaged) platform_users row, so the
+    // row resolves to INDEPENDENT from A's viewpoint.
+    const code = (await controller.generateCode(reqA())).code;
+    const result = await controller.accept(reqB(), { code });
+    if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
+    expect(result.child.accessLevel).toBe('INDEPENDENT');
+    await expect(
+      controller.update(reqA(), result.child.id, { firstName: 'Hacked' }),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   // ─── DELETE /family/children/:id ───────────────────────────
@@ -655,11 +697,17 @@ describe('integration:m00-platform/family-children', () => {
 
   describe('update — LINKED child', () => {
     it('writes name + DOB + middleName + preferredName + notes to iam_person and mirrors to family_children', async () => {
-      // Create the LINKED row via FAMILY_INVITE so iam_person exists.
-      const code = (await controller.generateCode(reqA())).code;
-      const acceptResult = await controller.accept(reqB(), { code });
-      if (acceptResult.kind !== 'CHILD') throw new Error('expected CHILD result');
-      const linkedChildId = acceptResult.child.id;
+      // Use createChildAccount so the LINKED row is MANAGED — the
+      // dual-table write path is gated on access level. The
+      // FAMILY_INVITE / accept flow produces an INDEPENDENT row and
+      // is covered by its own 403 spec above.
+      const placeholder = await controller.create(reqA(), {
+        firstName: 'Original',
+        lastName: 'Surname',
+      });
+      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linkedChildId = linked.id;
+      const linkedPersonId = linked.personId!;
 
       const updated = await controller.update(reqA(), linkedChildId, {
         firstName: 'Renamed',
@@ -682,9 +730,12 @@ describe('integration:m00-platform/family-children', () => {
       expect(updated.primaryPhone).toBe('+1-555-0100');
       expect(updated.notes).toBe('allergic to peanuts');
 
-      // iam_person carries the full set of identity fields.
+      // iam_person carries the full set of identity fields. (The
+      // managed minor's iam_person was created by createChildAccount
+      // above; userBPersonId from the older FAMILY_INVITE variant
+      // doesn't apply here.)
       const person = await prisma.iamPerson.findUnique({
-        where: { id: userBPersonId },
+        where: { id: linkedPersonId },
         select: {
           firstName: true,
           middleName: true,
@@ -778,7 +829,7 @@ describe('integration:m00-platform/family-children', () => {
       expect(activeRow?.isCurrentUser).toBe(true);
     });
 
-    it('updateMember edits placeholder fields; ACTIVE rejects with 400', async () => {
+    it('updateMember edits placeholder fields; ACTIVE INDEPENDENT rejects with 403', async () => {
       const m = await controller.addMember(reqA(), { firstName: 'Jane', lastName: 'A' });
       const patched = await controller.updateMember(reqA(), m.id, {
         firstName: 'Janet',
@@ -787,12 +838,17 @@ describe('integration:m00-platform/family-children', () => {
       expect(patched.firstName).toBe('Janet');
       expect(patched.email).toBe('janet@example.invalid');
 
-      // Find the caller's own ACTIVE row → PATCH must 400.
+      // The caller's own ACTIVE row has managed_by_person_id NULL
+      // (their account was inserted directly by the fixture, not
+      // via createMemberAccount). From their own viewpoint that
+      // resolves to INDEPENDENT → 403. The matching MANAGED-reject
+      // (400, "edit via /profile") path is covered by a separate
+      // spec below.
       const view = await controller.getFamily(reqA());
-      const activeRow = view!.members.find((m) => m.status === 'ACTIVE');
+      const activeRow = view!.members.find((mm) => mm.status === 'ACTIVE');
       await expect(
         controller.updateMember(reqA(), activeRow!.id, { firstName: 'Hacked' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      ).rejects.toMatchObject({ status: 403 });
     });
 
     it('removeMember deletes PLACEHOLDER; ACTIVE rejects', async () => {

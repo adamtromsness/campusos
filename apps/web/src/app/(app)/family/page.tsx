@@ -17,6 +17,7 @@ import {
   useInviteGuardian,
   useSendChildLink,
   useSendMemberInvite,
+  type FamilyAccessLevel,
   type FamilyChildDto,
   type FamilyChildStatus,
   type FamilyMemberDto,
@@ -773,19 +774,23 @@ const MEMBER_BADGES: Record<FamilyMemberStatus, { bg: string; text: string; labe
   ACTIVE: { bg: 'bg-green-100', text: 'text-green-800', label: 'Active' },
 };
 
-function StatusBadgeForMember({ status }: { status: FamilyMemberStatus }) {
-  const b = MEMBER_BADGES[status];
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-        b.bg,
-        b.text,
-      )}
-    >
-      {b.label}
-    </span>
-  );
+function StatusBadgeForMember({
+  status,
+  accessLevel,
+}: {
+  status: FamilyMemberStatus;
+  accessLevel?: FamilyAccessLevel;
+}) {
+  // PENDING_INVITE stays a dedicated lifecycle badge — the access
+  // level is still PLACEHOLDER until accept. ACTIVE rows defer to
+  // the access-level badge (Managed by you / Independent).
+  if (status === 'PENDING_INVITE') {
+    return <PillBadge style={MEMBER_BADGES.PENDING_INVITE} />;
+  }
+  if (status === 'ACTIVE' && accessLevel) {
+    return <PillBadge style={accessBadge(accessLevel)} />;
+  }
+  return <PillBadge style={MEMBER_BADGES[status]} />;
 }
 
 function GuardianCard({
@@ -802,9 +807,23 @@ function GuardianCard({
   const removeMember = useDeleteFamilyMember(member.id);
 
   async function onCreateAccount() {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Create a managed account for ' +
+          member.firstName +
+          '?\n\n' +
+          'You will manage this account. ' +
+          member.firstName +
+          " won't need to accept an invitation — you'll have full control over their profile and settings.\n\n" +
+          'If they should manage their own account, use "Send Invite" instead.',
+      )
+    ) {
+      return;
+    }
     try {
       await createAccount.mutateAsync({ email: member.email ?? undefined });
-      toast(member.firstName + ' now has a CampusOS account', 'success');
+      toast(member.firstName + ' now has a managed account', 'success');
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Could not create the account. Try again.';
@@ -835,7 +854,7 @@ function GuardianCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xl font-semibold text-gray-900">{heroName}</p>
-            <StatusBadgeForMember status={member.status} />
+            <StatusBadgeForMember status={member.status} accessLevel={member.accessLevel} />
             {member.isCurrentUser && <span className="text-xs text-gray-500">(you)</span>}
           </div>
           <p className="mt-1 text-sm text-gray-500">
@@ -970,7 +989,7 @@ function ChildViewerSiblingsSection({
                       <p className="text-sm font-medium text-gray-900">
                         {s.firstName} {s.lastName}
                       </p>
-                      <StatusBadgeForChild status={s.status} />
+                      <StatusBadgeForChild status={s.status} accessLevel={s.accessLevel} />
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
                       {[
@@ -1035,17 +1054,55 @@ const BADGES: Record<FamilyChildStatus, BadgeStyle> = {
   LINKED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Connected' },
 };
 
-function StatusBadgeForChild({ status }: { status: FamilyChildStatus }) {
+/**
+ * Pick a status badge that surfaces the account's access level when
+ * meaningful: MANAGED = "you own this account", INDEPENDENT = "they
+ * own their account, you can read it." For pre-link states we fall
+ * back to the lifecycle status (Account needed / Link pending).
+ */
+function accessBadge(accessLevel: FamilyAccessLevel): BadgeStyle {
+  if (accessLevel === 'MANAGED') {
+    return { bg: 'bg-emerald-100', text: 'text-emerald-800', label: '🛡️ Managed by you' };
+  }
+  if (accessLevel === 'INDEPENDENT') {
+    return { bg: 'bg-sky-100', text: 'text-sky-800', label: '🔗 Independent' };
+  }
+  // PLACEHOLDER access level — caller decides whether the row is in
+  // pre-link or invite-sent state via pendingLabel.
+  return { bg: 'bg-amber-100', text: 'text-amber-800', label: '⏳ No account' };
+}
+
+function StatusBadgeForChild({
+  status,
+  accessLevel,
+}: {
+  status: FamilyChildStatus;
+  accessLevel?: FamilyAccessLevel;
+}) {
+  // PENDING_LINK has a dedicated badge — the access level is still
+  // PLACEHOLDER until the link completes, but the lifecycle stage is
+  // worth surfacing on its own. PLACEHOLDER + LINKED defer to the
+  // access-level badge.
+  if (status === 'PENDING_LINK') {
+    return <PillBadge style={BADGES.PENDING_LINK} />;
+  }
+  if (accessLevel) {
+    return <PillBadge style={accessBadge(accessLevel)} />;
+  }
   const b = BADGES[status];
+  return <PillBadge style={b} />;
+}
+
+function PillBadge({ style }: { style: BadgeStyle }) {
   return (
     <span
       className={cn(
         'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-        b.bg,
-        b.text,
+        style.bg,
+        style.text,
       )}
     >
-      {b.label}
+      {style.label}
     </span>
   );
 }
@@ -1063,6 +1120,20 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
   const isUnder13 = age !== null && age < 13;
 
   async function onCreateAccount() {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Create a managed account for ' +
+          child.firstName +
+          '?\n\n' +
+          'You will manage this account. ' +
+          child.firstName +
+          " won't need to accept an invitation — you'll have full control over their profile and settings. Recommended for children under 13.\n\n" +
+          'For older children who already have their own account, use "Send Link Invitation" instead.',
+      )
+    ) {
+      return;
+    }
     try {
       // For the simple "Create Account" button on the card we don't
       // collect an email — under-13 accounts are parent-managed
@@ -1070,7 +1141,7 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
       // if they want their own email-based access. The wizard
       // collects the email when the user explicitly picks Card C.
       await createAccount.mutateAsync({});
-      toast(`${child.firstName} now has a CampusOS account`, 'success');
+      toast(`${child.firstName} now has a managed account`, 'success');
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Could not create the account. Try again.';
@@ -1101,7 +1172,7 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xl font-semibold text-gray-900">{heroName}</p>
-            <StatusBadgeForChild status={child.status} />
+            <StatusBadgeForChild status={child.status} accessLevel={child.accessLevel} />
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {[
@@ -1176,16 +1247,16 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
           </>
         )}
         {child.status === 'LINKED' && (
-          // /family/children/[id] is the parent's edit surface — it
-          // patches both iam_person and platform_family_children for
-          // LINKED children in one transaction. The /profile/[personId]
-          // route is admin-only and 403s parents, so this is the
-          // canonical "view + edit a kid" entry point.
+          // MANAGED children: the parent IS the account custodian,
+          // PATCH /family/children/:id writes both iam_person and the
+          // family-children mirror. INDEPENDENT children: the account
+          // holder owns their identity; the detail page still renders
+          // a read-only view so the parent can see name/DOB/status.
           <Link
             href={`/family/children/${child.id}`}
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            View / Edit
+            {child.accessLevel === 'MANAGED' ? 'Edit Profile' : 'View Profile'}
           </Link>
         )}
       </div>

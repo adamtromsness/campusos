@@ -16,6 +16,7 @@ import {
   CreateChildAccountDto,
   CreateFamilyChildDto,
   CreateMemberAccountDto,
+  FamilyAccessLevel,
   FamilyChildDto,
   FamilyHeaderDto,
   FamilyLinkResultDto,
@@ -49,6 +50,24 @@ interface FamilyChildRow {
   invite_sent_at: string | null;
   linked_at: string | null;
   created_at: string;
+  managed_by_person_id: string | null;
+}
+
+function computeAccessLevel(
+  status: string,
+  managedByPersonId: string | null,
+  viewerPersonId: string,
+): FamilyAccessLevel {
+  // PLACEHOLDER + every other pre-link state: the row has no linked
+  // iam_person yet, so there's no "account holder" to manage. Edit
+  // permission comes from family membership, not account custody.
+  if (status !== 'LINKED' && status !== 'ACTIVE') return 'PLACEHOLDER';
+  // LINKED / ACTIVE: account is in custody of the viewer iff
+  // platform_users.managed_by_person_id matches the viewer's
+  // iam_person.id. Anything else (NULL or another person) means the
+  // account holder owns their identity and the viewer is read-only.
+  if (managedByPersonId && managedByPersonId === viewerPersonId) return 'MANAGED';
+  return 'INDEPENDENT';
 }
 
 const LINK_CODE_TTL_HOURS = 72;
@@ -130,6 +149,7 @@ export class FamilyChildrenService {
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
+        managed_by_person_id: string | null;
       }>
     >(
       `SELECT pfm.id::text AS id,
@@ -142,9 +162,11 @@ export class FamilyChildrenService {
               pfm.is_primary_contact,
               pfm.status,
               pfm.invite_code,
-              pfm.invite_sent_at::text AS invite_sent_at
+              pfm.invite_sent_at::text AS invite_sent_at,
+              pu.managed_by_person_id::text AS managed_by_person_id
        FROM platform.platform_family_members pfm
        LEFT JOIN platform.iam_person p ON p.id = pfm.person_id
+       LEFT JOIN platform.platform_users pu ON pu.person_id = pfm.person_id
        WHERE pfm.family_id = $1::uuid
        ORDER BY pfm.is_primary_contact DESC, pfm.joined_at ASC`,
       resolved.familyId,
@@ -160,6 +182,15 @@ export class FamilyChildrenService {
       isPrimaryContact: r.is_primary_contact,
       isCurrentUser: r.person_id !== null && r.person_id === personId,
       status: r.status as FamilyMemberDto['status'],
+      // ACTIVE rows mapping to a status the helper recognises as
+      // linked (LINKED is its child-side analogue) → MANAGED if
+      // managed_by matches the viewer, otherwise INDEPENDENT.
+      // PLACEHOLDER + PENDING_INVITE fall through to 'PLACEHOLDER'.
+      accessLevel: computeAccessLevel(
+        r.status === 'ACTIVE' ? 'LINKED' : r.status,
+        r.managed_by_person_id,
+        personId,
+      ),
       inviteCode: r.invite_code,
       inviteSentAt: r.invite_sent_at,
     }));
@@ -174,7 +205,7 @@ export class FamilyChildrenService {
       viewerRole: resolved.role,
       viewerPersonId: personId,
       members,
-      children: childRows.map((r) => this.toDto(r)),
+      children: childRows.map((r) => this.toDto(r, personId)),
     };
   }
 
@@ -252,7 +283,7 @@ export class FamilyChildrenService {
       this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       familyId,
     );
-    return rows.map((r) => this.toDto(r));
+    return rows.map((r) => this.toDto(r, personId));
   }
 
   async create(personId: string, dto: CreateFamilyChildDto): Promise<FamilyChildDto> {
@@ -273,7 +304,7 @@ export class FamilyChildrenService {
       dto.dateOfBirth ?? null,
       dto.gender ?? null,
     );
-    return this.requireById(id);
+    return this.requireById(id, personId);
   }
 
   async update(
@@ -282,6 +313,18 @@ export class FamilyChildrenService {
     dto: UpdateFamilyChildDto,
   ): Promise<FamilyChildDto> {
     const row = await this.requireOwnedRow(personId, childId);
+
+    // INDEPENDENT children own their own identity — only the account
+    // holder (or an admin via a future surface) can edit. The caller
+    // can still see the row via GET because they're a parent in the
+    // family, but PATCH refuses.
+    const accessLevel = computeAccessLevel(row.status, row.managed_by_person_id, personId);
+    if (accessLevel === 'INDEPENDENT') {
+      throw new HttpException(
+        'This account is managed by the account holder. You can view but not edit their information.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
 
     // For LINKED children, the iam_person row is the canonical source
     // of name + DOB. Mirror those fields onto platform_family_children
@@ -333,7 +376,7 @@ export class FamilyChildrenService {
     }
 
     if (childSet.length === 0 && Object.keys(personPatch).length === 0) {
-      return this.toDto(row);
+      return this.toDto(row, personId);
     }
 
     const linkedPersonId = row.person_id;
@@ -352,7 +395,7 @@ export class FamilyChildrenService {
         );
       }
     });
-    return this.requireById(childId);
+    return this.requireById(childId, personId);
   }
 
   /**
@@ -415,7 +458,7 @@ export class FamilyChildrenService {
         childId,
       );
     });
-    return this.requireById(childId);
+    return this.requireById(childId, personId);
   }
 
   // ─── Account creation + linking (Step 6) ───────────────────
@@ -489,7 +532,7 @@ export class FamilyChildrenService {
     });
 
     await this.refreshPersonaCacheSafe(personId);
-    return this.requireById(childId);
+    return this.requireById(childId, personId);
   }
 
   /**
@@ -559,7 +602,7 @@ export class FamilyChildrenService {
       `[child-link-invite] family_child=${childId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
     );
 
-    return this.requireById(childId);
+    return this.requireById(childId, personId);
   }
 
   /**
@@ -754,13 +797,18 @@ export class FamilyChildrenService {
       dto.lastName.trim(),
       dto.email?.trim() || null,
     );
-    return this.requireMemberById(id);
+    return this.requireMemberById(id, personId);
   }
 
   /**
    * PATCH /family/members/:id — edit a PLACEHOLDER or PENDING_INVITE
-   * guardian's display fields. ACTIVE rows reject: linked guardians
-   * own their identity via /profile + their iam_person row.
+   * guardian's display fields. ACTIVE rows reject: an ACTIVE
+   * INDEPENDENT guardian owns their identity via /profile + their
+   * own iam_person row; an ACTIVE MANAGED guardian (created via
+   * /family/members/:id/create-account) currently still routes
+   * through this same row, but we refuse PATCH here and direct
+   * those edits through the child/profile-edit path that already
+   * writes both iam_person + the family-members mirror correctly.
    */
   async updateMember(
     personId: string,
@@ -769,8 +817,15 @@ export class FamilyChildrenService {
   ): Promise<FamilyMemberDto> {
     const row = await this.requireOwnedMemberRow(personId, memberId);
     if (row.status === 'ACTIVE') {
+      const accessLevel = computeAccessLevel('LINKED', row.managed_by_person_id ?? null, personId);
+      if (accessLevel === 'INDEPENDENT') {
+        throw new HttpException(
+          'This account is managed by the account holder. You can view but not edit their information.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
       throw new BadRequestException(
-        'Cannot edit a linked guardian — they manage their own profile via /profile',
+        'Cannot edit a linked guardian here — edit their profile via /profile instead.',
       );
     }
     const set: string[] = [];
@@ -858,15 +913,22 @@ export class FamilyChildrenService {
         row.last_name ?? '',
       );
       await tx.$executeRawUnsafe(
+        // managed_by_person_id = the parent who created the account.
+        // This stamps the new guardian's platform_users row as a
+        // MANAGED account from the caller's perspective — they're
+        // the custodian, and PATCH /family/members/:id will let them
+        // through. The new guardian becomes INDEPENDENT relative to
+        // other family members.
         `INSERT INTO platform.platform_users
            (id, person_id, email, display_name, account_status, account_type,
-            mfa_enabled, is_minor_account, created_at)
+            mfa_enabled, is_minor_account, managed_by_person_id, created_at)
          VALUES ($1::uuid, $2::uuid, $3, $4, 'PENDING_VERIFICATION', 'HUMAN',
-                 false, false, now())`,
+                 false, false, $5::uuid, now())`,
         newAccountId,
         newPersonId,
         email,
         ((row.first_name ?? '') + ' ' + (row.last_name ?? '')).trim() || 'Family member',
+        personId,
       );
       await tx.$executeRawUnsafe(
         `UPDATE platform.platform_family_members
@@ -1008,7 +1070,7 @@ export class FamilyChildrenService {
       );
     });
     await this.refreshPersonaCacheSafe(invitation.inviterPersonId);
-    return this.requireById(familyChildId);
+    return this.requireById(familyChildId, personId);
   }
 
   /**
@@ -1140,7 +1202,7 @@ export class FamilyChildrenService {
       invitationId: invitation.id,
     });
     await this.refreshPersonaCacheSafe(invitation.inviterPersonId);
-    return this.requireById(newChildId);
+    return this.requireById(newChildId, personId);
   }
 
   private async acceptChildIssuedLink(
@@ -1159,7 +1221,7 @@ export class FamilyChildrenService {
     });
     // The CALLER is the parent here; refresh their persona cache.
     await this.refreshPersonaCacheSafe(personId);
-    return this.requireById(newChildId);
+    return this.requireById(newChildId, personId);
   }
 
   /**
@@ -1354,10 +1416,10 @@ export class FamilyChildrenService {
     return row;
   }
 
-  private async requireById(childId: string): Promise<FamilyChildDto> {
+  private async requireById(childId: string, viewerPersonId: string): Promise<FamilyChildDto> {
     const row = await this.findById(childId);
     if (!row) throw new NotFoundException('Family child not found');
-    return this.toDto(row);
+    return this.toDto(row, viewerPersonId);
   }
 
   private async findById(childId: string): Promise<FamilyChildRow | null> {
@@ -1401,13 +1463,15 @@ export class FamilyChildrenService {
       '  pfc.invite_code, pfc.invite_email, ' +
       '  pfc.invite_sent_at::text AS invite_sent_at, ' +
       '  pfc.linked_at::text AS linked_at, ' +
-      '  pfc.created_at::text AS created_at ' +
+      '  pfc.created_at::text AS created_at, ' +
+      '  pu.managed_by_person_id::text AS managed_by_person_id ' +
       'FROM platform.platform_family_children pfc ' +
-      'LEFT JOIN platform.iam_person p ON p.id = pfc.person_id '
+      'LEFT JOIN platform.iam_person p ON p.id = pfc.person_id ' +
+      'LEFT JOIN platform.platform_users pu ON pu.person_id = pfc.person_id '
     );
   }
 
-  private toDto(r: FamilyChildRow): FamilyChildDto {
+  private toDto(r: FamilyChildRow, viewerPersonId: string): FamilyChildDto {
     return {
       id: r.id,
       familyId: r.family_id,
@@ -1421,6 +1485,7 @@ export class FamilyChildrenService {
       primaryPhone: r.primary_phone,
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
+      accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, viewerPersonId),
       inviteCode: r.invite_code,
       inviteEmail: r.invite_email,
       inviteSentAt: r.invite_sent_at,
@@ -1483,6 +1548,7 @@ export class FamilyChildrenService {
     email: string | null;
     invite_code: string | null;
     invite_sent_at: string | null;
+    managed_by_person_id: string | null;
   }> {
     const familyId = await this.findFamilyForPerson(personId);
     const rows = await this.prisma.$queryRawUnsafe<
@@ -1498,14 +1564,18 @@ export class FamilyChildrenService {
         email: string | null;
         invite_code: string | null;
         invite_sent_at: string | null;
+        managed_by_person_id: string | null;
       }>
     >(
-      `SELECT id::text AS id, family_id::text AS family_id, person_id::text AS person_id,
-              member_role::text AS member_role, is_primary_contact, status,
-              first_name, last_name, email, invite_code,
-              invite_sent_at::text AS invite_sent_at
-       FROM platform.platform_family_members
-       WHERE id = $1::uuid`,
+      `SELECT pfm.id::text AS id, pfm.family_id::text AS family_id,
+              pfm.person_id::text AS person_id,
+              pfm.member_role::text AS member_role, pfm.is_primary_contact,
+              pfm.status, pfm.first_name, pfm.last_name, pfm.email,
+              pfm.invite_code, pfm.invite_sent_at::text AS invite_sent_at,
+              pu.managed_by_person_id::text AS managed_by_person_id
+       FROM platform.platform_family_members pfm
+       LEFT JOIN platform.platform_users pu ON pu.person_id = pfm.person_id
+       WHERE pfm.id = $1::uuid`,
       memberId,
     );
     const row = rows[0];
@@ -1533,6 +1603,7 @@ export class FamilyChildrenService {
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
+        managed_by_person_id: string | null;
       }>
     >(
       `SELECT pfm.id::text AS id,
@@ -1545,9 +1616,11 @@ export class FamilyChildrenService {
               pfm.is_primary_contact,
               pfm.status,
               pfm.invite_code,
-              pfm.invite_sent_at::text AS invite_sent_at
+              pfm.invite_sent_at::text AS invite_sent_at,
+              pu.managed_by_person_id::text AS managed_by_person_id
        FROM platform.platform_family_members pfm
        LEFT JOIN platform.iam_person p ON p.id = pfm.person_id
+       LEFT JOIN platform.platform_users pu ON pu.person_id = pfm.person_id
        WHERE pfm.id = $1::uuid`,
       memberId,
     );
@@ -1564,6 +1637,11 @@ export class FamilyChildrenService {
       isPrimaryContact: row.is_primary_contact,
       isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
       status: row.status as FamilyMemberDto['status'],
+      accessLevel: computeAccessLevel(
+        row.status === 'ACTIVE' ? 'LINKED' : row.status,
+        row.managed_by_person_id,
+        viewerPersonId ?? '',
+      ),
       inviteCode: row.invite_code,
       inviteSentAt: row.invite_sent_at,
     };
@@ -1595,6 +1673,15 @@ export class FamilyChildrenService {
       isPrimaryContact: row.is_primary_contact,
       isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
       status: row.status as FamilyMemberDto['status'],
+      // toMemberDto is only called from updateMember after a no-op
+      // PATCH (no fields supplied), where the row was loaded via
+      // requireOwnedMemberRow which doesn't fetch managed_by. The
+      // call site has already passed assertNotChildViewer + the
+      // ACTIVE-reject guard, so the access level here is purely
+      // informational — be conservative and report PLACEHOLDER for
+      // non-ACTIVE, INDEPENDENT for ACTIVE.
+      accessLevel:
+        row.status === 'ACTIVE' ? 'INDEPENDENT' : 'PLACEHOLDER',
       inviteCode: row.invite_code,
       inviteSentAt: row.invite_sent_at,
     };

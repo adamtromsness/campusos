@@ -5,6 +5,20 @@ import { apiFetch } from '@/lib/api-client';
 
 export type FamilyChildStatus = 'PLACEHOLDER' | 'PENDING_LINK' | 'LINKED';
 
+/**
+ * accessLevel is the caller-relative authority on a family row.
+ * Server derives it from platform_users.managed_by_person_id:
+ *
+ *   PLACEHOLDER — pre-link state, no iam_person yet. Edits go to
+ *                 the family row directly.
+ *   MANAGED     — the linked account's managed_by_person_id is the
+ *                 caller. The caller is the custodian and PATCH
+ *                 endpoints accept full identity edits.
+ *   INDEPENDENT — the linked account is unmanaged or managed by
+ *                 someone else. PATCH endpoints return 403.
+ */
+export type FamilyAccessLevel = 'PLACEHOLDER' | 'MANAGED' | 'INDEPENDENT';
+
 export interface FamilyChildDto {
   id: string;
   familyId: string;
@@ -21,6 +35,7 @@ export interface FamilyChildDto {
   primaryPhone: string | null;
   notes: string | null;
   status: FamilyChildStatus;
+  accessLevel: FamilyAccessLevel;
   inviteCode: string | null;
   inviteEmail: string | null;
   inviteSentAt: string | null;
@@ -83,6 +98,7 @@ export interface FamilyMemberDto {
   isPrimaryContact: boolean;
   isCurrentUser: boolean;
   status: FamilyMemberStatus;
+  accessLevel: FamilyAccessLevel;
   inviteCode: string | null;
   inviteSentAt: string | null;
 }
