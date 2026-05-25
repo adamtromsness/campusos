@@ -10,6 +10,8 @@ import {
 } from '@/hooks/use-family-children';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
+import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
+import { cn } from '@/components/ui/cn';
 
 /**
  * /family/settings — household-wide shared attributes. Children
@@ -28,6 +30,14 @@ export default function FamilySettingsPage() {
 
   const [form, setForm] = useState<UpdateFamilySettingsPayload>({});
   const [initial, setInitial] = useState<UpdateFamilySettingsPayload>({});
+  // Cast to a plain Record so the hook can iterate keys uniformly —
+  // UpdateFamilySettingsPayload has many narrow optional fields but
+  // the dirty diff only cares about per-key equality.
+  const { isDirty, dirtyFields } = useFormDirty(
+    form as Record<string, unknown>,
+    initial as Record<string, unknown>,
+  );
+  useBeforeUnloadOnDirty(isDirty);
 
   useEffect(() => {
     if (!data) return;
@@ -69,12 +79,11 @@ export default function FamilySettingsPage() {
     );
   }
 
-  const dirty = isDirty(form, initial);
   const editable = data.canEdit;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!editable || !dirty) return;
+    if (!editable || !isDirty) return;
     try {
       await update.mutateAsync(form);
       toast('Family settings saved', 'success');
@@ -110,6 +119,7 @@ export default function FamilySettingsPage() {
             placeholder='e.g. "The Tromsness Family"'
             disabled={!editable}
             hint="Used in invitations and the family-page heading. Leave blank to use the household last name."
+              dirty={dirtyFields.has('displayName')}
           />
         </Card>
 
@@ -122,6 +132,7 @@ export default function FamilySettingsPage() {
               onChange={(v) => setForm((f) => ({ ...f, addressLine1: v }))}
               disabled={!editable}
               className="sm:col-span-2"
+              dirty={dirtyFields.has('addressLine1')}
             />
             <Field
               id="addressLine2"
@@ -130,6 +141,7 @@ export default function FamilySettingsPage() {
               onChange={(v) => setForm((f) => ({ ...f, addressLine2: v }))}
               disabled={!editable}
               className="sm:col-span-2"
+              dirty={dirtyFields.has('addressLine2')}
             />
             <Field
               id="city"
@@ -137,6 +149,7 @@ export default function FamilySettingsPage() {
               value={form.city ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, city: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('city')}
             />
             <Field
               id="state"
@@ -144,6 +157,7 @@ export default function FamilySettingsPage() {
               value={form.state ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, state: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('state')}
             />
             <Field
               id="postalCode"
@@ -151,6 +165,7 @@ export default function FamilySettingsPage() {
               value={form.postalCode ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, postalCode: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('postalCode')}
             />
             <Field
               id="country"
@@ -158,6 +173,7 @@ export default function FamilySettingsPage() {
               value={form.country ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, country: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('country')}
             />
             <Field
               id="homePhone"
@@ -167,6 +183,7 @@ export default function FamilySettingsPage() {
               onChange={(v) => setForm((f) => ({ ...f, homePhone: v }))}
               disabled={!editable}
               className="sm:col-span-2"
+              dirty={dirtyFields.has('homePhone')}
             />
           </div>
         </Card>
@@ -179,6 +196,7 @@ export default function FamilySettingsPage() {
               value={form.doctorName ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, doctorName: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('doctorName')}
             />
             <Field
               id="doctorPhone"
@@ -187,6 +205,7 @@ export default function FamilySettingsPage() {
               value={form.doctorPhone ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, doctorPhone: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('doctorPhone')}
             />
             <Field
               id="doctorClinic"
@@ -195,6 +214,7 @@ export default function FamilySettingsPage() {
               onChange={(v) => setForm((f) => ({ ...f, doctorClinic: v }))}
               disabled={!editable}
               className="sm:col-span-2"
+              dirty={dirtyFields.has('doctorClinic')}
             />
           </div>
         </Card>
@@ -208,6 +228,7 @@ export default function FamilySettingsPage() {
               onChange={(v) => setForm((f) => ({ ...f, insuranceProvider: v }))}
               disabled={!editable}
               className="sm:col-span-2"
+              dirty={dirtyFields.has('insuranceProvider')}
             />
             <Field
               id="insurancePolicy"
@@ -215,6 +236,7 @@ export default function FamilySettingsPage() {
               value={form.insurancePolicy ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, insurancePolicy: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('insurancePolicy')}
             />
             <Field
               id="insuranceGroup"
@@ -222,6 +244,7 @@ export default function FamilySettingsPage() {
               value={form.insuranceGroup ?? ''}
               onChange={(v) => setForm((f) => ({ ...f, insuranceGroup: v }))}
               disabled={!editable}
+              dirty={dirtyFields.has('insuranceGroup')}
             />
           </div>
         </Card>
@@ -230,7 +253,7 @@ export default function FamilySettingsPage() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={!dirty || update.isPending}
+              disabled={!isDirty || update.isPending}
               className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
             >
               {update.isPending && <LoadingSpinner size="sm" />}
@@ -299,6 +322,7 @@ function Field({
   hint,
   disabled,
   className,
+  dirty,
 }: {
   id: string;
   label: string;
@@ -309,11 +333,19 @@ function Field({
   hint?: string;
   disabled?: boolean;
   className?: string;
+  dirty?: boolean;
 }) {
   return (
     <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
       </label>
       <input
         id={id}
@@ -322,19 +354,15 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+          dirty
+            ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+            : 'border border-gray-300',
+        )}
       />
       {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
     </div>
   );
 }
 
-function isDirty(a: UpdateFamilySettingsPayload, b: UpdateFamilySettingsPayload): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<
-    keyof UpdateFamilySettingsPayload
-  >;
-  for (const k of keys) {
-    if ((a[k] ?? '') !== (b[k] ?? '')) return true;
-  }
-  return false;
-}

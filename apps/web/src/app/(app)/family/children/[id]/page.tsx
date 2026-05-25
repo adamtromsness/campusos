@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -31,6 +31,7 @@ import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
+import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 
 /**
  * /family/children/[id] — tabbed detail view for a family child.
@@ -313,34 +314,33 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
   const update = useUpdateFamilyChild(child.id);
   const isLinked = child.status === 'LINKED';
 
-  const [form, setForm] = useState({
-    firstName: child.firstName ?? '',
-    middleName: child.middleName ?? '',
-    lastName: child.lastName ?? '',
-    preferredName: child.preferredName ?? '',
-    dateOfBirth: child.dateOfBirth ?? '',
-    gender: child.gender ?? '',
-  });
-  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
-
-  useEffect(() => {
-    setForm({
+  const initial = useMemo(
+    () => ({
       firstName: child.firstName ?? '',
       middleName: child.middleName ?? '',
       lastName: child.lastName ?? '',
       preferredName: child.preferredName ?? '',
       dateOfBirth: child.dateOfBirth ?? '',
       gender: child.gender ?? '',
-    });
-  }, [
-    child.id,
-    child.firstName,
-    child.middleName,
-    child.lastName,
-    child.preferredName,
-    child.dateOfBirth,
-    child.gender,
-  ]);
+    }),
+    [
+      child.firstName,
+      child.middleName,
+      child.lastName,
+      child.preferredName,
+      child.dateOfBirth,
+      child.gender,
+    ],
+  );
+
+  const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
+
+  useEffect(() => {
+    setForm(initial);
+  }, [child.id, initial]);
 
   function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -386,6 +386,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             onChange={(v) => setField('firstName', v)}
             error={errors.firstName}
             required
+            dirty={dirtyFields.has('firstName')}
           />
           {isLinked && (
             <EditField
@@ -393,6 +394,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
               label="Middle name"
               value={form.middleName}
               onChange={(v) => setField('middleName', v)}
+              dirty={dirtyFields.has('middleName')}
             />
           )}
           <EditField
@@ -402,6 +404,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             onChange={(v) => setField('lastName', v)}
             error={errors.lastName}
             required
+            dirty={dirtyFields.has('lastName')}
           />
           {isLinked && (
             <EditField
@@ -410,6 +413,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
               value={form.preferredName}
               onChange={(v) => setField('preferredName', v)}
               hint="Used throughout CampusOS instead of their first name."
+              dirty={dirtyFields.has('preferredName')}
             />
           )}
           <EditField
@@ -418,16 +422,29 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             type="date"
             value={form.dateOfBirth}
             onChange={(v) => setField('dateOfBirth', v)}
+            dirty={dirtyFields.has('dateOfBirth')}
           />
           <div>
             <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
               Gender
+              {dirtyFields.has('gender') && (
+                <span
+                  aria-label="Modified"
+                  title="Modified — save to keep this change"
+                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                />
+              )}
             </label>
             <select
               id="gender"
               value={form.gender}
               onChange={(e) => setField('gender', e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              className={cn(
+                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                dirtyFields.has('gender')
+                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                  : 'border border-gray-300',
+              )}
             >
               <option value="">Prefer not to say</option>
               <option value="F">Female</option>
@@ -441,7 +458,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
         <div className="mt-5 flex justify-end">
           <button
             type="submit"
-            disabled={update.isPending}
+            disabled={!isDirty || update.isPending}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
           >
             {update.isPending && <LoadingSpinner size="sm" />}
@@ -680,19 +697,23 @@ function FamilyAddressCard() {
 function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: boolean }) {
   const { toast } = useToast();
   const update = useUpdateFamilyChild(child.id);
-  const [phone, setPhone] = useState(child.primaryPhone ?? '');
-  const [notes, setNotes] = useState(child.notes ?? '');
+  const initial = useMemo(
+    () => ({ phone: child.primaryPhone ?? '', notes: child.notes ?? '' }),
+    [child.primaryPhone, child.notes],
+  );
+  const [form, setForm] = useState(initial);
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
 
   useEffect(() => {
-    setPhone(child.primaryPhone ?? '');
-    setNotes(child.notes ?? '');
-  }, [child.id, child.primaryPhone, child.notes]);
+    setForm(initial);
+  }, [child.id, initial]);
 
   async function save() {
     try {
       await update.mutateAsync({
-        primaryPhone: phone.trim() || null,
-        notes: notes.trim() || null,
+        primaryPhone: form.phone.trim() || null,
+        notes: form.notes.trim() || null,
       });
       toast('Saved', 'success');
     } catch (err) {
@@ -723,28 +744,41 @@ function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: 
           id="primaryPhone"
           label="Phone"
           type="tel"
-          value={phone}
-          onChange={setPhone}
+          value={form.phone}
+          onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+          dirty={dirtyFields.has('phone')}
         />
       </div>
       <div className="mt-4">
         <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
           Notes
+          {dirtyFields.has('notes') && (
+            <span
+              aria-label="Modified"
+              title="Modified — save to keep this change"
+              className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+            />
+          )}
         </label>
         <textarea
           id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          value={form.notes}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           rows={3}
           placeholder="Allergies, accommodations, things teachers should know…"
-          className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          className={cn(
+            'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+            dirtyFields.has('notes')
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
+          )}
         />
       </div>
       <div className="mt-4 flex justify-end">
         <button
           type="button"
           onClick={() => void save()}
-          disabled={update.isPending}
+          disabled={!isDirty || update.isPending}
           className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
         >
           {update.isPending && <LoadingSpinner size="sm" />}
@@ -1629,6 +1663,7 @@ function EditField({
   required,
   hint,
   error,
+  dirty,
 }: {
   id: string;
   label: string;
@@ -1638,12 +1673,20 @@ function EditField({
   required?: boolean;
   hint?: string;
   error?: string;
+  dirty?: boolean;
 }) {
   return (
     <div>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
       </label>
       <input
         id={id}
@@ -1652,10 +1695,14 @@ function EditField({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         aria-invalid={!!error}
-        className={
-          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
-          (error ? 'border-red-300' : 'border-gray-300')
-        }
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+          error
+            ? 'border border-red-300'
+            : dirty
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
+        )}
       />
       {error ? (
         <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -1673,6 +1720,7 @@ function SectionField({
   placeholder,
   required,
   className,
+  dirty,
 }: {
   label: string;
   value: string;
@@ -1680,19 +1728,32 @@ function SectionField({
   placeholder?: string;
   required?: boolean;
   className?: string;
+  dirty?: boolean;
 }) {
   return (
     <div className={className}>
       <label className="block text-xs font-medium text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
       </label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+          dirty
+            ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+            : 'border border-gray-300',
+        )}
       />
     </div>
   );
