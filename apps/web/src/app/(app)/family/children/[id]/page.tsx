@@ -296,16 +296,34 @@ function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
 function AccountReadOnly({ child }: { child: FamilyChildDto }) {
   return (
     <SectionCard>
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Three name fields on one row so the natural left-to-right
+          reading order matches how people write a full name. */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <ReadOnlyField label="First name" value={child.firstName} />
         <ReadOnlyField label="Middle name" value={child.middleName} />
         <ReadOnlyField label="Last name" value={child.lastName} />
+      </div>
+      <div className="mt-4">
         <ReadOnlyField label="Preferred name" value={child.preferredName} />
-        <ReadOnlyField label="Date of birth" value={child.dateOfBirth ? formatDate(child.dateOfBirth) : null} />
+      </div>
+      <div className="mt-4">
+        <ReadOnlyField label="Email" value={child.email} />
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <ReadOnlyField
+          label="Date of birth"
+          value={child.dateOfBirth ? formatDate(child.dateOfBirth) : null}
+        />
         <ReadOnlyField label="Gender" value={genderLabel(child.gender)} />
       </div>
-      {child.linkedAt && (
-        <p className="mt-4 text-xs text-gray-500">Connected since {formatDate(child.linkedAt)}</p>
+      {(child.linkedAt || child.accessLevel === 'INDEPENDENT') && (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-700">Account status</p>
+          <p className="mt-1 text-sm text-gray-900">
+            {child.linkedAt ? 'Connected since ' + formatDate(child.linkedAt) : 'Connected'}
+            {child.accessLevel === 'INDEPENDENT' ? ' · Independent account' : ' · Managed by you'}
+          </p>
+        </div>
       )}
     </SectionCard>
   );
@@ -380,7 +398,11 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
   return (
     <SectionCard>
       <form onSubmit={onSubmit} noValidate>
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* Row 1: three name fields side-by-side. Reads naturally
+            left-to-right (first, middle, last) and frees the second
+            row for preferred name, which is conceptually a single
+            value per person rather than half of a name pair. */}
+        <div className="grid gap-4 sm:grid-cols-3">
           <EditField
             id="firstName"
             label="First name"
@@ -390,15 +412,13 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             required
             dirty={dirtyFields.has('firstName')}
           />
-          {isLinked && (
-            <EditField
-              id="middleName"
-              label="Middle name"
-              value={form.middleName}
-              onChange={(v) => setField('middleName', v)}
-              dirty={dirtyFields.has('middleName')}
-            />
-          )}
+          <EditField
+            id="middleName"
+            label="Middle name"
+            value={form.middleName}
+            onChange={(v) => setField('middleName', v)}
+            dirty={dirtyFields.has('middleName')}
+          />
           <EditField
             id="lastName"
             label="Last name"
@@ -408,7 +428,13 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             required
             dirty={dirtyFields.has('lastName')}
           />
-          {isLinked && (
+        </div>
+
+        {/* Preferred name gets its own full-width row — it's the
+            name that actually surfaces throughout the app, and a
+            cramped half-width field undersells that. */}
+        {isLinked && (
+          <div className="mt-4">
             <EditField
               id="preferredName"
               label="Preferred name"
@@ -417,7 +443,20 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
               hint="Used throughout CampusOS instead of their first name."
               dirty={dirtyFields.has('preferredName')}
             />
-          )}
+          </div>
+        )}
+
+        {/* Email — read-only here even for managed accounts. Email
+            changes are an identity-management concern (Keycloak
+            credential rotation, MFA re-verification) and don't
+            belong on the family profile form. */}
+        {isLinked && (
+          <div className="mt-4">
+            <ReadOnlyField label="Email" value={child.email} />
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <EditField
             id="dateOfBirth"
             label="Date of birth"
@@ -454,6 +493,16 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
             </select>
           </div>
         </div>
+
+        {isLinked && child.linkedAt && (
+          <div className="mt-4">
+            <p className="text-xs font-medium text-gray-700">Account status</p>
+            <p className="mt-1 text-sm text-gray-900">
+              Connected since {formatDate(child.linkedAt)} ·{' '}
+              {child.accessLevel === 'INDEPENDENT' ? 'Independent account' : 'Managed by you'}
+            </p>
+          </div>
+        )}
 
         <div className="mt-5 flex justify-end">
           <button

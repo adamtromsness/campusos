@@ -57,6 +57,11 @@ export class FamilyChildDto {
   // contacts. See the per-tab UI for the semantics.
   @ApiProperty({ enum: EMERGENCY_CONTACT_SOURCES })
   emergencyContactSource!: EmergencyContactSource;
+  // Login email — joins platform_users.email. Populated for LINKED
+  // children only; PLACEHOLDER / PENDING_LINK have no platform_users
+  // row yet and this is null. Read-only on this DTO — email changes
+  // go through the identity-management surface, not /family/children.
+  @ApiPropertyOptional() email!: string | null;
   @ApiPropertyOptional() inviteCode!: string | null;
   @ApiPropertyOptional() inviteEmail!: string | null;
   @ApiPropertyOptional() inviteSentAt!: string | null;

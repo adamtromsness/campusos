@@ -43,6 +43,9 @@ export interface FamilyChildDto {
   // as additive "additional contacts for this child only".
   // CUSTOM → only per-child rows are used; family contacts ignored.
   emergencyContactSource: EmergencyContactSource;
+  // Login email from platform_users.email. LINKED children only;
+  // null for pre-link rows. Read-only on this surface.
+  email: string | null;
   inviteCode: string | null;
   inviteEmail: string | null;
   inviteSentAt: string | null;

@@ -63,6 +63,10 @@ interface FamilyChildRow {
   notes: string | null;
   status: string;
   emergency_contact_source: string;
+  // Login email — joins through platform_users for LINKED children
+  // only. PLACEHOLDER / PENDING_LINK rows have no platform_users row
+  // yet and this will be null.
+  email: string | null;
   invite_code: string | null;
   invite_email: string | null;
   invite_sent_at: string | null;
@@ -1773,6 +1777,7 @@ export class FamilyChildrenService {
       '  p.notes AS notes, ' +
       '  pfc.status, ' +
       '  pfc.emergency_contact_source AS emergency_contact_source, ' +
+      '  pu.email AS email, ' +
       '  pfc.invite_code, pfc.invite_email, ' +
       '  pfc.invite_sent_at::text AS invite_sent_at, ' +
       '  pfc.linked_at::text AS linked_at, ' +
@@ -1801,6 +1806,7 @@ export class FamilyChildrenService {
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, viewerPersonId),
       emergencyContactSource:
         r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
+      email: r.email,
       inviteCode: r.invite_code,
       inviteEmail: r.invite_email,
       inviteSentAt: r.invite_sent_at,
