@@ -67,6 +67,19 @@ describe('integration:m00-platform/family-children', () => {
 
   afterAll(async () => {
     for (const personId of [userAPersonId, userBPersonId]) {
+      // platform_child_* all FK family_id → platform_families; drop
+      // them before the family cleanup below.
+      for (const table of [
+        'platform_child_medical_info',
+        'platform_child_emergency_contacts',
+        'platform_child_dietary_info',
+      ]) {
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM platform.${table} WHERE family_id IN
+             (SELECT family_id FROM platform.platform_family_members WHERE person_id = $1::uuid)`,
+          personId,
+        );
+      }
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_family_children WHERE family_id IN
            (SELECT family_id FROM platform.platform_family_members WHERE person_id = $1::uuid)`,
@@ -98,6 +111,33 @@ describe('integration:m00-platform/family-children', () => {
         `DELETE FROM platform.platform_invitations
          WHERE inviter_person_id = $1::uuid OR target_person_id = $1::uuid`,
         personId,
+      );
+    }
+    // Managed minor accounts have managed_by_person_id = test user
+    // with ON DELETE RESTRICT, so wipe them before the iam_person
+    // delete below. The associated iam_person rows are then orphans
+    // we also need to drop — collect their ids first.
+    const managedRows = await prisma.$queryRawUnsafe<Array<{ person_id: string }>>(
+      `SELECT person_id::text AS person_id FROM platform.platform_users
+       WHERE managed_by_person_id = $1::uuid OR managed_by_person_id = $2::uuid`,
+      userAPersonId,
+      userBPersonId,
+    );
+    const managedPersonIds = managedRows.map((r) => r.person_id);
+    for (const personId of [userAPersonId, userBPersonId]) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_users WHERE managed_by_person_id = $1::uuid`,
+        personId,
+      );
+    }
+    if (managedPersonIds.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_personas WHERE person_id = ANY($1::uuid[])`,
+        managedPersonIds,
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_person WHERE id = ANY($1::uuid[])`,
+        managedPersonIds,
       );
     }
     for (const accountId of [userAAccountId, userBAccountId]) {
@@ -154,6 +194,18 @@ describe('integration:m00-platform/family-children', () => {
       userBPersonId,
     );
     const managedPersonIds = managedRows.map((r) => r.person_id);
+    // Wipe the new child-section rows — these tables FK family_id
+    // → platform_families and only this test writes to them today,
+    // so a full nuke is the simplest way to avoid orphan rows from
+    // a previous failed run blocking the family_members /
+    // platform_families cleanup further down.
+    for (const table of [
+      'platform_child_medical_info',
+      'platform_child_emergency_contacts',
+      'platform_child_dietary_info',
+    ]) {
+      await prisma.$executeRawUnsafe(`DELETE FROM platform.${table}`);
+    }
     for (const personId of [userAPersonId, userBPersonId]) {
       await prisma.$executeRawUnsafe(
         `DELETE FROM platform.platform_invitations WHERE inviter_person_id = $1::uuid`,
@@ -925,6 +977,107 @@ describe('integration:m00-platform/family-children', () => {
         userBPersonId,
       );
       expect(Number(dupRows[0]!.cnt)).toBe(1);
+    });
+  });
+
+  // ─── Child profile sections — parent-only enforcement ──────
+
+  describe('child profile sections (medical / emergency / dietary)', () => {
+    async function linkedChild(): Promise<string> {
+      // Build a MANAGED LINKED child of user A so the parent-only
+      // endpoints have a target to attach to.
+      const placeholder = await controller.create(reqA(), {
+        firstName: 'Sectioned',
+        lastName: 'Child',
+      });
+      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      return linked.id;
+    }
+
+    it('PLACEHOLDER child → all section endpoints reject with 400', async () => {
+      const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      await expect(controller.getMedical(reqA(), c.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(
+        controller.updateMedical(reqA(), c.id, { medicalNotes: 'Test' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.listEmergencyContacts(reqA(), c.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(controller.getDietary(reqA(), c.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('cross-family caller → 404 on every section endpoint', async () => {
+      const childId = await linkedChild();
+      await expect(controller.getMedical(reqB(), childId)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(controller.listEmergencyContacts(reqB(), childId)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(controller.getDietary(reqB(), childId)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('LINKED parent path: medical / emergency / dietary upsert round-trip', async () => {
+      const childId = await linkedChild();
+
+      // Medical: blank initial, upsert, refetch.
+      const initialMedical = await controller.getMedical(reqA(), childId);
+      expect(initialMedical.allergies).toEqual([]);
+      expect(initialMedical.doctorName).toBeNull();
+
+      const updatedMedical = await controller.updateMedical(reqA(), childId, {
+        allergies: [{ name: 'Peanuts', severity: 'SEVERE', type: 'FOOD' }],
+        doctorName: 'Dr. Sarah Johnson',
+        doctorPhone: '+1-316-555-0100',
+        bloodType: 'A+',
+        medicalNotes: 'Carries inhaler at all times.',
+      });
+      expect(updatedMedical.allergies).toHaveLength(1);
+      expect(updatedMedical.allergies[0]!.name).toBe('Peanuts');
+      expect(updatedMedical.doctorName).toBe('Dr. Sarah Johnson');
+      expect(updatedMedical.bloodType).toBe('A+');
+      expect(updatedMedical.medicalNotes).toBe('Carries inhaler at all times.');
+
+      // Emergency contacts: add → list → remove.
+      const added = await controller.addEmergencyContact(reqA(), childId, {
+        name: 'Jane Tromsness',
+        relationship: 'Spouse',
+        phonePrimary: '+1-316-555-0101',
+        authorizedPickup: true,
+      });
+      expect(added.name).toBe('Jane Tromsness');
+      const list = await controller.listEmergencyContacts(reqA(), childId);
+      expect(list).toHaveLength(1);
+      expect(list[0]!.authorizedPickup).toBe(true);
+
+      // UNIQUE (person_id, phone_primary) → 409 on duplicate phone.
+      await expect(
+        controller.addEmergencyContact(reqA(), childId, {
+          name: 'Same Phone',
+          relationship: 'Other',
+          phonePrimary: '+1-316-555-0101',
+        }),
+      ).rejects.toMatchObject({ status: 409 });
+
+      await controller.removeEmergencyContact(reqA(), childId, added.id);
+      const afterRemove = await controller.listEmergencyContacts(reqA(), childId);
+      expect(afterRemove).toHaveLength(0);
+
+      // Dietary: default NONE, upsert.
+      const initialDietary = await controller.getDietary(reqA(), childId);
+      expect(initialDietary.dietaryType).toBe('NONE');
+      const updatedDietary = await controller.updateDietary(reqA(), childId, {
+        dietaryType: 'VEGETARIAN',
+        additionalRestrictions: 'No mushrooms.',
+      });
+      expect(updatedDietary.dietaryType).toBe('VEGETARIAN');
+      expect(updatedDietary.additionalRestrictions).toBe('No mushrooms.');
     });
   });
 });
