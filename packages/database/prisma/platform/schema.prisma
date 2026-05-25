@@ -338,6 +338,25 @@ model PlatformFamilyChild {
   @@schema("platform")
 }
 
+// Per-category primary-contact routing for a family. Schools call
+// different guardians depending on the category of the comm: billing
+// goes to one parent, health to another, etc. One row per (family,
+// category); category set is enforced by a CHECK constraint that
+// matches FAMILY_CONTACT_CATEGORIES on the wire side.
+model PlatformFamilyContactPreference {
+  id              String   @id @db.Uuid
+  familyId        String   @map("family_id") @db.Uuid
+  category        String
+  primaryPersonId String   @map("primary_person_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@unique([familyId, category])
+  @@index([familyId])
+  @@map("platform_family_contact_preferences")
+  @@schema("platform")
+}
+
 // One row per family-level emergency contact. When a child's
 // platform_family_children.emergency_contact_source is 'FAMILY'
 // (the default), these contacts are inherited as the primary set;

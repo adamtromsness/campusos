@@ -4,14 +4,18 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
+  FAMILY_CONTACT_CATEGORIES,
   useAddFamilyEmergencyContact,
   useDeleteFamilyEmergencyContact,
+  useFamilyContactPreferences,
   useFamilyEmergencyContacts,
   useFamilySettings,
   useFamilyView,
   useReorderFamilyEmergencyContacts,
+  useUpdateFamilyContactPreferences,
   useUpdateFamilyMember,
   useUpdateFamilySettings,
+  type FamilyContactCategory,
   type FamilyEmergencyContactDto,
   type FamilyMemberDto,
   type FamilySettingsDto,
@@ -205,9 +209,8 @@ function FamilyTab({
   const initial = useMemo(
     () => ({
       displayName: settings.displayName ?? '',
-      primaryContactPersonId: settings.primaryContactPersonId ?? '',
     }),
-    [settings.displayName, settings.primaryContactPersonId],
+    [settings.displayName],
   );
   const [form, setForm] = useState(initial);
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
@@ -216,8 +219,8 @@ function FamilyTab({
 
   const editable = settings.canEdit;
   // Only ACTIVE members (already linked to an iam_person) can be
-  // promoted to primary contact — PLACEHOLDER / PENDING_INVITE rows
-  // have no person_id and would fail the service-side membership
+  // routed for any contact category — PLACEHOLDER / PENDING_INVITE
+  // rows have no person_id and would fail the service-side membership
   // check anyway.
   const eligibleContacts = members.filter((m) => m.status === 'ACTIVE' && m.personId);
 
@@ -227,12 +230,6 @@ function FamilyTab({
     try {
       const payload: UpdateFamilySettingsPayload = {};
       if (form.displayName !== initial.displayName) payload.displayName = form.displayName;
-      if (
-        form.primaryContactPersonId !== initial.primaryContactPersonId &&
-        form.primaryContactPersonId
-      ) {
-        payload.primaryContactPersonId = form.primaryContactPersonId;
-      }
       await update.mutateAsync(payload);
       toast('Family settings saved', 'success');
     } catch (err) {
@@ -255,64 +252,12 @@ function FamilyTab({
         />
       </Card>
 
-      <Card title="Primary contact">
-        {eligibleContacts.length === 0 ? (
-          <p className="text-sm text-gray-600">
-            No connected guardians yet. Add or invite a guardian on{' '}
-            <Link href="/family" className="text-campus-700 hover:text-campus-600">
-              the family page
-            </Link>{' '}
-            to designate one.
-          </p>
-        ) : (
-          <div>
-            <label
-              htmlFor="primaryContactPersonId"
-              className="block text-xs font-medium text-gray-700"
-            >
-              Primary contact
-              {dirtyFields.has('primaryContactPersonId') && (
-                <span
-                  aria-label="Modified"
-                  title="Modified — save to keep this change"
-                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-                />
-              )}
-            </label>
-            <select
-              id="primaryContactPersonId"
-              value={form.primaryContactPersonId}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, primaryContactPersonId: e.target.value }))
-              }
-              disabled={!editable}
-              className={cn(
-                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-                dirtyFields.has('primaryContactPersonId')
-                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-                  : 'border border-gray-300',
-              )}
-            >
-              <option value="">— Not set —</option>
-              {eligibleContacts.map((m) => {
-                const name =
-                  (m.preferredName?.trim() ? m.preferredName : null) ||
-                  [m.firstName, m.lastName].filter(Boolean).join(' ') ||
-                  m.email ||
-                  'Member';
-                return (
-                  <option key={m.id} value={m.personId ?? ''}>
-                    {name}
-                  </option>
-                );
-              })}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              The primary point of contact for schools and notifications.
-            </p>
-          </div>
-        )}
-      </Card>
+      {/* Category routing replaces the single primary-contact dropdown
+          that used to live here. The GENERAL category is the new
+          "primary contact for the family" — when it changes, the server
+          also flips platform_family_members.is_primary_contact so the
+          /family page badge + /family/settings hero stay in sync. */}
+      <PrimaryContactCategoriesCard editable={editable} eligibleContacts={eligibleContacts} />
 
       <Card title="Family members">
         <FamilyRosterSummary members={members} />
@@ -396,6 +341,223 @@ function FamilyRosterSummary({ members }: { members: FamilyMemberDto[] }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+// ─── Primary contacts by category ──────────────────────────
+
+const CATEGORY_META: Record<
+  FamilyContactCategory,
+  { label: string; icon: string; hint: string }
+> = {
+  GENERAL: {
+    label: 'General / Default',
+    icon: '📋',
+    hint: 'All communications unless specified below.',
+  },
+  ELECTRONIC_APPROVALS: {
+    label: 'Electronic Approvals',
+    icon: '✍️',
+    hint: 'Permission slips, consent forms, policy acknowledgements.',
+  },
+  TRANSPORTATION: {
+    label: 'Transportation',
+    icon: '🚌',
+    hint: 'Bus route changes, pickup/drop-off, transport alerts.',
+  },
+  HEALTH_MEDICAL: {
+    label: 'Health & Medical',
+    icon: '🏥',
+    hint: 'Nurse calls, medication administration, health alerts.',
+  },
+  BILLING_FINANCIAL: {
+    label: 'Billing & Financial',
+    icon: '💰',
+    hint: 'Invoices, payment reminders, fee notifications.',
+  },
+  ACADEMIC: {
+    label: 'Academic',
+    icon: '📚',
+    hint: 'Grade reports, teacher conferences, academic alerts.',
+  },
+  BEHAVIOUR_DISCIPLINE: {
+    label: 'Behaviour & Discipline',
+    icon: '🎯',
+    hint: 'Incident reports, BIP updates, restorative conferences.',
+  },
+  EMERGENCY: {
+    label: 'Emergency',
+    icon: '🚨',
+    hint: 'Emergency alerts, lockdowns, reunification.',
+  },
+};
+
+/**
+ * 8-row primary-contact router. Each category drops down the
+ * eligible guardians and persists via PATCH /family/contact-preferences.
+ * The card maintains its own dirty state independent of the outer
+ * Family-tab form — the Save Changes button gates only on the rows
+ * that actually changed, sends a partial update, and the server
+ * upserts category-by-category. Empty (unset) state is allowed at
+ * read time but a save requires every saved category to point to a
+ * valid guardian (server validates).
+ */
+function PrimaryContactCategoriesCard({
+  editable,
+  eligibleContacts,
+}: {
+  editable: boolean;
+  eligibleContacts: FamilyMemberDto[];
+}) {
+  const { data, isLoading } = useFamilyContactPreferences();
+  const update = useUpdateFamilyContactPreferences();
+  const { toast } = useToast();
+
+  // Build initial state per category — fall back to '' (unset) for
+  // any category the server hasn't seeded yet. This happens on first
+  // visit for a family that has no primary contact set; the server's
+  // lazy seed only fires when a primary exists.
+  const initial = useMemo(() => {
+    const m: Record<FamilyContactCategory, string> = {} as Record<FamilyContactCategory, string>;
+    for (const c of FAMILY_CONTACT_CATEGORIES) m[c] = '';
+    for (const row of data ?? []) m[row.category] = row.primaryPersonId;
+    return m;
+  }, [data]);
+
+  const [form, setForm] = useState<Record<FamilyContactCategory, string>>(initial);
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => setForm(initial), [initial]);
+
+  async function onSave() {
+    if (!editable || !isDirty) return;
+    const preferences = (Array.from(dirtyFields) as FamilyContactCategory[])
+      .filter((category) => form[category])
+      .map((category) => ({ category, primaryPersonId: form[category]! }));
+    if (preferences.length === 0) return;
+    try {
+      await update.mutateAsync({ preferences });
+      toast('Contact routing saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  if (eligibleContacts.length === 0) {
+    return (
+      <Card
+        title="Primary Contacts by Category"
+        description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
+      >
+        <p className="text-sm text-gray-600">
+          No connected guardians yet. Add or invite a guardian on{' '}
+          <Link href="/family" className="text-campus-700 hover:text-campus-600">
+            the family page
+          </Link>{' '}
+          to start routing contact categories.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card
+      title="Primary Contacts by Category"
+      description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
+    >
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sr-only">
+              <tr>
+                <th>Category</th>
+                <th>Primary Contact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FAMILY_CONTACT_CATEGORIES.map((category) => {
+                const meta = CATEGORY_META[category];
+                const dirty = dirtyFields.has(category);
+                return (
+                  <tr key={category} className="border-b border-gray-100 last:border-b-0">
+                    <td className="py-3 pr-3 align-top">
+                      <div className="flex items-start gap-2">
+                        <span aria-hidden className="text-base leading-none">
+                          {meta.icon}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900">{meta.label}</div>
+                          <p className="text-xs text-gray-500">{meta.hint}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 align-top">
+                      <label className="sr-only" htmlFor={'contact-cat-' + category}>
+                        Primary contact for {meta.label}
+                        {dirty && ' (modified)'}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          id={'contact-cat-' + category}
+                          value={form[category]}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, [category]: e.target.value }))
+                          }
+                          disabled={!editable}
+                          className={cn(
+                            'block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+                            dirty
+                              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                              : 'border border-gray-300',
+                          )}
+                        >
+                          <option value="">— Not set —</option>
+                          {eligibleContacts.map((m) => {
+                            const name =
+                              (m.preferredName?.trim() ? m.preferredName : null) ||
+                              [m.firstName, m.lastName].filter(Boolean).join(' ') ||
+                              m.email ||
+                              'Member';
+                            return (
+                              <option key={m.id} value={m.personId ?? ''}>
+                                {name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {dirty && (
+                          <span
+                            aria-label="Modified"
+                            title="Modified — save to keep this change"
+                            className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
+                          />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editable && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void onSave()}
+            disabled={!isDirty || update.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {update.isPending && <LoadingSpinner size="sm" />}
+            <span>{update.isPending ? 'Saving…' : 'Save Categories'}</span>
+          </button>
+        </div>
+      )}
+    </Card>
   );
 }
 

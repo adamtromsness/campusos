@@ -28,6 +28,9 @@ import {
   CreateMemberAccountDto,
   FamilyAccessLevel,
   FamilyChildDto,
+  FAMILY_CONTACT_CATEGORIES,
+  FamilyContactCategory,
+  FamilyContactPreferenceDto,
   FamilyEmergencyContactDto,
   FamilyHeaderDto,
   FamilyLinkResultDto,
@@ -44,6 +47,7 @@ import {
   UpdateChildEmergencyContactDto,
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
+  UpdateFamilyContactPreferencesDto,
   UpdateFamilyEmergencyContactDto,
   UpdateFamilyMemberDto,
   UpdateFamilySettingsDto,
@@ -559,6 +563,173 @@ export class FamilyChildrenService {
       );
     }
     return refreshed;
+  }
+
+  // ─── Family contact preferences (per-category routing) ────
+
+  /**
+   * Read or lazily-seed the per-category contact preferences. If
+   * the family already has a primary contact (an is_primary_contact
+   * member) and no preference rows exist, we seed all 8 categories
+   * to that primary in a single tx. Otherwise the response is empty
+   * and the UI falls back to "Not set" placeholders.
+   *
+   * CHILD viewers can read the preferences too (they're not secret —
+   * the child can see who's routed for what). Only PARENT can
+   * mutate, gated by assertNotChildViewer on the PATCH path.
+   */
+  async getFamilyContactPreferences(personId: string): Promise<FamilyContactPreferenceDto[]> {
+    const familyId = await this.familyIdForViewer(personId);
+    if (!familyId) return [];
+
+    const rows = await this.readContactPreferenceRows(familyId);
+    if (rows.length > 0) return rows;
+
+    // Seed defaults from the current primary contact if there is
+    // one; otherwise return empty (8 categories rendered as
+    // "Not set" in the UI).
+    const primary = await this.prisma.$queryRawUnsafe<Array<{ person_id: string }>>(
+      `SELECT person_id::text AS person_id
+       FROM platform.platform_family_members
+       WHERE family_id = $1::uuid AND is_primary_contact = true
+         AND person_id IS NOT NULL
+       LIMIT 1`,
+      familyId,
+    );
+    if (primary.length === 0) return [];
+
+    const primaryPersonId = primary[0]!.person_id;
+    try {
+      await this.prisma.$transaction(
+        FAMILY_CONTACT_CATEGORIES.map((category) =>
+          this.prisma.platformFamilyContactPreference.create({
+            data: {
+              id: generateId(),
+              familyId,
+              category,
+              primaryPersonId,
+            },
+          }),
+        ),
+      );
+    } catch (err: unknown) {
+      // Race condition with another caller seeding the same family.
+      // Fall through to re-read — the UNIQUE (family_id, category)
+      // guarantees at most one seed succeeds.
+      const code = (err as { code?: string }).code;
+      if (code !== 'P2002') throw err;
+    }
+
+    return this.readContactPreferenceRows(familyId);
+  }
+
+  async updateFamilyContactPreferences(
+    personId: string,
+    dto: UpdateFamilyContactPreferencesDto,
+  ): Promise<FamilyContactPreferenceDto[]> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+
+    if (!Array.isArray(dto.preferences) || dto.preferences.length === 0) {
+      return this.getFamilyContactPreferences(personId);
+    }
+
+    // Validate every person is a member of this family — refuse
+    // cross-family routing.
+    const personIds = Array.from(new Set(dto.preferences.map((p) => p.primaryPersonId)));
+    const validMembers = await this.prisma.$queryRawUnsafe<Array<{ person_id: string }>>(
+      `SELECT person_id::text AS person_id
+       FROM platform.platform_family_members
+       WHERE family_id = $1::uuid AND person_id = ANY($2::uuid[])`,
+      familyId,
+      personIds,
+    );
+    const validSet = new Set(validMembers.map((m) => m.person_id));
+    for (const p of dto.preferences) {
+      if (!validSet.has(p.primaryPersonId)) {
+        throw new BadRequestException(
+          'Cannot route a category to a non-member. Add them to the family first.',
+        );
+      }
+    }
+
+    // Find whether GENERAL changed — if so, mirror onto
+    // platform_family_members.is_primary_contact so the /family
+    // page badge stays in sync.
+    const generalPref = dto.preferences.find((p) => p.category === 'GENERAL');
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const p of dto.preferences) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_family_contact_preferences
+             (id, family_id, category, primary_person_id)
+           VALUES ($1::uuid, $2::uuid, $3, $4::uuid)
+           ON CONFLICT (family_id, category) DO UPDATE
+             SET primary_person_id = EXCLUDED.primary_person_id,
+                 updated_at = now()`,
+          generateId(),
+          familyId,
+          p.category,
+          p.primaryPersonId,
+        );
+      }
+      if (generalPref) {
+        // Demote any other primary, then promote the new GENERAL contact.
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_members
+             SET is_primary_contact = false, updated_at = now()
+           WHERE family_id = $1::uuid AND is_primary_contact = true
+             AND person_id <> $2::uuid`,
+          familyId,
+          generalPref.primaryPersonId,
+        );
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_members
+             SET is_primary_contact = true, updated_at = now()
+           WHERE family_id = $1::uuid AND person_id = $2::uuid`,
+          familyId,
+          generalPref.primaryPersonId,
+        );
+      }
+    });
+
+    return this.readContactPreferenceRows(familyId);
+  }
+
+  /**
+   * Raw read of the preference rows + JOIN iam_person for the
+   * friendly name. Returns rows for any subset of categories the
+   * family has set; the UI fills in "Not set" for absent ones.
+   */
+  private async readContactPreferenceRows(
+    familyId: string,
+  ): Promise<FamilyContactPreferenceDto[]> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        category: string;
+        primary_person_id: string;
+        first_name: string | null;
+        last_name: string | null;
+        preferred_name: string | null;
+      }>
+    >(
+      `SELECT fcp.category,
+              fcp.primary_person_id::text AS primary_person_id,
+              p.first_name, p.last_name, p.preferred_name
+       FROM platform.platform_family_contact_preferences fcp
+       LEFT JOIN platform.iam_person p ON p.id = fcp.primary_person_id
+       WHERE fcp.family_id = $1::uuid
+       ORDER BY fcp.created_at ASC`,
+      familyId,
+    );
+    return rows.map((r) => ({
+      category: r.category as FamilyContactCategory,
+      primaryPersonId: r.primary_person_id,
+      primaryContactName:
+        (r.preferred_name?.trim() ? r.preferred_name : null) ||
+        [r.first_name, r.last_name].filter(Boolean).join(' ') ||
+        '—',
+    }));
   }
 
   // ─── Family emergency contacts ─────────────────────────────

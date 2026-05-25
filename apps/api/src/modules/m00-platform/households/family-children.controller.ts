@@ -26,6 +26,7 @@ import {
   CreateFamilyChildDto,
   CreateMemberAccountDto,
   FamilyChildDto,
+  FamilyContactPreferenceDto,
   FamilyEmergencyContactDto,
   FamilyLinkResultDto,
   FamilyMemberDto,
@@ -41,6 +42,7 @@ import {
   UpdateChildEmergencyContactDto,
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
+  UpdateFamilyContactPreferencesDto,
   UpdateFamilyEmergencyContactDto,
   UpdateFamilyMemberDto,
   UpdateFamilySettingsDto,
@@ -103,6 +105,31 @@ export class FamilyChildrenController {
     @Body() dto: UpdateFamilySettingsDto,
   ): Promise<FamilySettingsDto> {
     return this.children.updateFamilySettings(req.user!.personId, dto);
+  }
+
+  // ─── Family contact preferences (per-category routing) ────
+
+  @Get('contact-preferences')
+  @ApiOperation({
+    summary:
+      'Per-category primary-contact routing. Lazily seeds 8 defaults from the family primary contact on first read.',
+  })
+  async getFamilyContactPreferences(
+    @Req() req: AuthedRequest,
+  ): Promise<FamilyContactPreferenceDto[]> {
+    return this.children.getFamilyContactPreferences(req.user!.personId);
+  }
+
+  @Patch('contact-preferences')
+  @ApiOperation({
+    summary:
+      'Bulk upsert per-category routing. GENERAL changes also flip platform_family_members.is_primary_contact.',
+  })
+  async patchFamilyContactPreferences(
+    @Req() req: AuthedRequest,
+    @Body() dto: UpdateFamilyContactPreferencesDto,
+  ): Promise<FamilyContactPreferenceDto[]> {
+    return this.children.updateFamilyContactPreferences(req.user!.personId, dto);
   }
 
   // ─── Family emergency contacts ─────────────────────────────

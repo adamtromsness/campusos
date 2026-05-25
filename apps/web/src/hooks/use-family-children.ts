@@ -728,6 +728,54 @@ export function usePeopleSearch(query: string, enabled = true) {
   });
 }
 
+// ─── Family contact preferences (per-category) ─────────────
+
+export const FAMILY_CONTACT_CATEGORIES = [
+  'GENERAL',
+  'ELECTRONIC_APPROVALS',
+  'TRANSPORTATION',
+  'HEALTH_MEDICAL',
+  'BILLING_FINANCIAL',
+  'ACADEMIC',
+  'BEHAVIOUR_DISCIPLINE',
+  'EMERGENCY',
+] as const;
+export type FamilyContactCategory = (typeof FAMILY_CONTACT_CATEGORIES)[number];
+
+export interface FamilyContactPreferenceDto {
+  category: FamilyContactCategory;
+  primaryPersonId: string;
+  primaryContactName: string;
+}
+
+export interface UpdateFamilyContactPreferencesPayload {
+  preferences: Array<{ category: FamilyContactCategory; primaryPersonId: string }>;
+}
+
+export function useFamilyContactPreferences(enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'contact-preferences'] as const,
+    queryFn: () =>
+      apiFetch<FamilyContactPreferenceDto[]>('/api/v1/family/contact-preferences'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateFamilyContactPreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateFamilyContactPreferencesPayload) =>
+      apiFetch<FamilyContactPreferenceDto[]>('/api/v1/family/contact-preferences', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
 // ─── Family emergency contacts (shared default) ───────────
 
 export interface FamilyEmergencyContactDto {

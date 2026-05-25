@@ -440,6 +440,50 @@ export class FamilyHeaderDto {
   @ApiPropertyOptional() name?: string | null;
 }
 
+// ─── /family/contact-preferences ───────────────────────────
+
+export const FAMILY_CONTACT_CATEGORIES = [
+  'GENERAL',
+  'ELECTRONIC_APPROVALS',
+  'TRANSPORTATION',
+  'HEALTH_MEDICAL',
+  'BILLING_FINANCIAL',
+  'ACADEMIC',
+  'BEHAVIOUR_DISCIPLINE',
+  'EMERGENCY',
+] as const;
+export type FamilyContactCategory = (typeof FAMILY_CONTACT_CATEGORIES)[number];
+
+/**
+ * One row of per-category contact routing. The server resolves
+ * primaryContactName by joining iam_person.preferred_name /
+ * first_name / last_name so the client can render a friendly
+ * label without a per-row second fetch.
+ */
+export class FamilyContactPreferenceDto {
+  @ApiProperty({ enum: FAMILY_CONTACT_CATEGORIES }) category!: FamilyContactCategory;
+  @ApiProperty() primaryPersonId!: string;
+  @ApiProperty() primaryContactName!: string;
+}
+
+export class UpdateFamilyContactPreferenceItemDto {
+  @ApiProperty({ enum: FAMILY_CONTACT_CATEGORIES })
+  @IsIn(FAMILY_CONTACT_CATEGORIES)
+  category!: FamilyContactCategory;
+  @ApiProperty() @IsString() primaryPersonId!: string;
+}
+
+/**
+ * PATCH /family/contact-preferences — bulk upsert. Validates each
+ * primaryPersonId is a member of the family before writing. The
+ * GENERAL category is mirrored to platform_family_members.is_primary_contact
+ * so the /family page badge + /family/settings hero stay in sync.
+ */
+export class UpdateFamilyContactPreferencesDto {
+  @ApiProperty({ type: [UpdateFamilyContactPreferenceItemDto] })
+  preferences!: UpdateFamilyContactPreferenceItemDto[];
+}
+
 // ─── /family/settings/emergency-contacts ──────────────────
 
 /**
