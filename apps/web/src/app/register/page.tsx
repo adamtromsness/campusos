@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, setAccessToken } from '@/lib/api-client';
 import {
   useAuthStore,
@@ -109,6 +110,7 @@ function RegisterPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
   const setAuth = useAuthStore((s) => s.setAuth);
 
@@ -162,6 +164,11 @@ function RegisterPageInner() {
           password: form.password,
         }),
       });
+      // Wipe React Query before swapping identities — see the same
+      // guard in auth-context.tsx login(). Registering from a tab
+      // that previously held another user's session would otherwise
+      // render their cached /family + /profile data on first paint.
+      queryClient.clear();
       setAccessToken(res.accessToken);
       const me = await apiFetch<MeResponse>('/api/v1/auth/me');
       setAuth(res.accessToken, meToAuthUser(me));

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch, setAccessToken } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
 import {
@@ -96,6 +97,7 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuthActions();
+  const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
   const setAuth = useAuthStore((s) => s.setAuth);
   const { toast } = useToast();
@@ -119,6 +121,11 @@ function LoginPageInner() {
     const token = searchParams?.get('token');
     if (!token) return;
     (async () => {
+      // Wipe React Query before swapping identities — see the same
+      // guard in auth-context.tsx login(). Without this, a tab that
+      // previously held another user's session renders that user's
+      // cached /family + /profile data on first paint.
+      queryClient.clear();
       setAccessToken(token);
       try {
         const me = await apiFetch<MeResponse>('/api/v1/auth/me');
@@ -128,7 +135,7 @@ function LoginPageInner() {
         toast('Could not load your profile. Please try again.', 'error');
       }
     })();
-  }, [searchParams, setAuth, router, toast, returnUrl]);
+  }, [searchParams, setAuth, router, toast, returnUrl, queryClient]);
 
   const handleLogin = async (email: string) => {
     setBusy(email);

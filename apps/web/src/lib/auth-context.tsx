@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ApiError,
   apiFetch,
@@ -90,6 +91,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setUnauthenticated = useAuthStore((s) => s.setUnauthenticated);
   const setUser = useAuthStore((s) => s.setUser);
@@ -97,12 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setOnUnauthenticated(() => {
+      // Terminal 401 from the api-client — clear cached queries so a
+      // subsequent login as a different user doesn't render this
+      // user's data on first paint.
+      queryClient.clear();
       setUnauthenticated();
       if (pathname && pathname !== '/login') {
         router.replace('/login');
       }
     });
-  }, [pathname, router, setUnauthenticated]);
+  }, [pathname, router, setUnauthenticated, queryClient]);
 
   useEffect(() => {
     if (bootstrapped.current) return;
@@ -129,6 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
+    // Wipe React Query before we set the new identity. Otherwise the
+    // next page render hits a stale cache from the previous user (the
+    // staleTime is 30s on most family/profile hooks, long enough that
+    // /family briefly displays the previous account's children before
+    // the background refetch lands). Resetting clears AND cancels any
+    // in-flight queries against the old token.
+    queryClient.clear();
     setAccessToken(res.accessToken);
     const me = await fetchMe();
     setAuth(res.accessToken, meToAuthUser(me));
@@ -149,6 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     }
+    // Drop every cached query so a subsequent login as a different
+    // user doesn't render this user's data on first paint.
+    queryClient.clear();
     setUnauthenticated();
     router.replace('/login');
   };
