@@ -1,99 +1,191 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
+import { cn } from '@/components/ui/cn';
 import { useAuthActions } from '@/lib/auth-context';
+import { useAuthStore } from '@/lib/auth-store';
 import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile';
 import { useAcceptFamilyLink, useGenerateChildCode } from '@/hooks/use-family-children';
+import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
+import type { ProfileDto } from '@/lib/types';
 
 /**
- * /profile — self-service identity editor.
+ * /profile — self-service identity editor, tabbed.
  *
- * Reads + writes the calling user's iam_person row via /profile/me.
- * Endpoint is no longer gated on usr-001:read/write so 0-persona
- * users (freshly registered, no school relationship yet) can still
- * land here and fix typos in their own name. Cross-user access is
- * impossible — the API uses req.user.personId on every read and
- * write, so the form is always editing "you."
+ * Mirrors the child-profile shape: sticky hero (preferred name + full
+ * name + email) above a four-tab bar (Account / Contact / Medical &
+ * Health / About). Each tab is an independent form with its own
+ * dirty-state diff + Save button.
  *
- * Form scope deliberately mirrors the iam_person columns the user is
- * allowed to set on themselves: first / middle / last / preferred
- * names, phone, date of birth. Login email is read-only here because
- * changing it requires an IdP-side verification flow that isn't built
- * yet; user shows it so the field doesn't quietly vanish from the
- * UI. Demographics / household / emergency contact / employment etc.
- * still live on dedicated surfaces (the admin profile route keeps the
- * tabbed shape).
+ * Source of truth: GET /profile/me on iam_person. Self-editable
+ * fields are listed on UpdateMyProfileDto; gender newly joins that
+ * list (this commit). Login email stays read-only — changes require
+ * an IdP-side verification flow that isn't built yet.
  *
- * On successful save we refresh /auth/me into the Zustand auth store
- * so the top bar, sidebar greeting, and persona switcher pick up the
- * new firstName / preferredName immediately.
+ * Contact / Medical / About tabs are stubs this commit and get fleshed
+ * out in the next three. Family connection cards stay at the bottom
+ * for now and are conditionally hidden for PARENT-persona users in
+ * the final commit of this series.
  */
 export default function MyProfilePage() {
-  const { refreshUser } = useAuthActions();
-  const { toast } = useToast();
   const profile = useMyProfile();
-  const update = useUpdateMyProfile();
 
-  const [form, setForm] = useState<{
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    preferredName: string;
-    primaryPhone: string;
-    dateOfBirth: string;
-  } | null>(null);
-  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
-
-  // Seed the form from the API once on first load; subsequent edits
-  // are owned by the form state until Save Changes lands a new
-  // ProfileResponseDto, at which point we reseed.
-  useEffect(() => {
-    if (!profile.data || form !== null) return;
-    setForm({
-      firstName: profile.data.firstName ?? '',
-      middleName: profile.data.middleName ?? '',
-      lastName: profile.data.lastName ?? '',
-      preferredName: profile.data.preferredName ?? '',
-      primaryPhone: profile.data.primaryPhone ?? '',
-      dateOfBirth: profile.data.dateOfBirth ?? '',
-    });
-  }, [profile.data, form]);
-
-  if (profile.isLoading || !form) {
-    return (
-      <div className="mx-auto max-w-2xl py-16 text-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  if (profile.isLoading) return <PageLoader label="Loading your profile…" />;
   if (profile.isError || !profile.data) {
     return (
       <div className="mx-auto max-w-2xl">
         <EmptyState
-          title="Couldn’t load your profile"
+          title="Couldn't load your profile"
           description="Try refreshing. If the problem persists, contact support."
         />
       </div>
     );
   }
 
-  const p = profile.data;
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <Hero profile={profile.data} />
+      <Tabs profile={profile.data} />
+      <FamilyConnectionSection />
+    </div>
+  );
+}
 
-  function field<K extends keyof NonNullable<typeof form>>(key: K, value: string) {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-    if (errors[key as keyof typeof errors]) {
-      setErrors((e) => ({ ...e, [key]: undefined }));
+// ─── Hero ──────────────────────────────────────────────────
+
+function Hero({ profile }: { profile: ProfileDto }) {
+  const preferred = profile.preferredName?.trim();
+  const heroName = preferred ? preferred : profile.firstName;
+  const fullName = [profile.firstName, profile.middleName, profile.lastName]
+    .filter(Boolean)
+    .join(' ');
+  const showFull = fullName.trim() !== heroName.trim();
+
+  return (
+    <header className="mb-6">
+      <h1 className="text-3xl font-bold tracking-tight text-gray-900">{heroName}</h1>
+      {showFull && <p className="mt-1 text-sm text-gray-500">{fullName}</p>}
+      {profile.loginEmail && (
+        <p className="mt-0.5 text-sm text-gray-500">{profile.loginEmail}</p>
+      )}
+    </header>
+  );
+}
+
+// ─── Tab bar + routing ─────────────────────────────────────
+
+type TabKey = 'account' | 'contact' | 'medical' | 'about';
+
+const TABS: Array<{ key: TabKey; label: string }> = [
+  { key: 'account', label: 'Account' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'medical', label: 'Medical & Health' },
+  { key: 'about', label: 'About' },
+];
+
+function isTabKey(s: string | null): s is TabKey {
+  return s !== null && TABS.some((t) => t.key === s);
+}
+
+function Tabs({ profile }: { profile: ProfileDto }) {
+  const searchParams = useSearchParams();
+  const initial = searchParams?.get('tab');
+  const [active, setActive] = useState<TabKey>(
+    isTabKey(initial ?? null) ? (initial as TabKey) : 'account',
+  );
+
+  function select(key: TabKey) {
+    setActive(key);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      window.history.replaceState({}, '', url.toString());
     }
+  }
+
+  return (
+    <>
+      <nav className="border-b border-gray-200" aria-label="Profile tabs">
+        <ul className="-mb-px flex flex-wrap gap-1">
+          {TABS.map((t) => {
+            const isActive = active === t.key;
+            return (
+              <li key={t.key}>
+                <button
+                  type="button"
+                  onClick={() => select(t.key)}
+                  className={cn(
+                    'whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'border-campus-700 text-campus-700'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {t.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="mt-6">
+        {active === 'account' && <AccountTab profile={profile} />}
+        {active === 'contact' && <ContactTab profile={profile} />}
+        {active === 'medical' && <MedicalTab profile={profile} />}
+        {active === 'about' && <AboutTab profile={profile} />}
+      </div>
+    </>
+  );
+}
+
+// ─── Account tab ───────────────────────────────────────────
+
+function AccountTab({ profile }: { profile: ProfileDto }) {
+  const { refreshUser } = useAuthActions();
+  const { toast } = useToast();
+  const update = useUpdateMyProfile();
+  const personas = useAuthStore((s) => s.user?.personas ?? []);
+
+  const initial = useMemo(
+    () => ({
+      firstName: profile.firstName ?? '',
+      middleName: profile.middleName ?? '',
+      lastName: profile.lastName ?? '',
+      preferredName: profile.preferredName ?? '',
+      primaryPhone: profile.primaryPhone ?? '',
+      dateOfBirth: profile.dateOfBirth ?? '',
+      gender: profile.gender ?? '',
+    }),
+    [
+      profile.firstName,
+      profile.middleName,
+      profile.lastName,
+      profile.preferredName,
+      profile.primaryPhone,
+      profile.dateOfBirth,
+      profile.gender,
+    ],
+  );
+  const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => setForm(initial), [initial]);
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!form) return;
     const v: typeof errors = {};
     if (!form.firstName.trim()) v.firstName = 'First name is required';
     if (!form.lastName.trim()) v.lastName = 'Last name is required';
@@ -108,97 +200,126 @@ export default function MyProfilePage() {
         lastName: form.lastName.trim(),
         preferredName: form.preferredName.trim() || null,
         primaryPhone: form.primaryPhone.trim() || null,
-        dateOfBirth: form.dateOfBirth ? form.dateOfBirth : null,
+        dateOfBirth: form.dateOfBirth || null,
+        gender: form.gender || null,
       });
-      // Pull the fresh user shape into Zustand so the top-bar pill,
-      // sidebar greeting, and persona switcher all reflect the new
-      // first / preferred name without a hard refresh.
       await refreshUser();
       toast('Profile updated', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not save. Try again.';
-      toast(message, 'error');
+      toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
     }
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <PageHeader title="My Profile" description="Your personal information" />
-
-      <form
-        onSubmit={onSubmit}
-        noValidate
-        className="mt-4 rounded-card border border-gray-200 bg-white p-6 shadow-sm"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
+    <SectionCard>
+      <form onSubmit={onSubmit} noValidate>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <EditField
             id="firstName"
             label="First name"
             value={form.firstName}
-            onChange={(v) => field('firstName', v)}
+            onChange={(v) => setField('firstName', v)}
             error={errors.firstName}
             required
             autoComplete="given-name"
+            dirty={dirtyFields.has('firstName')}
           />
-          <Field
+          <EditField
             id="middleName"
             label="Middle name"
             value={form.middleName}
-            onChange={(v) => field('middleName', v)}
+            onChange={(v) => setField('middleName', v)}
             autoComplete="additional-name"
+            dirty={dirtyFields.has('middleName')}
           />
-          <Field
+          <EditField
             id="lastName"
             label="Last name"
             value={form.lastName}
-            onChange={(v) => field('lastName', v)}
+            onChange={(v) => setField('lastName', v)}
             error={errors.lastName}
             required
             autoComplete="family-name"
+            dirty={dirtyFields.has('lastName')}
           />
-          <Field
+        </div>
+
+        <div className="mt-4">
+          <EditField
             id="preferredName"
             label="Preferred name"
             value={form.preferredName}
-            onChange={(v) => field('preferredName', v)}
+            onChange={(v) => setField('preferredName', v)}
             hint="Used throughout CampusOS instead of your first name."
             autoComplete="nickname"
+            dirty={dirtyFields.has('preferredName')}
+          />
+        </div>
+
+        <div className="mt-4">
+          <ReadOnlyField
+            label="Email"
+            value={profile.loginEmail}
+            hint="Email changes need a separate verification flow."
+          />
+        </div>
+
+        <div className="mt-4">
+          <EditField
+            id="primaryPhone"
+            label="Phone"
+            type="tel"
+            value={form.primaryPhone}
+            onChange={(v) => setField('primaryPhone', v)}
+            autoComplete="tel"
+            dirty={dirtyFields.has('primaryPhone')}
           />
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field
-            id="email"
-            label="Email"
-            value={p.loginEmail ?? ''}
-            onChange={() => {
-              /* read-only */
-            }}
-            type="email"
-            readOnly
-            hint="Email changes need a separate verification flow."
-          />
-          <Field
-            id="primaryPhone"
-            label="Phone"
-            value={form.primaryPhone}
-            onChange={(v) => field('primaryPhone', v)}
-            type="tel"
-            autoComplete="tel"
-          />
-          <Field
+          <EditField
             id="dateOfBirth"
             label="Date of birth"
-            value={form.dateOfBirth}
-            onChange={(v) => field('dateOfBirth', v)}
             type="date"
+            value={form.dateOfBirth}
+            onChange={(v) => setField('dateOfBirth', v)}
+            dirty={dirtyFields.has('dateOfBirth')}
           />
+          <div>
+            <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
+              Gender
+              {dirtyFields.has('gender') && (
+                <span
+                  aria-label="Modified"
+                  title="Modified — save to keep this change"
+                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                />
+              )}
+            </label>
+            <select
+              id="gender"
+              value={form.gender}
+              onChange={(e) => setField('gender', e.target.value)}
+              className={cn(
+                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                dirtyFields.has('gender')
+                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                  : 'border border-gray-300',
+              )}
+            >
+              <option value="">Not Specified</option>
+              <option value="F">Female</option>
+              <option value="M">Male</option>
+            </select>
+          </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <AccountInfo profile={profile} personas={personas} />
+
+        <div className="mt-5 flex justify-end">
           <button
             type="submit"
-            disabled={update.isPending}
+            disabled={!isDirty || update.isPending}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
           >
             {update.isPending && <LoadingSpinner size="sm" />}
@@ -206,44 +327,160 @@ export default function MyProfilePage() {
           </button>
         </div>
       </form>
+    </SectionCard>
+  );
+}
 
-      <FamilyConnectionSection />
+/**
+ * Read-only "Account info" block — created date + persona list. Shows
+ * the user where they sit in the system without needing to open
+ * /family or the persona switcher.
+ */
+function AccountInfo({
+  profile,
+  personas,
+}: {
+  profile: ProfileDto;
+  personas: Array<{ type: string; schoolName?: string | null }>;
+}) {
+  const personaSummary = personas.length === 0
+    ? 'No personas yet'
+    : personas
+        .map((p) =>
+          p.schoolName ? `${humanPersona(p.type)} at ${p.schoolName}` : humanPersona(p.type),
+        )
+        .join(' · ');
+
+  return (
+    <div className="mt-5 rounded-md border border-gray-200 bg-gray-50/40 p-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Account info
+      </h3>
+      <dl className="mt-2 space-y-1 text-sm">
+        {profile.createdAt && (
+          <div className="flex flex-wrap gap-x-2">
+            <dt className="text-gray-500">Account created:</dt>
+            <dd className="text-gray-900">{formatDate(profile.createdAt)}</dd>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-x-2">
+          <dt className="text-gray-500">Personas:</dt>
+          <dd className="text-gray-900">{personaSummary}</dd>
+        </div>
+      </dl>
     </div>
   );
 }
 
-// ─── Field primitive ─────────────────────────────────────
-
-interface FieldProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  required?: boolean;
-  readOnly?: boolean;
-  autoComplete?: string;
-  hint?: string;
-  error?: string;
+function humanPersona(type: string): string {
+  const map: Record<string, string> = {
+    PARENT: 'Parent',
+    STUDENT: 'Student',
+    STAFF: 'Staff',
+    SUBSTITUTE: 'Substitute',
+    ALUMNI: 'Alumnus',
+    COMMUNITY: 'Community member',
+  };
+  return map[type] ?? type;
 }
 
-function Field({
+// ─── Contact tab (stub — wired up in next commit) ──────────
+
+function ContactTab({ profile: _profile }: { profile: ProfileDto }) {
+  return (
+    <SectionCard title="Contact">
+      <p className="text-sm text-gray-500">
+        Address, mailing, and work-contact controls land in the next commit. For now your phone
+        lives on the Account tab.
+      </p>
+    </SectionCard>
+  );
+}
+
+// ─── Medical tab (stub) ────────────────────────────────────
+
+function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
+  return (
+    <SectionCard title="Medical & Health">
+      <p className="text-sm text-gray-500">
+        Optional health info for staff field-trip planning and emergency-responder context lands
+        in a follow-up commit. Children&rsquo;s medical info is on each child&rsquo;s profile.
+      </p>
+    </SectionCard>
+  );
+}
+
+// ─── About tab (stub) ──────────────────────────────────────
+
+function AboutTab({ profile: _profile }: { profile: ProfileDto }) {
+  return (
+    <SectionCard title="About">
+      <p className="text-sm text-gray-500">
+        Bio, interests, and languages-spoken inputs land in a follow-up commit.
+      </p>
+    </SectionCard>
+  );
+}
+
+// ─── Primitives ────────────────────────────────────────────
+
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
+      {(title || description) && (
+        <div className="mb-3">
+          {title && <h2 className="text-sm font-semibold text-gray-900">{title}</h2>}
+          {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function EditField({
   id,
   label,
   value,
   onChange,
   type = 'text',
   required,
-  readOnly,
-  autoComplete,
   hint,
   error,
-}: FieldProps) {
+  autoComplete,
+  dirty,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  hint?: string;
+  error?: string;
+  autoComplete?: string;
+  dirty?: boolean;
+}) {
   return (
     <div>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
       </label>
       <input
         id={id}
@@ -252,31 +489,53 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        readOnly={readOnly}
         autoComplete={autoComplete}
         aria-invalid={!!error}
-        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        className={
-          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ' +
-          'placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
-          (readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-500 ' : '') +
-          (error ? 'border-red-300' : 'border-gray-300')
-        }
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+          error
+            ? 'border border-red-300'
+            : dirty
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
+        )}
       />
       {error ? (
-        <p id={`${id}-error`} className="mt-1 text-xs text-red-600">
-          {error}
-        </p>
+        <p className="mt-1 text-xs text-red-600">{error}</p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="mt-1 text-xs text-gray-500">
-          {hint}
-        </p>
+        <p className="mt-1 text-xs text-gray-500">{hint}</p>
       ) : null}
     </div>
   );
 }
 
-// ─── Family connection ───────────────────────────────────
+function ReadOnlyField({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | null;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-700">{label}</p>
+      <p className="mt-1 text-sm text-gray-900">
+        {value && value.trim() ? value : <span className="text-gray-400">—</span>}
+      </p>
+      {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+    </div>
+  );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ─── Family connection ─────────────────────────────────────
 
 /**
  * Self-service surface for the bidirectional family-link feature.
@@ -285,14 +544,9 @@ function Field({
  * yet), so we always show both options. If the user is already linked,
  * the accept endpoint surfaces a 400 inline.
  *
- *   Generate a code for your parent — POST /family/generate-child-code.
- *     Returns an 8-char CHILD_LINK token the parent enters at /family
- *     to add the user to their family as a LINKED child.
- *
- *   Enter a parent's family code — POST /family/link.
- *     Accepts both a parent's FAMILY_INVITE code (user joins the
- *     parent's family) and a parent-issued CHILD_LINK that named
- *     this user. The API dispatches on type + metadata.
+ * The final commit of this series gates this section behind "user has
+ * no PARENT persona" — parents manage at /family, only children/
+ * students should see these cards. For now the section is unconditional.
  */
 function FamilyConnectionSection() {
   return (
@@ -401,10 +655,6 @@ function EnterParentCodeBlock() {
     setError(null);
     try {
       await accept.mutateAsync({ code: trimmed });
-      // Linking activates the inviter's persona, not necessarily the
-      // caller's, but the wire shape may still change (e.g. linked_at
-      // visible to the user). Refresh /auth/me so any persona derived
-      // from this link surfaces in the top bar.
       await refreshUser();
       toast("You're connected to your family", 'success');
       setCode('');

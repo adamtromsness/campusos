@@ -28,6 +28,9 @@ interface IamPersonRow {
   suffix: string | null;
   previous_names: string[] | null;
   date_of_birth: string | null;
+  // Self-editable, platform-wide. Distinct from
+  // sis_student_demographics.gender (admin-managed, per-tenant).
+  gender: string | null;
   primary_phone: string | null;
   secondary_phone: string | null;
   work_phone: string | null;
@@ -37,6 +40,7 @@ interface IamPersonRow {
   personal_email: string | null;
   notes: string | null;
   profile_updated_at: string | null;
+  created_at: string;
   person_type: string | null;
   account_id: string | null;
   login_email: string | null;
@@ -271,6 +275,11 @@ export class ProfileService {
       'personalEmail',
       'preferredLanguage',
       'notes',
+      // Self-editable on both /profile/me and /profile/:personId.
+      // The admin DTO inherits this from UpdateMyProfileDto; the
+      // admin DTO's own `gender` (under demographics) writes to
+      // sis_student_demographics, not here.
+      'gender',
     ];
     for (const k of allowed) {
       if (dto[k] !== undefined) out[k as string] = dto[k];
@@ -287,10 +296,12 @@ export class ProfileService {
     const rows = await this.platform.$queryRawUnsafe<IamPersonRow[]>(
       'SELECT p.id::text AS id, p.first_name, p.last_name, p.middle_name, p.preferred_name, ' +
         'p.suffix, p.previous_names, p.date_of_birth::text AS date_of_birth, ' +
+        'p.gender, ' +
         'p.primary_phone, p.secondary_phone, p.work_phone, ' +
         'p.phone_type_primary, p.phone_type_secondary, ' +
         'p.preferred_language, p.personal_email, p.notes, ' +
         'p.profile_updated_at::text AS profile_updated_at, ' +
+        'p.created_at::text AS created_at, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
         'FROM platform.iam_person p LEFT JOIN platform.platform_users pu ON pu.person_id = p.id ' +
@@ -391,11 +402,28 @@ export class ProfileService {
     dto: UpdateAdminProfileDto,
     isAdmin: boolean,
   ): Promise<void> {
-    const adminOnly = ['gender', 'ethnicity', 'birthCountry', 'citizenship', 'medicalAlertNotes'];
+    // `gender` is now self-editable on iam_person (buildIamPersonPatch
+    // handles that path); the demographics-side copy stays admin-only.
+    // We no longer reject a non-admin who sends `gender` — the
+    // demographics upsert below skips writing it when !isAdmin so the
+    // admin-managed value stays untouched.
+    const adminOnly = ['ethnicity', 'birthCountry', 'citizenship', 'medicalAlertNotes'];
     for (const k of adminOnly) {
       if (!isAdmin && (dto as Record<string, unknown>)[k] !== undefined) {
         throw new BadRequestException(k + ' is admin-only on demographics');
       }
+    }
+    // Self-edit students don't need a demographics row written when
+    // they only sent gender — that value already landed on iam_person.
+    const adminFieldsTouched =
+      dto.gender !== undefined ||
+      dto.ethnicity !== undefined ||
+      dto.birthCountry !== undefined ||
+      dto.citizenship !== undefined ||
+      dto.medicalAlertNotes !== undefined;
+    if (!isAdmin && !dto.primaryLanguage) {
+      // No fields a non-admin can legitimately write here — skip.
+      return;
     }
     if (
       dto.primaryLanguage === undefined &&
@@ -407,6 +435,9 @@ export class ProfileService {
     ) {
       return;
     }
+    // The variable is referenced by the SQL below via the existing
+    // ternary `isAdmin ? dto.gender : null` — no further wiring needed.
+    void adminFieldsTouched;
     const studentRows = await tx.$queryRawUnsafe<{ id: string }[]>(
       'SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1',
       personId,
@@ -663,6 +694,7 @@ export class ProfileService {
       suffix: person.suffix,
       previousNames: person.previous_names ?? [],
       dateOfBirth: person.date_of_birth,
+      gender: person.gender,
       loginEmail: person.login_email,
       personalEmail: person.personal_email,
       primaryPhone: person.primary_phone,
@@ -673,6 +705,7 @@ export class ProfileService {
       preferredLanguage: person.preferred_language,
       notes: person.notes,
       profileUpdatedAt: person.profile_updated_at,
+      createdAt: person.created_at,
       household: householdDto,
       emergencyContact: emergencyDto,
       demographics: demographicsDto,

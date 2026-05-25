@@ -1838,6 +1838,9 @@ export interface ProfileDto {
   suffix: string | null;
   previousNames: string[];
   dateOfBirth: string | null;
+  // Self-editable top-level gender on iam_person. The admin path
+  // writes here too; the per-tenant demographics.gender is admin-only.
+  gender: string | null;
   loginEmail: string | null;
   personalEmail: string | null;
   primaryPhone: string | null;
@@ -1848,6 +1851,7 @@ export interface ProfileDto {
   preferredLanguage: string;
   notes: string | null;
   profileUpdatedAt: string | null;
+  createdAt: string | null;
   household: HouseholdSummaryDto | null;
   emergencyContact: EmergencyContactDto | null;
   demographics: StudentDemographicsDto | null;
@@ -1870,6 +1874,7 @@ export interface UpdateProfilePayload {
   preferredName?: string | null;
   suffix?: string | null;
   previousNames?: string[];
+  gender?: string | null;
   primaryPhone?: string | null;
   phoneTypePrimary?: PhoneType | null;
   secondaryPhone?: string | null;

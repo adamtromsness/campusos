@@ -183,6 +183,10 @@ model IamPerson {
   suffix             String?
   previousNames      String[]   @map("previous_names")
   dateOfBirth        DateTime?  @map("date_of_birth") @db.Date
+  // Platform-wide self-editable gender. sis_student_demographics.gender
+  // is the admin-managed per-tenant version for students; this is the
+  // canonical identity-level value used by /profile/me.
+  gender             String?
   primaryPhone       String?    @map("primary_phone")
   secondaryPhone     String?    @map("secondary_phone")
   workPhone          String?    @map("work_phone")

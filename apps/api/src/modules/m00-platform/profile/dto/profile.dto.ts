@@ -67,6 +67,10 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() suffix?: string | null;
   @ApiProperty({ type: [String] }) previousNames!: string[];
   @ApiPropertyOptional() dateOfBirth?: string | null;
+  // Top-level self-editable gender — distinct from demographics.gender
+  // (admin-managed per-tenant). Wire shape uses '' / 'F' / 'M' to
+  // match the family-child picker; legacy values stay rendered as-is.
+  @ApiPropertyOptional() gender?: string | null;
   @ApiProperty() loginEmail!: string | null;
   @ApiPropertyOptional() personalEmail?: string | null;
   @ApiPropertyOptional() primaryPhone?: string | null;
@@ -77,6 +81,8 @@ export class ProfileResponseDto {
   @ApiProperty() preferredLanguage!: string;
   @ApiPropertyOptional() notes?: string | null;
   @ApiPropertyOptional() profileUpdatedAt?: string | null;
+  // iam_person.created_at — used by /profile's "Account created" line.
+  @ApiPropertyOptional() createdAt?: string | null;
   @ApiPropertyOptional({ type: HouseholdSummaryDto }) household?: HouseholdSummaryDto | null;
   @ApiPropertyOptional({ type: EmergencyContactDto }) emergencyContact?: EmergencyContactDto | null;
   @ApiPropertyOptional({ type: StudentDemographicsDto })
@@ -140,6 +146,11 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsIn(PHONE_TYPES) phoneTypeSecondary?: PhoneType | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) workPhone?: string | null;
 
+  // Self-editable on /profile/me. The admin path (UpdateAdminProfileDto)
+  // already exposes gender — this carve-out duplicates it onto the
+  // self-service surface for the /profile Account tab.
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string | null;
+
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) personalEmail?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) preferredLanguage?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) notes?: string | null;
@@ -167,7 +178,9 @@ export class UpdateMyProfileDto {
  * includes first_name, last_name, date_of_birth as of 2026-05-24).
  */
 export class UpdateAdminProfileDto extends UpdateMyProfileDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string | null;
+  // gender is now inherited from UpdateMyProfileDto (self-editable on
+  // both surfaces). The other demographics fields stay admin-only;
+  // they write to sis_student_demographics rather than iam_person.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) ethnicity?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) birthCountry?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) citizenship?: string | null;
