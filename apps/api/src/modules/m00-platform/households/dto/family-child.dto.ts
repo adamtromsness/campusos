@@ -32,6 +32,9 @@ export type FamilyChildStatus = (typeof FAMILY_CHILD_STATUSES)[number];
 export const FAMILY_ACCESS_LEVELS = ['PLACEHOLDER', 'MANAGED', 'INDEPENDENT'] as const;
 export type FamilyAccessLevel = (typeof FAMILY_ACCESS_LEVELS)[number];
 
+export const EMERGENCY_CONTACT_SOURCES = ['FAMILY', 'CUSTOM'] as const;
+export type EmergencyContactSource = (typeof EMERGENCY_CONTACT_SOURCES)[number];
+
 export class FamilyChildDto {
   @ApiProperty() id!: string;
   @ApiProperty() familyId!: string;
@@ -49,6 +52,11 @@ export class FamilyChildDto {
   @ApiPropertyOptional() notes!: string | null;
   @ApiProperty({ enum: FAMILY_CHILD_STATUSES }) status!: FamilyChildStatus;
   @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
+  // Per-child preference: 'FAMILY' (default) inherits emergency
+  // contacts from platform_families; 'CUSTOM' uses only per-child
+  // contacts. See the per-tab UI for the semantics.
+  @ApiProperty({ enum: EMERGENCY_CONTACT_SOURCES })
+  emergencyContactSource!: EmergencyContactSource;
   @ApiPropertyOptional() inviteCode!: string | null;
   @ApiPropertyOptional() inviteEmail!: string | null;
   @ApiPropertyOptional() inviteSentAt!: string | null;
@@ -85,6 +93,10 @@ export class UpdateFamilyChildDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryPhone?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) notes?: string | null;
+  @ApiPropertyOptional({ enum: EMERGENCY_CONTACT_SOURCES })
+  @IsOptional()
+  @IsIn(EMERGENCY_CONTACT_SOURCES)
+  emergencyContactSource?: EmergencyContactSource;
 }
 
 export class CreateChildAccountDto {
@@ -408,6 +420,45 @@ export class UpdateChildDietaryInfoDto {
 export class FamilyHeaderDto {
   @ApiProperty() id!: string;
   @ApiPropertyOptional() name?: string | null;
+}
+
+// ─── /family/settings/emergency-contacts ──────────────────
+
+/**
+ * One row of platform_family_emergency_contacts. Inherited by every
+ * child in the family whose emergencyContactSource is 'FAMILY';
+ * ignored when 'CUSTOM'.
+ */
+export class FamilyEmergencyContactDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() familyId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() relationship!: string;
+  @ApiProperty() phonePrimary!: string;
+  @ApiPropertyOptional() phoneAlternate!: string | null;
+  @ApiPropertyOptional() email!: string | null;
+  @ApiProperty() authorizedPickup!: boolean;
+  @ApiProperty() priorityOrder!: number;
+}
+
+export class AddFamilyEmergencyContactDto {
+  @ApiProperty() @IsString() @MaxLength(200) name!: string;
+  @ApiProperty() @IsString() @MaxLength(80) relationship!: string;
+  @ApiProperty() @IsString() @MaxLength(40) phonePrimary!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
+  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
+}
+
+export class UpdateFamilyEmergencyContactDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) relationship?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phonePrimary?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
+  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
 }
 
 // ─── /family/settings — family-level shared attributes ─────

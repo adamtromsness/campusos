@@ -13,6 +13,7 @@ import {
   useDeleteChildEmergencyContact,
   useDeleteFamilyChild,
   useFamilyChildren,
+  useFamilyEmergencyContacts,
   useFamilySettings,
   useSendChildLink,
   useUpdateChildDietary,
@@ -22,6 +23,7 @@ import {
   type ChildConditionEntry,
   type ChildMedicationEntry,
   type DietaryType,
+  type EmergencyContactSource,
   type FamilyChildDto,
   type FamilyChildStatus,
   type MedicalSource,
@@ -163,13 +165,14 @@ function PillBadge({ style }: { style: { bg: string; text: string; label: string
 
 // ─── Tab bar + routing ──────────────────────────────────────
 
-type TabKey = 'account' | 'contact' | 'medical' | 'emergency' | 'dietary' | 'about';
+type TabKey = 'account' | 'contact' | 'medical' | 'dietary' | 'about';
 
 const TABS: Array<{ key: TabKey; label: string; needsLinked: boolean }> = [
   { key: 'account', label: 'Account', needsLinked: false },
+  // Contact owns Emergency Contacts now — same physical context (how
+  // we reach this child) and the old Emergency tab was thin.
   { key: 'contact', label: 'Contact', needsLinked: false },
   { key: 'medical', label: 'Medical & Health', needsLinked: true },
-  { key: 'emergency', label: 'Emergency Contacts', needsLinked: true },
   { key: 'dietary', label: 'Dietary', needsLinked: true },
   { key: 'about', label: 'About', needsLinked: false },
 ];
@@ -229,7 +232,6 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
         {active === 'account' && <AccountTab child={child} onSendLink={onSendLink} />}
         {active === 'contact' && <ContactTab child={child} />}
         {active === 'medical' && <MedicalTab child={child} />}
-        {active === 'emergency' && <EmergencyTab child={child} />}
         {active === 'dietary' && <DietaryTab child={child} />}
         {active === 'about' && <AboutTab child={child} />}
       </div>
@@ -646,6 +648,7 @@ function ContactTab({ child }: { child: FamilyChildDto }) {
     <div className="flex flex-col gap-5">
       <FamilyAddressCard />
       <PhoneNotesCard child={child} readOnly={readOnly} />
+      <EmergencyContactsContactTabSection child={child} />
     </div>
   );
 }
@@ -1019,15 +1022,15 @@ function MedicalSection({ childId }: { childId: string }) {
  * because the source choice is a single field and a save-button per
  * toggle would feel heavier than necessary.
  */
-function SourceToggle({
+function SourceToggle<TSource extends 'FAMILY' | 'CUSTOM'>({
   value,
   onChange,
   busy,
   familyLabel,
   customLabel,
 }: {
-  value: MedicalSource;
-  onChange: (next: MedicalSource) => void;
+  value: TSource;
+  onChange: (next: TSource) => void;
   busy: boolean;
   familyLabel: string;
   customLabel: string;
@@ -1036,7 +1039,7 @@ function SourceToggle({
     <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
       <button
         type="button"
-        onClick={() => onChange('FAMILY')}
+        onClick={() => onChange('FAMILY' as TSource)}
         disabled={busy}
         className={cn(
           'rounded px-3 py-1',
@@ -1048,7 +1051,7 @@ function SourceToggle({
       </button>
       <button
         type="button"
-        onClick={() => onChange('CUSTOM')}
+        onClick={() => onChange('CUSTOM' as TSource)}
         disabled={busy}
         className={cn(
           'rounded px-3 py-1',
@@ -1304,16 +1307,150 @@ function ConditionsCard({
 
 // ─── Emergency tab ──────────────────────────────────────────
 
-function EmergencyTab({ child }: { child: FamilyChildDto }) {
+/**
+ * Contact-tab emergency contacts section. Wraps the source toggle
+ * around two render paths:
+ *
+ *   FAMILY (default) — read-only family contacts (sourced from
+ *     /family/settings/emergency-contacts) plus an editable
+ *     "Additional contacts for <name> only" list of per-child rows
+ *     that sit on top.
+ *
+ *   CUSTOM           — per-child contacts only. Family rows are
+ *     hidden; the toggle copy explicitly calls out that the family
+ *     defaults are being ignored.
+ *
+ * The toggle persists via PATCH /family/children/:id since the
+ * source is a child-level preference.
+ */
+function EmergencyContactsContactTabSection({ child }: { child: FamilyChildDto }) {
+  const { toast } = useToast();
+  const updateChild = useUpdateFamilyChild(child.id);
+
+  async function flipSource(next: EmergencyContactSource) {
+    if (next === child.emergencyContactSource) return;
+    try {
+      await updateChild.mutateAsync({ emergencyContactSource: next });
+      toast(
+        next === 'FAMILY'
+          ? "Now using your family's emergency contacts"
+          : 'Switched to custom emergency contacts for this child',
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not change source.', 'error');
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-5">
+    <SectionCard title="Emergency Contacts">
       <ParentOnlyBanner />
-      <EmergencyContactsSection childId={child.id} />
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-600">
+          {child.emergencyContactSource === 'FAMILY'
+            ? 'Using your family contacts plus any additional contacts for this child.'
+            : 'Using a custom contact list for this child only. Family contacts are ignored.'}
+        </p>
+        <SourceToggle
+          value={child.emergencyContactSource}
+          onChange={(next) => void flipSource(next)}
+          busy={updateChild.isPending}
+          familyLabel="Use family"
+          customLabel="Use custom"
+        />
+      </div>
+
+      {child.emergencyContactSource === 'FAMILY' && <FamilyEmergencyContactsInherited />}
+
+      <ChildEmergencyContactsBlock
+        childId={child.id}
+        title={
+          child.emergencyContactSource === 'FAMILY'
+            ? 'Additional contacts for ' +
+              (child.preferredName?.trim() ? child.preferredName : child.firstName) +
+              ' only'
+            : 'Custom emergency contacts'
+        }
+      />
+    </SectionCard>
+  );
+}
+
+/**
+ * Read-only block that shows the family-inherited emergency contacts.
+ * Surface a deep-link to /family/settings so the user can edit at the
+ * family level without bouncing through "this isn't editable here"
+ * confusion.
+ */
+function FamilyEmergencyContactsInherited() {
+  const { data, isLoading } = useFamilyEmergencyContacts();
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Family contacts
+        </h3>
+        <Link
+          href="/family/settings"
+          className="text-sm font-medium text-campus-700 hover:text-campus-600"
+        >
+          Edit family contacts →
+        </Link>
+      </div>
+      {isLoading ? (
+        <p className="mt-2 text-sm text-gray-500">Loading…</p>
+      ) : !data || data.length === 0 ? (
+        <p className="mt-2 text-sm text-gray-500">
+          No family emergency contacts yet.{' '}
+          <Link
+            href="/family/settings"
+            className="font-medium text-campus-700 hover:text-campus-600"
+          >
+            Add one in family settings.
+          </Link>
+        </p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-2">
+          {data.map((c, i) => (
+            <li
+              key={c.id}
+              className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-white p-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-900">
+                  <span className="text-xs text-gray-400">{i + 1}.</span> {c.name}
+                  <span className="ml-2 text-xs font-normal text-gray-500">{c.relationship}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-gray-600">
+                  {c.phonePrimary}
+                  {c.phoneAlternate && (
+                    <span className="text-gray-500"> · {c.phoneAlternate}</span>
+                  )}
+                </p>
+                {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
+                <p className="mt-0.5 text-xs">
+                  {c.authorizedPickup ? (
+                    <span className="text-emerald-700">✓ Authorized for pickup</span>
+                  ) : (
+                    <span className="text-gray-500">Not authorized for pickup</span>
+                  )}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-function EmergencyContactsSection({ childId }: { childId: string }) {
+/**
+ * The per-child emergency contacts block — formerly the whole
+ * EmergencyTab. The `title` prop changes based on source mode so the
+ * heading reads naturally: "Additional contacts for X only" when
+ * inheriting from family, "Custom emergency contacts" when overriding.
+ */
+function ChildEmergencyContactsBlock({ childId, title }: { childId: string; title: string }) {
   const { data, isLoading } = useChildEmergencyContacts(childId);
   const add = useAddChildEmergencyContact(childId);
   const { toast } = useToast();
@@ -1351,19 +1488,21 @@ function EmergencyContactsSection({ childId }: { childId: string }) {
 
   if (isLoading) {
     return (
-      <SectionCard title="Emergency Contacts">
-        <p className="text-sm text-gray-500">Loading…</p>
-      </SectionCard>
+      <div className="mt-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
+        <p className="mt-2 text-sm text-gray-500">Loading…</p>
+      </div>
     );
   }
   const contacts = data ?? [];
 
   return (
-    <SectionCard title="Emergency Contacts">
+    <div className="mt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
       {contacts.length === 0 && !showAdd ? (
-        <p className="text-sm text-gray-500">No emergency contacts on file.</p>
+        <p className="mt-2 text-sm text-gray-500">No additional contacts on file for this child.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="mt-2 flex flex-col gap-2">
           {contacts.map((c, i) => (
             <EmergencyContactRow key={c.id} childId={childId} contact={c} index={i + 1} />
           ))}
@@ -1404,7 +1543,7 @@ function EmergencyContactsSection({ childId }: { childId: string }) {
           </button>
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 }
 

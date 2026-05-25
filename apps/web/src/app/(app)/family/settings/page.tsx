@@ -3,8 +3,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
+  useAddFamilyEmergencyContact,
+  useDeleteFamilyEmergencyContact,
+  useFamilyEmergencyContacts,
   useFamilySettings,
   useUpdateFamilySettings,
+  type FamilyEmergencyContactDto,
   type FamilySettingsDto,
   type UpdateFamilySettingsPayload,
 } from '@/hooks/use-family-children';
@@ -262,6 +266,251 @@ export default function FamilySettingsPage() {
           </div>
         )}
       </form>
+
+      <div className="mt-5">
+        <FamilyEmergencyContactsCard editable={editable} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Family-level emergency contacts. Lives outside the main settings
+ * <form> because list-shape data (add / edit / remove rows) doesn't
+ * round-trip through a single Save Changes button — each row mutation
+ * persists on its own.
+ */
+function FamilyEmergencyContactsCard({ editable }: { editable: boolean }) {
+  const { data, isLoading } = useFamilyEmergencyContacts();
+  const add = useAddFamilyEmergencyContact();
+  const { toast } = useToast();
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState({
+    name: '',
+    relationship: '',
+    phonePrimary: '',
+    phoneAlternate: '',
+    email: '',
+    authorizedPickup: false,
+  });
+
+  async function onAdd() {
+    if (!draft.name.trim() || !draft.relationship.trim() || !draft.phonePrimary.trim()) {
+      toast('Name, relationship, and primary phone are required.', 'error');
+      return;
+    }
+    try {
+      await add.mutateAsync({
+        name: draft.name.trim(),
+        relationship: draft.relationship.trim(),
+        phonePrimary: draft.phonePrimary.trim(),
+        phoneAlternate: draft.phoneAlternate.trim() || undefined,
+        email: draft.email.trim() || undefined,
+        authorizedPickup: draft.authorizedPickup,
+      });
+      toast('Emergency contact added', 'success');
+      setShowAdd(false);
+      setDraft({
+        name: '',
+        relationship: '',
+        phonePrimary: '',
+        phoneAlternate: '',
+        email: '',
+        authorizedPickup: false,
+      });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add the contact.', 'error');
+    }
+  }
+
+  const contacts = data ?? [];
+  return (
+    <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-1 text-sm font-semibold text-gray-900">Family emergency contacts</h2>
+      <p className="mb-4 text-xs text-gray-500">
+        Shared with every child whose Contact tab is set to inherit from family. Per-child
+        overrides live on each child&rsquo;s Contact tab.
+      </p>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : contacts.length === 0 && !showAdd ? (
+        <p className="text-sm text-gray-500">No family emergency contacts yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {contacts.map((c, i) => (
+            <FamilyEmergencyContactRow
+              key={c.id}
+              contact={c}
+              index={i + 1}
+              editable={editable}
+            />
+          ))}
+        </ul>
+      )}
+
+      {editable &&
+        (showAdd ? (
+          <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <SettingsField
+                label="Name"
+                value={draft.name}
+                onChange={(v) => setDraft({ ...draft, name: v })}
+                required
+              />
+              <SettingsField
+                label="Relationship"
+                value={draft.relationship}
+                onChange={(v) => setDraft({ ...draft, relationship: v })}
+                placeholder="Spouse, Grandparent…"
+                required
+              />
+              <SettingsField
+                label="Primary phone"
+                value={draft.phonePrimary}
+                onChange={(v) => setDraft({ ...draft, phonePrimary: v })}
+                required
+              />
+              <SettingsField
+                label="Alternate phone"
+                value={draft.phoneAlternate}
+                onChange={(v) => setDraft({ ...draft, phoneAlternate: v })}
+              />
+              <SettingsField
+                label="Email"
+                value={draft.email}
+                onChange={(v) => setDraft({ ...draft, email: v })}
+                className="sm:col-span-2"
+              />
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={draft.authorizedPickup}
+                  onChange={(e) => setDraft({ ...draft, authorizedPickup: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+                />
+                Authorized for pickup
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdd(false)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void onAdd()}
+                disabled={add.isPending}
+                className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+              >
+                {add.isPending && <LoadingSpinner size="sm" />}
+                <span>{add.isPending ? 'Adding…' : 'Add Contact'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="text-sm font-medium text-campus-700 hover:text-campus-600"
+            >
+              + Add contact
+            </button>
+          </div>
+        ))}
+    </section>
+  );
+}
+
+function FamilyEmergencyContactRow({
+  contact,
+  index,
+  editable,
+}: {
+  contact: FamilyEmergencyContactDto;
+  index: number;
+  editable: boolean;
+}) {
+  const remove = useDeleteFamilyEmergencyContact(contact.id);
+  const { toast } = useToast();
+  async function onRemove() {
+    if (typeof window !== 'undefined' && !window.confirm('Remove ' + contact.name + '?')) return;
+    try {
+      await remove.mutateAsync();
+      toast('Contact removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+  return (
+    <li className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-900">
+          <span className="text-xs text-gray-400">{index}.</span> {contact.name}
+          <span className="ml-2 text-xs font-normal text-gray-500">{contact.relationship}</span>
+        </p>
+        <p className="mt-0.5 text-xs text-gray-600">
+          {contact.phonePrimary}
+          {contact.phoneAlternate && (
+            <span className="text-gray-500"> · {contact.phoneAlternate}</span>
+          )}
+        </p>
+        {contact.email && <p className="text-xs text-gray-500">{contact.email}</p>}
+        <p className="mt-0.5 text-xs">
+          {contact.authorizedPickup ? (
+            <span className="text-emerald-700">✓ Authorized for pickup</span>
+          ) : (
+            <span className="text-gray-500">Not authorized for pickup</span>
+          )}
+        </p>
+      </div>
+      {editable && (
+        <button
+          type="button"
+          onClick={() => void onRemove()}
+          disabled={remove.isPending}
+          className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60"
+        >
+          {remove.isPending ? 'Removing…' : 'Remove'}
+        </button>
+      )}
+    </li>
+  );
+}
+
+function SettingsField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+      />
     </div>
   );
 }

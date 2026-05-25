@@ -312,25 +312,55 @@ model PlatformStudent {
 // index that ignores NULL person_id so multiple PLACEHOLDER children
 // can coexist in the same family.
 model PlatformFamilyChild {
-  id           String    @id @db.Uuid
-  familyId     String    @map("family_id") @db.Uuid
-  personId     String?   @map("person_id") @db.Uuid
-  firstName    String    @map("first_name")
-  lastName     String    @map("last_name")
-  dateOfBirth  DateTime? @map("date_of_birth") @db.Date
-  gender       String?
-  status       String    @default("PLACEHOLDER")
-  inviteCode   String?   @map("invite_code")
-  inviteEmail  String?   @map("invite_email")
-  inviteSentAt DateTime? @map("invite_sent_at") @db.Timestamptz()
-  linkedAt     DateTime? @map("linked_at") @db.Timestamptz()
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt    DateTime? @map("updated_at") @db.Timestamptz()
+  id                       String    @id @db.Uuid
+  familyId                 String    @map("family_id") @db.Uuid
+  personId                 String?   @map("person_id") @db.Uuid
+  firstName                String    @map("first_name")
+  lastName                 String    @map("last_name")
+  dateOfBirth              DateTime? @map("date_of_birth") @db.Date
+  gender                   String?
+  status                   String    @default("PLACEHOLDER")
+  // 'FAMILY' (inherit emergency contacts from platform_families) or
+  // 'CUSTOM' (only use per-child contacts, ignoring family defaults).
+  // CHECK constraint enforces the enum at the DB level.
+  emergencyContactSource   String    @default("FAMILY") @map("emergency_contact_source")
+  inviteCode               String?   @map("invite_code")
+  inviteEmail              String?   @map("invite_email")
+  inviteSentAt             DateTime? @map("invite_sent_at") @db.Timestamptz()
+  linkedAt                 DateTime? @map("linked_at") @db.Timestamptz()
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt                DateTime? @map("updated_at") @db.Timestamptz()
 
   @@index([familyId, status])
   @@index([personId])
   @@index([inviteCode])
   @@map("platform_family_children")
+  @@schema("platform")
+}
+
+// One row per family-level emergency contact. When a child's
+// platform_family_children.emergency_contact_source is 'FAMILY'
+// (the default), these contacts are inherited as the primary set;
+// per-child rows in platform_child_emergency_contacts act as
+// additive "additional contacts for this child" on top. When the
+// child is 'CUSTOM', the family rows are ignored and only the
+// per-child rows are surfaced.
+model PlatformFamilyEmergencyContact {
+  id               String   @id @db.Uuid
+  familyId         String   @map("family_id") @db.Uuid
+  name             String
+  relationship     String
+  phonePrimary     String   @map("phone_primary")
+  phoneAlternate   String?  @map("phone_alternate")
+  email            String?
+  authorizedPickup Boolean  @default(false) @map("authorized_pickup")
+  priorityOrder    Int      @default(0) @map("priority_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@unique([familyId, phonePrimary])
+  @@index([familyId, priorityOrder])
+  @@map("platform_family_emergency_contacts")
   @@schema("platform")
 }
 

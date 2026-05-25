@@ -19,6 +19,8 @@ export type FamilyChildStatus = 'PLACEHOLDER' | 'PENDING_LINK' | 'LINKED';
  */
 export type FamilyAccessLevel = 'PLACEHOLDER' | 'MANAGED' | 'INDEPENDENT';
 
+export type EmergencyContactSource = 'FAMILY' | 'CUSTOM';
+
 export interface FamilyChildDto {
   id: string;
   familyId: string;
@@ -36,6 +38,11 @@ export interface FamilyChildDto {
   notes: string | null;
   status: FamilyChildStatus;
   accessLevel: FamilyAccessLevel;
+  // FAMILY (default) → inherit emergency contacts from
+  // /family/settings/emergency-contacts, with per-child rows acting
+  // as additive "additional contacts for this child only".
+  // CUSTOM → only per-child rows are used; family contacts ignored.
+  emergencyContactSource: EmergencyContactSource;
   inviteCode: string | null;
   inviteEmail: string | null;
   inviteSentAt: string | null;
@@ -61,6 +68,7 @@ export interface UpdateFamilyChildPayload {
   gender?: string;
   primaryPhone?: string | null;
   notes?: string | null;
+  emergencyContactSource?: EmergencyContactSource;
 }
 
 export interface CreateChildAccountPayload {
@@ -655,6 +663,91 @@ export function useUpdateFamilySettings() {
       apiFetch<FamilySettingsDto>('/api/v1/family/settings', {
         method: 'PATCH',
         body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+// ─── Family emergency contacts (shared default) ───────────
+
+export interface FamilyEmergencyContactDto {
+  id: string;
+  familyId: string;
+  name: string;
+  relationship: string;
+  phonePrimary: string;
+  phoneAlternate: string | null;
+  email: string | null;
+  authorizedPickup: boolean;
+  priorityOrder: number;
+}
+
+export interface AddFamilyEmergencyContactPayload {
+  name: string;
+  relationship: string;
+  phonePrimary: string;
+  phoneAlternate?: string;
+  email?: string;
+  authorizedPickup?: boolean;
+  priorityOrder?: number;
+}
+
+export interface UpdateFamilyEmergencyContactPayload {
+  name?: string;
+  relationship?: string;
+  phonePrimary?: string;
+  phoneAlternate?: string | null;
+  email?: string | null;
+  authorizedPickup?: boolean;
+  priorityOrder?: number;
+}
+
+export function useFamilyEmergencyContacts(enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'emergency-contacts'] as const,
+    queryFn: () =>
+      apiFetch<FamilyEmergencyContactDto[]>('/api/v1/family/settings/emergency-contacts'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useAddFamilyEmergencyContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddFamilyEmergencyContactPayload) =>
+      apiFetch<FamilyEmergencyContactDto>('/api/v1/family/settings/emergency-contacts', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useUpdateFamilyEmergencyContact(contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateFamilyEmergencyContactPayload) =>
+      apiFetch<FamilyEmergencyContactDto>(
+        '/api/v1/family/settings/emergency-contacts/' + contactId,
+        { method: 'PATCH', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useDeleteFamilyEmergencyContact(contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/family/settings/emergency-contacts/' + contactId, {
+        method: 'DELETE',
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: INVALIDATE });

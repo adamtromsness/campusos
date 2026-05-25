@@ -17,6 +17,7 @@ import { FamilyChildrenService } from './family-children.service';
 import {
   AcceptFamilyLinkDto,
   AddChildEmergencyContactDto,
+  AddFamilyEmergencyContactDto,
   AddFamilyMemberDto,
   ChildDietaryInfoDto,
   ChildEmergencyContactDto,
@@ -25,6 +26,7 @@ import {
   CreateFamilyChildDto,
   CreateMemberAccountDto,
   FamilyChildDto,
+  FamilyEmergencyContactDto,
   FamilyLinkResultDto,
   FamilyMemberDto,
   FamilySettingsDto,
@@ -38,6 +40,7 @@ import {
   UpdateChildEmergencyContactDto,
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
+  UpdateFamilyEmergencyContactDto,
   UpdateFamilyMemberDto,
   UpdateFamilySettingsDto,
 } from './dto/family-child.dto';
@@ -99,6 +102,47 @@ export class FamilyChildrenController {
     @Body() dto: UpdateFamilySettingsDto,
   ): Promise<FamilySettingsDto> {
     return this.children.updateFamilySettings(req.user!.personId, dto);
+  }
+
+  // ─── Family emergency contacts ─────────────────────────────
+
+  @Get('settings/emergency-contacts')
+  @ApiOperation({
+    summary: 'List family-level emergency contacts (shared default for all children)',
+  })
+  async listFamilyEmergencyContacts(
+    @Req() req: AuthedRequest,
+  ): Promise<FamilyEmergencyContactDto[]> {
+    return this.children.listFamilyEmergencyContacts(req.user!.personId);
+  }
+
+  @Post('settings/emergency-contacts')
+  @ApiOperation({ summary: 'Add a family-level emergency contact — parents/guardians only' })
+  async addFamilyEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Body() dto: AddFamilyEmergencyContactDto,
+  ): Promise<FamilyEmergencyContactDto> {
+    return this.children.addFamilyEmergencyContact(req.user!.personId, dto);
+  }
+
+  @Patch('settings/emergency-contacts/:contactId')
+  @ApiOperation({ summary: 'Update a family-level emergency contact' })
+  async updateFamilyEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body() dto: UpdateFamilyEmergencyContactDto,
+  ): Promise<FamilyEmergencyContactDto> {
+    return this.children.updateFamilyEmergencyContact(req.user!.personId, contactId, dto);
+  }
+
+  @Delete('settings/emergency-contacts/:contactId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a family-level emergency contact' })
+  async removeFamilyEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+  ): Promise<void> {
+    await this.children.removeFamilyEmergencyContact(req.user!.personId, contactId);
   }
 
   // ─── Step 5 — CRUD ──────────────────────────────────────────

@@ -14,6 +14,7 @@ import { RedisService } from '@shared/cache';
 import {
   AcceptFamilyLinkDto,
   AddChildEmergencyContactDto,
+  AddFamilyEmergencyContactDto,
   AddFamilyMemberDto,
   ChildAllergyEntry,
   ChildConditionEntry,
@@ -27,6 +28,7 @@ import {
   CreateMemberAccountDto,
   FamilyAccessLevel,
   FamilyChildDto,
+  FamilyEmergencyContactDto,
   FamilyHeaderDto,
   FamilyLinkResultDto,
   FamilyMemberDto,
@@ -42,6 +44,7 @@ import {
   UpdateChildEmergencyContactDto,
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
+  UpdateFamilyEmergencyContactDto,
   UpdateFamilyMemberDto,
   UpdateFamilySettingsDto,
 } from './dto/family-child.dto';
@@ -59,6 +62,7 @@ interface FamilyChildRow {
   primary_phone: string | null;
   notes: string | null;
   status: string;
+  emergency_contact_source: string;
   invite_code: string | null;
   invite_email: string | null;
   invite_sent_at: string | null;
@@ -443,6 +447,141 @@ export class FamilyChildrenService {
     return refreshed;
   }
 
+  // ─── Family emergency contacts ─────────────────────────────
+
+  /**
+   * Resolve the caller's family for emergency-contact CRUD. PARENT
+   * and CHILD viewers both get GET (children need to see who's on the
+   * family contact list); only PARENT can mutate (the per-method
+   * write helpers run assertNotChildViewer).
+   */
+  private async familyIdForViewer(personId: string): Promise<string | null> {
+    const resolved = await this.resolveViewerFamily(personId);
+    return resolved?.familyId ?? null;
+  }
+
+  async listFamilyEmergencyContacts(personId: string): Promise<FamilyEmergencyContactDto[]> {
+    const familyId = await this.familyIdForViewer(personId);
+    if (!familyId) return [];
+    const rows = await this.prisma.platformFamilyEmergencyContact.findMany({
+      where: { familyId },
+      orderBy: [{ priorityOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map((r) => this.toFamilyEmergencyContactDto(r));
+  }
+
+  async addFamilyEmergencyContact(
+    personId: string,
+    dto: AddFamilyEmergencyContactDto,
+  ): Promise<FamilyEmergencyContactDto> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const id = generateId();
+    try {
+      const created = await this.prisma.platformFamilyEmergencyContact.create({
+        data: {
+          id,
+          familyId,
+          name: dto.name,
+          relationship: dto.relationship,
+          phonePrimary: dto.phonePrimary,
+          phoneAlternate: dto.phoneAlternate ?? null,
+          email: dto.email ?? null,
+          authorizedPickup: dto.authorizedPickup ?? false,
+          priorityOrder: dto.priorityOrder ?? 0,
+        },
+      });
+      return this.toFamilyEmergencyContactDto(created);
+    } catch (err: unknown) {
+      // 23505 on UNIQUE (family_id, phone_primary).
+      const e = err as { code?: string; meta?: { target?: string[] } };
+      if (e.code === 'P2002') {
+        throw new ConflictException(
+          'A family emergency contact with that primary phone already exists.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async updateFamilyEmergencyContact(
+    personId: string,
+    contactId: string,
+    dto: UpdateFamilyEmergencyContactDto,
+  ): Promise<FamilyEmergencyContactDto> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+    // Membership check — refuse cross-family edits even with a guessed
+    // contact id. 404 (not 403) so the existence of another family's
+    // row isn't leaked.
+    const existing = await this.prisma.platformFamilyEmergencyContact.findUnique({
+      where: { id: contactId },
+    });
+    if (!existing || existing.familyId !== familyId) {
+      throw new NotFoundException('Family emergency contact not found');
+    }
+    try {
+      const updated = await this.prisma.platformFamilyEmergencyContact.update({
+        where: { id: contactId },
+        data: {
+          name: dto.name ?? undefined,
+          relationship: dto.relationship ?? undefined,
+          phonePrimary: dto.phonePrimary ?? undefined,
+          phoneAlternate: dto.phoneAlternate === undefined ? undefined : dto.phoneAlternate,
+          email: dto.email === undefined ? undefined : dto.email,
+          authorizedPickup: dto.authorizedPickup ?? undefined,
+          priorityOrder: dto.priorityOrder ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+      return this.toFamilyEmergencyContactDto(updated);
+    } catch (err: unknown) {
+      const e = err as { code?: string };
+      if (e.code === 'P2002') {
+        throw new ConflictException(
+          'A family emergency contact with that primary phone already exists.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async removeFamilyEmergencyContact(personId: string, contactId: string): Promise<void> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const existing = await this.prisma.platformFamilyEmergencyContact.findUnique({
+      where: { id: contactId },
+    });
+    if (!existing || existing.familyId !== familyId) {
+      throw new NotFoundException('Family emergency contact not found');
+    }
+    await this.prisma.platformFamilyEmergencyContact.delete({ where: { id: contactId } });
+  }
+
+  private toFamilyEmergencyContactDto(r: {
+    id: string;
+    familyId: string;
+    name: string;
+    relationship: string;
+    phonePrimary: string;
+    phoneAlternate: string | null;
+    email: string | null;
+    authorizedPickup: boolean;
+    priorityOrder: number;
+  }): FamilyEmergencyContactDto {
+    return {
+      id: r.id,
+      familyId: r.familyId,
+      name: r.name,
+      relationship: r.relationship,
+      phonePrimary: r.phonePrimary,
+      phoneAlternate: r.phoneAlternate,
+      email: r.email,
+      authorizedPickup: r.authorizedPickup,
+      priorityOrder: r.priorityOrder,
+    };
+  }
+
   // ─── CRUD (Step 5) ─────────────────────────────────────────
 
   async listForUser(personId: string): Promise<FamilyChildDto[]> {
@@ -529,6 +668,10 @@ export class FamilyChildrenService {
     if (dto.gender !== undefined) {
       childSet.push('gender = $' + ci++);
       childArgs.push(dto.gender);
+    }
+    if (dto.emergencyContactSource !== undefined) {
+      childSet.push('emergency_contact_source = $' + ci++);
+      childArgs.push(dto.emergencyContactSource);
     }
 
     const personPatch: Record<string, unknown> = {};
@@ -1629,6 +1772,7 @@ export class FamilyChildrenService {
       '  p.primary_phone AS primary_phone, ' +
       '  p.notes AS notes, ' +
       '  pfc.status, ' +
+      '  pfc.emergency_contact_source AS emergency_contact_source, ' +
       '  pfc.invite_code, pfc.invite_email, ' +
       '  pfc.invite_sent_at::text AS invite_sent_at, ' +
       '  pfc.linked_at::text AS linked_at, ' +
@@ -1655,6 +1799,8 @@ export class FamilyChildrenService {
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, viewerPersonId),
+      emergencyContactSource:
+        r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
       inviteCode: r.invite_code,
       inviteEmail: r.invite_email,
       inviteSentAt: r.invite_sent_at,
