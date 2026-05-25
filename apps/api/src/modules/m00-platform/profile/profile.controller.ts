@@ -1,14 +1,29 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
 import { ProfileService } from './profile.service';
 import {
+  AddPersonPhoneDto,
   AdultMedicalInfoDto,
+  PersonPhoneDto,
   ProfileResponseDto,
   UpdateAdminProfileDto,
   UpdateAdultMedicalInfoDto,
   UpdateMyProfileDto,
+  UpdatePersonPhoneDto,
 } from './dto/profile.dto';
 
 interface AuthedRequest extends Request {
@@ -60,6 +75,50 @@ export class ProfileController {
     @Body() dto: UpdateAdultMedicalInfoDto,
   ): Promise<AdultMedicalInfoDto> {
     return this.profile.updateMyMedical(req.user!.personId, dto);
+  }
+
+  // Multi-phone list — /profile/me/phones. Declared before
+  // /profile/:personId-style routes so Nest's in-registration-order
+  // matching doesn't swallow 'me' as a UUID param.
+  @Get('profile/me/phones')
+  @ApiOperation({ summary: 'List the calling user’s phones, primary first' })
+  async listMyPhones(@Req() req: AuthedRequest): Promise<PersonPhoneDto[]> {
+    return this.profile.listMyPhones(req.user!.personId);
+  }
+
+  @Post('profile/me/phones')
+  @ApiOperation({
+    summary:
+      'Add a phone. First phone auto-becomes primary; setting isPrimary demotes the existing primary in the same tx.',
+  })
+  async addMyPhone(
+    @Req() req: AuthedRequest,
+    @Body() dto: AddPersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    return this.profile.addMyPhone(req.user!.personId, dto);
+  }
+
+  @Patch('profile/me/phones/:phoneId')
+  @ApiOperation({ summary: 'Update a phone (number / type / textsAllowed / isPrimary)' })
+  async updateMyPhone(
+    @Req() req: AuthedRequest,
+    @Param('phoneId', ParseUUIDPipe) phoneId: string,
+    @Body() dto: UpdatePersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    return this.profile.updateMyPhone(req.user!.personId, phoneId, dto);
+  }
+
+  @Delete('profile/me/phones/:phoneId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete a phone. If it was primary, the next-oldest phone is promoted automatically.',
+  })
+  async deleteMyPhone(
+    @Req() req: AuthedRequest,
+    @Param('phoneId', ParseUUIDPipe) phoneId: string,
+  ): Promise<void> {
+    await this.profile.deleteMyPhone(req.user!.personId, phoneId);
   }
 
   @Get('profile/:personId')

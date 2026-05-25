@@ -569,6 +569,30 @@ model PlatformChildMedicalInfo {
   @@schema("platform")
 }
 
+// Multi-phone support for iam_person. The /profile Contact tab
+// replaces the single primary_phone column with a list of typed
+// numbers (Cell/Home/Work/Other) with per-row texts-allowed +
+// is_primary flags. iam_person.primary_phone stays as a
+// denormalized cache of the primary row's number so existing
+// surfaces don't have to JOIN to read it.
+model PlatformPersonPhone {
+  id            String   @id @db.Uuid
+  personId      String   @map("person_id") @db.Uuid
+  number        String
+  type          String   @default("CELL")
+  textsAllowed  Boolean  @default(false) @map("texts_allowed")
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime? @map("updated_at") @db.Timestamptz()
+
+  // The partial UNIQUE on (person_id) WHERE is_primary = true
+  // can't be expressed in @@unique here; lives in the migration.
+  @@index([personId, isPrimary, createdAt])
+  @@index([textsAllowed])
+  @@map("platform_person_phones")
+  @@schema("platform")
+}
+
 // Adult-side medical info — parallel to PlatformChildMedicalInfo
 // for adults (parents/guardians/staff) on /profile → Medical &
 // Health. Same JSONB shape on allergies / medications / conditions;

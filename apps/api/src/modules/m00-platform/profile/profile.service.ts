@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { TenantPrismaService } from '@shared/tenant';
 import {
+  AddPersonPhoneDto,
   AdultAllergyEntry,
   AdultConditionEntry,
   AdultMedicalInfoDto,
@@ -16,12 +17,15 @@ import {
   EmergencyContactDto,
   GuardianEmploymentDto,
   HouseholdSummaryDto,
+  PersonPhoneDto,
+  PersonPhoneType,
   ProfileResponseDto,
   StudentDemographicsDto,
   UpdateAdminProfileDto,
   UpdateAdultMedicalInfoDto,
   UpdateEmergencyContactDto,
   UpdateMyProfileDto,
+  UpdatePersonPhoneDto,
 } from './dto/profile.dto';
 
 interface IamPersonRow {
@@ -230,6 +234,221 @@ export class ProfileService {
     if (rows.length === 0) {
       throw new NotFoundException('Person not found');
     }
+  }
+
+  // ── Multi-phone list — /profile/me/phones ────────────────────────────
+
+  /**
+   * List the calling user's phones, primary first then by creation
+   * time. Lazy-seeds a single CELL/primary row from
+   * iam_person.primary_phone when:
+   *   - no rows exist yet, AND
+   *   - iam_person.primary_phone is non-null/non-empty.
+   *
+   * This handles brand-new /auth/register users whose iam_person row
+   * was created with a phone but never wrote a platform_person_phones
+   * row — the migration backfill caught existing rows, this catches
+   * forward registrations until the registration service is updated
+   * to write both.
+   */
+  async listMyPhones(personId: string): Promise<PersonPhoneDto[]> {
+    let rows = await this.platform.platformPersonPhone.findMany({
+      where: { personId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (rows.length === 0) {
+      const person = await this.loadIamPerson(personId);
+      if (person?.primary_phone) {
+        try {
+          await this.platform.platformPersonPhone.create({
+            data: {
+              id: randomUUID(),
+              personId,
+              number: person.primary_phone,
+              type: 'CELL',
+              textsAllowed: true,
+              isPrimary: true,
+            },
+          });
+        } catch {
+          // Race condition with another tab/request seeding — re-read.
+        }
+        rows = await this.platform.platformPersonPhone.findMany({
+          where: { personId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        });
+      }
+    }
+    return rows.map(this.toPhoneDto);
+  }
+
+  /**
+   * Add a phone. If isPrimary is set OR no other rows exist (first
+   * phone defaults to primary), demote any existing primary in the
+   * same tx and sync iam_person.primary_phone to the new number so
+   * downstream surfaces stay consistent.
+   */
+  async addMyPhone(personId: string, dto: AddPersonPhoneDto): Promise<PersonPhoneDto> {
+    const existing = await this.platform.platformPersonPhone.findMany({
+      where: { personId },
+      select: { id: true, isPrimary: true },
+    });
+    const shouldBePrimary = dto.isPrimary === true || existing.length === 0;
+
+    const id = randomUUID();
+    await this.platform.$transaction(async (tx) => {
+      if (shouldBePrimary) {
+        await tx.platformPersonPhone.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonPhone.create({
+        data: {
+          id,
+          personId,
+          number: dto.number,
+          type: dto.type ?? 'CELL',
+          textsAllowed: dto.textsAllowed ?? false,
+          isPrimary: shouldBePrimary,
+        },
+      });
+      if (shouldBePrimary) {
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: dto.number },
+        });
+      }
+    });
+    const created = await this.platform.platformPersonPhone.findUniqueOrThrow({
+      where: { id },
+    });
+    return this.toPhoneDto(created);
+  }
+
+  async updateMyPhone(
+    personId: string,
+    phoneId: string,
+    dto: UpdatePersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    const existing = await this.platform.platformPersonPhone.findUnique({
+      where: { id: phoneId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Phone not found');
+    }
+
+    const willBePrimary = dto.isPrimary === true && !existing.isPrimary;
+    const losesPrimary = dto.isPrimary === false && existing.isPrimary;
+
+    await this.platform.$transaction(async (tx) => {
+      if (willBePrimary) {
+        await tx.platformPersonPhone.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      const updated = await tx.platformPersonPhone.update({
+        where: { id: phoneId },
+        data: {
+          number: dto.number ?? undefined,
+          type: dto.type ?? undefined,
+          textsAllowed: dto.textsAllowed ?? undefined,
+          isPrimary: dto.isPrimary ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+      // Sync iam_person.primary_phone when the primary row's number
+      // changes OR when a different row becomes primary OR when the
+      // primary is explicitly cleared.
+      if (updated.isPrimary) {
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: updated.number },
+        });
+      } else if (losesPrimary) {
+        // Was primary, no longer is. Find a new primary if any rows
+        // remain — first-by-created-at — and promote it.
+        const next = await tx.platformPersonPhone.findFirst({
+          where: { personId, isPrimary: true },
+        });
+        const fallback = next
+          ? next.number
+          : (
+              await tx.platformPersonPhone.findFirst({
+                where: { personId },
+                orderBy: { createdAt: 'asc' },
+              })
+            )?.number ?? null;
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: fallback },
+        });
+      }
+    });
+
+    const refreshed = await this.platform.platformPersonPhone.findUniqueOrThrow({
+      where: { id: phoneId },
+    });
+    return this.toPhoneDto(refreshed);
+  }
+
+  /**
+   * Delete a phone. If the deleted row was primary, the next-oldest
+   * row gets promoted automatically (and iam_person.primary_phone is
+   * synced to that new number, or null if the deleted row was the
+   * only phone).
+   */
+  async deleteMyPhone(personId: string, phoneId: string): Promise<void> {
+    const existing = await this.platform.platformPersonPhone.findUnique({
+      where: { id: phoneId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Phone not found');
+    }
+
+    await this.platform.$transaction(async (tx) => {
+      await tx.platformPersonPhone.delete({ where: { id: phoneId } });
+      if (existing.isPrimary) {
+        const next = await tx.platformPersonPhone.findFirst({
+          where: { personId },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (next) {
+          await tx.platformPersonPhone.update({
+            where: { id: next.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+          await tx.iamPerson.update({
+            where: { id: personId },
+            data: { primaryPhone: next.number },
+          });
+        } else {
+          await tx.iamPerson.update({
+            where: { id: personId },
+            data: { primaryPhone: null },
+          });
+        }
+      }
+    });
+  }
+
+  private toPhoneDto(row: {
+    id: string;
+    number: string;
+    type: string;
+    textsAllowed: boolean;
+    isPrimary: boolean;
+  }): PersonPhoneDto {
+    return {
+      id: row.id,
+      number: row.number,
+      type: (row.type === 'HOME' || row.type === 'WORK' || row.type === 'OTHER'
+        ? row.type
+        : 'CELL') as PersonPhoneType,
+      textsAllowed: row.textsAllowed,
+      isPrimary: row.isPrimary,
+    };
   }
 
   // ── Adult medical info — /profile/me/medical ─────────────────────────

@@ -279,6 +279,39 @@ export class UpdateMyProfileDto {
  * admin-only on top of the self-service allow-list (which already
  * includes first_name, last_name, date_of_birth as of 2026-05-24).
  */
+// ─── /profile/me/phones — multi-phone list ─────────────────
+
+export const PERSON_PHONE_TYPES = ['CELL', 'HOME', 'WORK', 'OTHER'] as const;
+export type PersonPhoneType = (typeof PERSON_PHONE_TYPES)[number];
+
+export class PersonPhoneDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() number!: string;
+  @ApiProperty({ enum: PERSON_PHONE_TYPES }) type!: PersonPhoneType;
+  @ApiProperty() textsAllowed!: boolean;
+  @ApiProperty() isPrimary!: boolean;
+}
+
+export class AddPersonPhoneDto {
+  @ApiProperty() @IsString() @MaxLength(40) number!: string;
+  @ApiPropertyOptional({ enum: PERSON_PHONE_TYPES })
+  @IsOptional()
+  @IsIn(PERSON_PHONE_TYPES)
+  type?: PersonPhoneType;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() textsAllowed?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
+export class UpdatePersonPhoneDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) number?: string;
+  @ApiPropertyOptional({ enum: PERSON_PHONE_TYPES })
+  @IsOptional()
+  @IsIn(PERSON_PHONE_TYPES)
+  type?: PersonPhoneType;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() textsAllowed?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
 // ─── /profile/me/medical — adult medical info ──────────────
 
 export const ADULT_MEDICAL_SOURCES = ['FAMILY', 'CUSTOM'] as const;

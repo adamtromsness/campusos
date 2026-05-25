@@ -10,15 +10,21 @@ import { cn } from '@/components/ui/cn';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  useAddMyPhone,
+  useDeleteMyPhone,
   useMyMedical,
+  useMyPhones,
   useMyProfile,
   useUpdateMyMedical,
+  useUpdateMyPhone,
   useUpdateMyProfile,
 } from '@/hooks/use-profile';
 import type {
   AdultAllergyEntry,
   AdultConditionEntry,
   AdultMedicationEntry,
+  PersonPhoneDto,
+  PersonPhoneType,
 } from '@/lib/types';
 import {
   useAcceptFamilyLink,
@@ -427,7 +433,6 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   const initial = useMemo(
     () => ({
-      primaryPhone: profile.primaryPhone ?? '',
       addressSource: profile.addressSource,
       customAddressLine1: profile.customAddressLine1 ?? '',
       customAddressLine2: profile.customAddressLine2 ?? '',
@@ -455,7 +460,6 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
     if (!isDirty) return;
     try {
       await update.mutateAsync({
-        primaryPhone: form.primaryPhone.trim() || null,
         addressSource: form.addressSource,
         customAddressLine1: form.customAddressLine1.trim() || null,
         customAddressLine2: form.customAddressLine2.trim() || null,
@@ -507,26 +511,12 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <SectionCard title="Phone">
-        <div>
-          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
-            Phone
-            {dirtyFields.has('primaryPhone') && (
-              <span
-                aria-label="Modified"
-                title="Modified — save to keep this change"
-                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-              />
-            )}
-          </label>
-          <PhoneInput
-            id="primaryPhone"
-            value={form.primaryPhone}
-            onChange={(raw) => setForm((f) => ({ ...f, primaryPhone: raw }))}
-            dirty={dirtyFields.has('primaryPhone')}
-          />
-        </div>
-      </SectionCard>
+      {/* PhoneListCard lives OUTSIDE this <form> in its own card —
+          phone rows persist immediately per-row (add/edit/delete fire
+          their own mutations), so they don't share the address card's
+          Save Changes button. Rendered as a sibling here so the
+          layout still reads top-to-bottom. */}
+      <PhoneListCard />
 
       <SectionCard title="Home address">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -732,6 +722,271 @@ function SourceToggle({
         {customLabel}
       </button>
     </div>
+  );
+}
+
+// ─── Phone list card (used by Contact tab) ─────────────────
+
+const PHONE_TYPES: Array<{ value: PersonPhoneType; label: string }> = [
+  { value: 'CELL', label: 'Cell' },
+  { value: 'HOME', label: 'Home' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+/**
+ * Multi-phone list. Each row carries the number, a type dropdown,
+ * a texts-allowed checkbox, a primary radio, and a delete button.
+ * Mutations are per-row and persist immediately — there's no shared
+ * Save button — because the rest of the form (address) is a single
+ * transaction and the phone list would conflate "save now" with
+ * "save the address too." Per-row writes keep the lists independent.
+ *
+ * The server keeps iam_person.primary_phone synced with the primary
+ * row so existing surfaces (family page, EC table, /profile/me other
+ * readers) keep working without joining this table.
+ */
+function PhoneListCard() {
+  const { data, isLoading } = useMyPhones();
+  const add = useAddMyPhone();
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [draftNumber, setDraftNumber] = useState('');
+  const [draftType, setDraftType] = useState<PersonPhoneType>('CELL');
+
+  async function onAdd() {
+    if (!draftNumber.trim()) {
+      toast('Phone number is required.', 'error');
+      return;
+    }
+    try {
+      await add.mutateAsync({
+        number: draftNumber.trim(),
+        type: draftType,
+        textsAllowed: draftType === 'CELL',
+      });
+      setDraftNumber('');
+      setDraftType('CELL');
+      setAddOpen(false);
+      toast('Phone added', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add phone.', 'error');
+    }
+  }
+
+  const phones = data ?? [];
+
+  return (
+    <SectionCard title="Phone numbers">
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : phones.length === 0 && !addOpen ? (
+        <p className="text-sm text-gray-500">No phones on file yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {phones.map((p) => (
+            <PhoneRow key={p.id} phone={p} canDelete={phones.length > 1} />
+          ))}
+        </ul>
+      )}
+
+      {addOpen ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Phone number</label>
+              <PhoneInput value={draftNumber} onChange={setDraftNumber} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as PersonPhoneType)}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              >
+                {PHONE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddOpen(false);
+                setDraftNumber('');
+                setDraftType('CELL');
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onAdd()}
+              disabled={add.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {add.isPending && <LoadingSpinner size="sm" />}
+              <span>{add.isPending ? 'Adding…' : 'Add phone'}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
+            + Add phone
+          </button>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function PhoneRow({ phone, canDelete }: { phone: PersonPhoneDto; canDelete: boolean }) {
+  const update = useUpdateMyPhone(phone.id);
+  const remove = useDeleteMyPhone(phone.id);
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [number, setNumber] = useState(phone.number);
+
+  useEffect(() => {
+    setNumber(phone.number);
+  }, [phone.number]);
+
+  const numberDirty = number.replace(/\D/g, '') !== phone.number.replace(/\D/g, '');
+
+  async function saveNumber() {
+    try {
+      await update.mutateAsync({ number });
+      toast('Phone updated', 'success');
+      setEditing(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  async function toggleField<K extends 'type' | 'textsAllowed' | 'isPrimary'>(
+    key: K,
+    value: K extends 'type' ? PersonPhoneType : boolean,
+  ) {
+    try {
+      await update.mutateAsync({ [key]: value } as never);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  async function onRemove() {
+    if (typeof window !== 'undefined' && !window.confirm('Remove this phone?')) return;
+    try {
+      await remove.mutateAsync();
+      toast('Phone removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+
+  return (
+    <li className="rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {editing ? (
+          <div className="flex flex-1 items-center gap-2">
+            <PhoneInput value={number} onChange={setNumber} className="!mt-0" />
+            <button
+              type="button"
+              onClick={() => void saveNumber()}
+              disabled={!numberDirty || update.isPending}
+              className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNumber(phone.number);
+                setEditing(false);
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title="Edit phone number"
+            className="text-base font-medium text-gray-900 hover:text-campus-700"
+          >
+            {formatPhone(phone.number) || '—'}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+        <label className="inline-flex items-center gap-1">
+          <span className="text-xs text-gray-500">Type</span>
+          <select
+            value={phone.type}
+            onChange={(e) => void toggleField('type', e.target.value as PersonPhoneType)}
+            disabled={update.isPending}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:opacity-60"
+          >
+            {PHONE_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          className="inline-flex items-center gap-1 text-xs text-gray-700"
+          title="Schools may send broadcast SMS to phones with this enabled."
+        >
+          <input
+            type="checkbox"
+            checked={phone.textsAllowed}
+            onChange={(e) => void toggleField('textsAllowed', e.target.checked)}
+            disabled={update.isPending}
+            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+          />
+          💬 Texts OK
+        </label>
+        <label
+          className="inline-flex items-center gap-1 text-xs text-gray-700"
+          title="The default number schools and other surfaces use."
+        >
+          <input
+            type="radio"
+            name="primary-phone"
+            checked={phone.isPrimary}
+            onChange={() => void toggleField('isPrimary', true)}
+            disabled={update.isPending || phone.isPrimary}
+            className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+          />
+          Primary
+        </label>
+        <span className="ml-auto">
+          <button
+            type="button"
+            onClick={() => void onRemove()}
+            disabled={!canDelete || remove.isPending}
+            title={canDelete ? 'Remove this phone' : 'Add another phone before removing this one.'}
+            aria-label="Remove phone"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            🗑
+          </button>
+        </span>
+      </div>
+    </li>
   );
 }
 

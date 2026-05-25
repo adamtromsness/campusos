@@ -4,13 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type {
   AddHouseholdMemberPayload,
+  AddPersonPhonePayload,
   AdultMedicalInfoDto,
   HouseholdDto,
+  PersonPhoneDto,
   ProfileDto,
   UpdateAdminProfilePayload,
   UpdateAdultMedicalInfoPayload,
   UpdateHouseholdMemberPayload,
   UpdateHouseholdPayload,
+  UpdatePersonPhonePayload,
   UpdateProfilePayload,
 } from '@/lib/types';
 
@@ -48,6 +51,57 @@ export function useUpdateMyProfile() {
       void qc.invalidateQueries({ queryKey: ['profile'] });
       void qc.invalidateQueries({ queryKey: ['household', 'mine'] });
     },
+  });
+}
+
+// ── Multi-phone list — /profile/me/phones ────────────────
+
+export function useMyPhones(enabled = true) {
+  return useQuery({
+    queryKey: ['profile', 'me', 'phones'] as const,
+    queryFn: () => apiFetch<PersonPhoneDto[]>('/api/v1/profile/me/phones'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+const invalidatePhones = (qc: ReturnType<typeof useQueryClient>) => {
+  void qc.invalidateQueries({ queryKey: ['profile', 'me', 'phones'] });
+  // Primary-phone changes propagate to iam_person.primary_phone too,
+  // so refresh /profile/me which downstream surfaces read.
+  void qc.invalidateQueries({ queryKey: ['profile', 'me'] });
+};
+
+export function useAddMyPhone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddPersonPhonePayload) =>
+      apiFetch<PersonPhoneDto>('/api/v1/profile/me/phones', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidatePhones(qc),
+  });
+}
+
+export function useUpdateMyPhone(phoneId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdatePersonPhonePayload) =>
+      apiFetch<PersonPhoneDto>('/api/v1/profile/me/phones/' + phoneId, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidatePhones(qc),
+  });
+}
+
+export function useDeleteMyPhone(phoneId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/profile/me/phones/' + phoneId, { method: 'DELETE' }),
+    onSuccess: () => invalidatePhones(qc),
   });
 }
 

@@ -1949,6 +1949,32 @@ export interface UpdateProfilePayload {
   emergencyContact?: UpdateEmergencyContactPayload;
 }
 
+// ── Multi-phone list (/profile/me/phones) ────────────────
+
+export type PersonPhoneType = 'CELL' | 'HOME' | 'WORK' | 'OTHER';
+
+export interface PersonPhoneDto {
+  id: string;
+  number: string;
+  type: PersonPhoneType;
+  textsAllowed: boolean;
+  isPrimary: boolean;
+}
+
+export interface AddPersonPhonePayload {
+  number: string;
+  type?: PersonPhoneType;
+  textsAllowed?: boolean;
+  isPrimary?: boolean;
+}
+
+export interface UpdatePersonPhonePayload {
+  number?: string;
+  type?: PersonPhoneType;
+  textsAllowed?: boolean;
+  isPrimary?: boolean;
+}
+
 // ── Adult medical info (/profile/me/medical) ─────────────
 
 export type AdultMedicalSource = 'FAMILY' | 'CUSTOM';
