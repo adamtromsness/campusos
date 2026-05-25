@@ -60,6 +60,14 @@ interface IamPersonRow {
   work_email: string | null;
   employer: string | null;
   job_title: string | null;
+  employment_status: string | null;
+  industry: string | null;
+  work_address_line1: string | null;
+  work_address_line2: string | null;
+  work_city: string | null;
+  work_state: string | null;
+  work_postal_code: string | null;
+  work_country: string | null;
   bio: string | null;
   interests: unknown;
   languages: unknown;
@@ -488,6 +496,15 @@ export class ProfileService {
       'workEmail',
       'employer',
       'jobTitle',
+      // Occupation tab additions.
+      'employmentStatus',
+      'industry',
+      'workAddressLine1',
+      'workAddressLine2',
+      'workCity',
+      'workState',
+      'workPostalCode',
+      'workCountry',
       // About tab. bio is a string; interests/languages are arrays of
       // strings that Prisma persists as JSONB on the column side.
       'bio',
@@ -518,6 +535,9 @@ export class ProfileService {
         'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
         'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
         'p.work_email, p.employer, p.job_title, ' +
+        'p.employment_status, p.industry, ' +
+        'p.work_address_line1, p.work_address_line2, p.work_city, p.work_state, ' +
+        'p.work_postal_code, p.work_country, ' +
         'p.bio, p.interests, p.languages, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
@@ -935,6 +955,14 @@ export class ProfileService {
       workEmail: person.work_email,
       employer: person.employer,
       jobTitle: person.job_title,
+      employmentStatus: person.employment_status,
+      industry: person.industry,
+      workAddressLine1: person.work_address_line1,
+      workAddressLine2: person.work_address_line2,
+      workCity: person.work_city,
+      workState: person.work_state,
+      workPostalCode: person.work_postal_code,
+      workCountry: person.work_country,
       bio: person.bio,
       interests: Array.isArray(person.interests) ? (person.interests as string[]) : [],
       languages: Array.isArray(person.languages) ? (person.languages as string[]) : [],

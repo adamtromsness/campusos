@@ -113,11 +113,12 @@ function Hero({ profile }: { profile: ProfileDto }) {
 
 // ─── Tab bar + routing ─────────────────────────────────────
 
-type TabKey = 'account' | 'contact' | 'medical' | 'about';
+type TabKey = 'account' | 'contact' | 'occupation' | 'medical' | 'about';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'account', label: 'Account' },
   { key: 'contact', label: 'Contact' },
+  { key: 'occupation', label: 'Occupation' },
   { key: 'medical', label: 'Medical & Health' },
   { key: 'about', label: 'About' },
 ];
@@ -172,6 +173,7 @@ function Tabs({ profile }: { profile: ProfileDto }) {
       <div className="mt-6">
         {active === 'account' && <AccountTab profile={profile} />}
         {active === 'contact' && <ContactTab profile={profile} />}
+        {active === 'occupation' && <OccupationTab profile={profile} />}
         {active === 'medical' && <MedicalTab profile={profile} />}
         {active === 'about' && <AboutTab profile={profile} />}
       </div>
@@ -667,6 +669,288 @@ function SourceToggle({
         {customLabel}
       </button>
     </div>
+  );
+}
+
+// ─── Occupation tab ────────────────────────────────────────
+
+const EMPLOYMENT_STATUSES: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Not Specified' },
+  { value: 'EMPLOYED_FULL_TIME', label: 'Employed full-time' },
+  { value: 'EMPLOYED_PART_TIME', label: 'Employed part-time' },
+  { value: 'SELF_EMPLOYED', label: 'Self-employed' },
+  { value: 'UNEMPLOYED', label: 'Unemployed' },
+  { value: 'RETIRED', label: 'Retired' },
+  { value: 'STUDENT', label: 'Student' },
+  { value: 'HOMEMAKER', label: 'Homemaker' },
+];
+
+const INDUSTRIES = [
+  'Education',
+  'Healthcare',
+  'Technology',
+  'Finance',
+  'Legal',
+  'Government',
+  'Retail',
+  'Manufacturing',
+  'Construction',
+  'Agriculture',
+  'Transportation',
+  'Hospitality',
+  'Non-profit',
+  'Military',
+  'Other',
+];
+
+/**
+ * Employment + work-contact fields. Schools use this to understand
+ * parent availability and to know where to reach a parent during
+ * work hours. The work address is optional — gated behind a single
+ * checkbox so the form stays short for the common case.
+ */
+function OccupationTab({ profile }: { profile: ProfileDto }) {
+  const { toast } = useToast();
+  const update = useUpdateMyProfile();
+
+  const hasWorkAddress = Boolean(
+    profile.workAddressLine1 || profile.workCity || profile.workState || profile.workPostalCode,
+  );
+
+  const initial = useMemo(
+    () => ({
+      employmentStatus: profile.employmentStatus ?? '',
+      employer: profile.employer ?? '',
+      jobTitle: profile.jobTitle ?? '',
+      industry: profile.industry ?? '',
+      workPhone: profile.workPhone ?? '',
+      workEmail: profile.workEmail ?? '',
+      workAddressLine1: profile.workAddressLine1 ?? '',
+      workAddressLine2: profile.workAddressLine2 ?? '',
+      workCity: profile.workCity ?? '',
+      workState: profile.workState ?? '',
+      workPostalCode: profile.workPostalCode ?? '',
+      workCountry: profile.workCountry ?? '',
+    }),
+    [profile],
+  );
+  const [form, setForm] = useState(initial);
+  const [showWorkAddress, setShowWorkAddress] = useState(hasWorkAddress);
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => {
+    setForm(initial);
+    setShowWorkAddress(hasWorkAddress);
+  }, [initial, hasWorkAddress]);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!isDirty) return;
+    try {
+      await update.mutateAsync({
+        employmentStatus: form.employmentStatus || null,
+        employer: form.employer.trim() || null,
+        jobTitle: form.jobTitle.trim() || null,
+        industry: form.industry || null,
+        workPhone: form.workPhone.trim() || null,
+        workEmail: form.workEmail.trim() || null,
+        // When the user collapsed the address section, blank the
+        // columns out so a previously-saved work address doesn't
+        // silently linger after the toggle was unchecked.
+        workAddressLine1: showWorkAddress ? form.workAddressLine1.trim() || null : null,
+        workAddressLine2: showWorkAddress ? form.workAddressLine2.trim() || null : null,
+        workCity: showWorkAddress ? form.workCity.trim() || null : null,
+        workState: showWorkAddress ? form.workState.trim() || null : null,
+        workPostalCode: showWorkAddress ? form.workPostalCode.trim() || null : null,
+        workCountry: showWorkAddress ? form.workCountry.trim() || null : null,
+      });
+      toast('Occupation saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      <SectionCard title="Employment">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="employmentStatus" className="block text-xs font-medium text-gray-700">
+              Employment status
+              {dirtyFields.has('employmentStatus') && <DirtyDot />}
+            </label>
+            <select
+              id="employmentStatus"
+              value={form.employmentStatus}
+              onChange={(e) => setForm((f) => ({ ...f, employmentStatus: e.target.value }))}
+              className={cn(
+                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                dirtyFields.has('employmentStatus')
+                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                  : 'border border-gray-300',
+              )}
+            >
+              {EMPLOYMENT_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="industry" className="block text-xs font-medium text-gray-700">
+              Industry
+              {dirtyFields.has('industry') && <DirtyDot />}
+            </label>
+            <select
+              id="industry"
+              value={form.industry}
+              onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+              className={cn(
+                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                dirtyFields.has('industry')
+                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                  : 'border border-gray-300',
+              )}
+            >
+              <option value="">— Not specified —</option>
+              {INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </select>
+          </div>
+          <EditField
+            id="employer"
+            label="Employer / company"
+            value={form.employer}
+            onChange={(v) => setForm((f) => ({ ...f, employer: v }))}
+            autoComplete="organization"
+            dirty={dirtyFields.has('employer')}
+          />
+          <EditField
+            id="jobTitle"
+            label="Job title / position"
+            value={form.jobTitle}
+            onChange={(v) => setForm((f) => ({ ...f, jobTitle: v }))}
+            autoComplete="organization-title"
+            dirty={dirtyFields.has('jobTitle')}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Work contact">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="workPhone" className="block text-xs font-medium text-gray-700">
+              Work phone
+              {dirtyFields.has('workPhone') && <DirtyDot />}
+            </label>
+            <PhoneInput
+              id="workPhone"
+              value={form.workPhone}
+              onChange={(raw) => setForm((f) => ({ ...f, workPhone: raw }))}
+              dirty={dirtyFields.has('workPhone')}
+            />
+          </div>
+          <EditField
+            id="workEmail"
+            label="Work email"
+            type="email"
+            value={form.workEmail}
+            onChange={(v) => setForm((f) => ({ ...f, workEmail: v }))}
+            autoComplete="email"
+            dirty={dirtyFields.has('workEmail')}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Work address (optional)">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showWorkAddress}
+            onChange={(e) => setShowWorkAddress(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+          />
+          Add work address
+        </label>
+        {showWorkAddress && (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <EditField
+              id="workAddressLine1"
+              label="Street address"
+              value={form.workAddressLine1}
+              onChange={(v) => setForm((f) => ({ ...f, workAddressLine1: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('workAddressLine1')}
+            />
+            <EditField
+              id="workAddressLine2"
+              label="Suite / floor"
+              value={form.workAddressLine2}
+              onChange={(v) => setForm((f) => ({ ...f, workAddressLine2: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('workAddressLine2')}
+            />
+            <EditField
+              id="workCity"
+              label="City"
+              value={form.workCity}
+              onChange={(v) => setForm((f) => ({ ...f, workCity: v }))}
+              dirty={dirtyFields.has('workCity')}
+            />
+            <EditField
+              id="workState"
+              label="State / province"
+              value={form.workState}
+              onChange={(v) => setForm((f) => ({ ...f, workState: v }))}
+              dirty={dirtyFields.has('workState')}
+            />
+            <EditField
+              id="workPostalCode"
+              label="ZIP / postal code"
+              value={form.workPostalCode}
+              onChange={(v) => setForm((f) => ({ ...f, workPostalCode: v }))}
+              dirty={dirtyFields.has('workPostalCode')}
+            />
+            <EditField
+              id="workCountry"
+              label="Country"
+              value={form.workCountry}
+              onChange={(v) => setForm((f) => ({ ...f, workCountry: v }))}
+              dirty={dirtyFields.has('workCountry')}
+            />
+          </div>
+        )}
+        <p className="mt-3 text-xs text-gray-500">
+          Schools use this to understand your availability and may use it as an emergency contact
+          during work hours.
+        </p>
+      </SectionCard>
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={!isDirty || update.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+        >
+          {update.isPending && <LoadingSpinner size="sm" />}
+          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DirtyDot() {
+  return (
+    <span
+      aria-label="Modified"
+      title="Modified — save to keep this change"
+      className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+    />
   );
 }
 

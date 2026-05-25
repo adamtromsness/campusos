@@ -207,6 +207,17 @@ model IamPerson {
   workEmail          String?    @map("work_email")
   employer           String?
   jobTitle           String?    @map("job_title")
+  // Occupation-tab fields. employmentStatus is a TEXT + CHECK enum
+  // at the DB level (see migration); industry is open free-text with
+  // a fixed UI dropdown. work_address_* mirror the home-address shape.
+  employmentStatus   String?    @map("employment_status")
+  industry           String?
+  workAddressLine1   String?    @map("work_address_line1")
+  workAddressLine2   String?    @map("work_address_line2")
+  workCity           String?    @map("work_city")
+  workState          String?    @map("work_state")
+  workPostalCode     String?    @map("work_postal_code")
+  workCountry        String?    @map("work_country")
   // About-tab fields. interests + languages are JSONB string arrays;
   // bio is free text capped at 500 chars on the wire side.
   bio                String?

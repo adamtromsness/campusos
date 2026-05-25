@@ -1863,6 +1863,14 @@ export interface ProfileDto {
   workEmail: string | null;
   employer: string | null;
   jobTitle: string | null;
+  employmentStatus: string | null;
+  industry: string | null;
+  workAddressLine1: string | null;
+  workAddressLine2: string | null;
+  workCity: string | null;
+  workState: string | null;
+  workPostalCode: string | null;
+  workCountry: string | null;
   // About tab.
   bio: string | null;
   interests: string[];
@@ -1906,6 +1914,14 @@ export interface UpdateProfilePayload {
   // Adult Contact tab.
   jobTitle?: string | null;
   workEmail?: string | null;
+  employmentStatus?: string | null;
+  industry?: string | null;
+  workAddressLine1?: string | null;
+  workAddressLine2?: string | null;
+  workCity?: string | null;
+  workState?: string | null;
+  workPostalCode?: string | null;
+  workCountry?: string | null;
   bio?: string | null;
   interests?: string[];
   languages?: string[];

@@ -98,6 +98,16 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() workEmail?: string | null;
   @ApiPropertyOptional() employer?: string | null;
   @ApiPropertyOptional() jobTitle?: string | null;
+  // Occupation-tab fields. employmentStatus is enum-shaped (validated
+  // by the CHECK constraint on the column); industry is open text.
+  @ApiPropertyOptional() employmentStatus?: string | null;
+  @ApiPropertyOptional() industry?: string | null;
+  @ApiPropertyOptional() workAddressLine1?: string | null;
+  @ApiPropertyOptional() workAddressLine2?: string | null;
+  @ApiPropertyOptional() workCity?: string | null;
+  @ApiPropertyOptional() workState?: string | null;
+  @ApiPropertyOptional() workPostalCode?: string | null;
+  @ApiPropertyOptional() workCountry?: string | null;
   // About-tab fields. interests + languages are arrays of strings.
   @ApiPropertyOptional() bio?: string | null;
   @ApiProperty({ type: [String] }) interests!: string[];
@@ -188,6 +198,27 @@ export class UpdateMyProfileDto {
   // continuity; jobTitle + workEmail are platform-only.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) jobTitle?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) workEmail?: string | null;
+  // Occupation-tab additions.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn([
+    'EMPLOYED_FULL_TIME',
+    'EMPLOYED_PART_TIME',
+    'SELF_EMPLOYED',
+    'UNEMPLOYED',
+    'RETIRED',
+    'STUDENT',
+    'HOMEMAKER',
+    'NOT_SPECIFIED',
+  ])
+  employmentStatus?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) industry?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) workAddressLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) workAddressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workCity?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workState?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) workPostalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workCountry?: string | null;
   // About-tab. bio capped at 500 chars per spec; interests +
   // languages whole-list replace, capped at 30 entries each.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) bio?: string | null;
