@@ -690,6 +690,35 @@ export function useUpdateFamilySettings() {
   });
 }
 
+// ─── People search (for emergency-contact linking) ────────
+
+export interface PeopleSearchResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  preferredName: string | null;
+  email: string | null;
+  primaryPhone: string | null;
+}
+
+/**
+ * Hits GET /api/v1/people/search?q=…. Returns up to 10 results.
+ * Pass `enabled` to short-circuit when the input is below the
+ * 2-character minimum; an enabled-false query won't fire.
+ */
+export function usePeopleSearch(query: string, enabled = true) {
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: ['people', 'search', trimmed] as const,
+    queryFn: () =>
+      apiFetch<PeopleSearchResult[]>(
+        '/api/v1/people/search?q=' + encodeURIComponent(trimmed),
+      ),
+    enabled: enabled && trimmed.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
 // ─── Family emergency contacts (shared default) ───────────
 
 export interface FamilyEmergencyContactDto {
