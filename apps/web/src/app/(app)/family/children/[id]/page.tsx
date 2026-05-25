@@ -442,7 +442,7 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
               label="Preferred name"
               value={form.preferredName}
               onChange={(v) => setField('preferredName', v)}
-              hint="Used throughout CampusOS instead of their first name."
+              hint="If left blank, we'll use their first name."
               dirty={dirtyFields.has('preferredName')}
             />
           </div>

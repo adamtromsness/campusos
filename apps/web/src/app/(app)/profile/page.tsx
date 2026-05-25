@@ -195,7 +195,6 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
       middleName: profile.middleName ?? '',
       lastName: profile.lastName ?? '',
       preferredName: profile.preferredName ?? '',
-      primaryPhone: profile.primaryPhone ?? '',
       dateOfBirth: profile.dateOfBirth ?? '',
       gender: profile.gender ?? '',
     }),
@@ -204,7 +203,6 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
       profile.middleName,
       profile.lastName,
       profile.preferredName,
-      profile.primaryPhone,
       profile.dateOfBirth,
       profile.gender,
     ],
@@ -235,7 +233,6 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
         middleName: form.middleName.trim() || null,
         lastName: form.lastName.trim(),
         preferredName: form.preferredName.trim() || null,
-        primaryPhone: form.primaryPhone.trim() || null,
         dateOfBirth: form.dateOfBirth || null,
         gender: form.gender || null,
       });
@@ -286,7 +283,7 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
             label="Preferred name"
             value={form.preferredName}
             onChange={(v) => setField('preferredName', v)}
-            hint="Used throughout CampusOS instead of your first name."
+            hint="If left blank, we'll use your first name."
             autoComplete="nickname"
             dirty={dirtyFields.has('preferredName')}
           />
@@ -297,25 +294,6 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
             label="Email"
             value={profile.loginEmail}
             hint="Email changes need a separate verification flow."
-          />
-        </div>
-
-        <div className="mt-4">
-          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
-            Phone
-            {dirtyFields.has('primaryPhone') && (
-              <span
-                aria-label="Modified"
-                title="Modified — save to keep this change"
-                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-              />
-            )}
-          </label>
-          <PhoneInput
-            id="primaryPhone"
-            value={form.primaryPhone}
-            onChange={(raw) => setField('primaryPhone', raw)}
-            dirty={dirtyFields.has('primaryPhone')}
           />
         </div>
 
@@ -449,6 +427,7 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   const initial = useMemo(
     () => ({
+      primaryPhone: profile.primaryPhone ?? '',
       addressSource: profile.addressSource,
       customAddressLine1: profile.customAddressLine1 ?? '',
       customAddressLine2: profile.customAddressLine2 ?? '',
@@ -476,6 +455,7 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
     if (!isDirty) return;
     try {
       await update.mutateAsync({
+        primaryPhone: form.primaryPhone.trim() || null,
         addressSource: form.addressSource,
         customAddressLine1: form.customAddressLine1.trim() || null,
         customAddressLine2: form.customAddressLine2.trim() || null,
@@ -527,6 +507,27 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      <SectionCard title="Phone">
+        <div>
+          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
+            Phone
+            {dirtyFields.has('primaryPhone') && (
+              <span
+                aria-label="Modified"
+                title="Modified — save to keep this change"
+                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+              />
+            )}
+          </label>
+          <PhoneInput
+            id="primaryPhone"
+            value={form.primaryPhone}
+            onChange={(raw) => setForm((f) => ({ ...f, primaryPhone: raw }))}
+            dirty={dirtyFields.has('primaryPhone')}
+          />
+        </div>
+      </SectionCard>
+
       <SectionCard title="Home address">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-gray-600">

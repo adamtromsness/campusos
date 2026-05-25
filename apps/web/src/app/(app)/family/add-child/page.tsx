@@ -172,7 +172,7 @@ export default function AddChildPage() {
               label="Preferred name"
               value={basic.preferredName}
               onChange={(v) => setBasic((b) => ({ ...b, preferredName: v }))}
-              hint="Used throughout CampusOS instead of their first name."
+              hint="If left blank, we'll use their first name."
             />
             <Field
               id="dateOfBirth"
