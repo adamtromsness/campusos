@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   useAddChildEmergencyContact,
   useCancelChildLink,
@@ -27,32 +27,30 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 
 /**
- * /family/children/[id] — detail view for a single family child.
+ * /family/children/[id] — tabbed detail view for a family child.
  *
- * The parent-facing replacement for /profile/[personId] when the child
- * comes from platform_family_children rather than sis_students. The
- * admin profile route 403s parents because it requires an admin-tier
- * permission, and it never returns rows for PLACEHOLDER children (no
- * iam_person yet).
+ * The page is wrapped by a sticky hero (preferred name + full name +
+ * status badges + back link) and a six-tab bar:
  *
- * Source of truth: GET /family/children. There's no per-id endpoint
- * (yet) — the list is small (a parent's own children) so we fetch the
- * list and filter by id. Same data the /family card shows, just laid
- * out for a single-child workflow.
+ *   Account  — names, DOB, gender, account-type info box.
+ *   Contact  — phone, notes, address (custom for v1; family-inherit
+ *              wire-up lands with the family-settings commit).
+ *   Medical & Health    — allergies, medications, conditions,
+ *                         doctor + insurance, blood type, notes.
+ *   Emergency Contacts  — list + add + remove.
+ *   Dietary             — diet style + restrictions + meal pref.
+ *   About               — stub for the child's bio / interests.
  *
- * Sections:
- *   1. Header — name + status badge + DOB/age line.
- *   2. Status-appropriate actions — Create Account / Send Link / Edit /
- *      Remove for PLACEHOLDER; Resend / Cancel Link / Edit for
- *      PENDING_LINK; "Connected since" for LINKED.
- *   3. Enrolment — "Not enrolled at any school" with Find a school +
- *      Start enrolment links. Once enrolment-from-family is wired up
- *      this section will read sis_students and surface school + grade.
+ * Tab state mirrors `?tab=<key>` in the URL so refresh + browser-back
+ * preserve the active section without forcing a Next-side navigation
+ * (replaceState only — keeps the React Query cache warm).
+ *
+ * Source of truth for the child row stays GET /family/children — small
+ * list, filtered client-side by id.
  */
 export default function FamilyChildDetailPage() {
   const params = useParams();
@@ -64,8 +62,7 @@ export default function FamilyChildDetailPage() {
 
   if (error) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
-        <PageHeader title="My Family" />
+      <div className="mx-auto w-full max-w-3xl px-4 py-8">
         <p className="text-sm text-red-600">Could not load your family. Please try again.</p>
       </div>
     );
@@ -74,7 +71,7 @@ export default function FamilyChildDetailPage() {
   const child = (data ?? []).find((c) => c.id === id);
   if (!child) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-3xl px-4 py-8">
         <EmptyState
           title="Child not found"
           description="The child may have been removed, or this link belongs to a different family."
@@ -93,28 +90,8 @@ export default function FamilyChildDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <PageHeader
-        title={`${child.firstName} ${child.lastName}`}
-        description="Family child profile and school enrolment"
-        actions={
-          <Link href="/family" className="text-sm font-medium text-gray-500 hover:text-gray-700">
-            ← My Family
-          </Link>
-        }
-      />
-
-      <DetailCard child={child} onSendLink={() => setLinkInviteOpen(true)} />
-
-      {child.status === 'LINKED' && (
-        <>
-          <MedicalSection childId={child.id} />
-          <EmergencyContactsSection childId={child.id} />
-          <DietarySection childId={child.id} />
-        </>
-      )}
-
-      <EnrolmentSection child={child} />
-
+      <Hero child={child} />
+      <Tabs child={child} onSendLink={() => setLinkInviteOpen(true)} />
       <SendLinkModal
         child={child}
         open={linkInviteOpen}
@@ -124,32 +101,387 @@ export default function FamilyChildDetailPage() {
   );
 }
 
-// ─── Detail card (mirrors /family card layout) ─────────────
+// ─── Hero ───────────────────────────────────────────────────
 
-const BADGES: Record<FamilyChildStatus, { bg: string; text: string; label: string }> = {
+const STATUS_BADGES: Record<FamilyChildStatus, { bg: string; text: string; label: string }> = {
   PLACEHOLDER: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Account needed' },
   PENDING_LINK: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Link pending' },
   LINKED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Connected' },
 };
 
-function DetailCard({
-  child,
-  onSendLink,
-}: {
-  child: FamilyChildDto;
-  onSendLink: () => void;
-}) {
-  const router = useRouter();
+function Hero({ child }: { child: FamilyChildDto }) {
+  const preferred = child.preferredName?.trim();
+  const heroName = preferred ? preferred : child.firstName;
+  const fullName = [child.firstName, child.middleName, child.lastName].filter(Boolean).join(' ');
+  const showFull = fullName && fullName.trim() !== heroName.trim();
+  const status = STATUS_BADGES[child.status];
+  const access =
+    child.accessLevel === 'MANAGED'
+      ? { bg: 'bg-emerald-100', text: 'text-emerald-800', label: '🛡️ Managed by you' }
+      : child.accessLevel === 'INDEPENDENT'
+        ? { bg: 'bg-sky-100', text: 'text-sky-800', label: '🔗 Independent' }
+        : null;
+
+  return (
+    <header className="mb-6">
+      <Link
+        href="/family"
+        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
+      >
+        ← My Family
+      </Link>
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">{heroName}</h1>
+          {showFull && <p className="mt-1 text-sm text-gray-500">{fullName}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <PillBadge style={status} />
+          {access && <PillBadge style={access} />}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function PillBadge({ style }: { style: { bg: string; text: string; label: string } }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+        style.bg,
+        style.text,
+      )}
+    >
+      {style.label}
+    </span>
+  );
+}
+
+// ─── Tab bar + routing ──────────────────────────────────────
+
+type TabKey = 'account' | 'contact' | 'medical' | 'emergency' | 'dietary' | 'about';
+
+const TABS: Array<{ key: TabKey; label: string; needsLinked: boolean }> = [
+  { key: 'account', label: 'Account', needsLinked: false },
+  { key: 'contact', label: 'Contact', needsLinked: false },
+  { key: 'medical', label: 'Medical & Health', needsLinked: true },
+  { key: 'emergency', label: 'Emergency Contacts', needsLinked: true },
+  { key: 'dietary', label: 'Dietary', needsLinked: true },
+  { key: 'about', label: 'About', needsLinked: false },
+];
+
+function isTabKey(s: string | null): s is TabKey {
+  return s !== null && TABS.some((t) => t.key === s);
+}
+
+function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => void }) {
+  const searchParams = useSearchParams();
+  const initial = searchParams?.get('tab');
+  const [active, setActive] = useState<TabKey>(isTabKey(initial ?? null) ? (initial as TabKey) : 'account');
+
+  function select(key: TabKey) {
+    setActive(key);
+    if (typeof window !== 'undefined') {
+      // replaceState — keeps the React Query cache warm and avoids a
+      // Next-side push that would refetch + re-render the whole tree.
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }
+
+  return (
+    <>
+      <nav className="border-b border-gray-200" aria-label="Profile tabs">
+        <ul className="-mb-px flex flex-wrap gap-1">
+          {TABS.map((t) => {
+            const disabled = t.needsLinked && child.status !== 'LINKED';
+            const isActive = active === t.key;
+            return (
+              <li key={t.key}>
+                <button
+                  type="button"
+                  onClick={() => !disabled && select(t.key)}
+                  disabled={disabled}
+                  className={cn(
+                    'whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'border-campus-700 text-campus-700'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                    disabled && 'cursor-not-allowed opacity-50 hover:border-transparent hover:text-gray-500',
+                  )}
+                  title={disabled ? 'Available once this child has an account.' : undefined}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {t.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="mt-6">
+        {active === 'account' && <AccountTab child={child} onSendLink={onSendLink} />}
+        {active === 'contact' && <ContactTab child={child} />}
+        {active === 'medical' && <MedicalTab child={child} />}
+        {active === 'emergency' && <EmergencyTab child={child} />}
+        {active === 'dietary' && <DietaryTab child={child} />}
+        {active === 'about' && <AboutTab child={child} />}
+      </div>
+    </>
+  );
+}
+
+// ─── Account tab ────────────────────────────────────────────
+
+/**
+ * Identity fields + DOB + gender + an account-type info box. The form
+ * is editable for MANAGED + PLACEHOLDER children and read-only for
+ * INDEPENDENT (those rows' iam_person belongs to the child themselves;
+ * the server returns 403 on PATCH so we don't render the controls).
+ *
+ * PLACEHOLDER/PENDING_LINK children also surface the lifecycle action
+ * buttons (Create Account / Send Link / Cancel / Remove) at the bottom
+ * of this tab — those used to live on the family card; now that the
+ * family card just says "View Profile", the actions follow the user
+ * into the profile.
+ */
+function AccountTab({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => void }) {
+  const readOnly = child.accessLevel === 'INDEPENDENT' && child.status === 'LINKED';
+  return (
+    <div className="flex flex-col gap-5">
+      <AccessLevelInfo child={child} />
+      {readOnly ? <AccountReadOnly child={child} /> : <AccountEditForm child={child} />}
+      {child.status !== 'LINKED' && <LifecycleActions child={child} onSendLink={onSendLink} />}
+      <EnrolmentBlock child={child} />
+    </div>
+  );
+}
+
+function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
+  if (child.status !== 'LINKED') return null;
+  if (child.accessLevel === 'MANAGED') {
+    return (
+      <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+        <p className="font-semibold">You manage this account.</p>
+        <p className="mt-0.5">
+          You can edit {child.firstName}&rsquo;s identity, medical, emergency, and dietary info.
+          {child.firstName} doesn&rsquo;t log in separately — their CampusOS access is through you.
+        </p>
+      </div>
+    );
+  }
+  if (child.accessLevel === 'INDEPENDENT') {
+    const heroName = child.preferredName?.trim() ? child.preferredName : child.firstName;
+    return (
+      <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-900">
+        <p className="font-semibold">This account is managed by {heroName}.</p>
+        <p className="mt-0.5">
+          {heroName} owns their own login and identity. You can still view their profile and
+          maintain the medical / emergency / dietary sections.
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+function AccountReadOnly({ child }: { child: FamilyChildDto }) {
+  return (
+    <SectionCard>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ReadOnlyField label="First name" value={child.firstName} />
+        <ReadOnlyField label="Middle name" value={child.middleName} />
+        <ReadOnlyField label="Last name" value={child.lastName} />
+        <ReadOnlyField label="Preferred name" value={child.preferredName} />
+        <ReadOnlyField label="Date of birth" value={child.dateOfBirth ? formatDate(child.dateOfBirth) : null} />
+        <ReadOnlyField label="Gender" value={genderLabel(child.gender)} />
+      </div>
+      {child.linkedAt && (
+        <p className="mt-4 text-xs text-gray-500">Connected since {formatDate(child.linkedAt)}</p>
+      )}
+    </SectionCard>
+  );
+}
+
+function AccountEditForm({ child }: { child: FamilyChildDto }) {
   const { toast } = useToast();
+  const update = useUpdateFamilyChild(child.id);
+  const isLinked = child.status === 'LINKED';
+
+  const [form, setForm] = useState({
+    firstName: child.firstName ?? '',
+    middleName: child.middleName ?? '',
+    lastName: child.lastName ?? '',
+    preferredName: child.preferredName ?? '',
+    dateOfBirth: child.dateOfBirth ?? '',
+    gender: child.gender ?? '',
+  });
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+
+  useEffect(() => {
+    setForm({
+      firstName: child.firstName ?? '',
+      middleName: child.middleName ?? '',
+      lastName: child.lastName ?? '',
+      preferredName: child.preferredName ?? '',
+      dateOfBirth: child.dateOfBirth ?? '',
+      gender: child.gender ?? '',
+    });
+  }, [
+    child.id,
+    child.firstName,
+    child.middleName,
+    child.lastName,
+    child.preferredName,
+    child.dateOfBirth,
+    child.gender,
+  ]);
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const v: typeof errors = {};
+    if (!form.firstName.trim()) v.firstName = 'First name is required';
+    if (!form.lastName.trim()) v.lastName = 'Last name is required';
+    if (Object.keys(v).length > 0) {
+      setErrors(v);
+      return;
+    }
+    try {
+      await update.mutateAsync({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        ...(isLinked
+          ? {
+              middleName: form.middleName.trim() || null,
+              preferredName: form.preferredName.trim() || null,
+            }
+          : {}),
+      });
+      toast('Saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
+    }
+  }
+
+  return (
+    <SectionCard>
+      <form onSubmit={onSubmit} noValidate>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <EditField
+            id="firstName"
+            label="First name"
+            value={form.firstName}
+            onChange={(v) => setField('firstName', v)}
+            error={errors.firstName}
+            required
+          />
+          {isLinked && (
+            <EditField
+              id="middleName"
+              label="Middle name"
+              value={form.middleName}
+              onChange={(v) => setField('middleName', v)}
+            />
+          )}
+          <EditField
+            id="lastName"
+            label="Last name"
+            value={form.lastName}
+            onChange={(v) => setField('lastName', v)}
+            error={errors.lastName}
+            required
+          />
+          {isLinked && (
+            <EditField
+              id="preferredName"
+              label="Preferred name"
+              value={form.preferredName}
+              onChange={(v) => setField('preferredName', v)}
+              hint="Used throughout CampusOS instead of their first name."
+            />
+          )}
+          <EditField
+            id="dateOfBirth"
+            label="Date of birth"
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(v) => setField('dateOfBirth', v)}
+          />
+          <div>
+            <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
+              Gender
+            </label>
+            <select
+              id="gender"
+              value={form.gender}
+              onChange={(e) => setField('gender', e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+            >
+              <option value="">Prefer not to say</option>
+              <option value="F">Female</option>
+              <option value="M">Male</option>
+              <option value="X">Non-binary</option>
+              <option value="O">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button
+            type="submit"
+            disabled={update.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+          >
+            {update.isPending && <LoadingSpinner size="sm" />}
+            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+          </button>
+        </div>
+      </form>
+    </SectionCard>
+  );
+}
+
+/**
+ * Lifecycle actions for PLACEHOLDER + PENDING_LINK children. These used
+ * to live on the family card; with the redesign, the card surfaces
+ * "View Profile" as the only entry point, and the actions follow the
+ * user into the Account tab.
+ */
+function LifecycleActions({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => void }) {
+  const { toast } = useToast();
+  const router = useRouter();
   const createAccount = useCreateChildAccount(child.id);
   const removeChild = useDeleteFamilyChild(child.id);
   const cancelLink = useCancelChildLink(child.id);
-  const badge = BADGES[child.status];
 
   async function onCreateAccount() {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Create a managed account for ' +
+          child.firstName +
+          '?\n\n' +
+          'You will manage this account. ' +
+          child.firstName +
+          " won't need to accept an invitation — you'll have full control over their profile and settings. Recommended for children under 13.\n\n" +
+          'For older children who already have their own account, use "Send Link Invitation" instead.',
+      )
+    ) {
+      return;
+    }
     try {
       await createAccount.mutateAsync({});
-      toast(`${child.firstName} now has a CampusOS account`, 'success');
+      toast(child.firstName + ' now has a managed account', 'success');
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Could not create the account. Try again.';
@@ -160,13 +492,13 @@ function DetailCard({
   async function onRemove() {
     if (
       typeof window !== 'undefined' &&
-      !window.confirm(`Remove ${child.firstName} from your family?`)
+      !window.confirm('Remove ' + child.firstName + ' from your family?')
     ) {
       return;
     }
     try {
       await removeChild.mutateAsync();
-      toast(`${child.firstName} removed`, 'success');
+      toast(child.firstName + ' removed', 'success');
       router.replace('/family');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not remove this child.';
@@ -175,28 +507,20 @@ function DetailCard({
   }
 
   return (
-    <div className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-            badge.bg,
-            badge.text,
-          )}
-        >
-          {badge.label}
-        </span>
-        {child.status === 'LINKED' && child.linkedAt && (
-          <span className="text-xs text-gray-500">
-            Connected since {formatDate(child.linkedAt)}
-          </span>
-        )}
-      </div>
-
-      <EditChildForm child={child} />
-
+    <SectionCard
+      title={child.status === 'PLACEHOLDER' ? 'Get connected' : 'Invitation in progress'}
+      description={
+        child.status === 'PLACEHOLDER'
+          ? "Choose how " +
+            child.firstName +
+            ' joins CampusOS. A managed account is best for younger children; older children can accept their own invitation by email.'
+          : 'Once accepted, the invitation will link ' +
+            child.firstName +
+            "'s CampusOS account to your family."
+      }
+    >
       {child.status === 'PENDING_LINK' && child.inviteCode && (
-        <div className="mt-4 rounded-md border border-blue-100 bg-blue-50/40 p-3 text-xs text-blue-900">
+        <div className="mb-3 rounded-md border border-blue-100 bg-blue-50/40 p-3 text-xs text-blue-900">
           Invitation sent to <span className="font-medium">{child.inviteEmail}</span>. They can
           enter the code{' '}
           <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-wider">
@@ -206,7 +530,7 @@ function DetailCard({
         </div>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {child.status === 'PLACEHOLDER' && (
           <>
             <SecondaryButton onClick={onCreateAccount} disabled={createAccount.isPending}>
@@ -235,34 +559,30 @@ function DetailCard({
           </>
         )}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
-// ─── Enrolment section ────────────────────────────────────
-
 /**
- * Shows the child's school enrolment state. For now every family child
- * is "Not enrolled" — once Step 7 of the persona-registration design
- * (enrolment-from-family) ships, this section reads sis_students via a
- * cross-schema lookup and surfaces school + grade + class. Locked
- * behind LINKED because enrolment requires a real iam_person.
+ * School-enrolment block. Lives at the bottom of the Account tab
+ * rather than its own tab because for now it's always either "not
+ * enrolled" (LINKED but no sis_students row) or "available once
+ * connected" (not yet LINKED). When enrolment-from-family lands,
+ * the block will read sis_students and surface school + grade.
  */
-function EnrolmentSection({ child }: { child: FamilyChildDto }) {
+function EnrolmentBlock({ child }: { child: FamilyChildDto }) {
   return (
-    <section className="mt-6 rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-sm font-semibold text-gray-900">School enrolment</h2>
+    <SectionCard title="School enrolment">
       {child.status !== 'LINKED' ? (
-        <p className="mt-2 text-xs text-gray-600">
-          Enrolment becomes available once {child.firstName} has a CampusOS account. Create one
-          above or send a link invitation to connect an existing account.
+        <p className="text-xs text-gray-600">
+          Enrolment becomes available once {child.firstName} has a CampusOS account.
         </p>
       ) : (
         <>
-          <p className="mt-2 text-sm text-gray-700">
+          <p className="text-sm text-gray-700">
             {child.firstName} is not enrolled at any school yet.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <Link
               href="/find-schools"
               className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -278,284 +598,119 @@ function EnrolmentSection({ child }: { child: FamilyChildDto }) {
           </div>
         </>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
-// ─── Send-link modal (shared shape with /family) ──────────
+// ─── Contact tab ────────────────────────────────────────────
 
-function SendLinkModal({
-  child,
-  open,
-  onClose,
-}: {
-  child: FamilyChildDto;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const send = useSendChildLink(child.id);
-  const { toast } = useToast();
-  const [email, setEmail] = useState('');
+/**
+ * Phone + notes + address. The "Use family address" inheritance toggle
+ * lands with the family-settings commit; for now the tab surfaces the
+ * existing iam_person fields (primary phone + notes) and a placeholder
+ * card explaining where the address-inherit flow is going.
+ */
+function ContactTab({ child }: { child: FamilyChildDto }) {
+  const readOnly = child.accessLevel === 'INDEPENDENT' && child.status === 'LINKED';
+  const linked = child.status === 'LINKED';
 
-  const handleClose = () => {
-    setEmail('');
-    onClose();
-  };
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const trimmed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      toast('Enter a valid email address', 'error');
-      return;
-    }
-    try {
-      await send.mutateAsync({ email: trimmed });
-      toast(`Code sent to ${trimmed}`, 'success');
-      handleClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not send the invitation.';
-      toast(message, 'error');
-    }
+  if (!linked) {
+    return (
+      <SectionCard title="Contact">
+        <p className="text-xs text-gray-600">
+          Phone, address, and contact details become available once {child.firstName} has a
+          CampusOS account.
+        </p>
+      </SectionCard>
+    );
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={`Send link invitation for ${child.firstName}`}
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            form="send-link-detail-form"
-            disabled={send.isPending}
-            className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
-          >
-            {send.isPending && <LoadingSpinner size="sm" />}
-            <span>{send.isPending ? 'Sending…' : 'Send Invitation'}</span>
-          </button>
-        </>
-      }
-    >
-      <form id="send-link-detail-form" onSubmit={onSubmit} className="flex flex-col gap-3">
-        <p className="text-sm text-gray-600">
-          We&rsquo;ll send a code to this email. The recipient enters it in their CampusOS account
-          to connect.
-        </p>
-        <div>
-          <label htmlFor="link-email-detail" className="block text-xs font-medium text-gray-700">
-            Email
-          </label>
-          <input
-            id="link-email-detail"
-            name="link-email-detail"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={`${child.firstName.toLowerCase()}@example.com`}
-            autoComplete="email"
-            required
-            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-          />
-        </div>
-      </form>
-    </Modal>
+    <div className="flex flex-col gap-5">
+      <AddressPlaceholder />
+      <PhoneNotesCard child={child} readOnly={readOnly} />
+    </div>
   );
 }
 
-// ─── Parent-edit form for the child ──────────────────────
+function AddressPlaceholder() {
+  return (
+    <SectionCard title="Address" description="Coming soon — inherit from family or set a custom address per child.">
+      <p className="text-xs text-gray-500">
+        Family-level address settings ship next. Until then, address lives on each child&rsquo;s
+        school enrolment record.
+      </p>
+    </SectionCard>
+  );
+}
 
-/**
- * Inline edit form for parents to maintain their child's info. The
- * server's PATCH /family/children/:id endpoint accepts an extended
- * payload — for LINKED children it writes the identity fields to
- * iam_person and mirrors name/DOB onto platform_family_children;
- * for PLACEHOLDER it writes only the family_children row (no
- * iam_person exists yet).
- *
- * Field visibility:
- *   PLACEHOLDER  → first / last / DOB / gender
- *   PENDING_LINK → same as PLACEHOLDER (still no iam_person)
- *   LINKED       → all of the above PLUS middle / preferred / phone /
- *                  notes (iam_person fields)
- */
-function EditChildForm({ child }: { child: FamilyChildDto }) {
+function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: boolean }) {
   const { toast } = useToast();
   const update = useUpdateFamilyChild(child.id);
-  const isLinked = child.status === 'LINKED';
+  const [phone, setPhone] = useState(child.primaryPhone ?? '');
+  const [notes, setNotes] = useState(child.notes ?? '');
 
-  const [form, setForm] = useState({
-    firstName: child.firstName ?? '',
-    middleName: child.middleName ?? '',
-    lastName: child.lastName ?? '',
-    preferredName: child.preferredName ?? '',
-    dateOfBirth: child.dateOfBirth ?? '',
-    gender: child.gender ?? '',
-    primaryPhone: child.primaryPhone ?? '',
-    notes: child.notes ?? '',
-  });
-  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
-
-  // Re-sync when the underlying child row changes (after Save). All
-  // identity fields come from the GET response — for LINKED children
-  // the API joins iam_person and surfaces middle/preferred/phone/
-  // notes too, so the form round-trips every input the user touched.
   useEffect(() => {
-    setForm({
-      firstName: child.firstName ?? '',
-      middleName: child.middleName ?? '',
-      lastName: child.lastName ?? '',
-      preferredName: child.preferredName ?? '',
-      dateOfBirth: child.dateOfBirth ?? '',
-      gender: child.gender ?? '',
-      primaryPhone: child.primaryPhone ?? '',
-      notes: child.notes ?? '',
-    });
-  }, [
-    child.id,
-    child.firstName,
-    child.middleName,
-    child.lastName,
-    child.preferredName,
-    child.dateOfBirth,
-    child.gender,
-    child.primaryPhone,
-    child.notes,
-  ]);
+    setPhone(child.primaryPhone ?? '');
+    setNotes(child.notes ?? '');
+  }, [child.id, child.primaryPhone, child.notes]);
 
-  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
-  }
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const v: typeof errors = {};
-    if (!form.firstName.trim()) v.firstName = 'First name is required';
-    if (!form.lastName.trim()) v.lastName = 'Last name is required';
-    if (Object.keys(v).length > 0) {
-      setErrors(v);
-      return;
-    }
+  async function save() {
     try {
       await update.mutateAsync({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        dateOfBirth: form.dateOfBirth || undefined,
-        gender: form.gender || undefined,
-        ...(isLinked
-          ? {
-              middleName: form.middleName.trim() || null,
-              preferredName: form.preferredName.trim() || null,
-              primaryPhone: form.primaryPhone.trim() || null,
-              notes: form.notes.trim() || null,
-            }
-          : {}),
+        primaryPhone: phone.trim() || null,
+        notes: notes.trim() || null,
       });
       toast('Saved', 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
   }
 
+  if (readOnly) {
+    return (
+      <SectionCard title="Phone & notes">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ReadOnlyField label="Phone" value={child.primaryPhone} />
+        </div>
+        {child.notes && (
+          <div className="mt-4">
+            <p className="text-xs font-medium text-gray-700">Notes</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{child.notes}</p>
+          </div>
+        )}
+      </SectionCard>
+    );
+  }
+
   return (
-    <form onSubmit={onSubmit} noValidate className="mt-5">
+    <SectionCard title="Phone & notes">
       <div className="grid gap-4 sm:grid-cols-2">
         <EditField
-          id="firstName"
-          label="First name"
-          value={form.firstName}
-          onChange={(v) => setField('firstName', v)}
-          error={errors.firstName}
-          required
+          id="primaryPhone"
+          label="Phone"
+          type="tel"
+          value={phone}
+          onChange={setPhone}
         />
-        {isLinked && (
-          <EditField
-            id="middleName"
-            label="Middle name"
-            value={form.middleName}
-            onChange={(v) => setField('middleName', v)}
-          />
-        )}
-        <EditField
-          id="lastName"
-          label="Last name"
-          value={form.lastName}
-          onChange={(v) => setField('lastName', v)}
-          error={errors.lastName}
-          required
-        />
-        {isLinked && (
-          <EditField
-            id="preferredName"
-            label="Preferred name"
-            value={form.preferredName}
-            onChange={(v) => setField('preferredName', v)}
-            hint="Used throughout CampusOS instead of their first name."
-          />
-        )}
-        <EditField
-          id="dateOfBirth"
-          label="Date of birth"
-          type="date"
-          value={form.dateOfBirth}
-          onChange={(v) => setField('dateOfBirth', v)}
-        />
-        <div>
-          <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
-            Gender
-          </label>
-          <select
-            id="gender"
-            value={form.gender}
-            onChange={(e) => setField('gender', e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-          >
-            <option value="">Prefer not to say</option>
-            <option value="F">Female</option>
-            <option value="M">Male</option>
-            <option value="X">Non-binary</option>
-            <option value="O">Other</option>
-          </select>
-        </div>
-        {isLinked && (
-          <EditField
-            id="primaryPhone"
-            label="Phone"
-            type="tel"
-            value={form.primaryPhone}
-            onChange={(v) => setField('primaryPhone', v)}
-          />
-        )}
       </div>
-
-      {isLinked && (
-        <div className="mt-4">
-          <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
-            Notes
-          </label>
-          <textarea
-            id="notes"
-            value={form.notes}
-            onChange={(e) => setField('notes', e.target.value)}
-            rows={3}
-            placeholder="Allergies, accommodations, things teachers should know…"
-            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-          />
-        </div>
-      )}
-
+      <div className="mt-4">
+        <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
+          Notes
+        </label>
+        <textarea
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Allergies, accommodations, things teachers should know…"
+          className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+        />
+      </div>
       <div className="mt-4 flex justify-end">
         <button
-          type="submit"
+          type="button"
+          onClick={() => void save()}
           disabled={update.isPending}
           className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
         >
@@ -563,130 +718,20 @@ function EditChildForm({ child }: { child: FamilyChildDto }) {
           <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
         </button>
       </div>
-    </form>
+    </SectionCard>
   );
 }
 
-function EditField({
-  id,
-  label,
-  value,
-  onChange,
-  type = 'text',
-  required,
-  hint,
-  error,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  required?: boolean;
-  hint?: string;
-  error?: string;
-}) {
+// ─── Medical tab ────────────────────────────────────────────
+
+function MedicalTab({ child }: { child: FamilyChildDto }) {
   return (
-    <div>
-      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
-        {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        aria-invalid={!!error}
-        className={
-          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
-          (error ? 'border-red-300' : 'border-gray-300')
-        }
-      />
-      {error ? (
-        <p className="mt-1 text-xs text-red-600">{error}</p>
-      ) : hint ? (
-        <p className="mt-1 text-xs text-gray-500">{hint}</p>
-      ) : null}
+    <div className="flex flex-col gap-5">
+      <ParentOnlyBanner />
+      <MedicalSection childId={child.id} />
     </div>
   );
 }
-
-// ─── Small primitives + helpers ───────────────────────────
-
-function SecondaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-}
-
-function DangerButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-// ─── Section card primitives ─────────────────────────────
-
-/**
- * Section card wrapper used by Medical / Emergency / Dietary. The
- * "Parent/Guardian only" lock badge is rendered when the caller is
- * a parent viewing — these endpoints already 404 / 403 cross-family
- * callers server-side, so the badge is a visual reminder rather
- * than an access gate.
- */
-function ProfileSection({
-  title,
-  description,
-  parentOnly,
-  children,
-}: {
-  title: string;
-  description?: string;
-  parentOnly?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mt-6 rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-          {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
-        </div>
-        {parentOnly && (
-          <span
-            title="Only a parent or guardian of this family can update this section. Linked children see read-only data."
-            className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20"
-          >
-            🔒 Parent/Guardian only
-          </span>
-        )}
-      </div>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
-}
-
-// ─── Medical & Health ────────────────────────────────────
 
 const ALLERGY_SEVERITIES: Array<{ value: string; label: string }> = [
   { value: 'MILD', label: 'Mild' },
@@ -771,14 +816,14 @@ function MedicalSection({ childId }: { childId: string }) {
 
   if (isLoading || !data) {
     return (
-      <ProfileSection title="Medical & Health" parentOnly>
+      <SectionCard title="Medical & Health">
         <p className="text-sm text-gray-500">Loading…</p>
-      </ProfileSection>
+      </SectionCard>
     );
   }
 
   return (
-    <ProfileSection title="Medical & Health" parentOnly>
+    <SectionCard title="Medical & Health">
       <AllergiesCard
         items={data.allergies}
         onChange={(next) => void commitList('allergies', next, 'Allergies updated')}
@@ -830,7 +875,7 @@ function MedicalSection({ childId }: { childId: string }) {
           </button>
         </div>
       </div>
-    </ProfileSection>
+    </SectionCard>
   );
 }
 
@@ -1074,7 +1119,16 @@ function ConditionsCard({
   );
 }
 
-// ─── Emergency Contacts ──────────────────────────────────
+// ─── Emergency tab ──────────────────────────────────────────
+
+function EmergencyTab({ child }: { child: FamilyChildDto }) {
+  return (
+    <div className="flex flex-col gap-5">
+      <ParentOnlyBanner />
+      <EmergencyContactsSection childId={child.id} />
+    </div>
+  );
+}
 
 function EmergencyContactsSection({ childId }: { childId: string }) {
   const { data, isLoading } = useChildEmergencyContacts(childId);
@@ -1114,15 +1168,15 @@ function EmergencyContactsSection({ childId }: { childId: string }) {
 
   if (isLoading) {
     return (
-      <ProfileSection title="Emergency Contacts" parentOnly>
+      <SectionCard title="Emergency Contacts">
         <p className="text-sm text-gray-500">Loading…</p>
-      </ProfileSection>
+      </SectionCard>
     );
   }
   const contacts = data ?? [];
 
   return (
-    <ProfileSection title="Emergency Contacts" parentOnly>
+    <SectionCard title="Emergency Contacts">
       {contacts.length === 0 && !showAdd ? (
         <p className="text-sm text-gray-500">No emergency contacts on file.</p>
       ) : (
@@ -1167,7 +1221,7 @@ function EmergencyContactsSection({ childId }: { childId: string }) {
           </button>
         </div>
       )}
-    </ProfileSection>
+    </SectionCard>
   );
 }
 
@@ -1223,7 +1277,7 @@ function EmergencyContactRow({
   );
 }
 
-// ─── Dietary ─────────────────────────────────────────────
+// ─── Dietary tab ────────────────────────────────────────────
 
 const DIETARY_TYPES: Array<{ value: DietaryType; label: string }> = [
   { value: 'NONE', label: 'None' },
@@ -1235,6 +1289,15 @@ const DIETARY_TYPES: Array<{ value: DietaryType; label: string }> = [
   { value: 'DAIRY_FREE', label: 'Dairy-free' },
   { value: 'OTHER', label: 'Other' },
 ];
+
+function DietaryTab({ child }: { child: FamilyChildDto }) {
+  return (
+    <div className="flex flex-col gap-5">
+      <ParentOnlyBanner />
+      <DietarySection childId={child.id} />
+    </div>
+  );
+}
 
 function DietarySection({ childId }: { childId: string }) {
   const { data, isLoading } = useChildDietary(childId);
@@ -1273,17 +1336,16 @@ function DietarySection({ childId }: { childId: string }) {
 
   if (isLoading || !data) {
     return (
-      <ProfileSection title="Dietary &amp; Food Restrictions" parentOnly>
+      <SectionCard title="Dietary & Food Restrictions">
         <p className="text-sm text-gray-500">Loading…</p>
-      </ProfileSection>
+      </SectionCard>
     );
   }
 
   return (
-    <ProfileSection
+    <SectionCard
       title="Dietary & Food Restrictions"
       description="Food allergies in the Medical section are tracked separately. This section covers diet style + school-meal preferences."
-      parentOnly
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -1336,7 +1398,120 @@ function DietarySection({ childId }: { childId: string }) {
           <span>{update.isPending ? 'Saving…' : 'Save'}</span>
         </button>
       </div>
-    </ProfileSection>
+    </SectionCard>
+  );
+}
+
+// ─── About tab ──────────────────────────────────────────────
+
+/**
+ * Stub — bio + interests + photo land with the about-me commit. For
+ * INDEPENDENT children this tab will eventually be read-only for the
+ * parent (the child owns their own bio); for MANAGED the parent fills
+ * it in.
+ */
+function AboutTab({ child }: { child: FamilyChildDto }) {
+  return (
+    <SectionCard title={'About ' + (child.preferredName?.trim() ? child.preferredName : child.firstName)}>
+      <p className="text-xs text-gray-500">
+        Bio, interests, and profile photo coming soon. Independent accounts will own this section
+        themselves; managed accounts let the parent fill it in.
+      </p>
+    </SectionCard>
+  );
+}
+
+// ─── Section primitives ─────────────────────────────────────
+
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
+      {(title || description) && (
+        <div className="mb-3">
+          {title && <h2 className="text-sm font-semibold text-gray-900">{title}</h2>}
+          {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function ParentOnlyBanner() {
+  return (
+    <div
+      className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900"
+      role="note"
+    >
+      <span aria-hidden>🔒</span>
+      <span>
+        <span className="font-semibold">Parent/Guardian only.</span> Only adults in this family can
+        update this section. Linked children see read-only data.
+      </span>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-700">{label}</p>
+      <p className="mt-1 text-sm text-gray-900">{value && value.trim() ? value : <span className="text-gray-400">—</span>}</p>
+    </div>
+  );
+}
+
+function EditField({
+  id,
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required,
+  hint,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  hint?: string;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        aria-invalid={!!error}
+        className={
+          'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+          (error ? 'border-red-300' : 'border-gray-300')
+        }
+      />
+      {error ? (
+        <p className="mt-1 text-xs text-red-600">{error}</p>
+      ) : hint ? (
+        <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -1372,3 +1547,129 @@ function SectionField({
   );
 }
 
+// ─── Buttons + helpers ──────────────────────────────────────
+
+function SecondaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
+    >
+      {children}
+    </button>
+  );
+}
+
+function DangerButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-60"
+    >
+      {children}
+    </button>
+  );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function genderLabel(value: string | null): string | null {
+  if (!value) return null;
+  const map: Record<string, string> = { F: 'Female', M: 'Male', X: 'Non-binary', O: 'Other' };
+  return map[value] ?? value;
+}
+
+// ─── Send-link modal ────────────────────────────────────────
+
+function SendLinkModal({
+  child,
+  open,
+  onClose,
+}: {
+  child: FamilyChildDto;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const send = useSendChildLink(child.id);
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+
+  const handleClose = () => {
+    setEmail('');
+    onClose();
+  };
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast('Enter a valid email address', 'error');
+      return;
+    }
+    try {
+      await send.mutateAsync({ email: trimmed });
+      toast(`Code sent to ${trimmed}`, 'success');
+      handleClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not send the invitation.';
+      toast(message, 'error');
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={`Send link invitation for ${child.firstName}`}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="send-link-detail-form"
+            disabled={send.isPending}
+            className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {send.isPending && <LoadingSpinner size="sm" />}
+            <span>{send.isPending ? 'Sending…' : 'Send Invitation'}</span>
+          </button>
+        </>
+      }
+    >
+      <form id="send-link-detail-form" onSubmit={onSubmit} className="flex flex-col gap-3">
+        <p className="text-sm text-gray-600">
+          We&rsquo;ll send a code to this email. The recipient enters it in their CampusOS account
+          to connect.
+        </p>
+        <div>
+          <label htmlFor="link-email-detail" className="block text-xs font-medium text-gray-700">
+            Email
+          </label>
+          <input
+            id="link-email-detail"
+            name="link-email-detail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={`${child.firstName.toLowerCase()}@example.com`}
+            autoComplete="email"
+            required
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+        </div>
+      </form>
+    </Modal>
+  );
+}

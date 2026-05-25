@@ -1247,16 +1247,18 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
           </>
         )}
         {child.status === 'LINKED' && (
-          // MANAGED children: the parent IS the account custodian,
-          // PATCH /family/children/:id writes both iam_person and the
-          // family-children mirror. INDEPENDENT children: the account
-          // holder owns their identity; the detail page still renders
-          // a read-only view so the parent can see name/DOB/status.
+          // Both MANAGED and INDEPENDENT linked children land on the
+          // same tabbed profile page. The page itself decides what's
+          // editable: MANAGED → name + identity fields are writable;
+          // INDEPENDENT → those fields are read-only but parents still
+          // edit the medical / emergency / dietary sections they own.
+          // The card label stays "View Profile" so the entry point
+          // doesn't promise edit access we can't always deliver.
           <Link
             href={`/family/children/${child.id}`}
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            {child.accessLevel === 'MANAGED' ? 'Edit Profile' : 'View Profile'}
+            View Profile
           </Link>
         )}
       </div>
