@@ -326,12 +326,20 @@ export class FamilyChildrenService {
         postal_code: string | null;
         country: string | null;
         home_phone: string | null;
+        mailing_address_same: boolean;
+        mailing_line1: string | null;
+        mailing_line2: string | null;
+        mailing_city: string | null;
+        mailing_state: string | null;
+        mailing_postal_code: string | null;
+        mailing_country: string | null;
         doctor_name: string | null;
         doctor_phone: string | null;
         doctor_clinic: string | null;
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        medical_notes: string | null;
         primary_contact_person_id: string | null;
         primary_first_name: string | null;
         primary_last_name: string | null;
@@ -343,8 +351,12 @@ export class FamilyChildrenService {
          pf.name,
          pf.address_line1, pf.address_line2, pf.city, pf.state,
          pf.postal_code, pf.country, pf.home_phone,
+         pf.mailing_address_same,
+         pf.mailing_line1, pf.mailing_line2, pf.mailing_city, pf.mailing_state,
+         pf.mailing_postal_code, pf.mailing_country,
          pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
          pf.insurance_provider, pf.insurance_policy, pf.insurance_group,
+         pf.medical_notes,
          pc.person_id::text AS primary_contact_person_id,
          p.first_name AS primary_first_name,
          p.last_name AS primary_last_name,
@@ -374,12 +386,25 @@ export class FamilyChildrenService {
       postalCode: row.postal_code,
       country: row.country,
       homePhone: row.home_phone,
+      // The DB column is the inverse (`mailing_address_same`): default
+      // true = "same as home". The wire format uses the positive
+      // sense — `mailingAddressDifferent` — because the UI toggle
+      // reads more naturally that way ("☐ Mailing address is
+      // different from home address").
+      mailingAddressDifferent: !row.mailing_address_same,
+      mailingLine1: row.mailing_line1,
+      mailingLine2: row.mailing_line2,
+      mailingCity: row.mailing_city,
+      mailingState: row.mailing_state,
+      mailingPostalCode: row.mailing_postal_code,
+      mailingCountry: row.mailing_country,
       doctorName: row.doctor_name,
       doctorPhone: row.doctor_phone,
       doctorClinic: row.doctor_clinic,
       insuranceProvider: row.insurance_provider,
       insurancePolicy: row.insurance_policy,
       insuranceGroup: row.insurance_group,
+      medicalNotes: row.medical_notes,
       primaryContactPersonId: row.primary_contact_person_id,
       primaryContactName: primaryName,
       canEdit: resolved.role === 'PARENT',
@@ -399,7 +424,10 @@ export class FamilyChildrenService {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
 
-    const cols: Record<keyof UpdateFamilySettingsDto, string> = {
+    // Columns that map 1:1 from dto key → DB column. Excludes
+    // mailingAddressDifferent (inverted in mapping) and
+    // primaryContactPersonId (writes a different table).
+    const cols: Partial<Record<keyof UpdateFamilySettingsDto, string>> = {
       displayName: 'name',
       addressLine1: 'address_line1',
       addressLine2: 'address_line2',
@@ -408,12 +436,19 @@ export class FamilyChildrenService {
       postalCode: 'postal_code',
       country: 'country',
       homePhone: 'home_phone',
+      mailingLine1: 'mailing_line1',
+      mailingLine2: 'mailing_line2',
+      mailingCity: 'mailing_city',
+      mailingState: 'mailing_state',
+      mailingPostalCode: 'mailing_postal_code',
+      mailingCountry: 'mailing_country',
       doctorName: 'doctor_name',
       doctorPhone: 'doctor_phone',
       doctorClinic: 'doctor_clinic',
       insuranceProvider: 'insurance_provider',
       insurancePolicy: 'insurance_policy',
       insuranceGroup: 'insurance_group',
+      medicalNotes: 'medical_notes',
     };
 
     const setClauses: string[] = [];
@@ -421,25 +456,81 @@ export class FamilyChildrenService {
     let i = 1;
     for (const k of Object.keys(cols) as Array<keyof UpdateFamilySettingsDto>) {
       if (dto[k] === undefined) continue;
-      setClauses.push(cols[k] + ' = $' + i++);
+      const col = cols[k];
+      if (!col) continue;
+      setClauses.push(col + ' = $' + i++);
       // '' → NULL so the UI can clear a field by submitting an empty
       // string. null → NULL stays null.
       const v = dto[k];
       values.push(typeof v === 'string' && v.trim() === '' ? null : v);
     }
-
-    if (setClauses.length > 0) {
-      setClauses.push('updated_at = now()');
-      values.push(familyId);
-      await this.prisma.$executeRawUnsafe(
-        'UPDATE platform.platform_families SET ' +
-          setClauses.join(', ') +
-          ' WHERE id = $' +
-          i +
-          '::uuid',
-        ...values,
-      );
+    if (dto.mailingAddressDifferent !== undefined) {
+      // Wire format is the positive sense; DB column is the inverse.
+      // See the read path for the reasoning.
+      setClauses.push('mailing_address_same = $' + i++);
+      values.push(!dto.mailingAddressDifferent);
     }
+
+    // Primary-contact promote runs inside the same tx as the
+    // platform_families UPDATE so a settings + primary-contact swap
+    // is atomic. The partial UNIQUE INDEX on (family_id) WHERE
+    // is_primary_contact = true forces us to demote the current
+    // primary BEFORE promoting the new one.
+    const newPrimaryPersonId = dto.primaryContactPersonId;
+
+    if (setClauses.length === 0 && newPrimaryPersonId === undefined) {
+      // Nothing to do.
+      const noop = await this.getFamilySettings(personId);
+      if (!noop) {
+        throw new HttpException(
+          'Could not reload family settings',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+      return noop;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (setClauses.length > 0) {
+        const sqlClauses = [...setClauses, 'updated_at = now()'];
+        const sqlValues = [...values, familyId];
+        await tx.$executeRawUnsafe(
+          'UPDATE platform.platform_families SET ' +
+            sqlClauses.join(', ') +
+            ' WHERE id = $' +
+            (sqlValues.length) +
+            '::uuid',
+          ...sqlValues,
+        );
+      }
+      if (newPrimaryPersonId !== undefined) {
+        // Validate membership — refuse cross-family promotions.
+        const member = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id::text AS id FROM platform.platform_family_members
+           WHERE family_id = $1::uuid AND person_id = $2::uuid LIMIT 1`,
+          familyId,
+          newPrimaryPersonId,
+        );
+        if (member.length === 0) {
+          throw new BadRequestException(
+            'Cannot promote a non-member to primary contact. Add them to the family first.',
+          );
+        }
+        // Demote any existing primary first.
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_members
+           SET is_primary_contact = false, updated_at = now()
+           WHERE family_id = $1::uuid AND is_primary_contact = true`,
+          familyId,
+        );
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_members
+           SET is_primary_contact = true, updated_at = now()
+           WHERE id = $1::uuid`,
+          member[0]!.id,
+        );
+      }
+    });
 
     const refreshed = await this.getFamilySettings(personId);
     if (!refreshed) {

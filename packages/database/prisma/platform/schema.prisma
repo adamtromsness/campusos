@@ -450,6 +450,10 @@ model PlatformFamily {
   insuranceProvider  String?  @map("insurance_provider")
   insurancePolicy    String?  @map("insurance_policy")
   insuranceGroup     String?  @map("insurance_group")
+  // Family-wide medical notes — distinct from the per-child
+  // medical_notes on PlatformChildMedicalInfo. Children inherit
+  // this when their medical_source is 'FAMILY'.
+  medicalNotes       String?  @map("medical_notes")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 

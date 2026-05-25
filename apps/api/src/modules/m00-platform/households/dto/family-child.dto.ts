@@ -478,7 +478,7 @@ export class UpdateFamilyEmergencyContactDto {
 export class FamilySettingsDto {
   @ApiProperty() familyId!: string;
   @ApiPropertyOptional() displayName!: string | null;
-  // Address (residential).
+  // Home address (residential).
   @ApiPropertyOptional() addressLine1!: string | null;
   @ApiPropertyOptional() addressLine2!: string | null;
   @ApiPropertyOptional() city!: string | null;
@@ -486,6 +486,17 @@ export class FamilySettingsDto {
   @ApiPropertyOptional() postalCode!: string | null;
   @ApiPropertyOptional() country!: string | null;
   @ApiPropertyOptional() homePhone!: string | null;
+  // Mailing address. mailingAddressDifferent === true means the
+  // mailing_* columns are authoritative; === false (default) means
+  // the mailing address is the same as the home address and the
+  // mailing_* columns are ignored.
+  @ApiProperty() mailingAddressDifferent!: boolean;
+  @ApiPropertyOptional() mailingLine1!: string | null;
+  @ApiPropertyOptional() mailingLine2!: string | null;
+  @ApiPropertyOptional() mailingCity!: string | null;
+  @ApiPropertyOptional() mailingState!: string | null;
+  @ApiPropertyOptional() mailingPostalCode!: string | null;
+  @ApiPropertyOptional() mailingCountry!: string | null;
   // Doctor + insurance — the family-level defaults. Per-child overrides
   // continue to live on PlatformChildMedicalInfo.
   @ApiPropertyOptional() doctorName!: string | null;
@@ -494,10 +505,14 @@ export class FamilySettingsDto {
   @ApiPropertyOptional() insuranceProvider!: string | null;
   @ApiPropertyOptional() insurancePolicy!: string | null;
   @ApiPropertyOptional() insuranceGroup!: string | null;
+  // Family-wide medical notes shared with schools and inherited
+  // by children whose medical_source is 'FAMILY'.
+  @ApiPropertyOptional() medicalNotes!: string | null;
   // Identity of the current primary contact (a guardian
   // platform_family_members row in this family with
-  // is_primary_contact = true). Read-only here; promote/demote happens
-  // through the /family/members surface.
+  // is_primary_contact = true). Settable via PATCH (see
+  // UpdateFamilySettingsDto.primaryContactPersonId) — promote runs
+  // inside a tx that demotes the previous primary first.
   @ApiPropertyOptional() primaryContactPersonId!: string | null;
   @ApiPropertyOptional() primaryContactName!: string | null;
   // True when the caller can mutate these fields (parent/guardian
@@ -515,6 +530,7 @@ export class FamilySettingsDto {
  */
 export class UpdateFamilySettingsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) displayName?: string | null;
+  // Home address.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) addressLine1?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) addressLine2?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) city?: string | null;
@@ -522,6 +538,15 @@ export class UpdateFamilySettingsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) postalCode?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) country?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) homePhone?: string | null;
+  // Mailing address.
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() mailingAddressDifferent?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) mailingLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) mailingLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingCity?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingState?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) mailingPostalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingCountry?: string | null;
+  // Health & insurance.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) doctorPhone?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorClinic?: string | null;
@@ -530,6 +555,13 @@ export class UpdateFamilySettingsDto {
     | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insurancePolicy?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insuranceGroup?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) medicalNotes?: string | null;
+  // Promote a guardian to primary contact. Service runs a tx that
+  // demotes the previous primary first so the partial UNIQUE INDEX
+  // on (family_id) WHERE is_primary_contact = true never rejects.
+  // Person must already be a member of the family — cross-family
+  // ids return 400.
+  @ApiPropertyOptional() @IsOptional() @IsString() primaryContactPersonId?: string;
 }
 
 /**

@@ -622,12 +622,20 @@ export interface FamilySettingsDto {
   postalCode: string | null;
   country: string | null;
   homePhone: string | null;
+  mailingAddressDifferent: boolean;
+  mailingLine1: string | null;
+  mailingLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingPostalCode: string | null;
+  mailingCountry: string | null;
   doctorName: string | null;
   doctorPhone: string | null;
   doctorClinic: string | null;
   insuranceProvider: string | null;
   insurancePolicy: string | null;
   insuranceGroup: string | null;
+  medicalNotes: string | null;
   primaryContactPersonId: string | null;
   primaryContactName: string | null;
   canEdit: boolean;
@@ -642,12 +650,21 @@ export interface UpdateFamilySettingsPayload {
   postalCode?: string | null;
   country?: string | null;
   homePhone?: string | null;
+  mailingAddressDifferent?: boolean;
+  mailingLine1?: string | null;
+  mailingLine2?: string | null;
+  mailingCity?: string | null;
+  mailingState?: string | null;
+  mailingPostalCode?: string | null;
+  mailingCountry?: string | null;
   doctorName?: string | null;
   doctorPhone?: string | null;
   doctorClinic?: string | null;
   insuranceProvider?: string | null;
   insurancePolicy?: string | null;
   insuranceGroup?: string | null;
+  medicalNotes?: string | null;
+  primaryContactPersonId?: string;
 }
 
 export function useFamilySettings(enabled = true) {
