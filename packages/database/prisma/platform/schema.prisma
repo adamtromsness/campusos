@@ -420,6 +420,76 @@ model PlatformFamily {
   @@schema("platform")
 }
 
+// ── Pre-enrolment child profile data ─────────────────────────
+// One row per LINKED child. While the family has no school
+// enrolment these are the source of truth for the medical /
+// emergency-contact / dietary record classes; on enrolment the
+// data syncs to the tenant-scoped hlth_* / sis_emergency_contacts
+// / fds_dietary_restrictions tables and these become a cache.
+
+model PlatformChildMedicalInfo {
+  id                String   @id @db.Uuid
+  personId          String   @unique @map("person_id") @db.Uuid
+  familyId          String   @map("family_id") @db.Uuid
+  // JSONB list of { name, severity, type, notes }
+  allergies         Json     @default("[]")
+  // JSONB list of { name, dosage, frequency, prescriber, notes }
+  medications       Json     @default("[]")
+  // JSONB list of { name, diagnosedDate, notes }
+  conditions        Json     @default("[]")
+  doctorName        String?  @map("doctor_name")
+  doctorPhone       String?  @map("doctor_phone")
+  doctorClinic      String?  @map("doctor_clinic")
+  insuranceProvider String?  @map("insurance_provider")
+  insurancePolicy   String?  @map("insurance_policy")
+  insuranceGroup    String?  @map("insurance_group")
+  bloodType         String?  @map("blood_type")
+  medicalNotes      String?  @map("medical_notes")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@index([familyId])
+  @@map("platform_child_medical_info")
+  @@schema("platform")
+}
+
+model PlatformChildEmergencyContact {
+  id               String   @id @db.Uuid
+  personId         String   @map("person_id") @db.Uuid
+  familyId         String   @map("family_id") @db.Uuid
+  name             String
+  relationship     String
+  phonePrimary     String   @map("phone_primary")
+  phoneAlternate   String?  @map("phone_alternate")
+  email            String?
+  authorizedPickup Boolean  @default(false) @map("authorized_pickup")
+  priorityOrder    Int      @default(0) @map("priority_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@unique([personId, phonePrimary])
+  @@index([personId, priorityOrder])
+  @@index([familyId])
+  @@map("platform_child_emergency_contacts")
+  @@schema("platform")
+}
+
+model PlatformChildDietaryInfo {
+  id                      String   @id @db.Uuid
+  personId                String   @unique @map("person_id") @db.Uuid
+  familyId                String   @map("family_id") @db.Uuid
+  dietaryType             String   @default("NONE") @map("dietary_type")
+  foodAllergies           Json     @default("[]") @map("food_allergies")
+  additionalRestrictions  String?  @map("additional_restrictions")
+  mealPreference          String?  @map("meal_preference")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt               DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@index([familyId])
+  @@map("platform_child_dietary_info")
+  @@schema("platform")
+}
+
 // ── Family Members ───────────────────────────────────────────
 // One row per (household, person). person_id is UNIQUE — a person belongs
 // to at most one household. role drives the household-edit gate
