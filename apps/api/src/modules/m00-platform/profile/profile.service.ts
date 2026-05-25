@@ -57,6 +57,13 @@ interface IamPersonRow {
   custom_state: string | null;
   custom_postal_code: string | null;
   custom_country: string | null;
+  mailing_same_as_home: boolean;
+  custom_mailing_line1: string | null;
+  custom_mailing_line2: string | null;
+  custom_mailing_city: string | null;
+  custom_mailing_state: string | null;
+  custom_mailing_postal_code: string | null;
+  custom_mailing_country: string | null;
   work_email: string | null;
   employer: string | null;
   job_title: string | null;
@@ -493,6 +500,12 @@ export class ProfileService {
       'customState',
       'customPostalCode',
       'customCountry',
+      'customMailingLine1',
+      'customMailingLine2',
+      'customMailingCity',
+      'customMailingState',
+      'customMailingPostalCode',
+      'customMailingCountry',
       'workEmail',
       'employer',
       'jobTitle',
@@ -519,6 +532,13 @@ export class ProfileService {
       out.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
     }
 
+    // Wire flips the sense: mailingAddressDifferent (positive) →
+    // mailingSameAsHome (DB column, inverted). Same pattern that
+    // platform_families uses for the family-side toggle.
+    if (dto.mailingAddressDifferent !== undefined) {
+      out.mailingSameAsHome = !dto.mailingAddressDifferent;
+    }
+
     return out;
   }
 
@@ -534,6 +554,9 @@ export class ProfileService {
         'p.created_at::text AS created_at, ' +
         'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
         'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
+        'p.mailing_same_as_home, ' +
+        'p.custom_mailing_line1, p.custom_mailing_line2, p.custom_mailing_city, ' +
+        'p.custom_mailing_state, p.custom_mailing_postal_code, p.custom_mailing_country, ' +
         'p.work_email, p.employer, p.job_title, ' +
         'p.employment_status, p.industry, ' +
         'p.work_address_line1, p.work_address_line2, p.work_city, p.work_state, ' +
@@ -952,6 +975,14 @@ export class ProfileService {
       customState: person.custom_state,
       customPostalCode: person.custom_postal_code,
       customCountry: person.custom_country,
+      // DB column is the positive sense; wire format flips it.
+      mailingAddressDifferent: !person.mailing_same_as_home,
+      customMailingLine1: person.custom_mailing_line1,
+      customMailingLine2: person.custom_mailing_line2,
+      customMailingCity: person.custom_mailing_city,
+      customMailingState: person.custom_mailing_state,
+      customMailingPostalCode: person.custom_mailing_postal_code,
+      customMailingCountry: person.custom_mailing_country,
       workEmail: person.work_email,
       employer: person.employer,
       jobTitle: person.job_title,

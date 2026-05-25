@@ -204,6 +204,17 @@ model IamPerson {
   customState        String?    @map("custom_state")
   customPostalCode   String?    @map("custom_postal_code")
   customCountry      String?    @map("custom_country")
+  // Mailing address. DB column is the positive sense
+  // (mailingSameAsHome, default true); the wire format flips it to
+  // mailingAddressDifferent for natural UI copy. Same pattern as
+  // platform_families.mailingAddressSame.
+  mailingSameAsHome      Boolean @default(true) @map("mailing_same_as_home")
+  customMailingLine1     String? @map("custom_mailing_line1")
+  customMailingLine2     String? @map("custom_mailing_line2")
+  customMailingCity      String? @map("custom_mailing_city")
+  customMailingState     String? @map("custom_mailing_state")
+  customMailingPostalCode String? @map("custom_mailing_postal_code")
+  customMailingCountry   String? @map("custom_mailing_country")
   workEmail          String?    @map("work_email")
   employer           String?
   jobTitle           String?    @map("job_title")

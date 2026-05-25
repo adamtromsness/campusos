@@ -430,10 +430,16 @@ function humanPersona(type: string): string {
 // ─── Contact tab ───────────────────────────────────────────
 
 /**
- * Two sections: address (with family/custom inheritance toggle) and
- * work contact (work email, employer, job title). Mailing address
- * is currently a family-level concept only — per-person mailing
- * overrides would need another set of columns + a toggle, deferred.
+ * Address-only Contact tab. The work-contact fields that used to
+ * live here moved to the new Occupation tab in the previous commit
+ * — keeping the surface focused on "where can the school reach you
+ * physically" (home + mailing) rather than mixing in work fields.
+ *
+ * Two sections:
+ *   - Home address with FAMILY/CUSTOM inheritance toggle (default
+ *     FAMILY: pull from /family/settings).
+ *   - Mailing address with same-as-home / different toggle. Default
+ *     same — opt in only when mail goes to a separate place.
  */
 function ContactTab({ profile }: { profile: ProfileDto }) {
   const { refreshUser } = useAuthActions();
@@ -450,9 +456,13 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
       customState: profile.customState ?? '',
       customPostalCode: profile.customPostalCode ?? '',
       customCountry: profile.customCountry ?? '',
-      workEmail: profile.workEmail ?? '',
-      employer: profile.employer ?? '',
-      jobTitle: profile.jobTitle ?? '',
+      mailingAddressDifferent: profile.mailingAddressDifferent,
+      customMailingLine1: profile.customMailingLine1 ?? '',
+      customMailingLine2: profile.customMailingLine2 ?? '',
+      customMailingCity: profile.customMailingCity ?? '',
+      customMailingState: profile.customMailingState ?? '',
+      customMailingPostalCode: profile.customMailingPostalCode ?? '',
+      customMailingCountry: profile.customMailingCountry ?? '',
     }),
     [profile],
   );
@@ -473,9 +483,29 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         customState: form.customState.trim() || null,
         customPostalCode: form.customPostalCode.trim() || null,
         customCountry: form.customCountry.trim() || null,
-        workEmail: form.workEmail.trim() || null,
-        employer: form.employer.trim() || null,
-        jobTitle: form.jobTitle.trim() || null,
+        mailingAddressDifferent: form.mailingAddressDifferent,
+        // Blank mailing fields when the toggle is off so a previously-
+        // saved override doesn't silently linger after the user opts back
+        // to same-as-home. Matches the work-address clear-on-collapse
+        // pattern from the Occupation tab.
+        customMailingLine1: form.mailingAddressDifferent
+          ? form.customMailingLine1.trim() || null
+          : null,
+        customMailingLine2: form.mailingAddressDifferent
+          ? form.customMailingLine2.trim() || null
+          : null,
+        customMailingCity: form.mailingAddressDifferent
+          ? form.customMailingCity.trim() || null
+          : null,
+        customMailingState: form.mailingAddressDifferent
+          ? form.customMailingState.trim() || null
+          : null,
+        customMailingPostalCode: form.mailingAddressDifferent
+          ? form.customMailingPostalCode.trim() || null
+          : null,
+        customMailingCountry: form.mailingAddressDifferent
+          ? form.customMailingCountry.trim() || null
+          : null,
       });
       await refreshUser();
       toast('Contact info saved', 'success');
@@ -497,7 +527,7 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <SectionCard title="Address">
+      <SectionCard title="Home address">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-gray-600">
             {form.addressSource === 'FAMILY'
@@ -581,38 +611,70 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         )}
       </SectionCard>
 
-      <SectionCard
-        title="Work contact (optional)"
-        description="Schools use this when they need to reach you during work hours."
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <EditField
-            id="workEmail"
-            label="Work email"
-            type="email"
-            value={form.workEmail}
-            onChange={(v) => setForm((f) => ({ ...f, workEmail: v }))}
-            autoComplete="email"
-            dirty={dirtyFields.has('workEmail')}
+      <SectionCard title="Mailing address">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.mailingAddressDifferent}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
+            }
+            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
           />
-          <EditField
-            id="employer"
-            label="Employer"
-            value={form.employer}
-            onChange={(v) => setForm((f) => ({ ...f, employer: v }))}
-            autoComplete="organization"
-            dirty={dirtyFields.has('employer')}
-          />
-          <EditField
-            id="jobTitle"
-            label="Job title"
-            value={form.jobTitle}
-            onChange={(v) => setForm((f) => ({ ...f, jobTitle: v }))}
-            autoComplete="organization-title"
-            className="sm:col-span-2"
-            dirty={dirtyFields.has('jobTitle')}
-          />
-        </div>
+          Mailing address is different from home address
+        </label>
+        {form.mailingAddressDifferent ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <EditField
+              id="customMailingLine1"
+              label="Street address"
+              value={form.customMailingLine1}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingLine1: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('customMailingLine1')}
+            />
+            <EditField
+              id="customMailingLine2"
+              label="Apartment / unit"
+              value={form.customMailingLine2}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingLine2: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('customMailingLine2')}
+            />
+            <EditField
+              id="customMailingCity"
+              label="City"
+              value={form.customMailingCity}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingCity: v }))}
+              dirty={dirtyFields.has('customMailingCity')}
+            />
+            <EditField
+              id="customMailingState"
+              label="State / province"
+              value={form.customMailingState}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingState: v }))}
+              dirty={dirtyFields.has('customMailingState')}
+            />
+            <EditField
+              id="customMailingPostalCode"
+              label="ZIP / postal code"
+              value={form.customMailingPostalCode}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingPostalCode: v }))}
+              dirty={dirtyFields.has('customMailingPostalCode')}
+            />
+            <EditField
+              id="customMailingCountry"
+              label="Country"
+              value={form.customMailingCountry}
+              onChange={(v) => setForm((f) => ({ ...f, customMailingCountry: v }))}
+              dirty={dirtyFields.has('customMailingCountry')}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-gray-500">
+            Mailing address is the same as your home address.
+          </p>
+        )}
       </SectionCard>
 
       <div className="flex justify-end">

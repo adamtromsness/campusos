@@ -1860,6 +1860,13 @@ export interface ProfileDto {
   customState: string | null;
   customPostalCode: string | null;
   customCountry: string | null;
+  mailingAddressDifferent: boolean;
+  customMailingLine1: string | null;
+  customMailingLine2: string | null;
+  customMailingCity: string | null;
+  customMailingState: string | null;
+  customMailingPostalCode: string | null;
+  customMailingCountry: string | null;
   workEmail: string | null;
   employer: string | null;
   jobTitle: string | null;
@@ -1932,6 +1939,13 @@ export interface UpdateProfilePayload {
   customState?: string | null;
   customPostalCode?: string | null;
   customCountry?: string | null;
+  mailingAddressDifferent?: boolean;
+  customMailingLine1?: string | null;
+  customMailingLine2?: string | null;
+  customMailingCity?: string | null;
+  customMailingState?: string | null;
+  customMailingPostalCode?: string | null;
+  customMailingCountry?: string | null;
   emergencyContact?: UpdateEmergencyContactPayload;
 }
 
