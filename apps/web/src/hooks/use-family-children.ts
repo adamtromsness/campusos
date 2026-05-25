@@ -70,14 +70,43 @@ const INVALIDATE = ['family'] as const;
 
 export type FamilyViewerRole = 'PARENT' | 'CHILD';
 
+export type FamilyMemberStatus = 'PLACEHOLDER' | 'PENDING_INVITE' | 'ACTIVE';
+
 export interface FamilyMemberDto {
-  personId: string;
+  id: string;
+  personId: string | null;
   firstName: string;
   lastName: string;
   preferredName: string | null;
+  email: string | null;
   memberRole: string;
   isPrimaryContact: boolean;
   isCurrentUser: boolean;
+  status: FamilyMemberStatus;
+  inviteCode: string | null;
+  inviteSentAt: string | null;
+}
+
+export interface AddFamilyMemberPayload {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  relationship?: string;
+}
+
+export interface UpdateFamilyMemberPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string | null;
+  relationship?: string;
+}
+
+export interface CreateMemberAccountPayload {
+  email?: string;
+}
+
+export interface SendMemberInvitePayload {
+  email?: string;
 }
 
 export interface FamilyHeaderDto {
@@ -283,5 +312,73 @@ export function useGenerateChildCode() {
       apiFetch<GenerateLinkCodeDto>('/api/v1/family/generate-child-code', {
         method: 'POST',
       }),
+  });
+}
+
+// ─── Placeholder guardian members ─────────────────────────
+
+export function useAddFamilyMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddFamilyMemberPayload) =>
+      apiFetch<FamilyMemberDto>('/api/v1/family/members', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useUpdateFamilyMember(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateFamilyMemberPayload) =>
+      apiFetch<FamilyMemberDto>('/api/v1/family/members/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useDeleteFamilyMember(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<void>('/api/v1/family/members/' + id, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useCreateMemberAccount(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateMemberAccountPayload) =>
+      apiFetch<FamilyMemberDto>('/api/v1/family/members/' + id + '/create-account', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+export function useSendMemberInvite(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SendMemberInvitePayload) =>
+      apiFetch<FamilyMemberDto>('/api/v1/family/members/' + id + '/send-invite', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
   });
 }

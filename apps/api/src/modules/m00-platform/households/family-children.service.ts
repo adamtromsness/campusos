@@ -12,8 +12,10 @@ import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-reso
 import { RedisService } from '@shared/cache';
 import {
   AcceptFamilyLinkDto,
+  AddFamilyMemberDto,
   CreateChildAccountDto,
   CreateFamilyChildDto,
+  CreateMemberAccountDto,
   FamilyChildDto,
   FamilyHeaderDto,
   FamilyLinkResultDto,
@@ -24,7 +26,9 @@ import {
   GenerateLinkCodeDto,
   InviteGuardianDto,
   SendChildLinkDto,
+  SendMemberInviteDto,
   UpdateFamilyChildDto,
+  UpdateFamilyMemberDto,
 } from './dto/family-child.dto';
 
 interface FamilyChildRow {
@@ -109,36 +113,55 @@ export class FamilyChildrenService {
     });
     if (!family) return null;
 
+    // LEFT JOIN iam_person so PLACEHOLDER / PENDING_INVITE rows
+    // (person_id NULL) come through with family_members.first_name /
+    // last_name / email instead of NULL columns. COALESCE picks
+    // iam_person for ACTIVE rows, family_members for placeholders.
     const memberRows = await this.prisma.$queryRawUnsafe<
       Array<{
-        person_id: string;
+        id: string;
+        person_id: string | null;
         first_name: string;
         last_name: string;
         preferred_name: string | null;
+        email: string | null;
         member_role: string;
         is_primary_contact: boolean;
+        status: string;
+        invite_code: string | null;
+        invite_sent_at: string | null;
       }>
     >(
-      `SELECT pfm.person_id::text AS person_id,
-              p.first_name,
-              p.last_name,
-              p.preferred_name,
+      `SELECT pfm.id::text AS id,
+              pfm.person_id::text AS person_id,
+              COALESCE(p.first_name, pfm.first_name) AS first_name,
+              COALESCE(p.last_name, pfm.last_name) AS last_name,
+              p.preferred_name AS preferred_name,
+              pfm.email AS email,
               pfm.member_role::text AS member_role,
-              pfm.is_primary_contact
+              pfm.is_primary_contact,
+              pfm.status,
+              pfm.invite_code,
+              pfm.invite_sent_at::text AS invite_sent_at
        FROM platform.platform_family_members pfm
-       JOIN platform.iam_person p ON p.id = pfm.person_id
+       LEFT JOIN platform.iam_person p ON p.id = pfm.person_id
        WHERE pfm.family_id = $1::uuid
        ORDER BY pfm.is_primary_contact DESC, pfm.joined_at ASC`,
       resolved.familyId,
     );
     const members: FamilyMemberDto[] = memberRows.map((r) => ({
+      id: r.id,
       personId: r.person_id,
       firstName: r.first_name,
       lastName: r.last_name,
       preferredName: r.preferred_name,
+      email: r.email,
       memberRole: r.member_role,
       isPrimaryContact: r.is_primary_contact,
-      isCurrentUser: r.person_id === personId,
+      isCurrentUser: r.person_id !== null && r.person_id === personId,
+      status: r.status as FamilyMemberDto['status'],
+      inviteCode: r.invite_code,
+      inviteSentAt: r.invite_sent_at,
     }));
 
     const childRows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
@@ -704,6 +727,228 @@ export class FamilyChildrenService {
     return { code, expiresAt: expiresAt.toISOString(), type: 'GUARDIAN_INVITE' };
   }
 
+  // ─── Placeholder guardian members ─────────────────────────
+
+  /**
+   * POST /family/members — add a placeholder guardian. Creates a
+   * platform_family_members row with person_id NULL, status=PLACEHOLDER,
+   * and the parent-supplied display fields. No iam_person is created —
+   * that comes later via create-account or invite-accept.
+   */
+  async addPlaceholderMember(
+    personId: string,
+    dto: AddFamilyMemberDto,
+  ): Promise<FamilyMemberDto> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+    const id = generateId();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_family_members
+         (id, family_id, person_id, member_role, is_primary_contact, status,
+          first_name, last_name, email, joined_at, created_at, updated_at)
+       VALUES ($1::uuid, $2::uuid, NULL, 'PARENT', false, 'PLACEHOLDER',
+               $3, $4, $5, now(), now(), now())`,
+      id,
+      familyId,
+      dto.firstName.trim(),
+      dto.lastName.trim(),
+      dto.email?.trim() || null,
+    );
+    return this.requireMemberById(id);
+  }
+
+  /**
+   * PATCH /family/members/:id — edit a PLACEHOLDER or PENDING_INVITE
+   * guardian's display fields. ACTIVE rows reject: linked guardians
+   * own their identity via /profile + their iam_person row.
+   */
+  async updateMember(
+    personId: string,
+    memberId: string,
+    dto: UpdateFamilyMemberDto,
+  ): Promise<FamilyMemberDto> {
+    const row = await this.requireOwnedMemberRow(personId, memberId);
+    if (row.status === 'ACTIVE') {
+      throw new BadRequestException(
+        'Cannot edit a linked guardian — they manage their own profile via /profile',
+      );
+    }
+    const set: string[] = [];
+    const args: unknown[] = [];
+    let i = 1;
+    if (dto.firstName !== undefined) {
+      set.push('first_name = $' + i++);
+      args.push(dto.firstName.trim());
+    }
+    if (dto.lastName !== undefined) {
+      set.push('last_name = $' + i++);
+      args.push(dto.lastName.trim());
+    }
+    if (dto.email !== undefined) {
+      set.push('email = $' + i++);
+      args.push(dto.email ? dto.email.trim() : null);
+    }
+    if (set.length === 0) return this.toMemberDto(row, personId);
+    set.push('updated_at = now()');
+    args.push(memberId);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE platform.platform_family_members SET ${set.join(', ')} WHERE id = $${i}::uuid`,
+      ...args,
+    );
+    return this.requireMemberById(memberId, personId);
+  }
+
+  /**
+   * DELETE /family/members/:id — remove a PLACEHOLDER or
+   * PENDING_INVITE guardian. ACTIVE rows reject — leaving the family
+   * is the guardian's own decision and lives on a separate unlink
+   * surface. Outstanding GUARDIAN_INVITE codes for the row are
+   * revoked in the same tx.
+   */
+  async removeMember(personId: string, memberId: string): Promise<void> {
+    const row = await this.requireOwnedMemberRow(personId, memberId);
+    if (row.status === 'ACTIVE') {
+      throw new BadRequestException(
+        'Cannot remove a linked guardian. They must leave the family themselves.',
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      if (row.invite_code) {
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_invitations
+             SET status = 'REVOKED'
+           WHERE token = $1 AND status = 'PENDING'`,
+          row.invite_code,
+        );
+      }
+      await tx.$executeRawUnsafe(
+        `DELETE FROM platform.platform_family_members WHERE id = $1::uuid`,
+        memberId,
+      );
+    });
+  }
+
+  /**
+   * POST /family/members/:id/create-account — synthesise an
+   * iam_person + platform_users for a PLACEHOLDER guardian and link
+   * them. The account lands at PENDING_VERIFICATION; the
+   * family_members row is promoted to ACTIVE in the same tx. Refreshes
+   * the new guardian's persona cache so PARENT activates on their
+   * next sign-in. Returns the updated member.
+   */
+  async createAccountForMember(
+    personId: string,
+    memberId: string,
+    dto: CreateMemberAccountDto,
+  ): Promise<FamilyMemberDto> {
+    const row = await this.requireOwnedMemberRow(personId, memberId);
+    if (row.status === 'ACTIVE') {
+      throw new BadRequestException('Member already has an account.');
+    }
+    const newPersonId = generateId();
+    const newAccountId = generateId();
+    const email = dto.email?.trim() || row.email || this.syntheticGuardianEmail(newPersonId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `INSERT INTO platform.iam_person
+           (id, first_name, last_name, person_type, is_active, created_at)
+         VALUES ($1::uuid, $2, $3, 'EXTERNAL', true, now())`,
+        newPersonId,
+        row.first_name ?? '',
+        row.last_name ?? '',
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO platform.platform_users
+           (id, person_id, email, display_name, account_status, account_type,
+            mfa_enabled, is_minor_account, created_at)
+         VALUES ($1::uuid, $2::uuid, $3, $4, 'PENDING_VERIFICATION', 'HUMAN',
+                 false, false, now())`,
+        newAccountId,
+        newPersonId,
+        email,
+        ((row.first_name ?? '') + ' ' + (row.last_name ?? '')).trim() || 'Family member',
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+           SET person_id = $1::uuid,
+               status = 'ACTIVE',
+               invite_code = NULL,
+               invite_sent_at = NULL,
+               updated_at = now()
+         WHERE id = $2::uuid`,
+        newPersonId,
+        memberId,
+      );
+    });
+    await this.refreshPersonaCacheSafe(newPersonId);
+    return this.requireMemberById(memberId, personId);
+  }
+
+  /**
+   * POST /family/members/:id/send-invite — generate a GUARDIAN_INVITE
+   * scoped to this specific placeholder row. metadata.familyMemberId
+   * tells acceptGuardianInvite to UPDATE the existing row in place
+   * rather than INSERT a fresh one, preserving the parent-typed
+   * display name + relationship.
+   */
+  async sendMemberInvite(
+    personId: string,
+    memberId: string,
+    dto: SendMemberInviteDto,
+  ): Promise<FamilyMemberDto> {
+    const row = await this.requireOwnedMemberRow(personId, memberId);
+    if (row.status === 'ACTIVE') {
+      throw new BadRequestException('Member is already linked.');
+    }
+    const code = this.generateLinkCode();
+    const invitationId = generateId();
+    const expiresAt = new Date(Date.now() + LINK_CODE_TTL_HOURS * 3600 * 1000);
+    const targetEmail = dto.email?.trim() || row.email || null;
+    await this.prisma.$transaction(async (tx) => {
+      // Revoke any previous outstanding invite for this row so the
+      // old code can't still link after a resend.
+      if (row.invite_code) {
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_invitations
+             SET status = 'REVOKED'
+           WHERE token = $1 AND status = 'PENDING'`,
+          row.invite_code,
+        );
+      }
+      await tx.$executeRawUnsafe(
+        `INSERT INTO platform.platform_invitations
+           (id, type, token, inviter_person_id, target_email, metadata, status, expires_at, created_at)
+         VALUES ($1::uuid, 'GUARDIAN_INVITE', $2, $3::uuid, $4,
+                 jsonb_build_object('familyId', $5::text, 'familyMemberId', $6::text),
+                 'PENDING', $7::timestamptz, now())`,
+        invitationId,
+        code,
+        personId,
+        targetEmail,
+        row.family_id,
+        memberId,
+        expiresAt.toISOString(),
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+           SET status = 'PENDING_INVITE',
+               invite_code = $1,
+               invite_sent_at = now(),
+               updated_at = now()
+         WHERE id = $2::uuid`,
+        code,
+        memberId,
+      );
+    });
+    if (targetEmail) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[guardian-invite-member] member=${memberId} email=${targetEmail} code=${code} expires=${expiresAt.toISOString()}`,
+      );
+    }
+    return this.requireMemberById(memberId, personId);
+  }
+
   /**
    * POST /family/generate-child-code — child generates a CHILD_LINK
    * code with NO familyChildId metadata. The parent who accepts
@@ -778,8 +1023,11 @@ export class FamilyChildrenService {
     personId: string,
     invitation: { id: string; inviterPersonId: string; metadata: unknown },
   ): Promise<FamilyLinkResultDto> {
-    const metadata = invitation.metadata as { familyId?: string } | null;
+    const metadata = invitation.metadata as
+      | { familyId?: string; familyMemberId?: string }
+      | null;
     const familyId = metadata?.familyId;
+    const targetMemberId = metadata?.familyMemberId;
     if (!familyId) {
       throw new NotFoundException('Invalid or expired link code');
     }
@@ -803,16 +1051,49 @@ export class FamilyChildrenService {
       );
     }
 
-    const memberId = generateId();
+    // metadata.familyMemberId distinguishes a targeted invite (from
+    // /family/members/:id/send-invite, which created a placeholder
+    // row and named this member specifically) from an open invite
+    // (from /family/invite-guardian, which carries only familyId).
+    // Targeted invites UPDATE the existing PLACEHOLDER /
+    // PENDING_INVITE row to ACTIVE; open invites INSERT a new row.
     await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        `INSERT INTO platform.platform_family_members
-           (id, family_id, person_id, member_role, is_primary_contact, joined_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, now())`,
-        memberId,
-        familyId,
-        personId,
-      );
+      if (targetMemberId) {
+        const targetRows = await tx.$queryRawUnsafe<
+          Array<{ family_id: string; status: string }>
+        >(
+          `SELECT family_id::text AS family_id, status
+           FROM platform.platform_family_members
+           WHERE id = $1::uuid
+           LIMIT 1`,
+          targetMemberId,
+        );
+        const target = targetRows[0];
+        if (!target || target.family_id !== familyId || target.status === 'ACTIVE') {
+          throw new NotFoundException('Invalid or expired link code');
+        }
+        await tx.$executeRawUnsafe(
+          `UPDATE platform.platform_family_members
+             SET person_id = $1::uuid,
+                 status = 'ACTIVE',
+                 invite_code = NULL,
+                 invite_sent_at = NULL,
+                 joined_at = now(),
+                 updated_at = now()
+           WHERE id = $2::uuid`,
+          personId,
+          targetMemberId,
+        );
+      } else {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.platform_family_members
+             (id, family_id, person_id, member_role, is_primary_contact, status, joined_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, 'ACTIVE', now())`,
+          generateId(),
+          familyId,
+          personId,
+        );
+      }
       await tx.$executeRawUnsafe(
         `UPDATE platform.platform_invitations
            SET status = 'ACCEPTED', target_person_id = $1::uuid, accepted_at = now()
@@ -1168,6 +1449,155 @@ export class FamilyChildrenService {
     // TLD so nothing ever sends mail here by accident.
     const suffix = randomBytes(4).toString('hex');
     return `child-${personId.slice(-6)}-${suffix}@minor.invalid`;
+  }
+
+  private syntheticGuardianEmail(personId: string): string {
+    // Same .invalid pattern as the child synthetic email, but with a
+    // distinct prefix so log greps + DB exports can tell them apart.
+    const suffix = randomBytes(4).toString('hex');
+    return `guardian-${personId.slice(-6)}-${suffix}@external.invalid`;
+  }
+
+  // ─── Member-row helpers ────────────────────────────────────
+
+  /**
+   * Raw shape of a platform_family_members row used by the placeholder
+   * member mutations. Mirrors the column list — keeps the surface
+   * away from Prisma since most of these writes are $executeRawUnsafe
+   * and we don't want partial Prisma model exposure leaking into
+   * service callers.
+   */
+  // (declared inside `private`-method block for proximity to use)
+  private async requireOwnedMemberRow(
+    personId: string,
+    memberId: string,
+  ): Promise<{
+    id: string;
+    family_id: string;
+    person_id: string | null;
+    member_role: string;
+    is_primary_contact: boolean;
+    status: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    invite_code: string | null;
+    invite_sent_at: string | null;
+  }> {
+    const familyId = await this.findFamilyForPerson(personId);
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        family_id: string;
+        person_id: string | null;
+        member_role: string;
+        is_primary_contact: boolean;
+        status: string;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        invite_code: string | null;
+        invite_sent_at: string | null;
+      }>
+    >(
+      `SELECT id::text AS id, family_id::text AS family_id, person_id::text AS person_id,
+              member_role::text AS member_role, is_primary_contact, status,
+              first_name, last_name, email, invite_code,
+              invite_sent_at::text AS invite_sent_at
+       FROM platform.platform_family_members
+       WHERE id = $1::uuid`,
+      memberId,
+    );
+    const row = rows[0];
+    if (!row) throw new NotFoundException('Family member not found');
+    // Cross-family isolation: refuse if the row's family doesn't
+    // match the caller's. Return 404 (not 403) so we don't leak the
+    // existence of another family's member row.
+    if (!familyId || row.family_id !== familyId) {
+      throw new NotFoundException('Family member not found');
+    }
+    return row;
+  }
+
+  private async requireMemberById(memberId: string, viewerPersonId?: string): Promise<FamilyMemberDto> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        person_id: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        preferred_name: string | null;
+        email: string | null;
+        member_role: string;
+        is_primary_contact: boolean;
+        status: string;
+        invite_code: string | null;
+        invite_sent_at: string | null;
+      }>
+    >(
+      `SELECT pfm.id::text AS id,
+              pfm.person_id::text AS person_id,
+              COALESCE(p.first_name, pfm.first_name) AS first_name,
+              COALESCE(p.last_name, pfm.last_name) AS last_name,
+              p.preferred_name AS preferred_name,
+              pfm.email AS email,
+              pfm.member_role::text AS member_role,
+              pfm.is_primary_contact,
+              pfm.status,
+              pfm.invite_code,
+              pfm.invite_sent_at::text AS invite_sent_at
+       FROM platform.platform_family_members pfm
+       LEFT JOIN platform.iam_person p ON p.id = pfm.person_id
+       WHERE pfm.id = $1::uuid`,
+      memberId,
+    );
+    const row = rows[0];
+    if (!row) throw new NotFoundException('Family member not found');
+    return {
+      id: row.id,
+      personId: row.person_id,
+      firstName: row.first_name ?? '',
+      lastName: row.last_name ?? '',
+      preferredName: row.preferred_name,
+      email: row.email,
+      memberRole: row.member_role,
+      isPrimaryContact: row.is_primary_contact,
+      isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
+      status: row.status as FamilyMemberDto['status'],
+      inviteCode: row.invite_code,
+      inviteSentAt: row.invite_sent_at,
+    };
+  }
+
+  private toMemberDto(
+    row: {
+      id: string;
+      person_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      member_role: string;
+      is_primary_contact: boolean;
+      status: string;
+      invite_code: string | null;
+      invite_sent_at: string | null;
+    },
+    viewerPersonId?: string,
+  ): FamilyMemberDto {
+    return {
+      id: row.id,
+      personId: row.person_id,
+      firstName: row.first_name ?? '',
+      lastName: row.last_name ?? '',
+      preferredName: null,
+      email: row.email,
+      memberRole: row.member_role,
+      isPrimaryContact: row.is_primary_contact,
+      isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
+      status: row.status as FamilyMemberDto['status'],
+      inviteCode: row.invite_code,
+      inviteSentAt: row.invite_sent_at,
+    };
   }
 
   private async assertLinkRateLimit(accountId: string): Promise<void> {

@@ -1,21 +1,26 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
 import {
   useAcceptFamilyLink,
+  useAddFamilyMember,
   useCancelChildLink,
   useCreateChildAccount,
+  useCreateMemberAccount,
   useDeleteFamilyChild,
+  useDeleteFamilyMember,
   useFamilyView,
   useGenerateFamilyCode,
   useInviteGuardian,
   useSendChildLink,
+  useSendMemberInvite,
   type FamilyChildDto,
   type FamilyChildStatus,
   type FamilyMemberDto,
+  type FamilyMemberStatus,
   type FamilyViewerRole,
   type GenerateLinkCodeDto,
 } from '@/hooks/use-family-children';
@@ -50,6 +55,7 @@ import { cn } from '@/components/ui/cn';
 export default function FamilyPage() {
   const { data, isLoading, error } = useFamilyView();
   const [linkInviteFor, setLinkInviteFor] = useState<FamilyChildDto | null>(null);
+  const [memberInviteFor, setMemberInviteFor] = useState<FamilyMemberDto | null>(null);
   const [inviteGuardianOpen, setInviteGuardianOpen] = useState(false);
   const [addGuardianOpen, setAddGuardianOpen] = useState(false);
   const [inviteChildOpen, setInviteChildOpen] = useState(false);
@@ -107,6 +113,7 @@ export default function FamilyPage() {
         viewerRole={data.viewerRole}
         onInvite={() => setInviteGuardianOpen(true)}
         onAdd={() => setAddGuardianOpen(true)}
+        onSendInvite={(m) => setMemberInviteFor(m)}
       />
 
       {isParent ? (
@@ -137,6 +144,11 @@ export default function FamilyPage() {
       />
       <AddGuardianModal open={addGuardianOpen} onClose={() => setAddGuardianOpen(false)} />
       <InviteChildModal open={inviteChildOpen} onClose={() => setInviteChildOpen(false)} />
+      <SendMemberInviteModal
+        member={memberInviteFor}
+        open={memberInviteFor !== null}
+        onClose={() => setMemberInviteFor(null)}
+      />
     </div>
   );
 }
@@ -359,32 +371,37 @@ function CodeDisplay({ code, onCopy }: { code: GenerateLinkCodeDto; onCopy: () =
   );
 }
 
-// ─── Add-a-guardian modal (form-based) ───────────────────
+// ─── Add-a-guardian modal (placeholder-create form) ──────
 
 /**
- * Captures first / last / email / relationship for a guardian and
- * fires POST /family/invite-guardian. The accepter's own iam_person
- * is canonical for their name post-accept; the form fields exist so
- * the parent has a clearer "I'm inviting Jane Doe (co-parent)" UI
- * and so the values can land on invitation.metadata for the email
- * worker. Code is shown inline on success so the parent can copy +
- * paste if the email send (still a TODO) doesn't land.
+ * Form-based modal that creates a placeholder platform_family_members
+ * row via POST /family/members. The parent supplies a name + optional
+ * email + relationship; the new row lands at status='PLACEHOLDER'
+ * with person_id=NULL. The parent then promotes the row via either
+ * "Send Invite" (generates a GUARDIAN_INVITE the future guardian
+ * accepts) or "Create Account" (synthesises an iam_person + linked
+ * platform_users) from the row's action buttons on /family.
+ *
+ * The "Invite a Guardian" modal stays separate — it generates an
+ * OPEN GUARDIAN_INVITE (no familyMemberId scope) that anyone can
+ * accept. Use Add when you know the person; use Invite when you
+ * just want a sharable code.
  */
 const RELATIONSHIPS = [
   { value: 'CO_PARENT', label: 'Co-parent' },
+  { value: 'SPOUSE', label: 'Spouse' },
   { value: 'GRANDPARENT', label: 'Grandparent' },
   { value: 'LEGAL_GUARDIAN', label: 'Legal guardian' },
   { value: 'OTHER', label: 'Other' },
 ];
 
 function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const invite = useInviteGuardian();
+  const add = useAddFamilyMember();
   const { toast } = useToast();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [relationship, setRelationship] = useState(RELATIONSHIPS[0]!.value);
-  const [generated, setGenerated] = useState<GenerateLinkCodeDto | null>(null);
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; email?: string }>(
     {},
   );
@@ -394,7 +411,6 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLastName('');
     setEmail('');
     setRelationship(RELATIONSHIPS[0]!.value);
-    setGenerated(null);
     setErrors({});
     onClose();
   }
@@ -404,37 +420,28 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
     const v: typeof errors = {};
     if (!firstName.trim()) v.firstName = 'First name is required';
     if (!lastName.trim()) v.lastName = 'Last name is required';
-    if (!email.trim()) v.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+    // Email optional. If provided, must be valid.
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       v.email = 'Enter a valid email address';
+    }
     if (Object.keys(v).length > 0) {
       setErrors(v);
       return;
     }
     setErrors({});
     try {
-      const r = await invite.mutateAsync({
-        email: email.trim(),
+      await add.mutateAsync({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        email: email.trim() || undefined,
         relationship,
       });
-      setGenerated(r);
-      toast('Invitation prepared for ' + firstName.trim(), 'success');
+      toast(firstName.trim() + ' added to your family', 'success');
+      close();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Could not send the invitation. Try again.';
+        err instanceof Error ? err.message : 'Could not add the guardian. Try again.';
       toast(message, 'error');
-    }
-  }
-
-  async function copyCode() {
-    if (!generated) return;
-    try {
-      await navigator.clipboard.writeText(generated.code);
-      toast('Code copied', 'success');
-    } catch {
-      toast("Couldn't copy. Select the code and copy manually.", 'error');
     }
   }
 
@@ -449,13 +456,13 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
           onClick={close}
           className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Done
+          Cancel
         </button>
       }
     >
       <p className="text-sm text-gray-600">
-        Send a co-parent, grandparent, or legal guardian an invitation to join your family.
-        They&rsquo;ll have full read/write access to every child once they accept.
+        Add a co-parent or guardian to your family. You can send them an invitation later, or
+        create an account on their behalf.
       </p>
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -478,12 +485,11 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <ModalField
           id="ag-email"
-          label="Email"
+          label="Email (optional)"
           type="email"
           value={email}
           onChange={setEmail}
           error={errors.email}
-          required
         />
         <div>
           <label htmlFor="ag-relationship" className="block text-xs font-medium text-gray-700">
@@ -505,14 +511,13 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
         <div>
           <button
             type="submit"
-            disabled={invite.isPending}
+            disabled={add.isPending}
             className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
           >
-            {invite.isPending && <LoadingSpinner size="sm" />}
-            <span>{invite.isPending ? 'Sending…' : 'Send Invitation'}</span>
+            {add.isPending && <LoadingSpinner size="sm" />}
+            <span>{add.isPending ? 'Adding…' : 'Add to Family'}</span>
           </button>
         </div>
-        {generated && <CodeDisplay code={generated} onCopy={copyCode} />}
       </form>
     </Modal>
   );
@@ -725,11 +730,13 @@ function ParentsAndGuardiansSection({
   viewerRole,
   onInvite,
   onAdd,
+  onSendInvite,
 }: {
   members: FamilyMemberDto[];
   viewerRole: FamilyViewerRole;
   onInvite: () => void;
   onAdd: () => void;
+  onSendInvite: (m: FamilyMemberDto) => void;
 }) {
   if (members.length === 0) return null;
   const isParent = viewerRole === 'PARENT';
@@ -745,39 +752,138 @@ function ParentsAndGuardiansSection({
       </SectionHeader>
       <ul className="flex flex-col gap-3">
         {members.map((m) => (
-          <li
-            key={m.personId}
-            className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white p-5 transition-shadow hover:shadow-sm"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <p className="text-xl font-semibold text-gray-900">
-                  {m.preferredName?.trim() ? m.preferredName : m.firstName}
-                </p>
-                {m.isCurrentUser && <span className="text-xs text-gray-500">(you)</span>}
-              </div>
-              <p className="mt-1 text-sm text-gray-500">
-                {[
-                  [m.firstName, m.lastName].filter(Boolean).join(' '),
-                  'Parent / Guardian',
-                ].join(' · ')}
-              </p>
-              {m.isPrimaryContact && (
-                <p className="mt-0.5 text-xs text-gray-500">Primary contact</p>
-              )}
-            </div>
-            {m.isCurrentUser && (
-              <Link
-                href="/profile"
-                className="inline-flex shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Edit profile
-              </Link>
-            )}
+          <li key={m.id}>
+            <GuardianCard
+              member={m}
+              canManage={isParent && !m.isCurrentUser}
+              onSendInvite={() => onSendInvite(m)}
+            />
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+// ─── Per-status guardian card ────────────────────────────
+
+const MEMBER_BADGES: Record<FamilyMemberStatus, { bg: string; text: string; label: string }> = {
+  PLACEHOLDER: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Account needed' },
+  PENDING_INVITE: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Invite pending' },
+  ACTIVE: { bg: 'bg-green-100', text: 'text-green-800', label: 'Active' },
+};
+
+function StatusBadgeForMember({ status }: { status: FamilyMemberStatus }) {
+  const b = MEMBER_BADGES[status];
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+        b.bg,
+        b.text,
+      )}
+    >
+      {b.label}
+    </span>
+  );
+}
+
+function GuardianCard({
+  member,
+  canManage,
+  onSendInvite,
+}: {
+  member: FamilyMemberDto;
+  canManage: boolean;
+  onSendInvite: () => void;
+}) {
+  const { toast } = useToast();
+  const createAccount = useCreateMemberAccount(member.id);
+  const removeMember = useDeleteFamilyMember(member.id);
+
+  async function onCreateAccount() {
+    try {
+      await createAccount.mutateAsync({ email: member.email ?? undefined });
+      toast(member.firstName + ' now has a CampusOS account', 'success');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Could not create the account. Try again.';
+      toast(message, 'error');
+    }
+  }
+
+  async function onRemove() {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Remove ' + member.firstName + ' from your family?')
+    ) {
+      return;
+    }
+    try {
+      await removeMember.mutateAsync();
+      toast(member.firstName + ' removed', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not remove this guardian.';
+      toast(message, 'error');
+    }
+  }
+
+  const heroName = member.preferredName?.trim() ? member.preferredName : member.firstName;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-5 transition-shadow hover:shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xl font-semibold text-gray-900">{heroName}</p>
+            <StatusBadgeForMember status={member.status} />
+            {member.isCurrentUser && <span className="text-xs text-gray-500">(you)</span>}
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {[member.firstName, member.lastName].filter(Boolean).join(' ') +
+              ' · Parent / Guardian'}
+          </p>
+          {member.isPrimaryContact && (
+            <p className="mt-0.5 text-xs text-gray-500">Primary contact</p>
+          )}
+          {member.status === 'PENDING_INVITE' && member.inviteCode && (
+            <p className="mt-2 text-xs text-gray-600">
+              {member.email ? (
+                <>
+                  Sent to <span className="font-medium">{member.email}</span> · code{' '}
+                </>
+              ) : (
+                'Code '
+              )}
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] tracking-wider">
+                {member.inviteCode}
+              </code>
+            </p>
+          )}
+        </div>
+        {member.isCurrentUser && (
+          <Link
+            href="/profile"
+            className="inline-flex shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Edit profile
+          </Link>
+        )}
+      </div>
+
+      {canManage && member.status !== 'ACTIVE' && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <SecondaryButton onClick={onCreateAccount} disabled={createAccount.isPending}>
+            {createAccount.isPending ? 'Creating…' : 'Create Account'}
+          </SecondaryButton>
+          <SecondaryButton onClick={onSendInvite}>
+            {member.status === 'PENDING_INVITE' ? 'Resend Invite' : 'Send Invite'}
+          </SecondaryButton>
+          <DangerButton onClick={onRemove} disabled={removeMember.isPending}>
+            {removeMember.isPending ? 'Removing…' : 'Remove'}
+          </DangerButton>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1143,6 +1249,119 @@ function LinkCodeSection() {
         </button>
       </form>
     </section>
+  );
+}
+
+// ─── Send-invite-to-placeholder-guardian modal ───────────
+
+/**
+ * Generates a targeted GUARDIAN_INVITE for a specific placeholder
+ * member row via POST /family/members/:id/send-invite. The email
+ * defaults to whatever the parent stored on the row when they added
+ * the placeholder; they can override here before sending. After
+ * submit, shows the 8-char code with a Copy button — useful when
+ * the email send (still a TODO) doesn't land.
+ */
+function SendMemberInviteModal({
+  member,
+  open,
+  onClose,
+}: {
+  member: FamilyMemberDto | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  // Hooks must run unconditionally on every render — pass a sentinel
+  // id when the modal is closed and gate the actual submit on member.
+  const send = useSendMemberInvite(member?.id ?? 'pending');
+  const [email, setEmail] = useState('');
+
+  // Reseed when the modal switches between members.
+  useEffect(() => {
+    if (member) setEmail(member.email ?? '');
+  }, [member]);
+
+  function close() {
+    setEmail('');
+    onClose();
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!member) return;
+    const trimmed = email.trim();
+    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast('Enter a valid email address', 'error');
+      return;
+    }
+    try {
+      await send.mutateAsync({ email: trimmed || undefined });
+      toast(
+        trimmed
+          ? 'Invitation sent to ' + trimmed
+          : 'Invitation code generated — copy + share manually',
+        'success',
+      );
+      close();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not send the invitation.';
+      toast(message, 'error');
+    }
+  }
+
+  if (!member) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title={'Send invite to ' + member.firstName}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={close}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="send-member-invite-form"
+            disabled={send.isPending}
+            className="inline-flex items-center justify-center gap-1 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {send.isPending && <LoadingSpinner size="sm" />}
+            <span>{send.isPending ? 'Sending…' : 'Send Invitation'}</span>
+          </button>
+        </>
+      }
+    >
+      <form id="send-member-invite-form" onSubmit={onSubmit} className="flex flex-col gap-3">
+        <p className="text-sm text-gray-600">
+          Generate a code {member.firstName} can enter on CampusOS to join your family as a
+          parent or guardian.
+        </p>
+        <div>
+          <label htmlFor="member-invite-email" className="block text-xs font-medium text-gray-700">
+            Email (optional)
+          </label>
+          <input
+            id="member-invite-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={member.firstName.toLowerCase() + '@example.com'}
+            autoComplete="email"
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            If left blank, you&rsquo;ll share the code manually.
+          </p>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

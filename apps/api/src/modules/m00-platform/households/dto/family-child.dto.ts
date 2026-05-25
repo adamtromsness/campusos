@@ -151,20 +151,73 @@ export class GenerateLinkCodeDto {
 
 export type FamilyViewerRole = 'PARENT' | 'CHILD';
 
+export const FAMILY_MEMBER_STATUSES = ['PLACEHOLDER', 'PENDING_INVITE', 'ACTIVE'] as const;
+export type FamilyMemberStatus = (typeof FAMILY_MEMBER_STATUSES)[number];
+
 /**
- * One row from platform_family_members + iam_person. Adults of the
- * family. Every entry is a "parent/guardian" for the purposes of the
- * UI label; the underlying member_role distinguishes HEAD_OF_HOUSEHOLD
- * / SPOUSE / GUARDIAN / etc. when the caller cares.
+ * One row from platform_family_members. For ACTIVE rows the name
+ * comes from iam_person and personId is non-null; for PLACEHOLDER
+ * and PENDING_INVITE rows the name lives on the family_members row
+ * itself and personId is null. memberRole distinguishes
+ * HEAD_OF_HOUSEHOLD / SPOUSE / GUARDIAN / etc.
  */
 export class FamilyMemberDto {
-  @ApiProperty() personId!: string;
+  @ApiProperty() id!: string;
+  @ApiPropertyOptional() personId!: string | null;
   @ApiProperty() firstName!: string;
   @ApiProperty() lastName!: string;
   @ApiPropertyOptional() preferredName?: string | null;
+  @ApiPropertyOptional() email?: string | null;
   @ApiProperty() memberRole!: string;
   @ApiProperty() isPrimaryContact!: boolean;
   @ApiProperty() isCurrentUser!: boolean;
+  @ApiProperty({ enum: FAMILY_MEMBER_STATUSES }) status!: FamilyMemberStatus;
+  @ApiPropertyOptional() inviteCode?: string | null;
+  @ApiPropertyOptional() inviteSentAt?: string | null;
+}
+
+/**
+ * POST /family/members — add a placeholder guardian. The new row
+ * lands at status='PLACEHOLDER' with person_id NULL; the parent can
+ * later promote it via send-invite or create-account.
+ */
+export class AddFamilyMemberDto {
+  @ApiProperty() @IsString() @MaxLength(100) firstName!: string;
+  @ApiProperty() @IsString() @MaxLength(100) lastName!: string;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) relationship?: string;
+}
+
+/**
+ * PATCH /family/members/:id — edit a placeholder guardian's display
+ * fields. ACTIVE rows reject this endpoint — those edits go through
+ * /profile (the linked guardian's own iam_person row).
+ */
+export class UpdateFamilyMemberDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) firstName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) relationship?: string;
+}
+
+/**
+ * POST /family/members/:id/create-account — synthesise an iam_person
+ * + platform_users for a placeholder guardian. The new account lands
+ * at PENDING_VERIFICATION; the platform_family_members row is
+ * promoted to ACTIVE in the same transaction.
+ */
+export class CreateMemberAccountDto {
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+}
+
+/**
+ * POST /family/members/:id/send-invite — generate a GUARDIAN_INVITE
+ * scoped to this specific placeholder row. metadata.familyMemberId
+ * carries the row id so the accept path UPDATEs in place rather than
+ * INSERTing a duplicate.
+ */
+export class SendMemberInviteDto {
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
 }
 
 export class FamilyHeaderDto {

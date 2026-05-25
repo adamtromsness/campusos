@@ -429,15 +429,28 @@ model PlatformFamily {
 model FamilyMember {
   id               String     @id @db.Uuid
   familyId         String     @map("family_id") @db.Uuid
-  personId         String     @unique @map("person_id") @db.Uuid
+  // personId is nullable to support PLACEHOLDER / PENDING_INVITE
+  // guardians the parent has named but who haven't accepted yet.
+  // PG UNIQUE treats NULLs as distinct, so the @unique + composite
+  // unique still enforce one-active-row-per-person while allowing
+  // many placeholders.
+  personId         String?    @unique @map("person_id") @db.Uuid
   memberRole       MemberRole @map("member_role")
   isPrimaryContact Boolean    @default(false) @map("is_primary_contact")
+  // Lifecycle: PLACEHOLDER → PENDING_INVITE → ACTIVE. ACTIVE is the
+  // default so legacy rows that pre-date this column read correctly.
+  status           String     @default("ACTIVE")
+  firstName        String?    @map("first_name")
+  lastName         String?    @map("last_name")
+  email            String?
+  inviteCode       String?    @map("invite_code")
+  inviteSentAt     DateTime?  @map("invite_sent_at") @db.Timestamptz()
   joinedAt         DateTime   @default(now()) @map("joined_at") @db.Timestamptz()
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   family PlatformFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  person IamPerson      @relation(fields: [personId], references: [id])
+  person IamPerson?     @relation(fields: [personId], references: [id])
 
   @@unique([familyId, personId])
   @@map("platform_family_members")

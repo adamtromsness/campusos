@@ -746,4 +746,129 @@ describe('integration:m00-platform/family-children', () => {
       expect(updated.preferredName).toBe('Liv');
     });
   });
+
+  // ─── Placeholder guardian members ─────────────────────────
+
+  describe('placeholder guardian members', () => {
+    it('addMember inserts a PLACEHOLDER row with person_id NULL + name/email', async () => {
+      const m = await controller.addMember(reqA(), {
+        firstName: 'Jane',
+        lastName: 'A',
+        email: 'jane@example.invalid',
+      });
+      expect(m.status).toBe('PLACEHOLDER');
+      expect(m.personId).toBeNull();
+      expect(m.firstName).toBe('Jane');
+      expect(m.lastName).toBe('A');
+      expect(m.email).toBe('jane@example.invalid');
+      expect(m.memberRole).toBe('PARENT');
+      expect(m.isPrimaryContact).toBe(false);
+    });
+
+    it('getFamily surfaces placeholder + active members together', async () => {
+      const placeholder = await controller.addMember(reqA(), {
+        firstName: 'Jane',
+        lastName: 'A',
+      });
+      const view = await controller.getFamily(reqA());
+      expect(view).not.toBeNull();
+      const ids = view!.members.map((m) => m.id).sort();
+      expect(ids).toContain(placeholder.id);
+      const activeRow = view!.members.find((m) => m.status === 'ACTIVE');
+      expect(activeRow?.isCurrentUser).toBe(true);
+    });
+
+    it('updateMember edits placeholder fields; ACTIVE rejects with 400', async () => {
+      const m = await controller.addMember(reqA(), { firstName: 'Jane', lastName: 'A' });
+      const patched = await controller.updateMember(reqA(), m.id, {
+        firstName: 'Janet',
+        email: 'janet@example.invalid',
+      });
+      expect(patched.firstName).toBe('Janet');
+      expect(patched.email).toBe('janet@example.invalid');
+
+      // Find the caller's own ACTIVE row → PATCH must 400.
+      const view = await controller.getFamily(reqA());
+      const activeRow = view!.members.find((m) => m.status === 'ACTIVE');
+      await expect(
+        controller.updateMember(reqA(), activeRow!.id, { firstName: 'Hacked' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('removeMember deletes PLACEHOLDER; ACTIVE rejects', async () => {
+      const m = await controller.addMember(reqA(), { firstName: 'Jane', lastName: 'A' });
+      await controller.removeMember(reqA(), m.id);
+      const view = await controller.getFamily(reqA());
+      expect(view!.members.find((mm) => mm.id === m.id)).toBeUndefined();
+
+      const active = view!.members.find((mm) => mm.status === 'ACTIVE');
+      await expect(controller.removeMember(reqA(), active!.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('createAccountForMember provisions iam_person + platform_users + ACTIVE the row', async () => {
+      const m = await controller.addMember(reqA(), {
+        firstName: 'Jane',
+        lastName: 'A',
+        email: 'jane@example.invalid',
+      });
+      const promoted = await controller.createMemberAccount(reqA(), m.id, {});
+      expect(promoted.status).toBe('ACTIVE');
+      expect(promoted.personId).toBeTruthy();
+      // The new iam_person carries the placeholder's name.
+      const person = await prisma.iamPerson.findUnique({
+        where: { id: promoted.personId! },
+        select: { firstName: true, lastName: true, personType: true },
+      });
+      expect(person?.firstName).toBe('Jane');
+      expect(person?.lastName).toBe('A');
+      expect(person?.personType).toBe('EXTERNAL');
+      // platform_users row exists and uses the provided email.
+      const accountRows = await prisma.$queryRawUnsafe<Array<{ email: string }>>(
+        `SELECT email FROM platform.platform_users WHERE person_id = $1::uuid`,
+        promoted.personId!,
+      );
+      expect(accountRows[0]?.email).toBe('jane@example.invalid');
+    });
+
+    it('sendMemberInvite flips PLACEHOLDER → PENDING_INVITE + creates a targeted GUARDIAN_INVITE', async () => {
+      const m = await controller.addMember(reqA(), { firstName: 'Jane', lastName: 'A' });
+      const sent = await controller.sendMemberInvite(reqA(), m.id, {
+        email: 'jane@example.invalid',
+      });
+      expect(sent.status).toBe('PENDING_INVITE');
+      expect(sent.inviteCode).toMatch(/^[A-Z0-9]{8}$/);
+
+      const inv = await prisma.platformInvitation.findUnique({
+        where: { token: sent.inviteCode! },
+        select: { type: true, status: true, metadata: true, targetEmail: true },
+      });
+      expect(inv?.type).toBe('GUARDIAN_INVITE');
+      expect(inv?.status).toBe('PENDING');
+      expect(inv?.targetEmail).toBe('jane@example.invalid');
+      expect((inv?.metadata as { familyMemberId?: string }).familyMemberId).toBe(m.id);
+    });
+
+    it('accepting a targeted GUARDIAN_INVITE promotes the placeholder row in place', async () => {
+      const m = await controller.addMember(reqA(), { firstName: 'Jane', lastName: 'A' });
+      const sent = await controller.sendMemberInvite(reqA(), m.id, {});
+      const result = await controller.accept(reqB(), { code: sent.inviteCode! });
+      if (result.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+
+      // The original placeholder row got person_id stamped + ACTIVE.
+      const refetched = await prisma.familyMember.findUnique({ where: { id: m.id } });
+      expect(refetched?.personId).toBe(userBPersonId);
+      expect(refetched?.status).toBe('ACTIVE');
+      expect(refetched?.inviteCode).toBeNull();
+
+      // No new row inserted — the same id is the canonical one.
+      const dupRows = await prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*)::bigint AS cnt FROM platform.platform_family_members
+         WHERE person_id = $1::uuid`,
+        userBPersonId,
+      );
+      expect(Number(dupRows[0]!.cnt)).toBe(1);
+    });
+  });
 });
