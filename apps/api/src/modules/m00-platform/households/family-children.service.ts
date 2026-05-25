@@ -49,6 +49,19 @@ import {
   UpdateFamilySettingsDto,
 } from './dto/family-child.dto';
 
+interface EmergencyContactRow {
+  id: string;
+  family_id: string;
+  linked_person_id: string | null;
+  name: string;
+  relationship: string;
+  phone_primary: string;
+  phone_alternate: string | null;
+  email: string | null;
+  authorized_pickup: boolean;
+  priority_order: number;
+}
+
 interface FamilyChildRow {
   id: string;
   family_id: string;
@@ -555,13 +568,22 @@ export class FamilyChildrenService {
     return resolved?.familyId ?? null;
   }
 
+  /**
+   * LEFT JOIN platform.iam_person + platform.platform_users so the
+   * linked-contact case can surface the current name/phone/email
+   * without a second roundtrip. The raw SQL is preferred over Prisma
+   * include because the model doesn't carry a `linkedPerson` relation
+   * (would require a back-relation on iam_person we don't want to add
+   * just for this).
+   */
   async listFamilyEmergencyContacts(personId: string): Promise<FamilyEmergencyContactDto[]> {
     const familyId = await this.familyIdForViewer(personId);
     if (!familyId) return [];
-    const rows = await this.prisma.platformFamilyEmergencyContact.findMany({
-      where: { familyId },
-      orderBy: [{ priorityOrder: 'asc' }, { createdAt: 'asc' }],
-    });
+    const rows = await this.prisma.$queryRawUnsafe<Array<EmergencyContactRow>>(
+      this.familyEcSelectSql() +
+        ' WHERE fec.family_id = $1::uuid ORDER BY fec.priority_order ASC, fec.created_at ASC',
+      familyId,
+    );
     return rows.map((r) => this.toFamilyEmergencyContactDto(r));
   }
 
@@ -571,32 +593,96 @@ export class FamilyChildrenService {
   ): Promise<FamilyEmergencyContactDto> {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
+
+    // Resolve the contact's name / phone / email. If linkedPersonId
+    // is set, pull from iam_person + platform_users; otherwise use
+    // the manual payload. Either path MUST end with a usable name +
+    // primary phone (the schema requires NOT NULL on both).
+    let linkedPersonId: string | null = null;
+    let resolvedName = dto.name?.trim() ?? '';
+    let resolvedPhonePrimary = dto.phonePrimary?.trim() ?? '';
+    let resolvedPhoneAlternate = dto.phoneAlternate?.trim() ?? null;
+    let resolvedEmail = dto.email?.trim() ?? null;
+
+    if (dto.linkedPersonId) {
+      const personRows = await this.prisma.$queryRawUnsafe<
+        Array<{
+          first_name: string;
+          last_name: string;
+          preferred_name: string | null;
+          email: string | null;
+          primary_phone: string | null;
+        }>
+      >(
+        `SELECT ip.first_name, ip.last_name, ip.preferred_name,
+                pu.email, ip.primary_phone
+         FROM platform.iam_person ip
+         JOIN platform.platform_users pu ON pu.person_id = ip.id
+         WHERE ip.id = $1::uuid
+         LIMIT 1`,
+        dto.linkedPersonId,
+      );
+      if (personRows.length === 0) {
+        throw new BadRequestException('Linked person not found or has no CampusOS account.');
+      }
+      const p = personRows[0]!;
+      linkedPersonId = dto.linkedPersonId;
+      resolvedName =
+        (p.preferred_name?.trim() ? p.preferred_name : null) ||
+        [p.first_name, p.last_name].filter(Boolean).join(' ');
+      resolvedPhonePrimary = p.primary_phone ?? resolvedPhonePrimary;
+      resolvedEmail = p.email ?? resolvedEmail;
+      // Caller can still supply an explicit phonePrimary fallback if
+      // the linked person hasn't set one yet — we use the dto value
+      // only as a backstop, the iam_person value wins when present.
+    }
+
+    if (!resolvedName) {
+      throw new BadRequestException('Name is required for manual emergency contacts.');
+    }
+    if (!resolvedPhonePrimary) {
+      throw new BadRequestException('Primary phone is required.');
+    }
+
     const id = generateId();
     try {
-      const created = await this.prisma.platformFamilyEmergencyContact.create({
-        data: {
-          id,
-          familyId,
-          name: dto.name,
-          relationship: dto.relationship,
-          phonePrimary: dto.phonePrimary,
-          phoneAlternate: dto.phoneAlternate ?? null,
-          email: dto.email ?? null,
-          authorizedPickup: dto.authorizedPickup ?? false,
-          priorityOrder: dto.priorityOrder ?? 0,
-        },
-      });
-      return this.toFamilyEmergencyContactDto(created);
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_family_emergency_contacts
+           (id, family_id, linked_person_id, name, relationship,
+            phone_primary, phone_alternate, email, authorized_pickup,
+            priority_order)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5,
+                 $6, $7, $8, $9, $10)`,
+        id,
+        familyId,
+        linkedPersonId,
+        resolvedName,
+        dto.relationship,
+        resolvedPhonePrimary,
+        resolvedPhoneAlternate,
+        resolvedEmail,
+        dto.authorizedPickup ?? false,
+        dto.priorityOrder ?? 0,
+      );
     } catch (err: unknown) {
-      // 23505 on UNIQUE (family_id, phone_primary).
-      const e = err as { code?: string; meta?: { target?: string[] } };
-      if (e.code === 'P2002') {
+      const code = (err as { code?: string; meta?: { code?: string } }).code;
+      const sqlState = (err as { meta?: { code?: string } }).meta?.code;
+      if (code === 'P2002' || sqlState === '23505') {
         throw new ConflictException(
           'A family emergency contact with that primary phone already exists.',
         );
       }
       throw err;
     }
+    // Re-fetch via list to get the same JOIN-shape the read path uses.
+    const created = await this.prisma.$queryRawUnsafe<Array<EmergencyContactRow>>(
+      this.familyEcSelectSql() + ' WHERE fec.id = $1::uuid LIMIT 1',
+      id,
+    );
+    if (created.length === 0) {
+      throw new HttpException('Insert succeeded but row not found', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return this.toFamilyEmergencyContactDto(created[0]!);
   }
 
   async updateFamilyEmergencyContact(
@@ -606,39 +692,84 @@ export class FamilyChildrenService {
   ): Promise<FamilyEmergencyContactDto> {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
-    // Membership check — refuse cross-family edits even with a guessed
-    // contact id. 404 (not 403) so the existence of another family's
-    // row isn't leaked.
     const existing = await this.prisma.platformFamilyEmergencyContact.findUnique({
       where: { id: contactId },
     });
     if (!existing || existing.familyId !== familyId) {
       throw new NotFoundException('Family emergency contact not found');
     }
-    try {
-      const updated = await this.prisma.platformFamilyEmergencyContact.update({
-        where: { id: contactId },
-        data: {
-          name: dto.name ?? undefined,
-          relationship: dto.relationship ?? undefined,
-          phonePrimary: dto.phonePrimary ?? undefined,
-          phoneAlternate: dto.phoneAlternate === undefined ? undefined : dto.phoneAlternate,
-          email: dto.email === undefined ? undefined : dto.email,
-          authorizedPickup: dto.authorizedPickup ?? undefined,
-          priorityOrder: dto.priorityOrder ?? undefined,
-          updatedAt: new Date(),
-        },
-      });
-      return this.toFamilyEmergencyContactDto(updated);
-    } catch (err: unknown) {
-      const e = err as { code?: string };
-      if (e.code === 'P2002') {
-        throw new ConflictException(
-          'A family emergency contact with that primary phone already exists.',
-        );
-      }
-      throw err;
+    const isLinked = existing.linkedPersonId !== null;
+
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+    if (dto.relationship !== undefined) {
+      setClauses.push('relationship = $' + i++);
+      values.push(dto.relationship);
     }
+    if (dto.authorizedPickup !== undefined) {
+      setClauses.push('authorized_pickup = $' + i++);
+      values.push(dto.authorizedPickup);
+    }
+    if (dto.priorityOrder !== undefined) {
+      setClauses.push('priority_order = $' + i++);
+      values.push(dto.priorityOrder);
+    }
+    // name/phone/email writes are no-ops on linked rows — the read
+    // path always pulls fresh from iam_person. Silently skip rather
+    // than 400 so a "save all fields" client doesn't have to gate
+    // its payload on isLinked.
+    if (!isLinked) {
+      if (dto.name !== undefined) {
+        setClauses.push('name = $' + i++);
+        values.push(dto.name);
+      }
+      if (dto.phonePrimary !== undefined) {
+        setClauses.push('phone_primary = $' + i++);
+        values.push(dto.phonePrimary);
+      }
+      if (dto.phoneAlternate !== undefined) {
+        setClauses.push('phone_alternate = $' + i++);
+        values.push(dto.phoneAlternate);
+      }
+      if (dto.email !== undefined) {
+        setClauses.push('email = $' + i++);
+        values.push(dto.email);
+      }
+    }
+
+    if (setClauses.length > 0) {
+      setClauses.push('updated_at = now()');
+      values.push(contactId);
+      try {
+        await this.prisma.$executeRawUnsafe(
+          'UPDATE platform.platform_family_emergency_contacts SET ' +
+            setClauses.join(', ') +
+            ' WHERE id = $' +
+            i +
+            '::uuid',
+          ...values,
+        );
+      } catch (err: unknown) {
+        const code = (err as { code?: string; meta?: { code?: string } }).code;
+        const sqlState = (err as { meta?: { code?: string } }).meta?.code;
+        if (code === 'P2002' || sqlState === '23505') {
+          throw new ConflictException(
+            'A family emergency contact with that primary phone already exists.',
+          );
+        }
+        throw err;
+      }
+    }
+
+    const refreshed = await this.prisma.$queryRawUnsafe<Array<EmergencyContactRow>>(
+      this.familyEcSelectSql() + ' WHERE fec.id = $1::uuid LIMIT 1',
+      contactId,
+    );
+    if (refreshed.length === 0) {
+      throw new NotFoundException('Family emergency contact not found');
+    }
+    return this.toFamilyEmergencyContactDto(refreshed[0]!);
   }
 
   async removeFamilyEmergencyContact(personId: string, contactId: string): Promise<void> {
@@ -653,27 +784,92 @@ export class FamilyChildrenService {
     await this.prisma.platformFamilyEmergencyContact.delete({ where: { id: contactId } });
   }
 
-  private toFamilyEmergencyContactDto(r: {
-    id: string;
-    familyId: string;
-    name: string;
-    relationship: string;
-    phonePrimary: string;
-    phoneAlternate: string | null;
-    email: string | null;
-    authorizedPickup: boolean;
-    priorityOrder: number;
-  }): FamilyEmergencyContactDto {
+  /**
+   * Bulk reorder. Clamps the input ids to the caller's family rows
+   * to defend against cross-family id smuggling, then assigns
+   * priority_order = position in array. Ids not in the input keep
+   * their position by being pushed to the end in their original
+   * order — useful when the UI sends a partial reorder.
+   */
+  async reorderFamilyEmergencyContacts(
+    personId: string,
+    orderedIds: string[],
+  ): Promise<FamilyEmergencyContactDto[]> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+
+    const familyRows = await this.prisma.platformFamilyEmergencyContact.findMany({
+      where: { familyId },
+      orderBy: [{ priorityOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    const familyIdSet = new Set(familyRows.map((r) => r.id));
+    const filtered = orderedIds.filter((id) => familyIdSet.has(id));
+    const remaining = familyRows.map((r) => r.id).filter((id) => !filtered.includes(id));
+    const finalOrder = [...filtered, ...remaining];
+
+    await this.prisma.$transaction(
+      finalOrder.map((id, idx) =>
+        this.prisma.platformFamilyEmergencyContact.update({
+          where: { id },
+          data: { priorityOrder: idx, updatedAt: new Date() },
+        }),
+      ),
+    );
+
+    return this.listFamilyEmergencyContacts(personId);
+  }
+
+  /**
+   * Shared SELECT for the EC list — joins iam_person + platform_users
+   * so linked contacts surface the current name / phone / email
+   * without a per-row second query. For manual contacts the joins
+   * are NULL and the row's own columns win in the COALESCE.
+   */
+  private familyEcSelectSql(): string {
+    return (
+      `SELECT
+         fec.id::text AS id,
+         fec.family_id::text AS family_id,
+         fec.linked_person_id::text AS linked_person_id,
+         COALESCE(
+           CASE WHEN fec.linked_person_id IS NOT NULL
+             THEN COALESCE(NULLIF(TRIM(ip.preferred_name), ''),
+                           TRIM(CONCAT_WS(' ', ip.first_name, ip.last_name)))
+             ELSE NULL
+           END,
+           fec.name
+         ) AS name,
+         fec.relationship,
+         COALESCE(
+           CASE WHEN fec.linked_person_id IS NOT NULL THEN ip.primary_phone ELSE NULL END,
+           fec.phone_primary
+         ) AS phone_primary,
+         fec.phone_alternate,
+         COALESCE(
+           CASE WHEN fec.linked_person_id IS NOT NULL THEN pu.email ELSE NULL END,
+           fec.email
+         ) AS email,
+         fec.authorized_pickup,
+         fec.priority_order
+       FROM platform.platform_family_emergency_contacts fec
+       LEFT JOIN platform.iam_person ip ON ip.id = fec.linked_person_id
+       LEFT JOIN platform.platform_users pu ON pu.person_id = fec.linked_person_id`
+    );
+  }
+
+  private toFamilyEmergencyContactDto(r: EmergencyContactRow): FamilyEmergencyContactDto {
     return {
       id: r.id,
-      familyId: r.familyId,
+      familyId: r.family_id,
+      linkedPersonId: r.linked_person_id,
       name: r.name,
       relationship: r.relationship,
-      phonePrimary: r.phonePrimary,
-      phoneAlternate: r.phoneAlternate,
+      phonePrimary: r.phone_primary,
+      phoneAlternate: r.phone_alternate,
       email: r.email,
-      authorizedPickup: r.authorizedPickup,
-      priorityOrder: r.priorityOrder,
+      authorizedPickup: r.authorized_pickup,
+      priorityOrder: r.priority_order,
     };
   }
 

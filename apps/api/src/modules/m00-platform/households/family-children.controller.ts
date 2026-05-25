@@ -36,6 +36,7 @@ import {
   InviteGuardianDto,
   SendChildLinkDto,
   SendMemberInviteDto,
+  ReorderFamilyEmergencyContactsDto,
   UpdateChildDietaryInfoDto,
   UpdateChildEmergencyContactDto,
   UpdateChildMedicalInfoDto,
@@ -123,6 +124,21 @@ export class FamilyChildrenController {
     @Body() dto: AddFamilyEmergencyContactDto,
   ): Promise<FamilyEmergencyContactDto> {
     return this.children.addFamilyEmergencyContact(req.user!.personId, dto);
+  }
+
+  /**
+   * MUST be declared before /settings/emergency-contacts/:contactId
+   * — same Nest route-ordering trap as /family/settings.
+   */
+  @Patch('settings/emergency-contacts/reorder')
+  @ApiOperation({
+    summary: 'Bulk reorder family emergency contacts by id — priority_order = position in array',
+  })
+  async reorderFamilyEmergencyContacts(
+    @Req() req: AuthedRequest,
+    @Body() dto: ReorderFamilyEmergencyContactsDto,
+  ): Promise<FamilyEmergencyContactDto[]> {
+    return this.children.reorderFamilyEmergencyContacts(req.user!.personId, dto.orderedIds);
   }
 
   @Patch('settings/emergency-contacts/:contactId')

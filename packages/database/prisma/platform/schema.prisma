@@ -348,6 +348,12 @@ model PlatformFamilyChild {
 model PlatformFamilyEmergencyContact {
   id               String   @id @db.Uuid
   familyId         String   @map("family_id") @db.Uuid
+  // When set, this contact IS a CampusOS user. name/phone/email
+  // mirror the iam_person record at link-time and refresh on read,
+  // so a guardian who updates their own profile pushes the new
+  // info through to every family that's linked them. NULL = manual
+  // entry; the per-row name/phone/email columns are authoritative.
+  linkedPersonId   String?  @map("linked_person_id") @db.Uuid
   name             String
   relationship     String
   phonePrimary     String   @map("phone_primary")

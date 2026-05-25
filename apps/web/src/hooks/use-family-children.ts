@@ -724,6 +724,10 @@ export function usePeopleSearch(query: string, enabled = true) {
 export interface FamilyEmergencyContactDto {
   id: string;
   familyId: string;
+  // When set, the contact IS a CampusOS user; name/phone/email on
+  // the wire are the current iam_person values, not whatever was
+  // captured at link time.
+  linkedPersonId: string | null;
   name: string;
   relationship: string;
   phonePrimary: string;
@@ -734,9 +738,11 @@ export interface FamilyEmergencyContactDto {
 }
 
 export interface AddFamilyEmergencyContactPayload {
-  name: string;
+  // Either link OR provide name/phone manually.
+  linkedPersonId?: string;
+  name?: string;
   relationship: string;
-  phonePrimary: string;
+  phonePrimary?: string;
   phoneAlternate?: string;
   email?: string;
   authorizedPickup?: boolean;
@@ -744,13 +750,15 @@ export interface AddFamilyEmergencyContactPayload {
 }
 
 export interface UpdateFamilyEmergencyContactPayload {
-  name?: string;
+  // Always editable.
   relationship?: string;
+  authorizedPickup?: boolean;
+  priorityOrder?: number;
+  // Manual-only — silently ignored on linked rows server-side.
+  name?: string;
   phonePrimary?: string;
   phoneAlternate?: string | null;
   email?: string | null;
-  authorizedPickup?: boolean;
-  priorityOrder?: number;
 }
 
 export function useFamilyEmergencyContacts(enabled = true) {
@@ -798,6 +806,25 @@ export function useDeleteFamilyEmergencyContact(contactId: string) {
       apiFetch<void>('/api/v1/family/settings/emergency-contacts/' + contactId, {
         method: 'DELETE',
       }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
+/**
+ * PATCH /family/settings/emergency-contacts/reorder — bulk reorder
+ * by id. Pass the full ordering; server clamps to caller's family
+ * + assigns priority_order = position. Used by the up/down arrows.
+ */
+export function useReorderFamilyEmergencyContacts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedIds: string[]) =>
+      apiFetch<FamilyEmergencyContactDto[]>(
+        '/api/v1/family/settings/emergency-contacts/reorder',
+        { method: 'PATCH', body: JSON.stringify({ orderedIds }) },
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: INVALIDATE });
     },

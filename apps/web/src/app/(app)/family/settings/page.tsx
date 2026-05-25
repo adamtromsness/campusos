@@ -9,13 +9,17 @@ import {
   useFamilyEmergencyContacts,
   useFamilySettings,
   useFamilyView,
+  usePeopleSearch,
+  useReorderFamilyEmergencyContacts,
   useUpdateFamilySettings,
   type FamilyEmergencyContactDto,
   type FamilyMemberDto,
   type FamilySettingsDto,
+  type PeopleSearchResult,
   type UpdateFamilySettingsPayload,
 } from '@/hooks/use-family-children';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { cn } from '@/components/ui/cn';
@@ -604,170 +608,115 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
 // ─── Emergency tab ─────────────────────────────────────────
 
 /**
- * Placeholder for the upcoming priority-arrow + linked-user-search
- * table (commit 3 of this redesign). For now wraps the existing
- * FamilyEmergencyContactsCard so the tab is reachable and the
- * existing list is still editable.
+ * Table layout with priority up/down arrows and a Linked badge.
+ * Linked contacts are CampusOS users — their name/phone/email
+ * surface the current iam_person values via a server-side JOIN
+ * and update automatically when the linked user changes their
+ * own profile. Manual contacts are free-form rows.
  */
 function EmergencyTab({ editable }: { editable: boolean }) {
-  return <FamilyEmergencyContactsCard editable={editable} />;
-}
-
-function FamilyEmergencyContactsCard({ editable }: { editable: boolean }) {
   const { data, isLoading } = useFamilyEmergencyContacts();
-  const add = useAddFamilyEmergencyContact();
+  const reorder = useReorderFamilyEmergencyContacts();
+  const [addOpen, setAddOpen] = useState(false);
   const { toast } = useToast();
-  const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState({
-    name: '',
-    relationship: '',
-    phonePrimary: '',
-    phoneAlternate: '',
-    email: '',
-    authorizedPickup: false,
-  });
 
-  async function onAdd() {
-    if (!draft.name.trim() || !draft.relationship.trim() || !draft.phonePrimary.trim()) {
-      toast('Name, relationship, and primary phone are required.', 'error');
-      return;
-    }
+  const contacts = data ?? [];
+
+  async function moveContact(index: number, direction: 'up' | 'down') {
+    const swapWith = direction === 'up' ? index - 1 : index + 1;
+    if (swapWith < 0 || swapWith >= contacts.length) return;
+    const ids = contacts.map((c) => c.id);
+    [ids[index], ids[swapWith]] = [ids[swapWith]!, ids[index]!];
     try {
-      await add.mutateAsync({
-        name: draft.name.trim(),
-        relationship: draft.relationship.trim(),
-        phonePrimary: draft.phonePrimary.trim(),
-        phoneAlternate: draft.phoneAlternate.trim() || undefined,
-        email: draft.email.trim() || undefined,
-        authorizedPickup: draft.authorizedPickup,
-      });
-      toast('Emergency contact added', 'success');
-      setShowAdd(false);
-      setDraft({
-        name: '',
-        relationship: '',
-        phonePrimary: '',
-        phoneAlternate: '',
-        email: '',
-        authorizedPickup: false,
-      });
+      await reorder.mutateAsync(ids);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not add the contact.', 'error');
+      toast(err instanceof Error ? err.message : 'Could not reorder.', 'error');
     }
   }
 
-  const contacts = data ?? [];
   return (
-    <Card
-      title="Family emergency contacts"
-      description="Shared with every child whose Contact tab is set to inherit from family. Per-child overrides live on each child's Contact tab."
-    >
-      {isLoading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : contacts.length === 0 && !showAdd ? (
-        <p className="text-sm text-gray-500">No family emergency contacts yet.</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {contacts.map((c, i) => (
-            <FamilyEmergencyContactRow
-              key={c.id}
-              contact={c}
-              index={i + 1}
-              editable={editable}
-            />
-          ))}
-        </ul>
-      )}
-
-      {editable &&
-        (showAdd ? (
-          <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <SettingsField
-                label="Name"
-                value={draft.name}
-                onChange={(v) => setDraft({ ...draft, name: v })}
-                required
-              />
-              <SettingsField
-                label="Relationship"
-                value={draft.relationship}
-                onChange={(v) => setDraft({ ...draft, relationship: v })}
-                placeholder="Spouse, Grandparent…"
-                required
-              />
-              <SettingsField
-                label="Primary phone"
-                value={draft.phonePrimary}
-                onChange={(v) => setDraft({ ...draft, phonePrimary: v })}
-                required
-              />
-              <SettingsField
-                label="Alternate phone"
-                value={draft.phoneAlternate}
-                onChange={(v) => setDraft({ ...draft, phoneAlternate: v })}
-              />
-              <SettingsField
-                label="Email"
-                value={draft.email}
-                onChange={(v) => setDraft({ ...draft, email: v })}
-                className="sm:col-span-2"
-              />
-              <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={draft.authorizedPickup}
-                  onChange={(e) => setDraft({ ...draft, authorizedPickup: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
-                />
-                Authorized for pickup
-              </label>
-            </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void onAdd()}
-                disabled={add.isPending}
-                className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
-              >
-                {add.isPending && <LoadingSpinner size="sm" />}
-                <span>{add.isPending ? 'Adding…' : 'Add Contact'}</span>
-              </button>
-            </div>
-          </div>
+    <div className="flex flex-col gap-5">
+      <Card
+        title="Family emergency contacts"
+        description="Shared with every child whose Contact tab is set to inherit from family. Drag-free priority order — use the arrows. Linked contacts auto-update when the user changes their own profile."
+      >
+        {isLoading ? (
+          <p className="text-sm text-gray-500">Loading…</p>
+        ) : contacts.length === 0 ? (
+          <p className="text-sm text-gray-500">No family emergency contacts yet.</p>
         ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  <th className="px-2 py-2 w-10">#</th>
+                  <th className="px-2 py-2">Name</th>
+                  <th className="px-2 py-2">Relationship</th>
+                  <th className="px-2 py-2">Phone</th>
+                  <th className="px-2 py-2">Pickup</th>
+                  <th className="px-2 py-2">Source</th>
+                  {editable && <th className="px-2 py-2 text-right">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map((c, i) => (
+                  <EmergencyContactTableRow
+                    key={c.id}
+                    contact={c}
+                    index={i}
+                    total={contacts.length}
+                    editable={editable}
+                    busy={reorder.isPending}
+                    onMoveUp={() => void moveContact(i, 'up')}
+                    onMoveDown={() => void moveContact(i, 'down')}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {editable && (
           <div className="mt-3 flex justify-end">
             <button
               type="button"
-              onClick={() => setShowAdd(true)}
-              className="text-sm font-medium text-campus-700 hover:text-campus-600"
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600"
             >
-              + Add contact
+              + Add Emergency Contact
             </button>
           </div>
-        ))}
-    </Card>
+        )}
+      </Card>
+
+      <AddEmergencyContactModal open={addOpen} onClose={() => setAddOpen(false)} />
+    </div>
   );
 }
 
-function FamilyEmergencyContactRow({
+function EmergencyContactTableRow({
   contact,
   index,
+  total,
   editable,
+  busy,
+  onMoveUp,
+  onMoveDown,
 }: {
   contact: FamilyEmergencyContactDto;
   index: number;
+  total: number;
   editable: boolean;
+  busy: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   const remove = useDeleteFamilyEmergencyContact(contact.id);
   const { toast } = useToast();
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
+  const isLinked = contact.linkedPersonId !== null;
+
   async function onRemove() {
     if (typeof window !== 'undefined' && !window.confirm('Remove ' + contact.name + '?')) return;
     try {
@@ -777,39 +726,394 @@ function FamilyEmergencyContactRow({
       toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
     }
   }
+
   return (
-    <li className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900">
-          <span className="text-xs text-gray-400">{index}.</span> {contact.name}
-          <span className="ml-2 text-xs font-normal text-gray-500">{contact.relationship}</span>
-        </p>
-        <p className="mt-0.5 text-xs text-gray-600">
-          {contact.phonePrimary}
-          {contact.phoneAlternate && (
-            <span className="text-gray-500"> · {contact.phoneAlternate}</span>
-          )}
-        </p>
-        {contact.email && <p className="text-xs text-gray-500">{contact.email}</p>}
-        <p className="mt-0.5 text-xs">
-          {contact.authorizedPickup ? (
-            <span className="text-emerald-700">✓ Authorized for pickup</span>
-          ) : (
-            <span className="text-gray-500">Not authorized for pickup</span>
-          )}
-        </p>
-      </div>
+    <tr className="border-b border-gray-100 last:border-b-0">
+      <td className="px-2 py-3 text-gray-500">{index + 1}</td>
+      <td className="px-2 py-3">
+        <div className="font-medium text-gray-900">{contact.name}</div>
+        {contact.email && <div className="text-xs text-gray-500">{contact.email}</div>}
+      </td>
+      <td className="px-2 py-3 text-gray-700">{contact.relationship}</td>
+      <td className="px-2 py-3 text-gray-700">
+        <div>{contact.phonePrimary}</div>
+        {contact.phoneAlternate && (
+          <div className="text-xs text-gray-500">{contact.phoneAlternate}</div>
+        )}
+      </td>
+      <td className="px-2 py-3">
+        {contact.authorizedPickup ? (
+          <span className="text-emerald-700" title="Authorized for pickup">
+            ✅ Yes
+          </span>
+        ) : (
+          <span className="text-gray-500">❌ No</span>
+        )}
+      </td>
+      <td className="px-2 py-3">
+        {isLinked ? (
+          <span
+            title="Linked to a CampusOS user — contact info auto-updates when they update their profile."
+            className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
+          >
+            🔗 Linked
+          </span>
+        ) : (
+          <span
+            title="Manual entry — contact info won't auto-update."
+            className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700"
+          >
+            Manual
+          </span>
+        )}
+      </td>
       {editable && (
-        <button
-          type="button"
-          onClick={() => void onRemove()}
-          disabled={remove.isPending}
-          className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60"
-        >
-          {remove.isPending ? 'Removing…' : 'Remove'}
-        </button>
+        <td className="px-2 py-3">
+          <div className="flex items-center justify-end gap-1">
+            <IconButton
+              label={isFirst ? 'Already at the top' : 'Move up'}
+              onClick={onMoveUp}
+              disabled={isFirst || busy}
+            >
+              ↑
+            </IconButton>
+            <IconButton
+              label={isLast ? 'Already at the bottom' : 'Move down'}
+              onClick={onMoveDown}
+              disabled={isLast || busy}
+            >
+              ↓
+            </IconButton>
+            <IconButton
+              label={'Remove ' + contact.name}
+              onClick={() => void onRemove()}
+              disabled={remove.isPending}
+              danger
+            >
+              🗑
+            </IconButton>
+          </div>
+        </td>
       )}
-    </li>
+    </tr>
+  );
+}
+
+function IconButton({
+  children,
+  label,
+  onClick,
+  disabled,
+  danger,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-xs text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40',
+        danger && 'border-red-200 text-red-700 hover:bg-red-50',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Add Emergency Contact modal ────────────────────────
+
+const EC_RELATIONSHIPS = [
+  'Spouse',
+  'Co-parent',
+  'Grandfather',
+  'Grandmother',
+  'Aunt',
+  'Uncle',
+  'Sibling',
+  'Neighbor',
+  'Family friend',
+  'Other',
+];
+
+/**
+ * Modal with two routes to add a contact:
+ *
+ *   1. Search a CampusOS user. Selecting a hit fills + locks the
+ *      name / phone / email fields and stamps linkedPersonId on the
+ *      payload. The server will keep those fields fresh on read.
+ *
+ *   2. Enter manually. linkedPersonId stays null; the user fills the
+ *      free-form fields. The save path treats those as authoritative.
+ *
+ * Relationship + authorized-for-pickup are always editable — they're
+ * family-specific, not the linked person's own attributes.
+ */
+function AddEmergencyContactModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const add = useAddFamilyEmergencyContact();
+  const { toast } = useToast();
+
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<PeopleSearchResult | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    relationship: EC_RELATIONSHIPS[0]!,
+    phonePrimary: '',
+    phoneAlternate: '',
+    email: '',
+    authorizedPickup: false,
+  });
+  const search = usePeopleSearch(query, open && selected === null);
+
+  function reset() {
+    setQuery('');
+    setSelected(null);
+    setForm({
+      name: '',
+      relationship: EC_RELATIONSHIPS[0]!,
+      phonePrimary: '',
+      phoneAlternate: '',
+      email: '',
+      authorizedPickup: false,
+    });
+  }
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  function pickPerson(p: PeopleSearchResult) {
+    setSelected(p);
+    const fullName =
+      (p.preferredName?.trim() ? p.preferredName : null) ||
+      [p.firstName, p.lastName].filter(Boolean).join(' ');
+    setForm((f) => ({
+      ...f,
+      name: fullName,
+      phonePrimary: p.primaryPhone ?? '',
+      email: p.email ?? '',
+    }));
+  }
+
+  function unlink() {
+    setSelected(null);
+    // Keep the form values typed so far — the user can keep them or
+    // edit further. Linked badge disappears.
+  }
+
+  async function onAdd() {
+    if (!form.relationship.trim()) {
+      toast('Relationship is required.', 'error');
+      return;
+    }
+    // Manual mode requires name + primary phone (server enforces too;
+    // surface the error early).
+    if (!selected) {
+      if (!form.name.trim()) {
+        toast('Name is required.', 'error');
+        return;
+      }
+      if (!form.phonePrimary.trim()) {
+        toast('Primary phone is required.', 'error');
+        return;
+      }
+    }
+    try {
+      await add.mutateAsync({
+        linkedPersonId: selected?.id,
+        name: selected ? undefined : form.name.trim(),
+        relationship: form.relationship.trim(),
+        phonePrimary: selected ? undefined : form.phonePrimary.trim(),
+        phoneAlternate: form.phoneAlternate.trim() || undefined,
+        email: selected ? undefined : form.email.trim() || undefined,
+        authorizedPickup: form.authorizedPickup,
+      });
+      toast('Emergency contact added', 'success');
+      close();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add the contact.', 'error');
+    }
+  }
+
+  const fieldsLocked = selected !== null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Add Emergency Contact"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={close}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void onAdd()}
+            disabled={add.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {add.isPending && <LoadingSpinner size="sm" />}
+            <span>{add.isPending ? 'Adding…' : 'Add Contact'}</span>
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {!selected && (
+          <div>
+            <label htmlFor="people-search" className="block text-xs font-medium text-gray-700">
+              Search for a CampusOS user (optional)
+            </label>
+            <input
+              id="people-search"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="🔍 Search by name or email…"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              autoComplete="off"
+            />
+
+            {query.trim().length >= 2 && (
+              <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/40">
+                {search.isLoading ? (
+                  <p className="px-3 py-2 text-sm text-gray-500">Searching…</p>
+                ) : !search.data || search.data.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-gray-500">No matches found.</p>
+                ) : (
+                  <ul className="max-h-56 overflow-y-auto">
+                    {search.data.map((p) => {
+                      const fullName =
+                        (p.preferredName?.trim() ? p.preferredName : null) ||
+                        [p.firstName, p.lastName].filter(Boolean).join(' ');
+                      return (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickPerson(p)}
+                            className="flex w-full items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-white"
+                          >
+                            <span>
+                              <span className="font-medium text-gray-900">{fullName}</span>
+                              {p.email && (
+                                <span className="ml-2 text-xs text-gray-500">{p.email}</span>
+                              )}
+                            </span>
+                            <span className="text-xs font-medium text-campus-700">Select</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {selected && (
+          <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-900">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold">🔗 Linked to {form.name}&rsquo;s account</p>
+              <button
+                type="button"
+                onClick={unlink}
+                className="text-xs font-medium text-sky-700 hover:text-sky-900"
+              >
+                Unlink
+              </button>
+            </div>
+            <p className="mt-1">
+              Contact info updates automatically when {form.name} updates their CampusOS profile.
+            </p>
+          </div>
+        )}
+
+        {!selected && query.trim().length >= 2 && (
+          <p className="text-xs text-gray-500">— or enter manually —</p>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SettingsField
+            label="Name"
+            value={form.name}
+            onChange={(v) => setForm((f) => ({ ...f, name: v }))}
+            required={!fieldsLocked}
+            disabled={fieldsLocked}
+          />
+          <div>
+            <label className="block text-xs font-medium text-gray-700">
+              Relationship<span className="ml-0.5 text-red-500">*</span>
+            </label>
+            <select
+              value={form.relationship}
+              onChange={(e) => setForm((f) => ({ ...f, relationship: e.target.value }))}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+            >
+              {EC_RELATIONSHIPS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <SettingsField
+            label="Primary phone"
+            value={form.phonePrimary}
+            onChange={(v) => setForm((f) => ({ ...f, phonePrimary: v }))}
+            required={!fieldsLocked}
+            disabled={fieldsLocked}
+          />
+          <SettingsField
+            label="Alternate phone"
+            value={form.phoneAlternate}
+            onChange={(v) => setForm((f) => ({ ...f, phoneAlternate: v }))}
+          />
+          <SettingsField
+            label="Email"
+            value={form.email}
+            onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+            disabled={fieldsLocked}
+            className="sm:col-span-2"
+          />
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={form.authorizedPickup}
+              onChange={(e) => setForm((f) => ({ ...f, authorizedPickup: e.target.checked }))}
+              className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+            />
+            Authorized for pickup
+          </label>
+        </div>
+
+        {!selected && (
+          <p className="text-xs text-gray-500">
+            Manual entry — contact info won&rsquo;t auto-update.
+          </p>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -1045,6 +1349,7 @@ function SettingsField({
   placeholder,
   required,
   className,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -1052,6 +1357,7 @@ function SettingsField({
   placeholder?: string;
   required?: boolean;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className={className}>
@@ -1064,7 +1370,8 @@ function SettingsField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+        disabled={disabled}
+        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
       />
     </div>
   );

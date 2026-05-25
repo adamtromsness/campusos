@@ -437,6 +437,11 @@ export class FamilyHeaderDto {
 export class FamilyEmergencyContactDto {
   @ApiProperty() id!: string;
   @ApiProperty() familyId!: string;
+  // When set, the contact IS a CampusOS user; name/phone/email are
+  // mirrored from iam_person at link time and refreshed by the read
+  // path. The wire payload always carries the current value; clients
+  // shouldn't try to compute it from `linkedPersonId` alone.
+  @ApiPropertyOptional() linkedPersonId!: string | null;
   @ApiProperty() name!: string;
   @ApiProperty() relationship!: string;
   @ApiProperty() phonePrimary!: string;
@@ -447,9 +452,14 @@ export class FamilyEmergencyContactDto {
 }
 
 export class AddFamilyEmergencyContactDto {
-  @ApiProperty() @IsString() @MaxLength(200) name!: string;
+  // Either send linkedPersonId to bind to a CampusOS user (the server
+  // auto-fills name/phone/email from iam_person) OR send the full
+  // name/phone payload for a manual entry. Sending both is allowed —
+  // the server uses linkedPersonId values for the synced fields.
+  @ApiPropertyOptional() @IsOptional() @IsString() linkedPersonId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
   @ApiProperty() @IsString() @MaxLength(80) relationship!: string;
-  @ApiProperty() @IsString() @MaxLength(40) phonePrimary!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phonePrimary?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string;
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
@@ -457,13 +467,32 @@ export class AddFamilyEmergencyContactDto {
 }
 
 export class UpdateFamilyEmergencyContactDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
+  // Relationship and authorizedPickup are always editable, regardless
+  // of linked vs manual — those are family-specific, not the linked
+  // user's own attributes.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) relationship?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
+  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
+  // name/phone/email writes are honoured ONLY for manual entries
+  // (linked_person_id IS NULL). Sending them on a linked row is a
+  // no-op — the read path always pulls fresh from iam_person.
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phonePrimary?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
-  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
+}
+
+/**
+ * PATCH /family/settings/emergency-contacts/reorder — bulk reorder.
+ * Pass the desired full ordering by id; the server clamps to the
+ * caller's family, then assigns priority_order = array index for
+ * each row. Any id not in the array keeps its current priority but
+ * shifted to the end.
+ */
+export class ReorderFamilyEmergencyContactsDto {
+  @ApiProperty({ type: [String] })
+  @IsString({ each: true })
+  orderedIds!: string[];
 }
 
 // ─── /family/settings — family-level shared attributes ─────
