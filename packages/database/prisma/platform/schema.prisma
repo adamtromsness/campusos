@@ -587,6 +587,11 @@ model FamilyMember {
   // and inherited by every child whose Contact tab pulls from family.
   // Default true — guardians are typically pickup-authorized.
   emergencyAuthorizedPickup Boolean @default(true) @map("emergency_authorized_pickup")
+  // Position in the unified emergency-contacts list (guardians + manual
+  // rows in one priority namespace). Default 0 on every fresh row;
+  // the UI's first reorder fans positions out across [0..N-1] and
+  // every row keeps a unique position thereafter.
+  emergencyPriorityOrder Int @default(0) @map("emergency_priority_order")
   firstName        String?    @map("first_name")
   lastName         String?    @map("last_name")
   email            String?

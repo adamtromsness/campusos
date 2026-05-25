@@ -771,16 +771,31 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
 type EcRow =
   | {
       kind: 'guardian';
+      // The id used by the reorder endpoint. For guardian rows this
+      // is platform_family_members.id; for manual rows it's
+      // platform_family_emergency_contacts.id. The server picks the
+      // right table by checking which set the id belongs to.
+      id: string;
       memberId: string;
       personId: string | null;
       name: string;
       phone: string | null;
       pickup: boolean;
       isCurrentUser: boolean;
+      // Position in the unified namespace. Used for the merged sort.
+      priority: number;
+      // Tiebreaker for two rows with priority=0 (fresh families).
+      // Lower tieBreak wins. Guardians use joined_at (encoded via
+      // index position in the source members[] array); manuals use
+      // created_at via the priorityOrder column.
+      tieBreak: number;
     }
   | {
       kind: 'manual';
+      id: string;
       contact: FamilyEmergencyContactDto;
+      priority: number;
+      tieBreak: number;
     };
 
 const MANUAL_RELATIONSHIPS = [
@@ -800,19 +815,16 @@ const MANUAL_RELATIONSHIPS = [
  * (ACTIVE rows only — placeholders without an iam_person have no
  * phone to surface yet and would be useless on a contact list).
  * They are non-deletable + their name/phone is read-only since
- * those come from the guardian's own profile. The only editable
- * bit is the pickup toggle.
+ * those come from the guardian's own profile. Pickup toggle is
+ * editable.
  *
- * Manual rows are full CRUD. Reordering arrows act within manual
- * rows only — cross-group interleaving would need a unified
- * priority schema, which is deferred (the spec showed arrows on
- * guardian rows too, but reordering 1-2 guardians is rarely useful
- * in practice and would need a new family_members column + a
- * second reorder endpoint).
+ * Manual rows are full CRUD. Both kinds share a single priority
+ * namespace — a closer-living grandparent can outrank a long-
+ * commuting parent; a neighbor can sit between two co-parents.
+ * Reorder arrows fire on EVERY row.
  *
- * No people-search modal — the spec calls for manual-only adds on
- * this surface. The /people/search endpoint still exists and can
- * be wired into a future linked-contact flow if needed.
+ * No people-search modal — guardians are auto-populated, so the
+ * Add flow is manual-only.
  */
 function EmergencyTab({
   editable,
@@ -826,33 +838,49 @@ function EmergencyTab({
   const [addOpen, setAddOpen] = useState(false);
   const { toast } = useToast();
 
-  const guardianRows: EcRow[] = members
-    .filter((m) => m.status === 'ACTIVE')
-    .map((m) => ({
-      kind: 'guardian' as const,
-      memberId: m.id,
-      personId: m.personId,
-      name:
-        (m.preferredName?.trim() ? m.preferredName : null) ||
-        [m.firstName, m.lastName].filter(Boolean).join(' ') ||
-        m.email ||
-        'Guardian',
-      phone: m.primaryPhone,
-      pickup: m.emergencyAuthorizedPickup,
-      isCurrentUser: m.isCurrentUser,
-    }));
-  const manualRows: EcRow[] = (manualContacts ?? []).map((c) => ({
-    kind: 'manual' as const,
-    contact: c,
+  // Build the merged list. Initial tie-break (when both sides have
+  // priority=0 on a fresh family): guardian rows by joined_at index,
+  // manual rows by created_at (we use priorityOrder as a proxy since
+  // the wire payload doesn't currently surface created_at; manuals
+  // ordered ASC by priorityOrder already encode createdAt for ties
+  // via the server's ORDER BY).
+  const guardianSource = members.filter((m) => m.status === 'ACTIVE');
+  const guardianRows: EcRow[] = guardianSource.map((m, i) => ({
+    kind: 'guardian' as const,
+    id: m.id,
+    memberId: m.id,
+    personId: m.personId,
+    name:
+      (m.preferredName?.trim() ? m.preferredName : null) ||
+      [m.firstName, m.lastName].filter(Boolean).join(' ') ||
+      m.email ||
+      'Guardian',
+    phone: m.primaryPhone,
+    pickup: m.emergencyAuthorizedPickup,
+    isCurrentUser: m.isCurrentUser,
+    priority: m.emergencyPriorityOrder,
+    // 1000 + i puts unreordered guardians ahead of unreordered manuals
+    // (which use 2000 + i below) on the priority=0 tie, matching the
+    // previous "guardians first" default UX.
+    tieBreak: 1000 + i,
   }));
-  const rows: EcRow[] = [...guardianRows, ...manualRows];
+  const manualRows: EcRow[] = (manualContacts ?? []).map((c, i) => ({
+    kind: 'manual' as const,
+    id: c.id,
+    contact: c,
+    priority: c.priorityOrder,
+    tieBreak: 2000 + i,
+  }));
+  const rows: EcRow[] = [...guardianRows, ...manualRows].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.tieBreak - b.tieBreak;
+  });
 
-  async function moveManual(manualIndex: number, direction: 'up' | 'down') {
-    const contacts = manualContacts ?? [];
-    const swapWith = direction === 'up' ? manualIndex - 1 : manualIndex + 1;
-    if (swapWith < 0 || swapWith >= contacts.length) return;
-    const ids = contacts.map((c) => c.id);
-    [ids[manualIndex], ids[swapWith]] = [ids[swapWith]!, ids[manualIndex]!];
+  async function move(index: number, direction: 'up' | 'down') {
+    const swapWith = direction === 'up' ? index - 1 : index + 1;
+    if (swapWith < 0 || swapWith >= rows.length) return;
+    const ids = rows.map((r) => r.id);
+    [ids[index], ids[swapWith]] = [ids[swapWith]!, ids[index]!];
     try {
       await reorder.mutateAsync(ids);
     } catch (err) {
@@ -864,7 +892,7 @@ function EmergencyTab({
     <div className="flex flex-col gap-5">
       <Card
         title="Family emergency contacts"
-        description="Guardians appear automatically with their profile info. Add additional contacts manually below. Shared with every child whose Contact tab inherits from family."
+        description="Guardians appear automatically with their profile info. Reorder any row — priority is your family's choice, not determined by role. Shared with every child whose Contact tab inherits from family."
       >
         {isLoading ? (
           <p className="text-sm text-gray-500">Loading…</p>
@@ -891,19 +919,22 @@ function EmergencyTab({
                       key={'guardian:' + row.memberId}
                       row={row}
                       index={idx}
+                      total={rows.length}
                       editable={editable}
+                      busy={reorder.isPending}
+                      onMoveUp={() => void move(idx, 'up')}
+                      onMoveDown={() => void move(idx, 'down')}
                     />
                   ) : (
                     <ManualContactRow
                       key={'manual:' + row.contact.id}
                       contact={row.contact}
                       index={idx}
-                      manualIndex={idx - guardianRows.length}
-                      manualTotal={manualRows.length}
+                      total={rows.length}
                       editable={editable}
                       busy={reorder.isPending}
-                      onMoveUp={() => void moveManual(idx - guardianRows.length, 'up')}
-                      onMoveDown={() => void moveManual(idx - guardianRows.length, 'down')}
+                      onMoveUp={() => void move(idx, 'up')}
+                      onMoveDown={() => void move(idx, 'down')}
                     />
                   ),
                 )}
@@ -933,14 +964,24 @@ function EmergencyTab({
 function GuardianContactRow({
   row,
   index,
+  total,
   editable,
+  busy,
+  onMoveUp,
+  onMoveDown,
 }: {
   row: Extract<EcRow, { kind: 'guardian' }>;
   index: number;
+  total: number;
   editable: boolean;
+  busy: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   const update = useUpdateFamilyMember(row.memberId);
   const { toast } = useToast();
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
 
   async function togglePickup(next: boolean) {
     try {
@@ -1009,11 +1050,22 @@ function GuardianContactRow({
       {editable && (
         <td className="px-2 py-3">
           <div className="flex items-center justify-end gap-1">
-            {/* Guardian reorder is deferred — keeping arrows visible
-                but disabled would mislead. Hide them for now. The
-                column header stays Actions for layout consistency
-                across guardian + manual rows. */}
-            <span className="text-xs text-gray-400">Family guardian</span>
+            <IconButton
+              label={isFirst ? 'Already at the top' : 'Move up'}
+              onClick={onMoveUp}
+              disabled={isFirst || busy}
+            >
+              ↑
+            </IconButton>
+            <IconButton
+              label={isLast ? 'Already at the bottom' : 'Move down'}
+              onClick={onMoveDown}
+              disabled={isLast || busy}
+            >
+              ↓
+            </IconButton>
+            {/* No delete — guardians stay on the list as long as
+                they're in the family. */}
           </div>
         </td>
       )}
@@ -1024,8 +1076,7 @@ function GuardianContactRow({
 function ManualContactRow({
   contact,
   index,
-  manualIndex,
-  manualTotal,
+  total,
   editable,
   busy,
   onMoveUp,
@@ -1033,8 +1084,7 @@ function ManualContactRow({
 }: {
   contact: FamilyEmergencyContactDto;
   index: number;
-  manualIndex: number;
-  manualTotal: number;
+  total: number;
   editable: boolean;
   busy: boolean;
   onMoveUp: () => void;
@@ -1042,8 +1092,8 @@ function ManualContactRow({
 }) {
   const remove = useDeleteFamilyEmergencyContact(contact.id);
   const { toast } = useToast();
-  const isFirst = manualIndex === 0;
-  const isLast = manualIndex === manualTotal - 1;
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
 
   async function onRemove() {
     if (typeof window !== 'undefined' && !window.confirm('Remove ' + contact.name + '?')) return;

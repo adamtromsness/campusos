@@ -227,6 +227,10 @@ export class FamilyMemberDto {
   // pick the child up from school. Surfaced + togglable on the
   // Emergency Contacts tab. Default true at row-creation time.
   @ApiProperty() emergencyAuthorizedPickup!: boolean;
+  // Position in the unified emergency-contacts list, shared with
+  // platform_family_emergency_contacts.priority_order. Default 0
+  // until the first reorder fans positions out.
+  @ApiProperty() emergencyPriorityOrder!: number;
   @ApiPropertyOptional() inviteCode?: string | null;
   @ApiPropertyOptional() inviteSentAt?: string | null;
 }

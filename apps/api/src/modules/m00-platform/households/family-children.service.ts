@@ -187,6 +187,7 @@ export class FamilyChildrenService {
         member_role: string;
         is_primary_contact: boolean;
         emergency_authorized_pickup: boolean;
+        emergency_priority_order: number;
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
@@ -203,6 +204,7 @@ export class FamilyChildrenService {
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
               pfm.emergency_authorized_pickup,
+              pfm.emergency_priority_order,
               pfm.status,
               pfm.invite_code,
               pfm.invite_sent_at::text AS invite_sent_at,
@@ -236,6 +238,7 @@ export class FamilyChildrenService {
         personId,
       ),
       emergencyAuthorizedPickup: r.emergency_authorized_pickup,
+      emergencyPriorityOrder: r.emergency_priority_order,
       inviteCode: r.invite_code,
       inviteSentAt: r.invite_sent_at,
     }));
@@ -962,11 +965,23 @@ export class FamilyChildrenService {
   }
 
   /**
-   * Bulk reorder. Clamps the input ids to the caller's family rows
-   * to defend against cross-family id smuggling, then assigns
-   * priority_order = position in array. Ids not in the input keep
-   * their position by being pushed to the end in their original
-   * order — useful when the UI sends a partial reorder.
+   * Bulk reorder across the unified guardians + manual-contacts
+   * namespace.
+   *
+   * Input ids can be either:
+   *   - platform_family_members.id (a guardian row)
+   *   - platform_family_emergency_contacts.id (a manual contact row)
+   *
+   * The server identifies which table each id belongs to via lookup
+   * sets built from the caller's family, then assigns position =
+   * array index to whichever table's priority column. Cross-family
+   * ids are filtered out (no leak); ids not in the input are
+   * appended at the end in their existing relative order so a
+   * "send a partial reorder" client doesn't lose rows.
+   *
+   * Returns the refreshed manual-contacts list (matching the
+   * existing endpoint shape). The client's React Query invalidation
+   * will refetch /family separately for the guardian-side changes.
    */
   async reorderFamilyEmergencyContacts(
     personId: string,
@@ -975,22 +990,40 @@ export class FamilyChildrenService {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
 
-    const familyRows = await this.prisma.platformFamilyEmergencyContact.findMany({
+    const manualRows = await this.prisma.platformFamilyEmergencyContact.findMany({
       where: { familyId },
       orderBy: [{ priorityOrder: 'asc' }, { createdAt: 'asc' }],
       select: { id: true },
     });
-    const familyIdSet = new Set(familyRows.map((r) => r.id));
-    const filtered = orderedIds.filter((id) => familyIdSet.has(id));
-    const remaining = familyRows.map((r) => r.id).filter((id) => !filtered.includes(id));
-    const finalOrder = [...filtered, ...remaining];
+    const memberRows = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      orderBy: [{ joinedAt: 'asc' }],
+      select: { id: true },
+    });
+
+    const manualIdSet = new Set(manualRows.map((r) => r.id));
+    const memberIdSet = new Set(memberRows.map((r) => r.id));
+    const validIds = new Set<string>([...manualIdSet, ...memberIdSet]);
+
+    const filtered = orderedIds.filter((id) => validIds.has(id));
+    // Append any ids not in the input — guardians first (by joined_at),
+    // manuals next (by existing priority). Keeps untouched rows in a
+    // sensible relative order on partial-reorder calls.
+    const remainingMembers = memberRows.map((r) => r.id).filter((id) => !filtered.includes(id));
+    const remainingManuals = manualRows.map((r) => r.id).filter((id) => !filtered.includes(id));
+    const finalOrder = [...filtered, ...remainingMembers, ...remainingManuals];
 
     await this.prisma.$transaction(
       finalOrder.map((id, idx) =>
-        this.prisma.platformFamilyEmergencyContact.update({
-          where: { id },
-          data: { priorityOrder: idx, updatedAt: new Date() },
-        }),
+        memberIdSet.has(id)
+          ? this.prisma.familyMember.update({
+              where: { id },
+              data: { emergencyPriorityOrder: idx, updatedAt: new Date() },
+            })
+          : this.prisma.platformFamilyEmergencyContact.update({
+              where: { id },
+              data: { priorityOrder: idx, updatedAt: new Date() },
+            }),
       ),
     );
 
@@ -2414,6 +2447,7 @@ export class FamilyChildrenService {
         member_role: string;
         is_primary_contact: boolean;
         emergency_authorized_pickup: boolean;
+        emergency_priority_order: number;
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
@@ -2430,6 +2464,7 @@ export class FamilyChildrenService {
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
               pfm.emergency_authorized_pickup,
+              pfm.emergency_priority_order,
               pfm.status,
               pfm.invite_code,
               pfm.invite_sent_at::text AS invite_sent_at,
@@ -2460,6 +2495,7 @@ export class FamilyChildrenService {
         viewerPersonId ?? '',
       ),
       emergencyAuthorizedPickup: row.emergency_authorized_pickup,
+      emergencyPriorityOrder: row.emergency_priority_order,
       inviteCode: row.invite_code,
       inviteSentAt: row.invite_sent_at,
     };

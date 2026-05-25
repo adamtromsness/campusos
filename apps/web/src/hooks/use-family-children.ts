@@ -116,6 +116,10 @@ export interface FamilyMemberDto {
   // Family-level pickup-authorization toggle. Surfaced on the
   // family Emergency Contacts tab; defaults to true at row creation.
   emergencyAuthorizedPickup: boolean;
+  // Position in the unified emergency-contacts list (shared
+  // namespace with platform_family_emergency_contacts.priority_order).
+  // Default 0 until the first reorder fans positions out.
+  emergencyPriorityOrder: number;
   inviteCode: string | null;
   inviteSentAt: string | null;
 }
