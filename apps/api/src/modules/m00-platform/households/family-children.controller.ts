@@ -16,7 +16,11 @@ import type { Request } from 'express';
 import { FamilyChildrenService } from './family-children.service';
 import {
   AcceptFamilyLinkDto,
+  AddChildEmergencyContactDto,
   AddFamilyMemberDto,
+  ChildDietaryInfoDto,
+  ChildEmergencyContactDto,
+  ChildMedicalInfoDto,
   CreateChildAccountDto,
   CreateFamilyChildDto,
   CreateMemberAccountDto,
@@ -29,6 +33,9 @@ import {
   InviteGuardianDto,
   SendChildLinkDto,
   SendMemberInviteDto,
+  UpdateChildDietaryInfoDto,
+  UpdateChildEmergencyContactDto,
+  UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
   UpdateFamilyMemberDto,
 } from './dto/family-child.dto';
@@ -243,5 +250,95 @@ export class FamilyChildrenController {
     @Body() dto: SendMemberInviteDto,
   ): Promise<FamilyMemberDto> {
     return this.children.sendMemberInvite(req.user!.personId, id, dto);
+  }
+
+  // ─── Child profile sections — parent-only ─────────────────
+  //
+  // Pre-enrolment medical / emergency-contact / dietary data lives
+  // on platform tables (see migration
+  // 20260525110000_platform_child_health_dietary_emergency).
+  // Every endpoint here is gated by requireOwnedRow inside the
+  // service so a CHILD viewer or a cross-family attacker can't read
+  // or write another family's records.
+
+  @Get('children/:id/medical')
+  @ApiOperation({
+    summary: 'Read a LINKED child\'s medical record. Returns an empty shape if none stored yet.',
+  })
+  async getMedical(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ChildMedicalInfoDto> {
+    return this.children.getChildMedical(req.user!.personId, id);
+  }
+
+  @Patch('children/:id/medical')
+  @ApiOperation({ summary: 'Upsert a LINKED child\'s medical record (whole-list replace).' })
+  async updateMedical(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateChildMedicalInfoDto,
+  ): Promise<ChildMedicalInfoDto> {
+    return this.children.updateChildMedical(req.user!.personId, id, dto);
+  }
+
+  @Get('children/:id/emergency-contacts')
+  @ApiOperation({ summary: 'List emergency contacts for a LINKED child.' })
+  async listEmergencyContacts(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ChildEmergencyContactDto[]> {
+    return this.children.listChildEmergencyContacts(req.user!.personId, id);
+  }
+
+  @Post('children/:id/emergency-contacts')
+  @ApiOperation({ summary: 'Add an emergency contact for a LINKED child.' })
+  async addEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddChildEmergencyContactDto,
+  ): Promise<ChildEmergencyContactDto> {
+    return this.children.addChildEmergencyContact(req.user!.personId, id, dto);
+  }
+
+  @Patch('children/:id/emergency-contacts/:contactId')
+  @ApiOperation({ summary: 'Update an emergency contact.' })
+  async updateEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body() dto: UpdateChildEmergencyContactDto,
+  ): Promise<ChildEmergencyContactDto> {
+    return this.children.updateChildEmergencyContact(req.user!.personId, id, contactId, dto);
+  }
+
+  @Delete('children/:id/emergency-contacts/:contactId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove an emergency contact.' })
+  async removeEmergencyContact(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+  ): Promise<void> {
+    await this.children.removeChildEmergencyContact(req.user!.personId, id, contactId);
+  }
+
+  @Get('children/:id/dietary')
+  @ApiOperation({ summary: 'Read dietary info for a LINKED child.' })
+  async getDietary(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ChildDietaryInfoDto> {
+    return this.children.getChildDietary(req.user!.personId, id);
+  }
+
+  @Patch('children/:id/dietary')
+  @ApiOperation({ summary: 'Upsert dietary info for a LINKED child.' })
+  async updateDietary(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateChildDietaryInfoDto,
+  ): Promise<ChildDietaryInfoDto> {
+    return this.children.updateChildDietary(req.user!.personId, id, dto);
   }
 }

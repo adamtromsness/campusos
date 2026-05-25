@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -12,7 +13,15 @@ import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-reso
 import { RedisService } from '@shared/cache';
 import {
   AcceptFamilyLinkDto,
+  AddChildEmergencyContactDto,
   AddFamilyMemberDto,
+  ChildAllergyEntry,
+  ChildConditionEntry,
+  ChildDietaryInfoDto,
+  ChildEmergencyContactDto,
+  ChildFoodAllergyEntry,
+  ChildMedicalInfoDto,
+  ChildMedicationEntry,
   CreateChildAccountDto,
   CreateFamilyChildDto,
   CreateMemberAccountDto,
@@ -28,6 +37,9 @@ import {
   InviteGuardianDto,
   SendChildLinkDto,
   SendMemberInviteDto,
+  UpdateChildDietaryInfoDto,
+  UpdateChildEmergencyContactDto,
+  UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
   UpdateFamilyMemberDto,
 } from './dto/family-child.dto';
@@ -1706,6 +1718,333 @@ export class FamilyChildrenService {
       // eslint-disable-next-line no-console
       console.warn('[family-children] persona cache refresh failed: ' + (e?.message || e));
     }
+  }
+
+  // ─── Child medical / emergency / dietary ───────────────────
+  //
+  // TODO: sync platform medical/emergency/dietary to tenant tables
+  // on enrolment. When sis_students is created for the linked
+  // person, a worker reads these three platform tables + seeds
+  // hlth_health_records / sis_emergency_contacts / fds_dietary_
+  // restrictions and flips the source-of-truth from platform →
+  // tenant. Until that worker ships, these endpoints are the only
+  // surface and platform_child_* are authoritative.
+
+  /**
+   * Refuses every child-section endpoint when the row isn't a
+   * LINKED child of the caller's family. requireOwnedRow already
+   * enforces cross-family isolation; this helper layers on the
+   * LINKED check (no iam_person → no row to attach medical info to).
+   * Returns the resolved family_id so callers can stamp it onto the
+   * new row without a second query.
+   */
+  private async requireLinkedChildOwned(
+    personId: string,
+    childId: string,
+  ): Promise<{ familyId: string; personId: string }> {
+    const row = await this.requireOwnedRow(personId, childId);
+    if (row.status !== 'LINKED' || !row.person_id) {
+      throw new BadRequestException(
+        'This action requires a linked CampusOS account. Create the account first.',
+      );
+    }
+    return { familyId: row.family_id, personId: row.person_id };
+  }
+
+  async getChildMedical(callerPersonId: string, childId: string): Promise<ChildMedicalInfoDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const row = await this.prisma.platformChildMedicalInfo.findUnique({
+      where: { personId },
+    });
+    return this.toMedicalDto(personId, row);
+  }
+
+  async updateChildMedical(
+    callerPersonId: string,
+    childId: string,
+    dto: UpdateChildMedicalInfoDto,
+  ): Promise<ChildMedicalInfoDto> {
+    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const upsertId = generateId();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_child_medical_info
+         (id, person_id, family_id, allergies, medications, conditions,
+          doctor_name, doctor_phone, doctor_clinic,
+          insurance_provider, insurance_policy, insurance_group,
+          blood_type, medical_notes)
+       VALUES ($1::uuid, $2::uuid, $3::uuid,
+               COALESCE($4::jsonb, '[]'::jsonb),
+               COALESCE($5::jsonb, '[]'::jsonb),
+               COALESCE($6::jsonb, '[]'::jsonb),
+               $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (person_id) DO UPDATE SET
+         allergies = COALESCE(EXCLUDED.allergies, platform_child_medical_info.allergies),
+         medications = COALESCE(EXCLUDED.medications, platform_child_medical_info.medications),
+         conditions = COALESCE(EXCLUDED.conditions, platform_child_medical_info.conditions),
+         doctor_name = COALESCE($7, platform_child_medical_info.doctor_name),
+         doctor_phone = COALESCE($8, platform_child_medical_info.doctor_phone),
+         doctor_clinic = COALESCE($9, platform_child_medical_info.doctor_clinic),
+         insurance_provider = COALESCE($10, platform_child_medical_info.insurance_provider),
+         insurance_policy = COALESCE($11, platform_child_medical_info.insurance_policy),
+         insurance_group = COALESCE($12, platform_child_medical_info.insurance_group),
+         blood_type = COALESCE($13, platform_child_medical_info.blood_type),
+         medical_notes = COALESCE($14, platform_child_medical_info.medical_notes),
+         updated_at = now()`,
+      upsertId,
+      personId,
+      familyId,
+      dto.allergies !== undefined ? JSON.stringify(dto.allergies) : null,
+      dto.medications !== undefined ? JSON.stringify(dto.medications) : null,
+      dto.conditions !== undefined ? JSON.stringify(dto.conditions) : null,
+      dto.doctorName ?? null,
+      dto.doctorPhone ?? null,
+      dto.doctorClinic ?? null,
+      dto.insuranceProvider ?? null,
+      dto.insurancePolicy ?? null,
+      dto.insuranceGroup ?? null,
+      dto.bloodType ?? null,
+      dto.medicalNotes ?? null,
+    );
+    return this.getChildMedical(callerPersonId, childId);
+  }
+
+  private toMedicalDto(
+    personId: string,
+    row: {
+      allergies: unknown;
+      medications: unknown;
+      conditions: unknown;
+      doctorName: string | null;
+      doctorPhone: string | null;
+      doctorClinic: string | null;
+      insuranceProvider: string | null;
+      insurancePolicy: string | null;
+      insuranceGroup: string | null;
+      bloodType: string | null;
+      medicalNotes: string | null;
+    } | null,
+  ): ChildMedicalInfoDto {
+    if (!row) {
+      // Don't write an empty row eagerly — the upsert path handles
+      // first-write. Returning the empty shape lets the form render
+      // without an explicit 404 case.
+      return {
+        personId,
+        allergies: [],
+        medications: [],
+        conditions: [],
+        doctorName: null,
+        doctorPhone: null,
+        doctorClinic: null,
+        insuranceProvider: null,
+        insurancePolicy: null,
+        insuranceGroup: null,
+        bloodType: null,
+        medicalNotes: null,
+      };
+    }
+    return {
+      personId,
+      allergies: Array.isArray(row.allergies) ? (row.allergies as ChildAllergyEntry[]) : [],
+      medications: Array.isArray(row.medications)
+        ? (row.medications as ChildMedicationEntry[])
+        : [],
+      conditions: Array.isArray(row.conditions) ? (row.conditions as ChildConditionEntry[]) : [],
+      doctorName: row.doctorName,
+      doctorPhone: row.doctorPhone,
+      doctorClinic: row.doctorClinic,
+      insuranceProvider: row.insuranceProvider,
+      insurancePolicy: row.insurancePolicy,
+      insuranceGroup: row.insuranceGroup,
+      bloodType: row.bloodType,
+      medicalNotes: row.medicalNotes,
+    };
+  }
+
+  // ─── Emergency contacts ────────────────────────────────────
+
+  async listChildEmergencyContacts(
+    callerPersonId: string,
+    childId: string,
+  ): Promise<ChildEmergencyContactDto[]> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const rows = await this.prisma.platformChildEmergencyContact.findMany({
+      where: { personId },
+      orderBy: [{ priorityOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map(this.toEmergencyDto);
+  }
+
+  async addChildEmergencyContact(
+    callerPersonId: string,
+    childId: string,
+    dto: AddChildEmergencyContactDto,
+  ): Promise<ChildEmergencyContactDto> {
+    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const id = generateId();
+    try {
+      await this.prisma.platformChildEmergencyContact.create({
+        data: {
+          id,
+          personId,
+          familyId,
+          name: dto.name.trim(),
+          relationship: dto.relationship.trim(),
+          phonePrimary: dto.phonePrimary.trim(),
+          phoneAlternate: dto.phoneAlternate?.trim() || null,
+          email: dto.email?.trim() || null,
+          authorizedPickup: dto.authorizedPickup ?? false,
+          priorityOrder: dto.priorityOrder ?? 0,
+        },
+      });
+    } catch (e: any) {
+      // UNIQUE (person_id, phone_primary)
+      if (e?.meta?.code === '23505' || /unique constraint/i.test(String(e))) {
+        throw new ConflictException(
+          'A contact with that primary phone number already exists for this child.',
+        );
+      }
+      throw e;
+    }
+    const row = await this.prisma.platformChildEmergencyContact.findUnique({ where: { id } });
+    return this.toEmergencyDto(row!);
+  }
+
+  async updateChildEmergencyContact(
+    callerPersonId: string,
+    childId: string,
+    contactId: string,
+    dto: UpdateChildEmergencyContactDto,
+  ): Promise<ChildEmergencyContactDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformChildEmergencyContact.findUnique({
+      where: { id: contactId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Emergency contact not found');
+    }
+    const patch: Record<string, unknown> = {};
+    if (dto.name !== undefined) patch.name = dto.name.trim();
+    if (dto.relationship !== undefined) patch.relationship = dto.relationship.trim();
+    if (dto.phonePrimary !== undefined) patch.phonePrimary = dto.phonePrimary.trim();
+    if (dto.phoneAlternate !== undefined)
+      patch.phoneAlternate = dto.phoneAlternate ? dto.phoneAlternate.trim() : null;
+    if (dto.email !== undefined) patch.email = dto.email ? dto.email.trim() : null;
+    if (dto.authorizedPickup !== undefined) patch.authorizedPickup = dto.authorizedPickup;
+    if (dto.priorityOrder !== undefined) patch.priorityOrder = dto.priorityOrder;
+    if (Object.keys(patch).length === 0) return this.toEmergencyDto(existing);
+    patch.updatedAt = new Date();
+    const updated = await this.prisma.platformChildEmergencyContact.update({
+      where: { id: contactId },
+      data: patch,
+    });
+    return this.toEmergencyDto(updated);
+  }
+
+  async removeChildEmergencyContact(
+    callerPersonId: string,
+    childId: string,
+    contactId: string,
+  ): Promise<void> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformChildEmergencyContact.findUnique({
+      where: { id: contactId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Emergency contact not found');
+    }
+    await this.prisma.platformChildEmergencyContact.delete({ where: { id: contactId } });
+  }
+
+  private toEmergencyDto(row: {
+    id: string;
+    name: string;
+    relationship: string;
+    phonePrimary: string;
+    phoneAlternate: string | null;
+    email: string | null;
+    authorizedPickup: boolean;
+    priorityOrder: number;
+  }): ChildEmergencyContactDto {
+    return {
+      id: row.id,
+      name: row.name,
+      relationship: row.relationship,
+      phonePrimary: row.phonePrimary,
+      phoneAlternate: row.phoneAlternate,
+      email: row.email,
+      authorizedPickup: row.authorizedPickup,
+      priorityOrder: row.priorityOrder,
+    };
+  }
+
+  // ─── Dietary ───────────────────────────────────────────────
+
+  async getChildDietary(callerPersonId: string, childId: string): Promise<ChildDietaryInfoDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const row = await this.prisma.platformChildDietaryInfo.findUnique({ where: { personId } });
+    return this.toDietaryDto(personId, row);
+  }
+
+  async updateChildDietary(
+    callerPersonId: string,
+    childId: string,
+    dto: UpdateChildDietaryInfoDto,
+  ): Promise<ChildDietaryInfoDto> {
+    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const upsertId = generateId();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_child_dietary_info
+         (id, person_id, family_id, dietary_type, food_allergies,
+          additional_restrictions, meal_preference)
+       VALUES ($1::uuid, $2::uuid, $3::uuid,
+               COALESCE($4, 'NONE'),
+               COALESCE($5::jsonb, '[]'::jsonb),
+               $6, $7)
+       ON CONFLICT (person_id) DO UPDATE SET
+         dietary_type = COALESCE($4, platform_child_dietary_info.dietary_type),
+         food_allergies = COALESCE(EXCLUDED.food_allergies, platform_child_dietary_info.food_allergies),
+         additional_restrictions = COALESCE($6, platform_child_dietary_info.additional_restrictions),
+         meal_preference = COALESCE($7, platform_child_dietary_info.meal_preference),
+         updated_at = now()`,
+      upsertId,
+      personId,
+      familyId,
+      dto.dietaryType ?? null,
+      dto.foodAllergies !== undefined ? JSON.stringify(dto.foodAllergies) : null,
+      dto.additionalRestrictions ?? null,
+      dto.mealPreference ?? null,
+    );
+    return this.getChildDietary(callerPersonId, childId);
+  }
+
+  private toDietaryDto(
+    personId: string,
+    row: {
+      dietaryType: string;
+      foodAllergies: unknown;
+      additionalRestrictions: string | null;
+      mealPreference: string | null;
+    } | null,
+  ): ChildDietaryInfoDto {
+    if (!row) {
+      return {
+        personId,
+        dietaryType: 'NONE',
+        foodAllergies: [],
+        additionalRestrictions: null,
+        mealPreference: null,
+      };
+    }
+    return {
+      personId,
+      dietaryType: row.dietaryType as ChildDietaryInfoDto['dietaryType'],
+      foodAllergies: Array.isArray(row.foodAllergies)
+        ? (row.foodAllergies as ChildFoodAllergyEntry[])
+        : [],
+      additionalRestrictions: row.additionalRestrictions,
+      mealPreference: row.mealPreference,
+    };
   }
 }
 

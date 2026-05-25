@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEmail, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+} from 'class-validator';
 
 export const FAMILY_CHILD_STATUSES = ['PLACEHOLDER', 'PENDING_LINK', 'LINKED'] as const;
 export type FamilyChildStatus = (typeof FAMILY_CHILD_STATUSES)[number];
@@ -239,6 +248,141 @@ export class CreateMemberAccountDto {
  */
 export class SendMemberInviteDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+}
+
+// ─── Child medical / emergency / dietary value objects ────
+
+export const ALLERGY_SEVERITIES = ['MILD', 'MODERATE', 'SEVERE', 'LIFE_THREATENING'] as const;
+export const ALLERGY_TYPES = ['FOOD', 'ENVIRONMENTAL', 'MEDICATION', 'OTHER'] as const;
+export const DIETARY_TYPES = [
+  'NONE',
+  'VEGETARIAN',
+  'VEGAN',
+  'HALAL',
+  'KOSHER',
+  'GLUTEN_FREE',
+  'DAIRY_FREE',
+  'OTHER',
+] as const;
+
+export class ChildAllergyEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional({ enum: ALLERGY_SEVERITIES }) severity?: (typeof ALLERGY_SEVERITIES)[number];
+  @ApiPropertyOptional({ enum: ALLERGY_TYPES }) type?: (typeof ALLERGY_TYPES)[number];
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class ChildMedicationEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() dosage?: string;
+  @ApiPropertyOptional() frequency?: string;
+  @ApiPropertyOptional() prescriber?: string;
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class ChildConditionEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() diagnosedDate?: string;
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class ChildFoodAllergyEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() severity?: (typeof ALLERGY_SEVERITIES)[number];
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class ChildMedicalInfoDto {
+  @ApiProperty() personId!: string;
+  @ApiProperty({ type: [ChildAllergyEntry] }) allergies!: ChildAllergyEntry[];
+  @ApiProperty({ type: [ChildMedicationEntry] }) medications!: ChildMedicationEntry[];
+  @ApiProperty({ type: [ChildConditionEntry] }) conditions!: ChildConditionEntry[];
+  @ApiPropertyOptional() doctorName?: string | null;
+  @ApiPropertyOptional() doctorPhone?: string | null;
+  @ApiPropertyOptional() doctorClinic?: string | null;
+  @ApiPropertyOptional() insuranceProvider?: string | null;
+  @ApiPropertyOptional() insurancePolicy?: string | null;
+  @ApiPropertyOptional() insuranceGroup?: string | null;
+  @ApiPropertyOptional() bloodType?: string | null;
+  @ApiPropertyOptional() medicalNotes?: string | null;
+}
+
+export class UpdateChildMedicalInfoDto {
+  // Whole-list replace semantics on the array columns — simpler
+  // than item-level patch and makes deletes explicit (a missing
+  // entry from the payload disappears from the row).
+  @ApiPropertyOptional({ type: [ChildAllergyEntry] }) @IsOptional() allergies?: ChildAllergyEntry[];
+  @ApiPropertyOptional({ type: [ChildMedicationEntry] })
+  @IsOptional()
+  medications?: ChildMedicationEntry[];
+  @ApiPropertyOptional({ type: [ChildConditionEntry] })
+  @IsOptional()
+  conditions?: ChildConditionEntry[];
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorName?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) doctorPhone?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorClinic?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) insuranceProvider?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insurancePolicy?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insuranceGroup?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) bloodType?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) medicalNotes?: string | null;
+}
+
+export class ChildEmergencyContactDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() relationship!: string;
+  @ApiProperty() phonePrimary!: string;
+  @ApiPropertyOptional() phoneAlternate?: string | null;
+  @ApiPropertyOptional() email?: string | null;
+  @ApiProperty() authorizedPickup!: boolean;
+  @ApiProperty() priorityOrder!: number;
+}
+
+export class AddChildEmergencyContactDto {
+  @ApiProperty() @IsString() @MaxLength(200) name!: string;
+  @ApiProperty() @IsString() @MaxLength(80) relationship!: string;
+  @ApiProperty() @IsString() @MaxLength(40) phonePrimary!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
+  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
+}
+
+export class UpdateChildEmergencyContactDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) relationship?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phonePrimary?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phoneAlternate?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() authorizedPickup?: boolean;
+  @ApiPropertyOptional() @IsOptional() priorityOrder?: number;
+}
+
+export class ChildDietaryInfoDto {
+  @ApiProperty() personId!: string;
+  @ApiProperty({ enum: DIETARY_TYPES }) dietaryType!: (typeof DIETARY_TYPES)[number];
+  @ApiProperty({ type: [ChildFoodAllergyEntry] }) foodAllergies!: ChildFoodAllergyEntry[];
+  @ApiPropertyOptional() additionalRestrictions?: string | null;
+  @ApiPropertyOptional() mealPreference?: string | null;
+}
+
+export class UpdateChildDietaryInfoDto {
+  @ApiPropertyOptional({ enum: DIETARY_TYPES })
+  @IsOptional()
+  @IsIn(DIETARY_TYPES)
+  dietaryType?: (typeof DIETARY_TYPES)[number];
+  @ApiPropertyOptional({ type: [ChildFoodAllergyEntry] })
+  @IsOptional()
+  foodAllergies?: ChildFoodAllergyEntry[];
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  additionalRestrictions?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) mealPreference?: string | null;
 }
 
 export class FamilyHeaderDto {

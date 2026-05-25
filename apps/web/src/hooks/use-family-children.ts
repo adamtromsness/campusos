@@ -398,3 +398,207 @@ export function useSendMemberInvite(id: string) {
     },
   });
 }
+
+// ─── Child profile sections ───────────────────────────────
+
+export type AllergySeverity = 'MILD' | 'MODERATE' | 'SEVERE' | 'LIFE_THREATENING';
+export type AllergyType = 'FOOD' | 'ENVIRONMENTAL' | 'MEDICATION' | 'OTHER';
+export type DietaryType =
+  | 'NONE'
+  | 'VEGETARIAN'
+  | 'VEGAN'
+  | 'HALAL'
+  | 'KOSHER'
+  | 'GLUTEN_FREE'
+  | 'DAIRY_FREE'
+  | 'OTHER';
+
+export interface ChildAllergyEntry {
+  name: string;
+  severity?: AllergySeverity;
+  type?: AllergyType;
+  notes?: string;
+}
+export interface ChildMedicationEntry {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  prescriber?: string;
+  notes?: string;
+}
+export interface ChildConditionEntry {
+  name: string;
+  diagnosedDate?: string;
+  notes?: string;
+}
+export interface ChildFoodAllergyEntry {
+  name: string;
+  severity?: AllergySeverity;
+  notes?: string;
+}
+
+export interface ChildMedicalInfoDto {
+  personId: string;
+  allergies: ChildAllergyEntry[];
+  medications: ChildMedicationEntry[];
+  conditions: ChildConditionEntry[];
+  doctorName: string | null;
+  doctorPhone: string | null;
+  doctorClinic: string | null;
+  insuranceProvider: string | null;
+  insurancePolicy: string | null;
+  insuranceGroup: string | null;
+  bloodType: string | null;
+  medicalNotes: string | null;
+}
+export interface UpdateChildMedicalInfoPayload {
+  allergies?: ChildAllergyEntry[];
+  medications?: ChildMedicationEntry[];
+  conditions?: ChildConditionEntry[];
+  doctorName?: string | null;
+  doctorPhone?: string | null;
+  doctorClinic?: string | null;
+  insuranceProvider?: string | null;
+  insurancePolicy?: string | null;
+  insuranceGroup?: string | null;
+  bloodType?: string | null;
+  medicalNotes?: string | null;
+}
+
+export interface ChildEmergencyContactDto {
+  id: string;
+  name: string;
+  relationship: string;
+  phonePrimary: string;
+  phoneAlternate: string | null;
+  email: string | null;
+  authorizedPickup: boolean;
+  priorityOrder: number;
+}
+export interface AddChildEmergencyContactPayload {
+  name: string;
+  relationship: string;
+  phonePrimary: string;
+  phoneAlternate?: string;
+  email?: string;
+  authorizedPickup?: boolean;
+  priorityOrder?: number;
+}
+export interface UpdateChildEmergencyContactPayload {
+  name?: string;
+  relationship?: string;
+  phonePrimary?: string;
+  phoneAlternate?: string | null;
+  email?: string | null;
+  authorizedPickup?: boolean;
+  priorityOrder?: number;
+}
+
+export interface ChildDietaryInfoDto {
+  personId: string;
+  dietaryType: DietaryType;
+  foodAllergies: ChildFoodAllergyEntry[];
+  additionalRestrictions: string | null;
+  mealPreference: string | null;
+}
+export interface UpdateChildDietaryInfoPayload {
+  dietaryType?: DietaryType;
+  foodAllergies?: ChildFoodAllergyEntry[];
+  additionalRestrictions?: string | null;
+  mealPreference?: string | null;
+}
+
+const childSectionInvalidate = (qc: ReturnType<typeof useQueryClient>, childId: string) => {
+  void qc.invalidateQueries({ queryKey: ['family', 'child', childId] });
+};
+
+export function useChildMedical(childId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'child', childId, 'medical'] as const,
+    queryFn: () =>
+      apiFetch<ChildMedicalInfoDto>('/api/v1/family/children/' + childId + '/medical'),
+    enabled: enabled && childId.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateChildMedical(childId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateChildMedicalInfoPayload) =>
+      apiFetch<ChildMedicalInfoDto>('/api/v1/family/children/' + childId + '/medical', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
+
+export function useChildEmergencyContacts(childId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'child', childId, 'emergency-contacts'] as const,
+    queryFn: () =>
+      apiFetch<ChildEmergencyContactDto[]>(
+        '/api/v1/family/children/' + childId + '/emergency-contacts',
+      ),
+    enabled: enabled && childId.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useAddChildEmergencyContact(childId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddChildEmergencyContactPayload) =>
+      apiFetch<ChildEmergencyContactDto>(
+        '/api/v1/family/children/' + childId + '/emergency-contacts',
+        { method: 'POST', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
+
+export function useUpdateChildEmergencyContact(childId: string, contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateChildEmergencyContactPayload) =>
+      apiFetch<ChildEmergencyContactDto>(
+        '/api/v1/family/children/' + childId + '/emergency-contacts/' + contactId,
+        { method: 'PATCH', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
+
+export function useDeleteChildEmergencyContact(childId: string, contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/family/children/' + childId + '/emergency-contacts/' + contactId, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
+
+export function useChildDietary(childId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'child', childId, 'dietary'] as const,
+    queryFn: () =>
+      apiFetch<ChildDietaryInfoDto>('/api/v1/family/children/' + childId + '/dietary'),
+    enabled: enabled && childId.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateChildDietary(childId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateChildDietaryInfoPayload) =>
+      apiFetch<ChildDietaryInfoDto>('/api/v1/family/children/' + childId + '/dietary', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
