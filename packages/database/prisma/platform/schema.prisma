@@ -563,6 +563,11 @@ model FamilyMember {
   // Lifecycle: PLACEHOLDER → PENDING_INVITE → ACTIVE. ACTIVE is the
   // default so legacy rows that pre-date this column read correctly.
   status           String     @default("ACTIVE")
+  // Whether this guardian is authorized to pick the child up from
+  // school. Surfaced on the /family/settings Emergency Contacts tab
+  // and inherited by every child whose Contact tab pulls from family.
+  // Default true — guardians are typically pickup-authorized.
+  emergencyAuthorizedPickup Boolean @default(true) @map("emergency_authorized_pickup")
   firstName        String?    @map("first_name")
   lastName         String?    @map("last_name")
   email            String?

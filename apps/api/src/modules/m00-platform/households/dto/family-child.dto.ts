@@ -214,11 +214,19 @@ export class FamilyMemberDto {
   @ApiProperty() lastName!: string;
   @ApiPropertyOptional() preferredName?: string | null;
   @ApiPropertyOptional() email?: string | null;
+  // Surfaced for ACTIVE guardians (joined to iam_person). Used by
+  // the family Emergency Contacts tab to render the guardian row's
+  // phone column. Null for PLACEHOLDER / PENDING_INVITE rows.
+  @ApiPropertyOptional() primaryPhone?: string | null;
   @ApiProperty() memberRole!: string;
   @ApiProperty() isPrimaryContact!: boolean;
   @ApiProperty() isCurrentUser!: boolean;
   @ApiProperty({ enum: FAMILY_MEMBER_STATUSES }) status!: FamilyMemberStatus;
   @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
+  // Family-level preference: whether this guardian is allowed to
+  // pick the child up from school. Surfaced + togglable on the
+  // Emergency Contacts tab. Default true at row-creation time.
+  @ApiProperty() emergencyAuthorizedPickup!: boolean;
   @ApiPropertyOptional() inviteCode?: string | null;
   @ApiPropertyOptional() inviteSentAt?: string | null;
 }
@@ -245,6 +253,11 @@ export class UpdateFamilyMemberDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) lastName?: string;
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) relationship?: string;
+  // Emergency-pickup toggle — settable on ACTIVE guardians too, even
+  // though the rest of this DTO refuses ACTIVE rows. Identity fields
+  // belong to the guardian's own profile; pickup is a family-level
+  // preference and stays here.
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() emergencyAuthorizedPickup?: boolean;
 }
 
 /**

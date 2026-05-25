@@ -105,11 +105,17 @@ export interface FamilyMemberDto {
   lastName: string;
   preferredName: string | null;
   email: string | null;
+  // Surfaced for ACTIVE guardians (joined to iam_person). Used by the
+  // family Emergency Contacts tab to render the guardian's phone.
+  primaryPhone: string | null;
   memberRole: string;
   isPrimaryContact: boolean;
   isCurrentUser: boolean;
   status: FamilyMemberStatus;
   accessLevel: FamilyAccessLevel;
+  // Family-level pickup-authorization toggle. Surfaced on the
+  // family Emergency Contacts tab; defaults to true at row creation.
+  emergencyAuthorizedPickup: boolean;
   inviteCode: string | null;
   inviteSentAt: string | null;
 }
@@ -126,6 +132,9 @@ export interface UpdateFamilyMemberPayload {
   lastName?: string;
   email?: string | null;
   relationship?: string;
+  // Settable for ACTIVE guardians too — the server allows the pickup
+  // toggle through even when identity edits would be refused.
+  emergencyAuthorizedPickup?: boolean;
 }
 
 export interface CreateMemberAccountPayload {

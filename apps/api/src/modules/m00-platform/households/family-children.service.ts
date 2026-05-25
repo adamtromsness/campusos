@@ -179,8 +179,10 @@ export class FamilyChildrenService {
         last_name: string;
         preferred_name: string | null;
         email: string | null;
+        primary_phone: string | null;
         member_role: string;
         is_primary_contact: boolean;
+        emergency_authorized_pickup: boolean;
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
@@ -193,8 +195,10 @@ export class FamilyChildrenService {
               COALESCE(p.last_name, pfm.last_name) AS last_name,
               p.preferred_name AS preferred_name,
               pfm.email AS email,
+              p.primary_phone AS primary_phone,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
+              pfm.emergency_authorized_pickup,
               pfm.status,
               pfm.invite_code,
               pfm.invite_sent_at::text AS invite_sent_at,
@@ -213,6 +217,7 @@ export class FamilyChildrenService {
       lastName: r.last_name,
       preferredName: r.preferred_name,
       email: r.email,
+      primaryPhone: r.primary_phone,
       memberRole: r.member_role,
       isPrimaryContact: r.is_primary_contact,
       isCurrentUser: r.person_id !== null && r.person_id === personId,
@@ -226,6 +231,7 @@ export class FamilyChildrenService {
         r.managed_by_person_id,
         personId,
       ),
+      emergencyAuthorizedPickup: r.emergency_authorized_pickup,
       inviteCode: r.invite_code,
       inviteSentAt: r.invite_sent_at,
     }));
@@ -1419,7 +1425,30 @@ export class FamilyChildrenService {
     dto: UpdateFamilyMemberDto,
   ): Promise<FamilyMemberDto> {
     const row = await this.requireOwnedMemberRow(personId, memberId);
+
+    // emergencyAuthorizedPickup is a family-level preference about
+    // the guardian, NOT an identity field — settable on ACTIVE rows
+    // too, even though firstName/lastName/email are not. Process it
+    // first, before the ACTIVE-reject guard, so a parent toggling
+    // pickup on a co-parent doesn't get the "edit their profile via
+    // /profile" error.
+    if (dto.emergencyAuthorizedPickup !== undefined) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+         SET emergency_authorized_pickup = $1, updated_at = now()
+         WHERE id = $2::uuid`,
+        dto.emergencyAuthorizedPickup,
+        memberId,
+      );
+    }
+
     if (row.status === 'ACTIVE') {
+      const wantsIdentityEdit =
+        dto.firstName !== undefined || dto.lastName !== undefined || dto.email !== undefined;
+      if (!wantsIdentityEdit) {
+        // Pickup-only update (or no-op) — return the freshly-updated row.
+        return this.requireMemberById(memberId, personId);
+      }
       const accessLevel = computeAccessLevel('LINKED', row.managed_by_person_id ?? null, personId);
       if (accessLevel === 'INDEPENDENT') {
         throw new HttpException(
@@ -1446,7 +1475,11 @@ export class FamilyChildrenService {
       set.push('email = $' + i++);
       args.push(dto.email ? dto.email.trim() : null);
     }
-    if (set.length === 0) return this.toMemberDto(row, personId);
+    if (set.length === 0) {
+      // The only field was the pickup toggle (already written above)
+      // or genuinely empty patch — return the fresh row either way.
+      return this.requireMemberById(memberId, personId);
+    }
     set.push('updated_at = now()');
     args.push(memberId);
     await this.prisma.$executeRawUnsafe(
@@ -2206,8 +2239,10 @@ export class FamilyChildrenService {
         last_name: string | null;
         preferred_name: string | null;
         email: string | null;
+        primary_phone: string | null;
         member_role: string;
         is_primary_contact: boolean;
+        emergency_authorized_pickup: boolean;
         status: string;
         invite_code: string | null;
         invite_sent_at: string | null;
@@ -2220,8 +2255,10 @@ export class FamilyChildrenService {
               COALESCE(p.last_name, pfm.last_name) AS last_name,
               p.preferred_name AS preferred_name,
               pfm.email AS email,
+              p.primary_phone AS primary_phone,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
+              pfm.emergency_authorized_pickup,
               pfm.status,
               pfm.invite_code,
               pfm.invite_sent_at::text AS invite_sent_at,
@@ -2241,6 +2278,7 @@ export class FamilyChildrenService {
       lastName: row.last_name ?? '',
       preferredName: row.preferred_name,
       email: row.email,
+      primaryPhone: row.primary_phone,
       memberRole: row.member_role,
       isPrimaryContact: row.is_primary_contact,
       isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
@@ -2250,46 +2288,7 @@ export class FamilyChildrenService {
         row.managed_by_person_id,
         viewerPersonId ?? '',
       ),
-      inviteCode: row.invite_code,
-      inviteSentAt: row.invite_sent_at,
-    };
-  }
-
-  private toMemberDto(
-    row: {
-      id: string;
-      person_id: string | null;
-      first_name: string | null;
-      last_name: string | null;
-      email: string | null;
-      member_role: string;
-      is_primary_contact: boolean;
-      status: string;
-      invite_code: string | null;
-      invite_sent_at: string | null;
-    },
-    viewerPersonId?: string,
-  ): FamilyMemberDto {
-    return {
-      id: row.id,
-      personId: row.person_id,
-      firstName: row.first_name ?? '',
-      lastName: row.last_name ?? '',
-      preferredName: null,
-      email: row.email,
-      memberRole: row.member_role,
-      isPrimaryContact: row.is_primary_contact,
-      isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
-      status: row.status as FamilyMemberDto['status'],
-      // toMemberDto is only called from updateMember after a no-op
-      // PATCH (no fields supplied), where the row was loaded via
-      // requireOwnedMemberRow which doesn't fetch managed_by. The
-      // call site has already passed assertNotChildViewer + the
-      // ACTIVE-reject guard, so the access level here is purely
-      // informational — be conservative and report PLACEHOLDER for
-      // non-ACTIVE, INDEPENDENT for ACTIVE.
-      accessLevel:
-        row.status === 'ACTIVE' ? 'INDEPENDENT' : 'PLACEHOLDER',
+      emergencyAuthorizedPickup: row.emergency_authorized_pickup,
       inviteCode: row.invite_code,
       inviteSentAt: row.invite_sent_at,
     };

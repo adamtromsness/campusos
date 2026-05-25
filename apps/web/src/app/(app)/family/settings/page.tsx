@@ -9,13 +9,12 @@ import {
   useFamilyEmergencyContacts,
   useFamilySettings,
   useFamilyView,
-  usePeopleSearch,
   useReorderFamilyEmergencyContacts,
+  useUpdateFamilyMember,
   useUpdateFamilySettings,
   type FamilyEmergencyContactDto,
   type FamilyMemberDto,
   type FamilySettingsDto,
-  type PeopleSearchResult,
   type UpdateFamilySettingsPayload,
 } from '@/hooks/use-family-children';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
@@ -182,7 +181,9 @@ function Tabs({
       <div className="mt-6">
         {active === 'family' && <FamilyTab settings={settings} members={members} />}
         {active === 'addresses' && <AddressesTab settings={settings} />}
-        {active === 'emergency' && <EmergencyTab editable={settings.canEdit} />}
+        {active === 'emergency' && (
+          <EmergencyTab editable={settings.canEdit} members={members} />
+        )}
         {active === 'health' && <HealthTab settings={settings} />}
       </div>
     </>
@@ -596,26 +597,100 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
 
 // ─── Emergency tab ─────────────────────────────────────────
 
+// ─── Merged rows: guardians + manual contacts ──────────────
+
 /**
- * Table layout with priority up/down arrows and a Linked badge.
- * Linked contacts are CampusOS users — their name/phone/email
- * surface the current iam_person values via a server-side JOIN
- * and update automatically when the linked user changes their
- * own profile. Manual contacts are free-form rows.
+ * One row in the unified emergency-contacts table. Guardian rows
+ * are synthesised on the fly from useFamilyView.members; manual rows
+ * come straight from useFamilyEmergencyContacts. The two are joined
+ * in the UI (no backend merge) so each list keeps its own primary
+ * key + invalidation cadence.
  */
-function EmergencyTab({ editable }: { editable: boolean }) {
-  const { data, isLoading } = useFamilyEmergencyContacts();
+type EcRow =
+  | {
+      kind: 'guardian';
+      memberId: string;
+      personId: string | null;
+      name: string;
+      phone: string | null;
+      pickup: boolean;
+      isCurrentUser: boolean;
+    }
+  | {
+      kind: 'manual';
+      contact: FamilyEmergencyContactDto;
+    };
+
+const MANUAL_RELATIONSHIPS = [
+  'Grandparent',
+  'Aunt/Uncle',
+  'Sibling',
+  'Neighbor',
+  'Family Friend',
+  'Babysitter/Nanny',
+  'Other',
+];
+
+/**
+ * Family Emergency Contacts tab.
+ *
+ * Guardian rows are auto-populated from platform_family_members
+ * (ACTIVE rows only — placeholders without an iam_person have no
+ * phone to surface yet and would be useless on a contact list).
+ * They are non-deletable + their name/phone is read-only since
+ * those come from the guardian's own profile. The only editable
+ * bit is the pickup toggle.
+ *
+ * Manual rows are full CRUD. Reordering arrows act within manual
+ * rows only — cross-group interleaving would need a unified
+ * priority schema, which is deferred (the spec showed arrows on
+ * guardian rows too, but reordering 1-2 guardians is rarely useful
+ * in practice and would need a new family_members column + a
+ * second reorder endpoint).
+ *
+ * No people-search modal — the spec calls for manual-only adds on
+ * this surface. The /people/search endpoint still exists and can
+ * be wired into a future linked-contact flow if needed.
+ */
+function EmergencyTab({
+  editable,
+  members,
+}: {
+  editable: boolean;
+  members: FamilyMemberDto[];
+}) {
+  const { data: manualContacts, isLoading } = useFamilyEmergencyContacts();
   const reorder = useReorderFamilyEmergencyContacts();
   const [addOpen, setAddOpen] = useState(false);
   const { toast } = useToast();
 
-  const contacts = data ?? [];
+  const guardianRows: EcRow[] = members
+    .filter((m) => m.status === 'ACTIVE')
+    .map((m) => ({
+      kind: 'guardian' as const,
+      memberId: m.id,
+      personId: m.personId,
+      name:
+        (m.preferredName?.trim() ? m.preferredName : null) ||
+        [m.firstName, m.lastName].filter(Boolean).join(' ') ||
+        m.email ||
+        'Guardian',
+      phone: m.primaryPhone,
+      pickup: m.emergencyAuthorizedPickup,
+      isCurrentUser: m.isCurrentUser,
+    }));
+  const manualRows: EcRow[] = (manualContacts ?? []).map((c) => ({
+    kind: 'manual' as const,
+    contact: c,
+  }));
+  const rows: EcRow[] = [...guardianRows, ...manualRows];
 
-  async function moveContact(index: number, direction: 'up' | 'down') {
-    const swapWith = direction === 'up' ? index - 1 : index + 1;
+  async function moveManual(manualIndex: number, direction: 'up' | 'down') {
+    const contacts = manualContacts ?? [];
+    const swapWith = direction === 'up' ? manualIndex - 1 : manualIndex + 1;
     if (swapWith < 0 || swapWith >= contacts.length) return;
     const ids = contacts.map((c) => c.id);
-    [ids[index], ids[swapWith]] = [ids[swapWith]!, ids[index]!];
+    [ids[manualIndex], ids[swapWith]] = [ids[swapWith]!, ids[manualIndex]!];
     try {
       await reorder.mutateAsync(ids);
     } catch (err) {
@@ -627,12 +702,12 @@ function EmergencyTab({ editable }: { editable: boolean }) {
     <div className="flex flex-col gap-5">
       <Card
         title="Family emergency contacts"
-        description="Shared with every child whose Contact tab is set to inherit from family. Drag-free priority order — use the arrows. Linked contacts auto-update when the user changes their own profile."
+        description="Guardians appear automatically with their profile info. Add additional contacts manually below. Shared with every child whose Contact tab inherits from family."
       >
         {isLoading ? (
           <p className="text-sm text-gray-500">Loading…</p>
-        ) : contacts.length === 0 ? (
-          <p className="text-sm text-gray-500">No family emergency contacts yet.</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-gray-500">No emergency contacts yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -648,18 +723,28 @@ function EmergencyTab({ editable }: { editable: boolean }) {
                 </tr>
               </thead>
               <tbody>
-                {contacts.map((c, i) => (
-                  <EmergencyContactTableRow
-                    key={c.id}
-                    contact={c}
-                    index={i}
-                    total={contacts.length}
-                    editable={editable}
-                    busy={reorder.isPending}
-                    onMoveUp={() => void moveContact(i, 'up')}
-                    onMoveDown={() => void moveContact(i, 'down')}
-                  />
-                ))}
+                {rows.map((row, idx) =>
+                  row.kind === 'guardian' ? (
+                    <GuardianContactRow
+                      key={'guardian:' + row.memberId}
+                      row={row}
+                      index={idx}
+                      editable={editable}
+                    />
+                  ) : (
+                    <ManualContactRow
+                      key={'manual:' + row.contact.id}
+                      contact={row.contact}
+                      index={idx}
+                      manualIndex={idx - guardianRows.length}
+                      manualTotal={manualRows.length}
+                      editable={editable}
+                      busy={reorder.isPending}
+                      onMoveUp={() => void moveManual(idx - guardianRows.length, 'up')}
+                      onMoveDown={() => void moveManual(idx - guardianRows.length, 'down')}
+                    />
+                  ),
+                )}
               </tbody>
             </table>
           </div>
@@ -683,10 +768,102 @@ function EmergencyTab({ editable }: { editable: boolean }) {
   );
 }
 
-function EmergencyContactTableRow({
+function GuardianContactRow({
+  row,
+  index,
+  editable,
+}: {
+  row: Extract<EcRow, { kind: 'guardian' }>;
+  index: number;
+  editable: boolean;
+}) {
+  const update = useUpdateFamilyMember(row.memberId);
+  const { toast } = useToast();
+
+  async function togglePickup(next: boolean) {
+    try {
+      await update.mutateAsync({ emergencyAuthorizedPickup: next });
+      toast(next ? 'Authorized for pickup' : 'Pickup authorization removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  return (
+    <tr className="border-b border-gray-100 last:border-b-0">
+      <td className="px-2 py-3 text-gray-500">{index + 1}</td>
+      <td className="px-2 py-3">
+        <div className="font-medium text-gray-900">
+          {row.name}
+          {row.isCurrentUser && (
+            <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-3 text-gray-700">Parent/Guardian</td>
+      <td className="px-2 py-3 text-gray-700">
+        {row.phone ? (
+          row.phone
+        ) : (
+          <span
+            className="text-xs text-amber-700"
+            title="This guardian hasn't set a phone number on their profile yet."
+          >
+            ⚠️ No phone — ask them to update their profile
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-3">
+        {editable ? (
+          <label
+            className="inline-flex cursor-pointer items-center gap-1 text-sm"
+            title="Toggle whether this guardian is authorized to pick the child up from school"
+          >
+            <input
+              type="checkbox"
+              checked={row.pickup}
+              onChange={(e) => void togglePickup(e.target.checked)}
+              disabled={update.isPending}
+              className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+            />
+            <span className={row.pickup ? 'text-emerald-700' : 'text-gray-500'}>
+              {row.pickup ? '✅ Yes' : '❌ No'}
+            </span>
+          </label>
+        ) : row.pickup ? (
+          <span className="text-emerald-700">✅ Yes</span>
+        ) : (
+          <span className="text-gray-500">❌ No</span>
+        )}
+      </td>
+      <td className="px-2 py-3">
+        <span
+          title="Auto-populated from your family guardians. Name and phone come from this guardian's own profile."
+          className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-600/20"
+        >
+          Guardian
+        </span>
+      </td>
+      {editable && (
+        <td className="px-2 py-3">
+          <div className="flex items-center justify-end gap-1">
+            {/* Guardian reorder is deferred — keeping arrows visible
+                but disabled would mislead. Hide them for now. The
+                column header stays Actions for layout consistency
+                across guardian + manual rows. */}
+            <span className="text-xs text-gray-400">Family guardian</span>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+function ManualContactRow({
   contact,
   index,
-  total,
+  manualIndex,
+  manualTotal,
   editable,
   busy,
   onMoveUp,
@@ -694,7 +871,8 @@ function EmergencyContactTableRow({
 }: {
   contact: FamilyEmergencyContactDto;
   index: number;
-  total: number;
+  manualIndex: number;
+  manualTotal: number;
   editable: boolean;
   busy: boolean;
   onMoveUp: () => void;
@@ -702,9 +880,8 @@ function EmergencyContactTableRow({
 }) {
   const remove = useDeleteFamilyEmergencyContact(contact.id);
   const { toast } = useToast();
-  const isFirst = index === 0;
-  const isLast = index === total - 1;
-  const isLinked = contact.linkedPersonId !== null;
+  const isFirst = manualIndex === 0;
+  const isLast = manualIndex === manualTotal - 1;
 
   async function onRemove() {
     if (typeof window !== 'undefined' && !window.confirm('Remove ' + contact.name + '?')) return;
@@ -732,29 +909,18 @@ function EmergencyContactTableRow({
       </td>
       <td className="px-2 py-3">
         {contact.authorizedPickup ? (
-          <span className="text-emerald-700" title="Authorized for pickup">
-            ✅ Yes
-          </span>
+          <span className="text-emerald-700">✅ Yes</span>
         ) : (
           <span className="text-gray-500">❌ No</span>
         )}
       </td>
       <td className="px-2 py-3">
-        {isLinked ? (
-          <span
-            title="Linked to a CampusOS user — contact info auto-updates when they update their profile."
-            className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
-          >
-            🔗 Linked
-          </span>
-        ) : (
-          <span
-            title="Manual entry — contact info won't auto-update."
-            className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700"
-          >
-            Manual
-          </span>
-        )}
+        <span
+          title="Manual entry — added by you, not synced from a user profile."
+          className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700"
+        >
+          Manual
+        </span>
       </td>
       {editable && (
         <td className="px-2 py-3">
@@ -818,33 +984,15 @@ function IconButton({
   );
 }
 
-// ─── Add Emergency Contact modal ────────────────────────
-
-const EC_RELATIONSHIPS = [
-  'Spouse',
-  'Co-parent',
-  'Grandfather',
-  'Grandmother',
-  'Aunt',
-  'Uncle',
-  'Sibling',
-  'Neighbor',
-  'Family friend',
-  'Other',
-];
+// ─── Add Emergency Contact modal (manual entry only) ─────
 
 /**
- * Modal with two routes to add a contact:
- *
- *   1. Search a CampusOS user. Selecting a hit fills + locks the
- *      name / phone / email fields and stamps linkedPersonId on the
- *      payload. The server will keep those fields fresh on read.
- *
- *   2. Enter manually. linkedPersonId stays null; the user fills the
- *      free-form fields. The save path treats those as authoritative.
- *
- * Relationship + authorized-for-pickup are always editable — they're
- * family-specific, not the linked person's own attributes.
+ * Simplified add-contact modal. The previous version included a
+ * CampusOS-user search to "link" a contact; that flow has been
+ * removed from this surface — guardians are now auto-populated,
+ * so the only thing this modal needs to handle is the manual
+ * "additional contact" case (grandparent, neighbor, babysitter,
+ * etc.). The /people/search endpoint still exists for future use.
  */
 function AddEmergencyContactModal({
   open,
@@ -856,24 +1004,19 @@ function AddEmergencyContactModal({
   const add = useAddFamilyEmergencyContact();
   const { toast } = useToast();
 
-  const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<PeopleSearchResult | null>(null);
   const [form, setForm] = useState({
     name: '',
-    relationship: EC_RELATIONSHIPS[0]!,
+    relationship: MANUAL_RELATIONSHIPS[0]!,
     phonePrimary: '',
     phoneAlternate: '',
     email: '',
     authorizedPickup: false,
   });
-  const search = usePeopleSearch(query, open && selected === null);
 
   function reset() {
-    setQuery('');
-    setSelected(null);
     setForm({
       name: '',
-      relationship: EC_RELATIONSHIPS[0]!,
+      relationship: MANUAL_RELATIONSHIPS[0]!,
       phonePrimary: '',
       phoneAlternate: '',
       email: '',
@@ -886,50 +1029,26 @@ function AddEmergencyContactModal({
     onClose();
   }
 
-  function pickPerson(p: PeopleSearchResult) {
-    setSelected(p);
-    const fullName =
-      (p.preferredName?.trim() ? p.preferredName : null) ||
-      [p.firstName, p.lastName].filter(Boolean).join(' ');
-    setForm((f) => ({
-      ...f,
-      name: fullName,
-      phonePrimary: p.primaryPhone ?? '',
-      email: p.email ?? '',
-    }));
-  }
-
-  function unlink() {
-    setSelected(null);
-    // Keep the form values typed so far — the user can keep them or
-    // edit further. Linked badge disappears.
-  }
-
   async function onAdd() {
+    if (!form.name.trim()) {
+      toast('Name is required.', 'error');
+      return;
+    }
     if (!form.relationship.trim()) {
       toast('Relationship is required.', 'error');
       return;
     }
-    // Manual mode requires name + primary phone (server enforces too;
-    // surface the error early).
-    if (!selected) {
-      if (!form.name.trim()) {
-        toast('Name is required.', 'error');
-        return;
-      }
-      if (!form.phonePrimary.trim()) {
-        toast('Primary phone is required.', 'error');
-        return;
-      }
+    if (!form.phonePrimary.trim()) {
+      toast('Primary phone is required.', 'error');
+      return;
     }
     try {
       await add.mutateAsync({
-        linkedPersonId: selected?.id,
-        name: selected ? undefined : form.name.trim(),
+        name: form.name.trim(),
         relationship: form.relationship.trim(),
-        phonePrimary: selected ? undefined : form.phonePrimary.trim(),
+        phonePrimary: form.phonePrimary.trim(),
         phoneAlternate: form.phoneAlternate.trim() || undefined,
-        email: selected ? undefined : form.email.trim() || undefined,
+        email: form.email.trim() || undefined,
         authorizedPickup: form.authorizedPickup,
       });
       toast('Emergency contact added', 'success');
@@ -938,8 +1057,6 @@ function AddEmergencyContactModal({
       toast(err instanceof Error ? err.message : 'Could not add the contact.', 'error');
     }
   }
-
-  const fieldsLocked = selected !== null;
 
   return (
     <Modal
@@ -967,140 +1084,56 @@ function AddEmergencyContactModal({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        {!selected && (
-          <div>
-            <label htmlFor="people-search" className="block text-xs font-medium text-gray-700">
-              Search for a CampusOS user (optional)
-            </label>
-            <input
-              id="people-search"
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="🔍 Search by name or email…"
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-              autoComplete="off"
-            />
-
-            {query.trim().length >= 2 && (
-              <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/40">
-                {search.isLoading ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">Searching…</p>
-                ) : !search.data || search.data.length === 0 ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">No matches found.</p>
-                ) : (
-                  <ul className="max-h-56 overflow-y-auto">
-                    {search.data.map((p) => {
-                      const fullName =
-                        (p.preferredName?.trim() ? p.preferredName : null) ||
-                        [p.firstName, p.lastName].filter(Boolean).join(' ');
-                      return (
-                        <li key={p.id}>
-                          <button
-                            type="button"
-                            onClick={() => pickPerson(p)}
-                            className="flex w-full items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-white"
-                          >
-                            <span>
-                              <span className="font-medium text-gray-900">{fullName}</span>
-                              {p.email && (
-                                <span className="ml-2 text-xs text-gray-500">{p.email}</span>
-                              )}
-                            </span>
-                            <span className="text-xs font-medium text-campus-700">Select</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {selected && (
-          <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-900">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-semibold">🔗 Linked to {form.name}&rsquo;s account</p>
-              <button
-                type="button"
-                onClick={unlink}
-                className="text-xs font-medium text-sky-700 hover:text-sky-900"
-              >
-                Unlink
-              </button>
-            </div>
-            <p className="mt-1">
-              Contact info updates automatically when {form.name} updates their CampusOS profile.
-            </p>
-          </div>
-        )}
-
-        {!selected && query.trim().length >= 2 && (
-          <p className="text-xs text-gray-500">— or enter manually —</p>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SettingsField
-            label="Name"
-            value={form.name}
-            onChange={(v) => setForm((f) => ({ ...f, name: v }))}
-            required={!fieldsLocked}
-            disabled={fieldsLocked}
-          />
-          <div>
-            <label className="block text-xs font-medium text-gray-700">
-              Relationship<span className="ml-0.5 text-red-500">*</span>
-            </label>
-            <select
-              value={form.relationship}
-              onChange={(e) => setForm((f) => ({ ...f, relationship: e.target.value }))}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-            >
-              {EC_RELATIONSHIPS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <SettingsField
-            label="Primary phone"
-            value={form.phonePrimary}
-            onChange={(v) => setForm((f) => ({ ...f, phonePrimary: v }))}
-            required={!fieldsLocked}
-            disabled={fieldsLocked}
-          />
-          <SettingsField
-            label="Alternate phone"
-            value={form.phoneAlternate}
-            onChange={(v) => setForm((f) => ({ ...f, phoneAlternate: v }))}
-          />
-          <SettingsField
-            label="Email"
-            value={form.email}
-            onChange={(v) => setForm((f) => ({ ...f, email: v }))}
-            disabled={fieldsLocked}
-            className="sm:col-span-2"
-          />
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.authorizedPickup}
-              onChange={(e) => setForm((f) => ({ ...f, authorizedPickup: e.target.checked }))}
-              className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
-            />
-            Authorized for pickup
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SettingsField
+          label="Name"
+          value={form.name}
+          onChange={(v) => setForm((f) => ({ ...f, name: v }))}
+          required
+          className="sm:col-span-2"
+        />
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-700">
+            Relationship<span className="ml-0.5 text-red-500">*</span>
           </label>
+          <select
+            value={form.relationship}
+            onChange={(e) => setForm((f) => ({ ...f, relationship: e.target.value }))}
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          >
+            {MANUAL_RELATIONSHIPS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
         </div>
-
-        {!selected && (
-          <p className="text-xs text-gray-500">
-            Manual entry — contact info won&rsquo;t auto-update.
-          </p>
-        )}
+        <SettingsField
+          label="Primary phone"
+          value={form.phonePrimary}
+          onChange={(v) => setForm((f) => ({ ...f, phonePrimary: v }))}
+          required
+        />
+        <SettingsField
+          label="Alternate phone"
+          value={form.phoneAlternate}
+          onChange={(v) => setForm((f) => ({ ...f, phoneAlternate: v }))}
+        />
+        <SettingsField
+          label="Email"
+          value={form.email}
+          onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+          className="sm:col-span-2"
+        />
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.authorizedPickup}
+            onChange={(e) => setForm((f) => ({ ...f, authorizedPickup: e.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+          />
+          Authorized for pickup
+        </label>
       </div>
     </Modal>
   );
