@@ -412,7 +412,6 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
       state: settings.state ?? '',
       postalCode: settings.postalCode ?? '',
       country: settings.country ?? '',
-      homePhone: settings.homePhone ?? '',
       mailingAddressDifferent: settings.mailingAddressDifferent,
       mailingLine1: settings.mailingLine1 ?? '',
       mailingLine2: settings.mailingLine2 ?? '',
@@ -501,16 +500,6 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
             onChange={(v) => setForm((f) => ({ ...f, country: v }))}
             disabled={!editable}
             dirty={dirtyFields.has('country')}
-          />
-          <Field
-            id="homePhone"
-            label="Home phone"
-            type="tel"
-            value={form.homePhone}
-            onChange={(v) => setForm((f) => ({ ...f, homePhone: v }))}
-            disabled={!editable}
-            className="sm:col-span-2"
-            dirty={dirtyFields.has('homePhone')}
           />
         </div>
       </Card>
