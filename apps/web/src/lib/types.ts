@@ -1912,6 +1912,62 @@ export interface UpdateProfilePayload {
   emergencyContact?: UpdateEmergencyContactPayload;
 }
 
+// ── Adult medical info (/profile/me/medical) ─────────────
+
+export type AdultMedicalSource = 'FAMILY' | 'CUSTOM';
+
+export interface AdultAllergyEntry {
+  name: string;
+  severity?: 'MILD' | 'MODERATE' | 'SEVERE' | 'LIFE_THREATENING';
+  type?: 'FOOD' | 'ENVIRONMENTAL' | 'MEDICATION' | 'OTHER';
+  notes?: string;
+}
+
+export interface AdultMedicationEntry {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  prescriber?: string;
+  notes?: string;
+}
+
+export interface AdultConditionEntry {
+  name: string;
+  diagnosedDate?: string;
+  notes?: string;
+}
+
+export interface AdultMedicalInfoDto {
+  personId: string;
+  allergies: AdultAllergyEntry[];
+  medications: AdultMedicationEntry[];
+  conditions: AdultConditionEntry[];
+  medicalSource: AdultMedicalSource;
+  doctorName: string | null;
+  doctorPhone: string | null;
+  doctorClinic: string | null;
+  insuranceProvider: string | null;
+  insurancePolicy: string | null;
+  insuranceGroup: string | null;
+  bloodType: string | null;
+  medicalNotes: string | null;
+}
+
+export interface UpdateAdultMedicalInfoPayload {
+  allergies?: AdultAllergyEntry[];
+  medications?: AdultMedicationEntry[];
+  conditions?: AdultConditionEntry[];
+  medicalSource?: AdultMedicalSource;
+  doctorName?: string | null;
+  doctorPhone?: string | null;
+  doctorClinic?: string | null;
+  insuranceProvider?: string | null;
+  insurancePolicy?: string | null;
+  insuranceGroup?: string | null;
+  bloodType?: string | null;
+  medicalNotes?: string | null;
+}
+
 export interface UpdateAdminProfilePayload extends UpdateProfilePayload {
   // firstName / lastName / dateOfBirth live on UpdateProfilePayload now —
   // they're self-editable since the persona-registration flow shipped.

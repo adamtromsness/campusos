@@ -9,7 +9,17 @@ import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
-import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile';
+import {
+  useMyMedical,
+  useMyProfile,
+  useUpdateMyMedical,
+  useUpdateMyProfile,
+} from '@/hooks/use-profile';
+import type {
+  AdultAllergyEntry,
+  AdultConditionEntry,
+  AdultMedicationEntry,
+} from '@/lib/types';
 import {
   useAcceptFamilyLink,
   useFamilySettings,
@@ -634,16 +644,444 @@ function SourceToggle({
   );
 }
 
-// ─── Medical tab (stub) ────────────────────────────────────
+// ─── Medical tab ───────────────────────────────────────────
 
+const ALLERGY_SEVERITIES: Array<{ value: string; label: string }> = [
+  { value: 'MILD', label: 'Mild' },
+  { value: 'MODERATE', label: 'Moderate' },
+  { value: 'SEVERE', label: 'Severe' },
+  { value: 'LIFE_THREATENING', label: 'Life-threatening' },
+];
+
+const ALLERGY_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'FOOD', label: 'Food' },
+  { value: 'ENVIRONMENTAL', label: 'Environmental' },
+  { value: 'MEDICATION', label: 'Medication' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+/**
+ * Mirrors the child Medical tab — source toggle + doctor/insurance
+ * + allergies/medications/conditions cards. Everything optional;
+ * the medical info is useful for staff field-trip planning and
+ * emergency-responder context but not required.
+ */
 function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
+  const { data, isLoading } = useMyMedical();
+  const update = useUpdateMyMedical();
+  const { toast } = useToast();
+
+  const [source, setSource] = useState<'FAMILY' | 'CUSTOM'>('FAMILY');
+  const [doctor, setDoctor] = useState({
+    name: '',
+    phone: '',
+    clinic: '',
+    insuranceProvider: '',
+    insurancePolicy: '',
+    insuranceGroup: '',
+    bloodType: '',
+    medicalNotes: '',
+  });
+  const [doctorDirty, setDoctorDirty] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setSource(data.medicalSource);
+    setDoctor({
+      name: data.doctorName ?? '',
+      phone: data.doctorPhone ?? '',
+      clinic: data.doctorClinic ?? '',
+      insuranceProvider: data.insuranceProvider ?? '',
+      insurancePolicy: data.insurancePolicy ?? '',
+      insuranceGroup: data.insuranceGroup ?? '',
+      bloodType: data.bloodType ?? '',
+      medicalNotes: data.medicalNotes ?? '',
+    });
+    setDoctorDirty(false);
+  }, [data]);
+
+  function patchDoctor<K extends keyof typeof doctor>(key: K, value: (typeof doctor)[K]) {
+    setDoctor((d) => ({ ...d, [key]: value }));
+    setDoctorDirty(true);
+  }
+
+  async function flipSource(next: 'FAMILY' | 'CUSTOM') {
+    if (next === source) return;
+    try {
+      await update.mutateAsync({ medicalSource: next });
+      setSource(next);
+      toast(
+        next === 'FAMILY' ? 'Now using family doctor & insurance' : 'Switched to your own doctor',
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not change source.', 'error');
+    }
+  }
+
+  async function saveDoctor() {
+    try {
+      const payload =
+        source === 'CUSTOM'
+          ? {
+              doctorName: doctor.name.trim() || null,
+              doctorPhone: doctor.phone.trim() || null,
+              doctorClinic: doctor.clinic.trim() || null,
+              insuranceProvider: doctor.insuranceProvider.trim() || null,
+              insurancePolicy: doctor.insurancePolicy.trim() || null,
+              insuranceGroup: doctor.insuranceGroup.trim() || null,
+              bloodType: doctor.bloodType.trim() || null,
+              medicalNotes: doctor.medicalNotes.trim() || null,
+            }
+          : {
+              bloodType: doctor.bloodType.trim() || null,
+              medicalNotes: doctor.medicalNotes.trim() || null,
+            };
+      await update.mutateAsync(payload);
+      toast('Medical details saved', 'success');
+      setDoctorDirty(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  async function commitList<K extends 'allergies' | 'medications' | 'conditions'>(
+    key: K,
+    next: NonNullable<Parameters<typeof update.mutateAsync>[0][K]>,
+    successMessage: string,
+  ) {
+    try {
+      await update.mutateAsync({ [key]: next } as Parameters<typeof update.mutateAsync>[0]);
+      toast(successMessage, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  if (isLoading || !data) {
+    return (
+      <SectionCard title="Medical & Health">
+        <p className="text-sm text-gray-500">Loading…</p>
+      </SectionCard>
+    );
+  }
+
   return (
-    <SectionCard title="Medical & Health">
-      <p className="text-sm text-gray-500">
-        Optional health info for staff field-trip planning and emergency-responder context lands
-        in a follow-up commit. Children&rsquo;s medical info is on each child&rsquo;s profile.
-      </p>
+    <SectionCard
+      title="Medical & Health"
+      description="Optional. Useful for staff field-trip planning, school events, and emergency responders."
+    >
+      <AdultAllergiesCard
+        items={data.allergies}
+        onChange={(next) => void commitList('allergies', next, 'Allergies updated')}
+        busy={update.isPending}
+      />
+      <AdultMedicationsCard
+        items={data.medications}
+        onChange={(next) => void commitList('medications', next, 'Medications updated')}
+        busy={update.isPending}
+      />
+      <AdultConditionsCard
+        items={data.conditions}
+        onChange={(next) => void commitList('conditions', next, 'Conditions updated')}
+        busy={update.isPending}
+      />
+
+      <div className="mt-4 rounded-md border border-gray-200 bg-gray-50/40 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Doctor &amp; Insurance
+          </h3>
+          <SourceToggle
+            value={source}
+            onChange={(next) => void flipSource(next)}
+            busy={update.isPending}
+            familyLabel="Use family"
+            customLabel="Use my own"
+          />
+        </div>
+
+        {source === 'FAMILY' ? (
+          <>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
+              <ReadOnlyInline label="Doctor name" value={doctor.name} />
+              <ReadOnlyInline label="Doctor phone" value={doctor.phone} />
+              <div className="sm:col-span-2">
+                <ReadOnlyInline label="Clinic" value={doctor.clinic} />
+              </div>
+              <ReadOnlyInline label="Insurance provider" value={doctor.insuranceProvider} />
+              <ReadOnlyInline label="Policy number" value={doctor.insurancePolicy} />
+              <ReadOnlyInline label="Group number" value={doctor.insuranceGroup} />
+            </div>
+            <div className="mt-3">
+              <Link
+                href="/family/settings?tab=health"
+                className="text-sm font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family medical info →
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <EditField id="docName" label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
+            <EditField id="docPhone" label="Doctor phone" value={doctor.phone} onChange={(v) => patchDoctor('phone', v)} />
+            <EditField id="docClinic" label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
+            <EditField id="insProv" label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
+            <EditField id="insPolicy" label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />
+            <EditField id="insGroup" label="Group number" value={doctor.insuranceGroup} onChange={(v) => patchDoctor('insuranceGroup', v)} />
+          </div>
+        )}
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <EditField id="bloodType" label="Blood type" value={doctor.bloodType} onChange={(v) => patchDoctor('bloodType', v)} />
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-gray-700">Medical notes</label>
+          <textarea
+            value={doctor.medicalNotes}
+            onChange={(e) => patchDoctor('medicalNotes', e.target.value)}
+            rows={3}
+            placeholder="Anything school nurses, coaches, or emergency responders should know…"
+            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void saveDoctor()}
+            disabled={!doctorDirty || update.isPending}
+            className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+          >
+            {update.isPending && <LoadingSpinner size="sm" />}
+            <span>{update.isPending ? 'Saving…' : 'Save'}</span>
+          </button>
+        </div>
+      </div>
     </SectionCard>
+  );
+}
+
+function ReadOnlyInline({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-700">{label}</p>
+      <p className="mt-1 text-sm text-gray-900">{value && value.trim() ? value : <span className="text-gray-400">—</span>}</p>
+    </div>
+  );
+}
+
+function AdultAllergiesCard({
+  items,
+  onChange,
+  busy,
+}: {
+  items: AdultAllergyEntry[];
+  onChange: (next: AdultAllergyEntry[]) => void;
+  busy: boolean;
+}) {
+  const [draft, setDraft] = useState<AdultAllergyEntry>({ name: '', severity: 'MILD', type: 'FOOD' });
+  const [showAdd, setShowAdd] = useState(false);
+  function add() {
+    if (!draft.name.trim()) return;
+    onChange([...items, { ...draft, name: draft.name.trim() }]);
+    setDraft({ name: '', severity: 'MILD', type: 'FOOD' });
+    setShowAdd(false);
+  }
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50/40 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Allergies</h3>
+        {!showAdd && (
+          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+            + Add allergy
+          </button>
+        )}
+      </div>
+      {items.length === 0 && !showAdd ? (
+        <p className="mt-2 text-xs text-gray-500">No allergies recorded.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {items.map((a, i) => (
+            <li key={a.name + i} className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+              <span>
+                <span className="font-medium text-gray-900">{a.name}</span>
+                {a.severity && (
+                  <span className="ml-2 text-xs text-gray-500">
+                    {ALLERGY_SEVERITIES.find((s) => s.value === a.severity)?.label}
+                  </span>
+                )}
+                {a.type && <span className="ml-2 text-xs text-gray-400">({a.type.toLowerCase()})</span>}
+              </span>
+              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showAdd && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Allergy (e.g. Peanuts)" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
+          <select value={draft.severity ?? 'MILD'} onChange={(e) => setDraft({ ...draft, severity: e.target.value as AdultAllergyEntry['severity'] })} className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500">
+            {ALLERGY_SEVERITIES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <select value={draft.type ?? 'FOOD'} onChange={(e) => setDraft({ ...draft, type: e.target.value as AdultAllergyEntry['type'] })} className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500">
+            {ALLERGY_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+              Cancel
+            </button>
+            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdultMedicationsCard({
+  items,
+  onChange,
+  busy,
+}: {
+  items: AdultMedicationEntry[];
+  onChange: (next: AdultMedicationEntry[]) => void;
+  busy: boolean;
+}) {
+  const [draft, setDraft] = useState<AdultMedicationEntry>({ name: '', dosage: '', frequency: '', prescriber: '' });
+  const [showAdd, setShowAdd] = useState(false);
+  function add() {
+    if (!draft.name.trim()) return;
+    onChange([...items, { ...draft, name: draft.name.trim() }]);
+    setDraft({ name: '', dosage: '', frequency: '', prescriber: '' });
+    setShowAdd(false);
+  }
+  return (
+    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Medications</h3>
+        {!showAdd && (
+          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+            + Add medication
+          </button>
+        )}
+      </div>
+      {items.length === 0 && !showAdd ? (
+        <p className="mt-2 text-xs text-gray-500">No medications recorded.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {items.map((m, i) => (
+            <li key={m.name + i} className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+              <div>
+                <p>
+                  <span className="font-medium text-gray-900">{m.name}</span>
+                  {m.dosage && <span className="ml-2 text-xs text-gray-600">— {m.dosage}</span>}
+                  {m.frequency && <span className="ml-2 text-xs text-gray-500">· {m.frequency}</span>}
+                </p>
+                {m.prescriber && <p className="text-xs text-gray-500">Prescribed by {m.prescriber}</p>}
+              </div>
+              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showAdd && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Medication name" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
+          <input type="text" value={draft.dosage ?? ''} onChange={(e) => setDraft({ ...draft, dosage: e.target.value })} placeholder="Dosage" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
+          <input type="text" value={draft.frequency ?? ''} onChange={(e) => setDraft({ ...draft, frequency: e.target.value })} placeholder="Frequency" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
+          <input type="text" value={draft.prescriber ?? ''} onChange={(e) => setDraft({ ...draft, prescriber: e.target.value })} placeholder="Prescribed by" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+              Cancel
+            </button>
+            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdultConditionsCard({
+  items,
+  onChange,
+  busy,
+}: {
+  items: AdultConditionEntry[];
+  onChange: (next: AdultConditionEntry[]) => void;
+  busy: boolean;
+}) {
+  const [draft, setDraft] = useState<AdultConditionEntry>({ name: '', diagnosedDate: '', notes: '' });
+  const [showAdd, setShowAdd] = useState(false);
+  function add() {
+    if (!draft.name.trim()) return;
+    onChange([...items, { ...draft, name: draft.name.trim() }]);
+    setDraft({ name: '', diagnosedDate: '', notes: '' });
+    setShowAdd(false);
+  }
+  return (
+    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Medical conditions</h3>
+        {!showAdd && (
+          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+            + Add condition
+          </button>
+        )}
+      </div>
+      {items.length === 0 && !showAdd ? (
+        <p className="mt-2 text-xs text-gray-500">No conditions recorded.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {items.map((c, i) => (
+            <li key={c.name + i} className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+              <div>
+                <p>
+                  <span className="font-medium text-gray-900">{c.name}</span>
+                  {c.diagnosedDate && <span className="ml-2 text-xs text-gray-500">Diagnosed {c.diagnosedDate}</span>}
+                </p>
+                {c.notes && <p className="text-xs text-gray-500">{c.notes}</p>}
+              </div>
+              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showAdd && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Condition" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
+          <input type="text" value={draft.diagnosedDate ?? ''} onChange={(e) => setDraft({ ...draft, diagnosedDate: e.target.value })} placeholder="Year diagnosed (optional)" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
+          <input type="text" value={draft.notes ?? ''} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Notes" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+              Cancel
+            </button>
+            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

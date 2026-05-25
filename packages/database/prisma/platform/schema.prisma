@@ -542,6 +542,34 @@ model PlatformChildMedicalInfo {
   @@schema("platform")
 }
 
+// Adult-side medical info — parallel to PlatformChildMedicalInfo
+// for adults (parents/guardians/staff) on /profile → Medical &
+// Health. Same JSONB shape on allergies / medications / conditions;
+// same FAMILY/CUSTOM source toggle. Separate table to keep the
+// child-side schema frozen and let the adult surface evolve
+// independently.
+model PlatformAdultMedicalInfo {
+  id                String   @id @db.Uuid
+  personId          String   @unique @map("person_id") @db.Uuid
+  allergies         Json     @default("[]")
+  medications       Json     @default("[]")
+  conditions        Json     @default("[]")
+  medicalSource     String   @default("FAMILY") @map("medical_source")
+  doctorName        String?  @map("doctor_name")
+  doctorPhone       String?  @map("doctor_phone")
+  doctorClinic      String?  @map("doctor_clinic")
+  insuranceProvider String?  @map("insurance_provider")
+  insurancePolicy   String?  @map("insurance_policy")
+  insuranceGroup    String?  @map("insurance_group")
+  bloodType         String?  @map("blood_type")
+  medicalNotes      String?  @map("medical_notes")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@map("platform_adult_medical_info")
+  @@schema("platform")
+}
+
 model PlatformChildEmergencyContact {
   id               String   @id @db.Uuid
   personId         String   @map("person_id") @db.Uuid

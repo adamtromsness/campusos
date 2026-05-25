@@ -9,12 +9,17 @@ import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { TenantPrismaService } from '@shared/tenant';
 import {
+  AdultAllergyEntry,
+  AdultConditionEntry,
+  AdultMedicalInfoDto,
+  AdultMedicationEntry,
   EmergencyContactDto,
   GuardianEmploymentDto,
   HouseholdSummaryDto,
   ProfileResponseDto,
   StudentDemographicsDto,
   UpdateAdminProfileDto,
+  UpdateAdultMedicalInfoDto,
   UpdateEmergencyContactDto,
   UpdateMyProfileDto,
 } from './dto/profile.dto';
@@ -207,6 +212,181 @@ export class ProfileService {
     if (rows.length === 0) {
       throw new NotFoundException('Person not found');
     }
+  }
+
+  // ── Adult medical info — /profile/me/medical ─────────────────────────
+
+  /**
+   * Read the calling user's adult medical info, joining the family
+   * record's doctor + insurance fields when the source is FAMILY so
+   * the wire shape always carries renderable values regardless of
+   * which mode the user is in. Mirror of the child surface.
+   *
+   * Returns an empty / source=FAMILY shape on first read, with the
+   * family record's doctor + insurance pre-filled — same behaviour
+   * the child page relies on.
+   */
+  async getMyMedical(personId: string): Promise<AdultMedicalInfoDto> {
+    const row = await this.platform.platformAdultMedicalInfo.findUnique({
+      where: { personId },
+    });
+    const family = await this.loadFamilyDoctorInsuranceForPerson(personId);
+    return this.toAdultMedicalDto(personId, row, family);
+  }
+
+  /**
+   * UPSERT the row. Same COALESCE-per-column pattern as
+   * platform_child_medical_info so a partial PATCH leaves untouched
+   * columns alone.
+   */
+  async updateMyMedical(
+    personId: string,
+    dto: UpdateAdultMedicalInfoDto,
+  ): Promise<AdultMedicalInfoDto> {
+    const upsertId = randomUUID();
+    await this.platform.$executeRawUnsafe(
+      `INSERT INTO platform.platform_adult_medical_info
+         (id, person_id, allergies, medications, conditions,
+          medical_source, doctor_name, doctor_phone, doctor_clinic,
+          insurance_provider, insurance_policy, insurance_group,
+          blood_type, medical_notes)
+       VALUES ($1::uuid, $2::uuid,
+               COALESCE($3::jsonb, '[]'::jsonb),
+               COALESCE($4::jsonb, '[]'::jsonb),
+               COALESCE($5::jsonb, '[]'::jsonb),
+               COALESCE($6, 'FAMILY'),
+               $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (person_id) DO UPDATE SET
+         allergies = COALESCE(EXCLUDED.allergies, platform_adult_medical_info.allergies),
+         medications = COALESCE(EXCLUDED.medications, platform_adult_medical_info.medications),
+         conditions = COALESCE(EXCLUDED.conditions, platform_adult_medical_info.conditions),
+         medical_source = COALESCE($6, platform_adult_medical_info.medical_source),
+         doctor_name = COALESCE($7, platform_adult_medical_info.doctor_name),
+         doctor_phone = COALESCE($8, platform_adult_medical_info.doctor_phone),
+         doctor_clinic = COALESCE($9, platform_adult_medical_info.doctor_clinic),
+         insurance_provider = COALESCE($10, platform_adult_medical_info.insurance_provider),
+         insurance_policy = COALESCE($11, platform_adult_medical_info.insurance_policy),
+         insurance_group = COALESCE($12, platform_adult_medical_info.insurance_group),
+         blood_type = COALESCE($13, platform_adult_medical_info.blood_type),
+         medical_notes = COALESCE($14, platform_adult_medical_info.medical_notes),
+         updated_at = now()`,
+      upsertId,
+      personId,
+      dto.allergies !== undefined ? JSON.stringify(dto.allergies) : null,
+      dto.medications !== undefined ? JSON.stringify(dto.medications) : null,
+      dto.conditions !== undefined ? JSON.stringify(dto.conditions) : null,
+      dto.medicalSource ?? null,
+      dto.doctorName ?? null,
+      dto.doctorPhone ?? null,
+      dto.doctorClinic ?? null,
+      dto.insuranceProvider ?? null,
+      dto.insurancePolicy ?? null,
+      dto.insuranceGroup ?? null,
+      dto.bloodType ?? null,
+      dto.medicalNotes ?? null,
+    );
+    return this.getMyMedical(personId);
+  }
+
+  private async loadFamilyDoctorInsuranceForPerson(personId: string): Promise<{
+    doctorName: string | null;
+    doctorPhone: string | null;
+    doctorClinic: string | null;
+    insuranceProvider: string | null;
+    insurancePolicy: string | null;
+    insuranceGroup: string | null;
+  } | null> {
+    const rows = await this.platform.$queryRawUnsafe<
+      Array<{
+        doctor_name: string | null;
+        doctor_phone: string | null;
+        doctor_clinic: string | null;
+        insurance_provider: string | null;
+        insurance_policy: string | null;
+        insurance_group: string | null;
+      }>
+    >(
+      `SELECT pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
+              pf.insurance_provider, pf.insurance_policy, pf.insurance_group
+       FROM platform.platform_families pf
+       JOIN platform.platform_family_members pfm ON pfm.family_id = pf.id
+       WHERE pfm.person_id = $1::uuid
+       LIMIT 1`,
+      personId,
+    );
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      doctorName: r.doctor_name,
+      doctorPhone: r.doctor_phone,
+      doctorClinic: r.doctor_clinic,
+      insuranceProvider: r.insurance_provider,
+      insurancePolicy: r.insurance_policy,
+      insuranceGroup: r.insurance_group,
+    };
+  }
+
+  private toAdultMedicalDto(
+    personId: string,
+    row: {
+      allergies: unknown;
+      medications: unknown;
+      conditions: unknown;
+      medicalSource: string;
+      doctorName: string | null;
+      doctorPhone: string | null;
+      doctorClinic: string | null;
+      insuranceProvider: string | null;
+      insurancePolicy: string | null;
+      insuranceGroup: string | null;
+      bloodType: string | null;
+      medicalNotes: string | null;
+    } | null,
+    family: {
+      doctorName: string | null;
+      doctorPhone: string | null;
+      doctorClinic: string | null;
+      insuranceProvider: string | null;
+      insurancePolicy: string | null;
+      insuranceGroup: string | null;
+    } | null,
+  ): AdultMedicalInfoDto {
+    if (!row) {
+      return {
+        personId,
+        allergies: [],
+        medications: [],
+        conditions: [],
+        medicalSource: 'FAMILY',
+        doctorName: family?.doctorName ?? null,
+        doctorPhone: family?.doctorPhone ?? null,
+        doctorClinic: family?.doctorClinic ?? null,
+        insuranceProvider: family?.insuranceProvider ?? null,
+        insurancePolicy: family?.insurancePolicy ?? null,
+        insuranceGroup: family?.insuranceGroup ?? null,
+        bloodType: null,
+        medicalNotes: null,
+      };
+    }
+    const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
+    const useFamily = source === 'FAMILY' && family !== null;
+    return {
+      personId,
+      allergies: Array.isArray(row.allergies) ? (row.allergies as AdultAllergyEntry[]) : [],
+      medications: Array.isArray(row.medications)
+        ? (row.medications as AdultMedicationEntry[])
+        : [],
+      conditions: Array.isArray(row.conditions) ? (row.conditions as AdultConditionEntry[]) : [],
+      medicalSource: source,
+      doctorName: useFamily ? family!.doctorName : row.doctorName,
+      doctorPhone: useFamily ? family!.doctorPhone : row.doctorPhone,
+      doctorClinic: useFamily ? family!.doctorClinic : row.doctorClinic,
+      insuranceProvider: useFamily ? family!.insuranceProvider : row.insuranceProvider,
+      insurancePolicy: useFamily ? family!.insurancePolicy : row.insurancePolicy,
+      insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
+      bloodType: row.bloodType,
+      medicalNotes: row.medicalNotes,
+    };
   }
 
   // ── Internals ─────────────────────────────────────────────────────────

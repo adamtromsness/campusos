@@ -3,7 +3,13 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
 import { ProfileService } from './profile.service';
-import { ProfileResponseDto, UpdateAdminProfileDto, UpdateMyProfileDto } from './dto/profile.dto';
+import {
+  AdultMedicalInfoDto,
+  ProfileResponseDto,
+  UpdateAdminProfileDto,
+  UpdateAdultMedicalInfoDto,
+  UpdateMyProfileDto,
+} from './dto/profile.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -35,6 +41,25 @@ export class ProfileController {
     @Body() dto: UpdateMyProfileDto,
   ): Promise<ProfileResponseDto> {
     return this.profile.updateMyProfile(req.user!.personId, dto);
+  }
+
+  // Adult medical info — /profile/me/medical. MUST appear before any
+  // /profile/:personId-style route because Nest matches in registration
+  // order and would otherwise consume 'me' as a UUID param (and the
+  // /me-prefixed routes above already follow the same pattern).
+  @Get('profile/me/medical')
+  @ApiOperation({ summary: 'Read the calling user’s adult medical info' })
+  async getMyMedical(@Req() req: AuthedRequest): Promise<AdultMedicalInfoDto> {
+    return this.profile.getMyMedical(req.user!.personId);
+  }
+
+  @Patch('profile/me/medical')
+  @ApiOperation({ summary: 'Update the calling user’s adult medical info' })
+  async updateMyMedical(
+    @Req() req: AuthedRequest,
+    @Body() dto: UpdateAdultMedicalInfoDto,
+  ): Promise<AdultMedicalInfoDto> {
+    return this.profile.updateMyMedical(req.user!.personId, dto);
   }
 
   @Get('profile/:personId')

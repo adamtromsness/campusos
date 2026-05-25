@@ -209,6 +209,77 @@ export class UpdateMyProfileDto {
  * admin-only on top of the self-service allow-list (which already
  * includes first_name, last_name, date_of_birth as of 2026-05-24).
  */
+// ─── /profile/me/medical — adult medical info ──────────────
+
+export const ADULT_MEDICAL_SOURCES = ['FAMILY', 'CUSTOM'] as const;
+export type AdultMedicalSource = (typeof ADULT_MEDICAL_SOURCES)[number];
+
+export class AdultAllergyEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() severity?: 'MILD' | 'MODERATE' | 'SEVERE' | 'LIFE_THREATENING';
+  @ApiPropertyOptional() type?: 'FOOD' | 'ENVIRONMENTAL' | 'MEDICATION' | 'OTHER';
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class AdultMedicationEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() dosage?: string;
+  @ApiPropertyOptional() frequency?: string;
+  @ApiPropertyOptional() prescriber?: string;
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class AdultConditionEntry {
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() diagnosedDate?: string;
+  @ApiPropertyOptional() notes?: string;
+}
+
+export class AdultMedicalInfoDto {
+  @ApiProperty() personId!: string;
+  @ApiProperty({ type: [AdultAllergyEntry] }) allergies!: AdultAllergyEntry[];
+  @ApiProperty({ type: [AdultMedicationEntry] }) medications!: AdultMedicationEntry[];
+  @ApiProperty({ type: [AdultConditionEntry] }) conditions!: AdultConditionEntry[];
+  // Mirrors ChildMedicalInfoDto: FAMILY surfaces the family-level
+  // doctor + insurance from platform_families; CUSTOM uses the
+  // per-person columns.
+  @ApiProperty({ enum: ADULT_MEDICAL_SOURCES }) medicalSource!: AdultMedicalSource;
+  @ApiPropertyOptional() doctorName?: string | null;
+  @ApiPropertyOptional() doctorPhone?: string | null;
+  @ApiPropertyOptional() doctorClinic?: string | null;
+  @ApiPropertyOptional() insuranceProvider?: string | null;
+  @ApiPropertyOptional() insurancePolicy?: string | null;
+  @ApiPropertyOptional() insuranceGroup?: string | null;
+  @ApiPropertyOptional() bloodType?: string | null;
+  @ApiPropertyOptional() medicalNotes?: string | null;
+}
+
+export class UpdateAdultMedicalInfoDto {
+  // Whole-list replace semantics on the array columns — same as the
+  // child medical surface.
+  @ApiPropertyOptional({ type: [AdultAllergyEntry] }) @IsOptional() allergies?: AdultAllergyEntry[];
+  @ApiPropertyOptional({ type: [AdultMedicationEntry] })
+  @IsOptional()
+  medications?: AdultMedicationEntry[];
+  @ApiPropertyOptional({ type: [AdultConditionEntry] })
+  @IsOptional()
+  conditions?: AdultConditionEntry[];
+  @ApiPropertyOptional({ enum: ADULT_MEDICAL_SOURCES })
+  @IsOptional()
+  @IsIn(ADULT_MEDICAL_SOURCES)
+  medicalSource?: AdultMedicalSource;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorName?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) doctorPhone?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorClinic?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) insuranceProvider?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insurancePolicy?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insuranceGroup?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) bloodType?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) medicalNotes?: string | null;
+}
+
 export class UpdateAdminProfileDto extends UpdateMyProfileDto {
   // gender is now inherited from UpdateMyProfileDto (self-editable on
   // both surfaces). The other demographics fields stay admin-only;

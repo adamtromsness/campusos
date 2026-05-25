@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type {
   AddHouseholdMemberPayload,
+  AdultMedicalInfoDto,
   HouseholdDto,
   ProfileDto,
   UpdateAdminProfilePayload,
+  UpdateAdultMedicalInfoPayload,
   UpdateHouseholdMemberPayload,
   UpdateHouseholdPayload,
   UpdateProfilePayload,
@@ -45,6 +47,31 @@ export function useUpdateMyProfile() {
       qc.setQueryData(['profile', 'me'], data);
       void qc.invalidateQueries({ queryKey: ['profile'] });
       void qc.invalidateQueries({ queryKey: ['household', 'mine'] });
+    },
+  });
+}
+
+// ── Adult medical info — /profile/me/medical ─────────────
+
+export function useMyMedical(enabled = true) {
+  return useQuery({
+    queryKey: ['profile', 'me', 'medical'] as const,
+    queryFn: () => apiFetch<AdultMedicalInfoDto>('/api/v1/profile/me/medical'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateMyMedical() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateAdultMedicalInfoPayload) =>
+      apiFetch<AdultMedicalInfoDto>('/api/v1/profile/me/medical', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(['profile', 'me', 'medical'], data);
     },
   });
 }
