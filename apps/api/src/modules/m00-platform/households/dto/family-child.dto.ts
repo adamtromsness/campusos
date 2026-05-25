@@ -390,6 +390,72 @@ export class FamilyHeaderDto {
   @ApiPropertyOptional() name?: string | null;
 }
 
+// ─── /family/settings — family-level shared attributes ─────
+
+/**
+ * GET /family/settings — shared attributes that apply to the whole
+ * household. Children inherit these by default (Contact tab + Medical
+ * tab "Use family ..." toggles). Lives on platform_families so a
+ * family that hasn't enrolled at any school yet can still capture
+ * these once for everyone.
+ */
+export class FamilySettingsDto {
+  @ApiProperty() familyId!: string;
+  @ApiPropertyOptional() displayName!: string | null;
+  // Address (residential).
+  @ApiPropertyOptional() addressLine1!: string | null;
+  @ApiPropertyOptional() addressLine2!: string | null;
+  @ApiPropertyOptional() city!: string | null;
+  @ApiPropertyOptional() state!: string | null;
+  @ApiPropertyOptional() postalCode!: string | null;
+  @ApiPropertyOptional() country!: string | null;
+  @ApiPropertyOptional() homePhone!: string | null;
+  // Doctor + insurance — the family-level defaults. Per-child overrides
+  // continue to live on PlatformChildMedicalInfo.
+  @ApiPropertyOptional() doctorName!: string | null;
+  @ApiPropertyOptional() doctorPhone!: string | null;
+  @ApiPropertyOptional() doctorClinic!: string | null;
+  @ApiPropertyOptional() insuranceProvider!: string | null;
+  @ApiPropertyOptional() insurancePolicy!: string | null;
+  @ApiPropertyOptional() insuranceGroup!: string | null;
+  // Identity of the current primary contact (a guardian
+  // platform_family_members row in this family with
+  // is_primary_contact = true). Read-only here; promote/demote happens
+  // through the /family/members surface.
+  @ApiPropertyOptional() primaryContactPersonId!: string | null;
+  @ApiPropertyOptional() primaryContactName!: string | null;
+  // True when the caller can mutate these fields (parent/guardian
+  // member of the family). Children get read-only.
+  @ApiProperty() canEdit!: boolean;
+}
+
+/**
+ * PATCH /family/settings — partial update of shared attributes.
+ * Children can't mutate this surface; the service returns 403.
+ * Setting any string field to '' is treated as a null-out — clients
+ * pass an empty string to clear a value, null to clear, or the
+ * non-empty value to set. The family display name has a separate
+ * length cap (200) to mirror iam_person.preferred_name.
+ */
+export class UpdateFamilySettingsDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) displayName?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) addressLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) addressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) city?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) state?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) postalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) country?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) homePhone?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorName?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) doctorPhone?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) doctorClinic?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) insuranceProvider?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insurancePolicy?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insuranceGroup?: string | null;
+}
+
 /**
  * GET /family — composite shape used by the /family page. Returned
  * with viewerRole so the client can pick the appropriate render path

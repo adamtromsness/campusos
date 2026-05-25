@@ -411,6 +411,15 @@ model PlatformFamily {
   mailingPostalCode  String?  @map("mailing_postal_code")
   mailingCountry     String?  @map("mailing_country")
   notes              String?
+  // Family-level shared doctor + insurance. Pre-enrolment children
+  // inherit these by default; per-child overrides live on
+  // PlatformChildMedicalInfo.
+  doctorName         String?  @map("doctor_name")
+  doctorPhone        String?  @map("doctor_phone")
+  doctorClinic       String?  @map("doctor_clinic")
+  insuranceProvider  String?  @map("insurance_provider")
+  insurancePolicy    String?  @map("insurance_policy")
+  insuranceGroup     String?  @map("insurance_group")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 

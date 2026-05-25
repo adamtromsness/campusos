@@ -30,6 +30,7 @@ import {
   FamilyHeaderDto,
   FamilyLinkResultDto,
   FamilyMemberDto,
+  FamilySettingsDto,
   FamilyViewDto,
   FamilyViewerRole,
   GenerateFamilyCodeDto,
@@ -42,6 +43,7 @@ import {
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
   UpdateFamilyMemberDto,
+  UpdateFamilySettingsDto,
 } from './dto/family-child.dto';
 
 interface FamilyChildRow {
@@ -284,6 +286,161 @@ export class FamilyChildrenService {
         HttpStatus.FORBIDDEN,
       );
     }
+  }
+
+  // ─── Family settings — shared attributes ────────────────────
+
+  /**
+   * GET /family/settings — household-wide attributes (display name,
+   * address, doctor, insurance) plus the current primary-contact
+   * identity. Children inherit these by default; per-child overrides
+   * live on PlatformChildMedicalInfo / per-child contact tables.
+   *
+   * Resolves the caller's family via resolveViewerFamily so both
+   * PARENT and CHILD viewers can see the settings; canEdit is true
+   * only for parents/guardians (the assertNotChildViewer rule on
+   * the PATCH path enforces this server-side).
+   *
+   * Returns null when the caller has no family row yet (the registration
+   * normally seeds one, but an unauth-flow caller would land here).
+   */
+  async getFamilySettings(personId: string): Promise<FamilySettingsDto | null> {
+    const resolved = await this.resolveViewerFamily(personId);
+    if (!resolved) return null;
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        name: string | null;
+        address_line1: string | null;
+        address_line2: string | null;
+        city: string | null;
+        state: string | null;
+        postal_code: string | null;
+        country: string | null;
+        home_phone: string | null;
+        doctor_name: string | null;
+        doctor_phone: string | null;
+        doctor_clinic: string | null;
+        insurance_provider: string | null;
+        insurance_policy: string | null;
+        insurance_group: string | null;
+        primary_contact_person_id: string | null;
+        primary_first_name: string | null;
+        primary_last_name: string | null;
+        primary_preferred_name: string | null;
+      }>
+    >(
+      `SELECT
+         pf.id::text AS id,
+         pf.name,
+         pf.address_line1, pf.address_line2, pf.city, pf.state,
+         pf.postal_code, pf.country, pf.home_phone,
+         pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
+         pf.insurance_provider, pf.insurance_policy, pf.insurance_group,
+         pc.person_id::text AS primary_contact_person_id,
+         p.first_name AS primary_first_name,
+         p.last_name AS primary_last_name,
+         p.preferred_name AS primary_preferred_name
+       FROM platform.platform_families pf
+       LEFT JOIN platform.platform_family_members pc
+         ON pc.family_id = pf.id AND pc.is_primary_contact = true
+       LEFT JOIN platform.iam_person p ON p.id = pc.person_id
+       WHERE pf.id = $1::uuid
+       LIMIT 1`,
+      resolved.familyId,
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const primaryName = row.primary_contact_person_id
+      ? row.primary_preferred_name?.trim() ||
+        [row.primary_first_name, row.primary_last_name].filter(Boolean).join(' ') ||
+        null
+      : null;
+    return {
+      familyId: row.id,
+      displayName: row.name,
+      addressLine1: row.address_line1,
+      addressLine2: row.address_line2,
+      city: row.city,
+      state: row.state,
+      postalCode: row.postal_code,
+      country: row.country,
+      homePhone: row.home_phone,
+      doctorName: row.doctor_name,
+      doctorPhone: row.doctor_phone,
+      doctorClinic: row.doctor_clinic,
+      insuranceProvider: row.insurance_provider,
+      insurancePolicy: row.insurance_policy,
+      insuranceGroup: row.insurance_group,
+      primaryContactPersonId: row.primary_contact_person_id,
+      primaryContactName: primaryName,
+      canEdit: resolved.role === 'PARENT',
+    };
+  }
+
+  /**
+   * PATCH /family/settings — partial update. Children rejected by
+   * assertNotChildViewer (their viewerRole resolves to CHILD when
+   * they have no kids of their own). Empty strings on the wire are
+   * coerced to NULL — clients use '' to clear a field.
+   */
+  async updateFamilySettings(
+    personId: string,
+    dto: UpdateFamilySettingsDto,
+  ): Promise<FamilySettingsDto> {
+    await this.assertNotChildViewer(personId);
+    const familyId = await this.ensureFamilyForPerson(personId);
+
+    const cols: Record<keyof UpdateFamilySettingsDto, string> = {
+      displayName: 'name',
+      addressLine1: 'address_line1',
+      addressLine2: 'address_line2',
+      city: 'city',
+      state: 'state',
+      postalCode: 'postal_code',
+      country: 'country',
+      homePhone: 'home_phone',
+      doctorName: 'doctor_name',
+      doctorPhone: 'doctor_phone',
+      doctorClinic: 'doctor_clinic',
+      insuranceProvider: 'insurance_provider',
+      insurancePolicy: 'insurance_policy',
+      insuranceGroup: 'insurance_group',
+    };
+
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+    for (const k of Object.keys(cols) as Array<keyof UpdateFamilySettingsDto>) {
+      if (dto[k] === undefined) continue;
+      setClauses.push(cols[k] + ' = $' + i++);
+      // '' → NULL so the UI can clear a field by submitting an empty
+      // string. null → NULL stays null.
+      const v = dto[k];
+      values.push(typeof v === 'string' && v.trim() === '' ? null : v);
+    }
+
+    if (setClauses.length > 0) {
+      setClauses.push('updated_at = now()');
+      values.push(familyId);
+      await this.prisma.$executeRawUnsafe(
+        'UPDATE platform.platform_families SET ' +
+          setClauses.join(', ') +
+          ' WHERE id = $' +
+          i +
+          '::uuid',
+        ...values,
+      );
+    }
+
+    const refreshed = await this.getFamilySettings(personId);
+    if (!refreshed) {
+      throw new HttpException(
+        'Could not reload family settings after update',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return refreshed;
   }
 
   // ─── CRUD (Step 5) ─────────────────────────────────────────

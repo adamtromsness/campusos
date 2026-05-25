@@ -27,6 +27,7 @@ import {
   FamilyChildDto,
   FamilyLinkResultDto,
   FamilyMemberDto,
+  FamilySettingsDto,
   FamilyViewDto,
   GenerateFamilyCodeDto,
   GenerateLinkCodeDto,
@@ -38,6 +39,7 @@ import {
   UpdateChildMedicalInfoDto,
   UpdateFamilyChildDto,
   UpdateFamilyMemberDto,
+  UpdateFamilySettingsDto,
 } from './dto/family-child.dto';
 
 interface AuthedRequest extends Request {
@@ -69,6 +71,34 @@ export class FamilyChildrenController {
   })
   async getFamily(@Req() req: AuthedRequest): Promise<FamilyViewDto | null> {
     return this.children.getFamilyView(req.user!.personId);
+  }
+
+  // ─── Family settings (shared attributes) ────────────────────
+
+  /**
+   * Note: /family/settings MUST be declared before any /family/:id-style
+   * route. Nest matches in registration order, so a later wildcard
+   * would otherwise consume "settings" as an id. Same trap that bit
+   * the /family/link route on Cycle 6.
+   */
+  @Get('settings')
+  @ApiOperation({
+    summary:
+      'Read family-level shared attributes (display name, address, doctor, insurance, primary contact)',
+  })
+  async getSettings(@Req() req: AuthedRequest): Promise<FamilySettingsDto | null> {
+    return this.children.getFamilySettings(req.user!.personId);
+  }
+
+  @Patch('settings')
+  @ApiOperation({
+    summary: 'Update family-level shared attributes — parents/guardians only',
+  })
+  async patchSettings(
+    @Req() req: AuthedRequest,
+    @Body() dto: UpdateFamilySettingsDto,
+  ): Promise<FamilySettingsDto> {
+    return this.children.updateFamilySettings(req.user!.personId, dto);
   }
 
   // ─── Step 5 — CRUD ──────────────────────────────────────────

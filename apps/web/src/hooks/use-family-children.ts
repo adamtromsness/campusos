@@ -591,6 +591,69 @@ export function useChildDietary(childId: string, enabled = true) {
   });
 }
 
+// ─── Family settings (shared attributes) ──────────────────
+
+export interface FamilySettingsDto {
+  familyId: string;
+  displayName: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+  homePhone: string | null;
+  doctorName: string | null;
+  doctorPhone: string | null;
+  doctorClinic: string | null;
+  insuranceProvider: string | null;
+  insurancePolicy: string | null;
+  insuranceGroup: string | null;
+  primaryContactPersonId: string | null;
+  primaryContactName: string | null;
+  canEdit: boolean;
+}
+
+export interface UpdateFamilySettingsPayload {
+  displayName?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  homePhone?: string | null;
+  doctorName?: string | null;
+  doctorPhone?: string | null;
+  doctorClinic?: string | null;
+  insuranceProvider?: string | null;
+  insurancePolicy?: string | null;
+  insuranceGroup?: string | null;
+}
+
+export function useFamilySettings(enabled = true) {
+  return useQuery({
+    queryKey: ['family', 'settings'] as const,
+    queryFn: () => apiFetch<FamilySettingsDto | null>('/api/v1/family/settings'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateFamilySettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateFamilySettingsPayload) =>
+      apiFetch<FamilySettingsDto>('/api/v1/family/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
 export function useUpdateChildDietary(childId: string) {
   const qc = useQueryClient();
   return useMutation({

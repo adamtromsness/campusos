@@ -107,6 +107,14 @@ export default function FamilyPage() {
             ? "Your family and how everyone is connected to CampusOS."
             : 'Your family — read-only view.'
         }
+        actions={
+          <Link
+            href="/family/settings"
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            Family Settings
+          </Link>
+        }
       />
 
       <ParentsAndGuardiansSection
