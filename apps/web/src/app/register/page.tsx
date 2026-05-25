@@ -12,6 +12,7 @@ import {
   type UserPersona,
 } from '@/lib/auth-store';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { useToast } from '@/components/ui/Toast';
 
 /**
@@ -238,16 +239,18 @@ function RegisterPageInner() {
             className="mt-3"
           />
 
-          <Field
-            id="phone"
-            label="Phone (optional)"
-            type="tel"
-            value={form.phone}
-            onChange={(v) => set('phone', v)}
-            error={errors.phone}
-            autoComplete="tel"
-            className="mt-3"
-          />
+          <div className="mt-3">
+            <label htmlFor="phone" className="block text-xs font-medium text-gray-700">
+              Phone (optional)
+            </label>
+            <PhoneInput
+              id="phone"
+              value={form.phone}
+              onChange={(raw) => set('phone', raw)}
+              ariaInvalid={!!errors.phone}
+            />
+            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+          </div>
 
           <div className="mt-3">
             <label htmlFor="password" className="block text-xs font-medium text-gray-700">

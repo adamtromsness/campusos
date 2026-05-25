@@ -27,6 +27,8 @@ import {
 } from '@/hooks/use-family-children';
 import Link from 'next/link';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
+import { PhoneInput } from '@/components/ui/PhoneInput';
+import { formatPhone } from '@/lib/phone-format';
 import type { ProfileDto } from '@/lib/types';
 
 /**
@@ -297,13 +299,20 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
         </div>
 
         <div className="mt-4">
-          <EditField
+          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
+            Phone
+            {dirtyFields.has('primaryPhone') && (
+              <span
+                aria-label="Modified"
+                title="Modified — save to keep this change"
+                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+              />
+            )}
+          </label>
+          <PhoneInput
             id="primaryPhone"
-            label="Phone"
-            type="tel"
             value={form.primaryPhone}
-            onChange={(v) => setField('primaryPhone', v)}
-            autoComplete="tel"
+            onChange={(raw) => setField('primaryPhone', raw)}
             dirty={dirtyFields.has('primaryPhone')}
           />
         </div>
@@ -822,7 +831,7 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
           <>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
               <ReadOnlyInline label="Doctor name" value={doctor.name} />
-              <ReadOnlyInline label="Doctor phone" value={doctor.phone} />
+              <ReadOnlyInline label="Doctor phone" value={formatPhone(doctor.phone)} />
               <div className="sm:col-span-2">
                 <ReadOnlyInline label="Clinic" value={doctor.clinic} />
               </div>
@@ -842,7 +851,16 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <EditField id="docName" label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
-            <EditField id="docPhone" label="Doctor phone" value={doctor.phone} onChange={(v) => patchDoctor('phone', v)} />
+            <div>
+              <label htmlFor="docPhone" className="block text-xs font-medium text-gray-700">
+                Doctor phone
+              </label>
+              <PhoneInput
+                id="docPhone"
+                value={doctor.phone}
+                onChange={(raw) => patchDoctor('phone', raw)}
+              />
+            </div>
             <EditField id="docClinic" label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
             <EditField id="insProv" label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
             <EditField id="insPolicy" label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />

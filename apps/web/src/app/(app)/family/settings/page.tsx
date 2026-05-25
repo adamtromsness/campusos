@@ -26,6 +26,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { cn } from '@/components/ui/cn';
+import { PhoneInput } from '@/components/ui/PhoneInput';
+import { formatPhone } from '@/lib/phone-format';
 
 /**
  * /family/settings — tabbed layout for household-wide attributes.
@@ -1006,7 +1008,7 @@ function GuardianContactRow({
       <td className="px-2 py-3 text-gray-700">Parent/Guardian</td>
       <td className="px-2 py-3 text-gray-700">
         {row.phone ? (
-          row.phone
+          formatPhone(row.phone)
         ) : (
           <span
             className="text-xs text-amber-700"
@@ -1114,9 +1116,9 @@ function ManualContactRow({
       </td>
       <td className="px-2 py-3 text-gray-700">{contact.relationship}</td>
       <td className="px-2 py-3 text-gray-700">
-        <div>{contact.phonePrimary}</div>
+        <div>{formatPhone(contact.phonePrimary)}</div>
         {contact.phoneAlternate && (
-          <div className="text-xs text-gray-500">{contact.phoneAlternate}</div>
+          <div className="text-xs text-gray-500">{formatPhone(contact.phoneAlternate)}</div>
         )}
       </td>
       <td className="px-2 py-3">
@@ -1320,16 +1322,16 @@ function AddEmergencyContactModal({
             ))}
           </select>
         </div>
-        <SettingsField
+        <PhoneFieldSettings
           label="Primary phone"
           value={form.phonePrimary}
-          onChange={(v) => setForm((f) => ({ ...f, phonePrimary: v }))}
+          onChange={(raw) => setForm((f) => ({ ...f, phonePrimary: raw }))}
           required
         />
-        <SettingsField
+        <PhoneFieldSettings
           label="Alternate phone"
           value={form.phoneAlternate}
-          onChange={(v) => setForm((f) => ({ ...f, phoneAlternate: v }))}
+          onChange={(raw) => setForm((f) => ({ ...f, phoneAlternate: raw }))}
         />
         <SettingsField
           label="Email"
@@ -1403,15 +1405,25 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
             disabled={!editable}
             dirty={dirtyFields.has('doctorName')}
           />
-          <Field
-            id="doctorPhone"
-            label="Doctor phone"
-            type="tel"
-            value={form.doctorPhone}
-            onChange={(v) => setForm((f) => ({ ...f, doctorPhone: v }))}
-            disabled={!editable}
-            dirty={dirtyFields.has('doctorPhone')}
-          />
+          <div>
+            <label htmlFor="doctorPhone" className="block text-xs font-medium text-gray-700">
+              Doctor phone
+              {dirtyFields.has('doctorPhone') && (
+                <span
+                  aria-label="Modified"
+                  title="Modified — save to keep this change"
+                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                />
+              )}
+            </label>
+            <PhoneInput
+              id="doctorPhone"
+              value={form.doctorPhone}
+              onChange={(raw) => setForm((f) => ({ ...f, doctorPhone: raw }))}
+              disabled={!editable}
+              dirty={dirtyFields.has('doctorPhone')}
+            />
+          </div>
           <Field
             id="doctorClinic"
             label="Clinic / practice"
@@ -1572,6 +1584,32 @@ function Field({
         )}
       />
       {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+    </div>
+  );
+}
+
+function PhoneFieldSettings({
+  label,
+  value,
+  onChange,
+  required,
+  className,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (raw: string) => void;
+  required?: boolean;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <PhoneInput value={value} onChange={onChange} disabled={disabled} />
     </div>
   );
 }

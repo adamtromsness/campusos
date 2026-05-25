@@ -34,6 +34,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
+import { PhoneInput } from '@/components/ui/PhoneInput';
+import { formatPhone } from '@/lib/phone-format';
 
 /**
  * /family/children/[id] — tabbed detail view for a family child.
@@ -775,7 +777,7 @@ function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: 
     return (
       <SectionCard title="Phone & notes">
         <div className="grid gap-4 sm:grid-cols-2">
-          <ReadOnlyField label="Phone" value={child.primaryPhone} />
+          <ReadOnlyField label="Phone" value={formatPhone(child.primaryPhone)} />
         </div>
         {child.notes && (
           <div className="mt-4">
@@ -790,14 +792,24 @@ function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: 
   return (
     <SectionCard title="Phone & notes">
       <div className="grid gap-4 sm:grid-cols-2">
-        <EditField
-          id="primaryPhone"
-          label="Phone"
-          type="tel"
-          value={form.phone}
-          onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
-          dirty={dirtyFields.has('phone')}
-        />
+        <div>
+          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
+            Phone
+            {dirtyFields.has('phone') && (
+              <span
+                aria-label="Modified"
+                title="Modified — save to keep this change"
+                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+              />
+            )}
+          </label>
+          <PhoneInput
+            id="primaryPhone"
+            value={form.phone}
+            onChange={(raw) => setForm((f) => ({ ...f, phone: raw }))}
+            dirty={dirtyFields.has('phone')}
+          />
+        </div>
       </div>
       <div className="mt-4">
         <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
@@ -1006,7 +1018,7 @@ function MedicalSection({ childId }: { childId: string }) {
           <>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
               <ReadOnlyField label="Doctor name" value={doctor.name} />
-              <ReadOnlyField label="Doctor phone" value={doctor.phone} />
+              <ReadOnlyField label="Doctor phone" value={formatPhone(doctor.phone)} />
               <div className="sm:col-span-2">
                 <ReadOnlyField label="Clinic" value={doctor.clinic} />
               </div>
@@ -1026,7 +1038,7 @@ function MedicalSection({ childId }: { childId: string }) {
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <SectionField label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
-            <SectionField label="Doctor phone" value={doctor.phone} onChange={(v) => patchDoctor('phone', v)} />
+            <PhoneField label="Doctor phone" value={doctor.phone} onChange={(raw) => patchDoctor('phone', raw)} />
             <SectionField label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
             <SectionField label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
             <SectionField label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />
@@ -1471,9 +1483,9 @@ function FamilyEmergencyContactsInherited() {
                   <span className="ml-2 text-xs font-normal text-gray-500">{c.relationship}</span>
                 </p>
                 <p className="mt-0.5 text-xs text-gray-600">
-                  {c.phonePrimary}
+                  {formatPhone(c.phonePrimary)}
                   {c.phoneAlternate && (
-                    <span className="text-gray-500"> · {c.phoneAlternate}</span>
+                    <span className="text-gray-500"> · {formatPhone(c.phoneAlternate)}</span>
                   )}
                 </p>
                 {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
@@ -1562,8 +1574,8 @@ function ChildEmergencyContactsBlock({ childId, title }: { childId: string; titl
           <div className="grid gap-2 sm:grid-cols-2">
             <SectionField label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} required />
             <SectionField label="Relationship" value={draft.relationship} onChange={(v) => setDraft({ ...draft, relationship: v })} placeholder="Spouse, Grandparent…" required />
-            <SectionField label="Primary phone" value={draft.phonePrimary} onChange={(v) => setDraft({ ...draft, phonePrimary: v })} required />
-            <SectionField label="Alternate phone" value={draft.phoneAlternate} onChange={(v) => setDraft({ ...draft, phoneAlternate: v })} />
+            <PhoneField label="Primary phone" value={draft.phonePrimary} onChange={(raw) => setDraft({ ...draft, phonePrimary: raw })} required />
+            <PhoneField label="Alternate phone" value={draft.phoneAlternate} onChange={(raw) => setDraft({ ...draft, phoneAlternate: raw })} />
             <SectionField label="Email" value={draft.email} onChange={(v) => setDraft({ ...draft, email: v })} className="sm:col-span-2" />
             <label className="flex items-center gap-2 text-sm sm:col-span-2">
               <input
@@ -1895,6 +1907,44 @@ function EditField({
       ) : hint ? (
         <p className="mt-1 text-xs text-gray-500">{hint}</p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Phone-shaped variant of SectionField — same label / required /
+ * dirty affordances but routes through the auto-formatting
+ * PhoneInput. onChange fires with the raw-digit string.
+ */
+function PhoneField({
+  label,
+  value,
+  onChange,
+  required,
+  className,
+  dirty,
+}: {
+  label: string;
+  value: string;
+  onChange: (raw: string) => void;
+  required?: boolean;
+  className?: string;
+  dirty?: boolean;
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-xs font-medium text-gray-700">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
+      </label>
+      <PhoneInput value={value} onChange={onChange} dirty={dirty} />
     </div>
   );
 }
