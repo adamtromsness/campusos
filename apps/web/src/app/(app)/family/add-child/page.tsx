@@ -193,11 +193,9 @@ export default function AddChildPage() {
               onChange={(e) => setBasic((b) => ({ ...b, gender: e.target.value }))}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
             >
-              <option value="">Prefer not to say</option>
+              <option value="">Not Specified</option>
               <option value="F">Female</option>
               <option value="M">Male</option>
-              <option value="X">Non-binary</option>
-              <option value="O">Other</option>
             </select>
             </div>
           </div>

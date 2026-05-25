@@ -127,13 +127,7 @@ function Hero({ child }: { child: FamilyChildDto }) {
 
   return (
     <header className="mb-6">
-      <Link
-        href="/family"
-        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
-      >
-        ← My Family
-      </Link>
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">{heroName}</h1>
           {showFull && <p className="mt-1 text-sm text-gray-500">{fullName}</p>}
@@ -143,6 +137,12 @@ function Hero({ child }: { child: FamilyChildDto }) {
           {access && <PillBadge style={access} />}
         </div>
       </div>
+      <Link
+        href="/family"
+        className="mt-3 inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
+      >
+        ← My Family
+      </Link>
     </header>
   );
 }
@@ -446,11 +446,9 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
                   : 'border border-gray-300',
               )}
             >
-              <option value="">Prefer not to say</option>
+              <option value="">Not Specified</option>
               <option value="F">Female</option>
               <option value="M">Male</option>
-              <option value="X">Non-binary</option>
-              <option value="O">Other</option>
             </select>
           </div>
         </div>
@@ -1792,8 +1790,17 @@ function formatDate(iso: string): string {
 }
 
 function genderLabel(value: string | null): string | null {
-  if (!value) return null;
-  const map: Record<string, string> = { F: 'Female', M: 'Male', X: 'Non-binary', O: 'Other' };
+  if (!value) return 'Not Specified';
+  // Legacy 'X' (Non-binary) and 'O' (Other) values still appear on
+  // older rows even though the picker no longer offers them — render
+  // a human label rather than the raw single-letter code. New writes
+  // can only produce '', 'F', or 'M'.
+  const map: Record<string, string> = {
+    F: 'Female',
+    M: 'Male',
+    X: 'Non-binary',
+    O: 'Other',
+  };
   return map[value] ?? value;
 }
 
