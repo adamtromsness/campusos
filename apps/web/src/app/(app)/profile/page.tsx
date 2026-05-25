@@ -66,9 +66,26 @@ export default function MyProfilePage() {
     <div className="mx-auto w-full max-w-3xl">
       <Hero profile={profile.data} />
       <Tabs profile={profile.data} />
-      <FamilyConnectionSection />
+      <FamilyConnectionSectionGated />
     </div>
   );
+}
+
+/**
+ * The Generate-code / Enter-code cards are for CHILDREN connecting
+ * to a parent's family (or anyone who's not yet linked anywhere).
+ * Parents manage their family at /family — surfacing the same cards
+ * on a parent's /profile is noise and was hiding the new tabs.
+ *
+ * Logic: if the user already has a PARENT persona, hide the cards.
+ * Otherwise show them (covers students, unlinked guardians, staff,
+ * brand-new 0-persona accounts).
+ */
+function FamilyConnectionSectionGated() {
+  const personas = useAuthStore((s) => s.user?.personas ?? []);
+  const hasParentPersona = personas.some((p) => p.type === 'PARENT');
+  if (hasParentPersona) return null;
+  return <FamilyConnectionSection />;
 }
 
 // ─── Hero ──────────────────────────────────────────────────
