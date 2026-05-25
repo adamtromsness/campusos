@@ -10,7 +10,12 @@ import { cn } from '@/components/ui/cn';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
 import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile';
-import { useAcceptFamilyLink, useGenerateChildCode } from '@/hooks/use-family-children';
+import {
+  useAcceptFamilyLink,
+  useFamilySettings,
+  useGenerateChildCode,
+} from '@/hooks/use-family-children';
+import Link from 'next/link';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import type { ProfileDto } from '@/lib/types';
 
@@ -384,16 +389,248 @@ function humanPersona(type: string): string {
   return map[type] ?? type;
 }
 
-// ─── Contact tab (stub — wired up in next commit) ──────────
+// ─── Contact tab ───────────────────────────────────────────
 
-function ContactTab({ profile: _profile }: { profile: ProfileDto }) {
+/**
+ * Two sections: address (with family/custom inheritance toggle) and
+ * work contact (work email, employer, job title). Mailing address
+ * is currently a family-level concept only — per-person mailing
+ * overrides would need another set of columns + a toggle, deferred.
+ */
+function ContactTab({ profile }: { profile: ProfileDto }) {
+  const { refreshUser } = useAuthActions();
+  const { toast } = useToast();
+  const update = useUpdateMyProfile();
+  const familySettings = useFamilySettings();
+
+  const initial = useMemo(
+    () => ({
+      addressSource: profile.addressSource,
+      customAddressLine1: profile.customAddressLine1 ?? '',
+      customAddressLine2: profile.customAddressLine2 ?? '',
+      customCity: profile.customCity ?? '',
+      customState: profile.customState ?? '',
+      customPostalCode: profile.customPostalCode ?? '',
+      customCountry: profile.customCountry ?? '',
+      workEmail: profile.workEmail ?? '',
+      employer: profile.employer ?? '',
+      jobTitle: profile.jobTitle ?? '',
+    }),
+    [profile],
+  );
+  const [form, setForm] = useState(initial);
+  const { isDirty, dirtyFields } = useFormDirty(form, initial);
+  useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => setForm(initial), [initial]);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!isDirty) return;
+    try {
+      await update.mutateAsync({
+        addressSource: form.addressSource,
+        customAddressLine1: form.customAddressLine1.trim() || null,
+        customAddressLine2: form.customAddressLine2.trim() || null,
+        customCity: form.customCity.trim() || null,
+        customState: form.customState.trim() || null,
+        customPostalCode: form.customPostalCode.trim() || null,
+        customCountry: form.customCountry.trim() || null,
+        workEmail: form.workEmail.trim() || null,
+        employer: form.employer.trim() || null,
+        jobTitle: form.jobTitle.trim() || null,
+      });
+      await refreshUser();
+      toast('Contact info saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  const fs = familySettings.data;
+  const familyAddressString = fs
+    ? [
+        [fs.addressLine1, fs.addressLine2].filter(Boolean).join(', '),
+        [fs.city, fs.state, fs.postalCode].filter(Boolean).join(', '),
+        fs.country,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+
   return (
-    <SectionCard title="Contact">
-      <p className="text-sm text-gray-500">
-        Address, mailing, and work-contact controls land in the next commit. For now your phone
-        lives on the Account tab.
-      </p>
-    </SectionCard>
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      <SectionCard title="Address">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {form.addressSource === 'FAMILY'
+              ? 'Using your family home address.'
+              : 'Using a custom address for your profile.'}
+          </p>
+          <SourceToggle
+            value={form.addressSource}
+            onChange={(next) => setForm((f) => ({ ...f, addressSource: next }))}
+            busy={update.isPending}
+            familyLabel="Use family"
+            customLabel="Use custom"
+          />
+        </div>
+
+        {form.addressSource === 'FAMILY' ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50/40 p-3 text-sm">
+            {familySettings.isLoading ? (
+              <p className="text-gray-500">Loading…</p>
+            ) : !fs || !familyAddressString ? (
+              <p className="text-gray-500">No family address on file yet.</p>
+            ) : (
+              <p className="text-gray-800">{familyAddressString}</p>
+            )}
+            <div className="mt-2">
+              <Link
+                href="/family/settings?tab=addresses"
+                className="text-sm font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family address →
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <EditField
+              id="customAddressLine1"
+              label="Street address"
+              value={form.customAddressLine1}
+              onChange={(v) => setForm((f) => ({ ...f, customAddressLine1: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('customAddressLine1')}
+            />
+            <EditField
+              id="customAddressLine2"
+              label="Apartment / unit"
+              value={form.customAddressLine2}
+              onChange={(v) => setForm((f) => ({ ...f, customAddressLine2: v }))}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('customAddressLine2')}
+            />
+            <EditField
+              id="customCity"
+              label="City"
+              value={form.customCity}
+              onChange={(v) => setForm((f) => ({ ...f, customCity: v }))}
+              dirty={dirtyFields.has('customCity')}
+            />
+            <EditField
+              id="customState"
+              label="State / province"
+              value={form.customState}
+              onChange={(v) => setForm((f) => ({ ...f, customState: v }))}
+              dirty={dirtyFields.has('customState')}
+            />
+            <EditField
+              id="customPostalCode"
+              label="ZIP / postal code"
+              value={form.customPostalCode}
+              onChange={(v) => setForm((f) => ({ ...f, customPostalCode: v }))}
+              dirty={dirtyFields.has('customPostalCode')}
+            />
+            <EditField
+              id="customCountry"
+              label="Country"
+              value={form.customCountry}
+              onChange={(v) => setForm((f) => ({ ...f, customCountry: v }))}
+              dirty={dirtyFields.has('customCountry')}
+            />
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Work contact (optional)"
+        description="Schools use this when they need to reach you during work hours."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <EditField
+            id="workEmail"
+            label="Work email"
+            type="email"
+            value={form.workEmail}
+            onChange={(v) => setForm((f) => ({ ...f, workEmail: v }))}
+            autoComplete="email"
+            dirty={dirtyFields.has('workEmail')}
+          />
+          <EditField
+            id="employer"
+            label="Employer"
+            value={form.employer}
+            onChange={(v) => setForm((f) => ({ ...f, employer: v }))}
+            autoComplete="organization"
+            dirty={dirtyFields.has('employer')}
+          />
+          <EditField
+            id="jobTitle"
+            label="Job title"
+            value={form.jobTitle}
+            onChange={(v) => setForm((f) => ({ ...f, jobTitle: v }))}
+            autoComplete="organization-title"
+            className="sm:col-span-2"
+            dirty={dirtyFields.has('jobTitle')}
+          />
+        </div>
+      </SectionCard>
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={!isDirty || update.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+        >
+          {update.isPending && <LoadingSpinner size="sm" />}
+          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function SourceToggle({
+  value,
+  onChange,
+  busy,
+  familyLabel,
+  customLabel,
+}: {
+  value: 'FAMILY' | 'CUSTOM';
+  onChange: (next: 'FAMILY' | 'CUSTOM') => void;
+  busy: boolean;
+  familyLabel: string;
+  customLabel: string;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
+      <button
+        type="button"
+        onClick={() => onChange('FAMILY')}
+        disabled={busy}
+        className={cn(
+          'rounded px-3 py-1',
+          value === 'FAMILY' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
+          busy && 'opacity-60',
+        )}
+      >
+        {familyLabel}
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('CUSTOM')}
+        disabled={busy}
+        className={cn(
+          'rounded px-3 py-1',
+          value === 'CUSTOM' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
+          busy && 'opacity-60',
+        )}
+      >
+        {customLabel}
+      </button>
+    </div>
   );
 }
 
@@ -457,6 +694,7 @@ function EditField({
   error,
   autoComplete,
   dirty,
+  className,
 }: {
   id: string;
   label: string;
@@ -468,9 +706,10 @@ function EditField({
   error?: string;
   autoComplete?: string;
   dirty?: boolean;
+  className?: string;
 }) {
   return (
-    <div>
+    <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}

@@ -83,6 +83,21 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() profileUpdatedAt?: string | null;
   // iam_person.created_at — used by /profile's "Account created" line.
   @ApiPropertyOptional() createdAt?: string | null;
+  // Contact-tab fields. addressSource 'FAMILY' (default) means
+  // inherit the household address from /family/settings; 'CUSTOM'
+  // means use the customAddress* columns surfaced here.
+  @ApiProperty({ enum: ['FAMILY', 'CUSTOM'] }) addressSource!: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional() customAddressLine1?: string | null;
+  @ApiPropertyOptional() customAddressLine2?: string | null;
+  @ApiPropertyOptional() customCity?: string | null;
+  @ApiPropertyOptional() customState?: string | null;
+  @ApiPropertyOptional() customPostalCode?: string | null;
+  @ApiPropertyOptional() customCountry?: string | null;
+  // Work contact (platform-wide; distinct from the per-tenant
+  // sis_guardian_employment that the admin profile path uses).
+  @ApiPropertyOptional() workEmail?: string | null;
+  @ApiPropertyOptional() employer?: string | null;
+  @ApiPropertyOptional() jobTitle?: string | null;
   @ApiPropertyOptional({ type: HouseholdSummaryDto }) household?: HouseholdSummaryDto | null;
   @ApiPropertyOptional({ type: EmergencyContactDto }) emergencyContact?: EmergencyContactDto | null;
   @ApiPropertyOptional({ type: StudentDemographicsDto })
@@ -163,6 +178,23 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) employerPhone?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) occupation?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) workAddress?: string | null;
+  // Adult Contact-tab additions. employer above writes to BOTH
+  // iam_person.employer (the new platform-wide canonical) AND
+  // sis_guardian_employment.employer (per-tenant legacy) for
+  // continuity; jobTitle + workEmail are platform-only.
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) jobTitle?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) workEmail?: string | null;
+  // Address inheritance toggle + per-person custom address.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['FAMILY', 'CUSTOM'])
+  addressSource?: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customState?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customPostalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCountry?: string | null;
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryLanguage?: string | null;
 

@@ -1852,6 +1852,17 @@ export interface ProfileDto {
   notes: string | null;
   profileUpdatedAt: string | null;
   createdAt: string | null;
+  // Contact-tab additions.
+  addressSource: 'FAMILY' | 'CUSTOM';
+  customAddressLine1: string | null;
+  customAddressLine2: string | null;
+  customCity: string | null;
+  customState: string | null;
+  customPostalCode: string | null;
+  customCountry: string | null;
+  workEmail: string | null;
+  employer: string | null;
+  jobTitle: string | null;
   household: HouseholdSummaryDto | null;
   emergencyContact: EmergencyContactDto | null;
   demographics: StudentDemographicsDto | null;
@@ -1888,6 +1899,16 @@ export interface UpdateProfilePayload {
   occupation?: string | null;
   workAddress?: string | null;
   primaryLanguage?: string | null;
+  // Adult Contact tab.
+  jobTitle?: string | null;
+  workEmail?: string | null;
+  addressSource?: 'FAMILY' | 'CUSTOM';
+  customAddressLine1?: string | null;
+  customAddressLine2?: string | null;
+  customCity?: string | null;
+  customState?: string | null;
+  customPostalCode?: string | null;
+  customCountry?: string | null;
   emergencyContact?: UpdateEmergencyContactPayload;
 }
 

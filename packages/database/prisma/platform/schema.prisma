@@ -194,6 +194,19 @@ model IamPerson {
   phoneTypeSecondary String?    @map("phone_type_secondary")
   preferredLanguage  String     @default("en") @map("preferred_language")
   personalEmail      String?    @map("personal_email")
+  // Adult contact-tab fields. addressSource 'FAMILY' (default)
+  // inherits from platform_families; 'CUSTOM' uses the
+  // customAddress* columns below. CHECK is enforced at the DB.
+  addressSource      String     @default("FAMILY") @map("address_source")
+  customAddressLine1 String?    @map("custom_address_line1")
+  customAddressLine2 String?    @map("custom_address_line2")
+  customCity         String?    @map("custom_city")
+  customState        String?    @map("custom_state")
+  customPostalCode   String?    @map("custom_postal_code")
+  customCountry      String?    @map("custom_country")
+  workEmail          String?    @map("work_email")
+  employer           String?
+  jobTitle           String?    @map("job_title")
   notes              String?
   profileUpdatedAt   DateTime?  @map("profile_updated_at") @db.Timestamptz()
   nationalIdHash     String?    @map("national_id_hash")

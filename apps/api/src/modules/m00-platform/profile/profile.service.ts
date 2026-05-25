@@ -44,6 +44,17 @@ interface IamPersonRow {
   person_type: string | null;
   account_id: string | null;
   login_email: string | null;
+  // Contact-tab additions.
+  address_source: string;
+  custom_address_line1: string | null;
+  custom_address_line2: string | null;
+  custom_city: string | null;
+  custom_state: string | null;
+  custom_postal_code: string | null;
+  custom_country: string | null;
+  work_email: string | null;
+  employer: string | null;
+  job_title: string | null;
 }
 
 interface HouseholdRow {
@@ -280,6 +291,20 @@ export class ProfileService {
       // admin DTO's own `gender` (under demographics) writes to
       // sis_student_demographics, not here.
       'gender',
+      // Contact-tab fields. `employer` ALSO writes to
+      // sis_guardian_employment via upsertGuardianEmployment for
+      // backward compat with the legacy guardian-employment surface;
+      // the iam_person column is the new platform-wide canonical.
+      'addressSource',
+      'customAddressLine1',
+      'customAddressLine2',
+      'customCity',
+      'customState',
+      'customPostalCode',
+      'customCountry',
+      'workEmail',
+      'employer',
+      'jobTitle',
     ];
     for (const k of allowed) {
       if (dto[k] !== undefined) out[k as string] = dto[k];
@@ -302,6 +327,9 @@ export class ProfileService {
         'p.preferred_language, p.personal_email, p.notes, ' +
         'p.profile_updated_at::text AS profile_updated_at, ' +
         'p.created_at::text AS created_at, ' +
+        'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
+        'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
+        'p.work_email, p.employer, p.job_title, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
         'FROM platform.iam_person p LEFT JOIN platform.platform_users pu ON pu.person_id = p.id ' +
@@ -706,6 +734,18 @@ export class ProfileService {
       notes: person.notes,
       profileUpdatedAt: person.profile_updated_at,
       createdAt: person.created_at,
+      addressSource: (person.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
+      customAddressLine1: person.custom_address_line1,
+      customAddressLine2: person.custom_address_line2,
+      customCity: person.custom_city,
+      customState: person.custom_state,
+      customPostalCode: person.custom_postal_code,
+      customCountry: person.custom_country,
+      workEmail: person.work_email,
+      employer: person.employer,
+      jobTitle: person.job_title,
       household: householdDto,
       emergencyContact: emergencyDto,
       demographics: demographicsDto,
