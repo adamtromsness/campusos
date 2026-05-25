@@ -207,6 +207,11 @@ model IamPerson {
   workEmail          String?    @map("work_email")
   employer           String?
   jobTitle           String?    @map("job_title")
+  // About-tab fields. interests + languages are JSONB string arrays;
+  // bio is free text capped at 500 chars on the wire side.
+  bio                String?
+  interests          Json       @default("[]")
+  languages          Json       @default("[]")
   notes              String?
   profileUpdatedAt   DateTime?  @map("profile_updated_at") @db.Timestamptz()
   nationalIdHash     String?    @map("national_id_hash")

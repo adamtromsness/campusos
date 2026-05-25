@@ -1863,6 +1863,10 @@ export interface ProfileDto {
   workEmail: string | null;
   employer: string | null;
   jobTitle: string | null;
+  // About tab.
+  bio: string | null;
+  interests: string[];
+  languages: string[];
   household: HouseholdSummaryDto | null;
   emergencyContact: EmergencyContactDto | null;
   demographics: StudentDemographicsDto | null;
@@ -1902,6 +1906,9 @@ export interface UpdateProfilePayload {
   // Adult Contact tab.
   jobTitle?: string | null;
   workEmail?: string | null;
+  bio?: string | null;
+  interests?: string[];
+  languages?: string[];
   addressSource?: 'FAMILY' | 'CUSTOM';
   customAddressLine1?: string | null;
   customAddressLine2?: string | null;

@@ -60,6 +60,9 @@ interface IamPersonRow {
   work_email: string | null;
   employer: string | null;
   job_title: string | null;
+  bio: string | null;
+  interests: unknown;
+  languages: unknown;
 }
 
 interface HouseholdRow {
@@ -485,6 +488,11 @@ export class ProfileService {
       'workEmail',
       'employer',
       'jobTitle',
+      // About tab. bio is a string; interests/languages are arrays of
+      // strings that Prisma persists as JSONB on the column side.
+      'bio',
+      'interests',
+      'languages',
     ];
     for (const k of allowed) {
       if (dto[k] !== undefined) out[k as string] = dto[k];
@@ -510,6 +518,7 @@ export class ProfileService {
         'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
         'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
         'p.work_email, p.employer, p.job_title, ' +
+        'p.bio, p.interests, p.languages, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
         'FROM platform.iam_person p LEFT JOIN platform.platform_users pu ON pu.person_id = p.id ' +
@@ -926,6 +935,9 @@ export class ProfileService {
       workEmail: person.work_email,
       employer: person.employer,
       jobTitle: person.job_title,
+      bio: person.bio,
+      interests: Array.isArray(person.interests) ? (person.interests as string[]) : [],
+      languages: Array.isArray(person.languages) ? (person.languages as string[]) : [],
       household: householdDto,
       emergencyContact: emergencyDto,
       demographics: demographicsDto,

@@ -98,6 +98,10 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() workEmail?: string | null;
   @ApiPropertyOptional() employer?: string | null;
   @ApiPropertyOptional() jobTitle?: string | null;
+  // About-tab fields. interests + languages are arrays of strings.
+  @ApiPropertyOptional() bio?: string | null;
+  @ApiProperty({ type: [String] }) interests!: string[];
+  @ApiProperty({ type: [String] }) languages!: string[];
   @ApiPropertyOptional({ type: HouseholdSummaryDto }) household?: HouseholdSummaryDto | null;
   @ApiPropertyOptional({ type: EmergencyContactDto }) emergencyContact?: EmergencyContactDto | null;
   @ApiPropertyOptional({ type: StudentDemographicsDto })
@@ -184,6 +188,23 @@ export class UpdateMyProfileDto {
   // continuity; jobTitle + workEmail are platform-only.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) jobTitle?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) workEmail?: string | null;
+  // About-tab. bio capped at 500 chars per spec; interests +
+  // languages whole-list replace, capped at 30 entries each.
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) bio?: string | null;
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  interests?: string[];
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  languages?: string[];
   // Address inheritance toggle + per-person custom address.
   @ApiPropertyOptional()
   @IsOptional()

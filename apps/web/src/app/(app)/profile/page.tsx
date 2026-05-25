@@ -1085,16 +1085,186 @@ function AdultConditionsCard({
   );
 }
 
-// ─── About tab (stub) ──────────────────────────────────────
+// ─── About tab ─────────────────────────────────────────────
 
-function AboutTab({ profile: _profile }: { profile: ProfileDto }) {
-  return (
-    <SectionCard title="About">
-      <p className="text-sm text-gray-500">
-        Bio, interests, and languages-spoken inputs land in a follow-up commit.
-      </p>
-    </SectionCard>
+const BIO_MAX = 500;
+
+/**
+ * Bio + interests + languages. Bio is a single free-text field
+ * (500 char limit, hint shows live counter). Interests and
+ * languages are tag lists — each tag is just a string, rendered as
+ * a chip with × to remove + an inline "+ Add" input. The arrays
+ * persist via the same PATCH /profile/me as the rest of the page.
+ */
+function AboutTab({ profile }: { profile: ProfileDto }) {
+  const { toast } = useToast();
+  const update = useUpdateMyProfile();
+
+  const initial = useMemo(
+    () => ({
+      bio: profile.bio ?? '',
+      interests: profile.interests ?? [],
+      languages: profile.languages ?? [],
+    }),
+    [profile.bio, profile.interests, profile.languages],
   );
+  const [form, setForm] = useState(initial);
+  // useFormDirty doesn't deep-compare arrays — fall back to a manual
+  // check that's good enough for tag lists.
+  const isDirty =
+    form.bio !== initial.bio ||
+    !arrayEq(form.interests, initial.interests) ||
+    !arrayEq(form.languages, initial.languages);
+  useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => setForm(initial), [initial]);
+
+  async function onSave() {
+    if (!isDirty) return;
+    try {
+      await update.mutateAsync({
+        bio: form.bio.trim() || null,
+        interests: form.interests,
+        languages: form.languages,
+      });
+      toast('About saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <SectionCard title="Bio">
+        <textarea
+          id="bio"
+          value={form.bio}
+          onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value.slice(0, BIO_MAX) }))}
+          rows={4}
+          maxLength={BIO_MAX}
+          placeholder="Tell schools a bit about yourself."
+          className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+        />
+        <p className="mt-1 text-right text-xs text-gray-500">
+          {form.bio.length} / {BIO_MAX}
+        </p>
+      </SectionCard>
+
+      <SectionCard
+        title="Interests & skills"
+        description="Useful for volunteer matching, coaching, guest speaking, and parent-school collaboration."
+      >
+        <TagList
+          items={form.interests}
+          onChange={(next) => setForm((f) => ({ ...f, interests: next }))}
+          placeholder="e.g. Robotics coaching, photography, mentoring…"
+          addLabel="+ Add interest or skill"
+        />
+      </SectionCard>
+
+      <SectionCard
+        title="Languages spoken"
+        description="Helps schools route translation needs and parent communication."
+      >
+        <TagList
+          items={form.languages}
+          onChange={(next) => setForm((f) => ({ ...f, languages: next }))}
+          placeholder="e.g. English, Spanish, ASL…"
+          addLabel="+ Add language"
+        />
+      </SectionCard>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => void onSave()}
+          disabled={!isDirty || update.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+        >
+          {update.isPending && <LoadingSpinner size="sm" />}
+          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TagList({
+  items,
+  onChange,
+  placeholder,
+  addLabel,
+}: {
+  items: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  addLabel: string;
+}) {
+  const [draft, setDraft] = useState('');
+
+  function commitDraft() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    if (items.includes(trimmed)) {
+      setDraft('');
+      return;
+    }
+    onChange([...items, trimmed]);
+    setDraft('');
+  }
+
+  return (
+    <div>
+      {items.length > 0 && (
+        <ul className="mb-3 flex flex-wrap gap-1.5">
+          {items.map((item, i) => (
+            <li
+              key={item + i}
+              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-sm text-gray-800"
+            >
+              <span>{item}</span>
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                aria-label={'Remove ' + item}
+                className="-mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-xs text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitDraft();
+            }
+          }}
+          placeholder={placeholder}
+          className="block flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+        />
+        <button
+          type="button"
+          onClick={commitDraft}
+          disabled={!draft.trim()}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+        >
+          {addLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function arrayEq(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 // ─── Primitives ────────────────────────────────────────────
