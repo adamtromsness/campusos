@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEmail,
@@ -8,6 +11,7 @@ import {
   IsString,
   Length,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
 
 export const FAMILY_CHILD_STATUSES = ['PLACEHOLDER', 'PENDING_LINK', 'LINKED'] as const;
@@ -484,7 +488,19 @@ export class UpdateFamilyContactPreferenceItemDto {
  * so the /family page badge + /family/settings hero stay in sync.
  */
 export class UpdateFamilyContactPreferencesDto {
+  // @ApiProperty alone isn't enough — class-validator only adds a
+  // property to its whitelist when at least one class-validator
+  // decorator is present, and the global ValidationPipe has
+  // `forbidNonWhitelisted: true`. Without @IsArray + @ValidateNested
+  // here the entire payload gets rejected as "property preferences
+  // should not exist." @Type tells class-transformer to instantiate
+  // each item as an UpdateFamilyContactPreferenceItemDto so the
+  // nested @IsIn / @IsString decorators on the item also fire.
   @ApiProperty({ type: [UpdateFamilyContactPreferenceItemDto] })
+  @IsArray()
+  @ArrayMaxSize(8)
+  @ValidateNested({ each: true })
+  @Type(() => UpdateFamilyContactPreferenceItemDto)
   preferences!: UpdateFamilyContactPreferenceItemDto[];
 }
 

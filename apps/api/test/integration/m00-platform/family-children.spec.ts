@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { FamilyChildrenService } from '@modules/m00-platform/households/family-children.service';
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { UpdateFamilyContactPreferencesDto } from '@modules/m00-platform/households/dto/family-child.dto';
 import { RedisService } from '@shared/cache';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
@@ -1323,6 +1324,59 @@ describe('integration:m00-platform/family-children', () => {
       });
       expect(updatedDietary.dietaryType).toBe('VEGETARIAN');
       expect(updatedDietary.additionalRestrictions).toBe('No mushrooms.');
+    });
+  });
+
+  // ─── DTO validation — ValidationPipe round-trip ───────────
+
+  describe('DTO validation', () => {
+    /**
+     * Production hit a "property preferences should not exist"
+     * 400 on PATCH /family/contact-preferences because the DTO's
+     * `preferences` field carried only @ApiProperty (Swagger
+     * metadata) — class-validator only whitelists a property when
+     * it has at least one class-validator decorator, and the global
+     * ValidationPipe runs with `forbidNonWhitelisted: true`.
+     *
+     * This test wires up the same pipe configuration as main.ts and
+     * runs a valid payload through it. A regression that removes
+     * the @IsArray / @ValidateNested decorators (or other
+     * whitelist-establishing markers) will fail this test before
+     * it ships.
+     */
+    it('UpdateFamilyContactPreferencesDto passes the global ValidationPipe whitelist', async () => {
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      });
+      const payload = {
+        preferences: [
+          { category: 'GENERAL', primaryPersonId: generateId() },
+          { category: 'BILLING_FINANCIAL', primaryPersonId: generateId() },
+        ],
+      };
+      const result = await pipe.transform(payload, {
+        type: 'body',
+        metatype: UpdateFamilyContactPreferencesDto,
+      });
+      expect(result).toBeInstanceOf(UpdateFamilyContactPreferencesDto);
+      expect(result.preferences).toHaveLength(2);
+      expect(result.preferences[0]!.category).toBe('GENERAL');
+    });
+
+    it('rejects an unknown sibling property', async () => {
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      });
+      await expect(
+        pipe.transform(
+          { preferences: [], stray: 'value' },
+          { type: 'body', metatype: UpdateFamilyContactPreferencesDto },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });
