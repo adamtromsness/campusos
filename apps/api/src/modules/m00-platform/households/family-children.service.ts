@@ -225,7 +225,21 @@ export class FamilyChildrenService {
        ORDER BY pfm.is_primary_contact DESC, pfm.joined_at ASC`,
       resolved.familyId,
     );
-    const members: FamilyMemberDto[] = memberRows.map((r) => ({
+    // Defensive in-memory dedup. The partial UNIQUE INDEX added in
+    // the 20260526010000 migration prevents NEW duplicate person_id
+    // rows, but historic data may still carry them and the read
+    // path shouldn't surface duplicates. Rows with person_id NULL
+    // (PLACEHOLDER / PENDING_INVITE) pass through unchanged —
+    // multiple unfilled placeholders with the same display name
+    // are intentional.
+    const seenPersonIds = new Set<string>();
+    const dedupedMemberRows = memberRows.filter((r) => {
+      if (r.person_id === null) return true;
+      if (seenPersonIds.has(r.person_id)) return false;
+      seenPersonIds.add(r.person_id);
+      return true;
+    });
+    const members: FamilyMemberDto[] = dedupedMemberRows.map((r) => ({
       id: r.id,
       personId: r.person_id,
       firstName: r.first_name,
@@ -2052,6 +2066,44 @@ export class FamilyChildrenService {
           targetMemberId,
         );
       } else {
+        // First — look for an existing ACTIVE row in the family
+        // whose iam_person matches the invitation's named target
+        // AND whose platform_users.email is the synthetic
+        // `@external.invalid` shape (the createMemberAccount
+        // artifact). That row is the placeholder-promoted-to-ACTIVE
+        // shadow of the real accepter; without dropping it the
+        // partial UNIQUE INDEX on (family_id, person_id) lets us
+        // INSERT the real person too, but the /family page would
+        // render Ashley twice (synthetic + real). Delete the
+        // synthetic family_members row in-tx. The synthetic
+        // iam_person + platform_users rows are left as orphans
+        // intentionally — they may be referenced by persona cache
+        // / managed-account links that future cleanup can prune.
+        if (metadata?.targetFirstName && metadata?.targetLastName) {
+          const syntheticActive = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT pfm.id::text AS id
+             FROM platform.platform_family_members pfm
+             JOIN platform.iam_person p ON p.id = pfm.person_id
+             JOIN platform.platform_users u ON u.person_id = p.id
+             WHERE pfm.family_id = $1::uuid
+               AND pfm.status = 'ACTIVE'
+               AND pfm.person_id IS NOT NULL
+               AND pfm.person_id <> $4::uuid
+               AND u.email LIKE '%@external.invalid'
+               AND LOWER(p.first_name) = LOWER($2::text)
+               AND LOWER(p.last_name)  = LOWER($3::text)
+             ORDER BY pfm.created_at ASC
+             LIMIT 1`,
+            familyId,
+            metadata.targetFirstName,
+            metadata.targetLastName,
+            personId,
+          );
+          if (syntheticActive[0]) {
+            await tx.familyMember.delete({ where: { id: syntheticActive[0].id } });
+          }
+        }
+
         // Open invite — look for an unclaimed PLACEHOLDER /
         // PENDING_INVITE row in this family that matches the
         // accepter by email or by (first_name, last_name). The

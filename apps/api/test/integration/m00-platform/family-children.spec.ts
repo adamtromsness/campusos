@@ -794,6 +794,107 @@ describe('integration:m00-platform/family-children', () => {
       );
     });
 
+    it("drops a synthetic ACTIVE placeholder-promotion shadow so the real accepter doesn't duplicate", async () => {
+      // The createMemberAccount flow promotes a PLACEHOLDER guardian
+      // directly to ACTIVE with a synthesized iam_person whose email
+      // ends in @external.invalid. If the real person later self-
+      // registers and accepts a GUARDIAN_INVITE, the shadow row
+      // would coexist with the real one — /family renders the
+      // person twice. The acceptGuardianInvite open-invite branch
+      // now deletes the synthetic ACTIVE row in-tx when it finds a
+      // name match.
+      await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      // Seed the synthetic shadow directly via raw SQL — that's the
+      // state createMemberAccount would leave behind, modelled here
+      // without depending on that whole flow's prerequisites.
+      const shadowPersonId = generateId();
+      const shadowAccountId = generateId();
+      const shadowMemberId = generateId();
+      const familyAId = (await prisma.familyMember.findUnique({
+        where: { personId: userAPersonId },
+        select: { familyId: true },
+      }))!.familyId;
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.iam_person
+           (id, first_name, last_name, person_type, is_active)
+         VALUES ($1::uuid, 'Ashley', 'Tromsness', 'GUARDIAN', true)`,
+        shadowPersonId,
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_users
+           (id, person_id, email, account_status, account_type, mfa_enabled)
+         VALUES ($1::uuid, $2::uuid, 'guardian-shadow-' || substr($1::text, 1, 6) || '@external.invalid',
+                 'ACTIVE', 'HUMAN', false)`,
+        shadowAccountId,
+        shadowPersonId,
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_family_members
+           (id, family_id, person_id, member_role, is_primary_contact, status, joined_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, 'ACTIVE', now())`,
+        shadowMemberId,
+        familyAId,
+        shadowPersonId,
+      );
+
+      // userB is the real Ashley. Rename them so the synthetic
+      // match by first/last lines up — beforeAll seeds them as
+      // ('B', 'Parent'); for this test we update to Ashley/Tromsness.
+      await prisma.$executeRawUnsafe(
+        `UPDATE platform.iam_person SET first_name = 'Ashley', last_name = 'Tromsness'
+         WHERE id = $1::uuid`,
+        userBPersonId,
+      );
+
+      const code = (
+        await controller.inviteGuardian(reqA(), {
+          firstName: 'Ashley',
+          lastName: 'Tromsness',
+        })
+      ).code;
+      const result = await controller.accept(reqB(), { code });
+      if (result.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+
+      // Family now has Adam + real Ashley only — synthetic shadow
+      // family_members row was dropped in the accept tx.
+      const memberRows = await prisma.familyMember.findMany({
+        where: { familyId: result.family.id },
+        orderBy: { joinedAt: 'asc' },
+        select: { id: true, personId: true, status: true },
+      });
+      expect(memberRows.length).toBe(2);
+      const personIds = memberRows.map((r) => r.personId);
+      expect(personIds).toContain(userBPersonId);
+      expect(personIds).not.toContain(shadowPersonId);
+
+      // Shadow iam_person + platform_users are intentionally left
+      // as orphans — verify they survive the accept (cleanup belongs
+      // to a separate maintenance job).
+      const shadowStillExists = await prisma.iamPerson.findUnique({
+        where: { id: shadowPersonId },
+      });
+      expect(shadowStillExists).not.toBeNull();
+
+      // Restore userB's iam_person name so the other tests in this
+      // describe block don't see Ashley leaking. beforeEach wipes
+      // family_members + invitations but not iam_person.
+      await prisma.$executeRawUnsafe(
+        `UPDATE platform.iam_person SET first_name = 'B', last_name = 'Parent'
+         WHERE id = $1::uuid`,
+        userBPersonId,
+      );
+      // And drop the shadow + its account so the orphan doesn't
+      // collide with subsequent re-runs (UNIQUE email).
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_users WHERE person_id = $1::uuid`,
+        shadowPersonId,
+      );
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
+        shadowPersonId,
+      );
+    });
+
     it('claims an existing PLACEHOLDER member instead of inserting a duplicate', async () => {
       // user A names "Ashley" via /family/members POST (placeholder
       // row, person_id NULL), then issues an OPEN guardian-invite
