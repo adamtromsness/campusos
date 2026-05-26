@@ -17,6 +17,7 @@ import {
   useUpdateFamilyMember,
   useUpdateFamilySettings,
   type FamilyContactCategory,
+  type FamilyContactPreferenceDto,
   type FamilyEmergencyContactDto,
   type FamilyMemberDto,
   type FamilySettingsDto,
@@ -186,7 +187,9 @@ function Tabs({
       </nav>
 
       <div className="mt-6">
-        {active === 'family' && <FamilyTab settings={settings} members={members} />}
+        {active === 'family' && (
+          <FamilyTab settings={settings} members={members} onNavigate={select} />
+        )}
         {active === 'addresses' && <AddressesTab settings={settings} />}
         {active === 'emergency' && (
           <EmergencyTab editable={settings.canEdit} members={members} />
@@ -198,156 +201,6 @@ function Tabs({
 }
 
 // ─── Family tab ────────────────────────────────────────────
-
-function FamilyTab({
-  settings,
-  members,
-}: {
-  settings: FamilySettingsDto;
-  members: FamilyMemberDto[];
-}) {
-  const update = useUpdateFamilySettings();
-  const { toast } = useToast();
-
-  const initial = useMemo(
-    () => ({
-      displayName: settings.displayName ?? '',
-    }),
-    [settings.displayName],
-  );
-  const [form, setForm] = useState(initial);
-  const { isDirty, dirtyFields } = useFormDirty(form, initial);
-  useBeforeUnloadOnDirty(isDirty);
-  useEffect(() => setForm(initial), [initial]);
-
-  const editable = settings.canEdit;
-  // Only ACTIVE members (already linked to an iam_person) can be
-  // routed for any contact category — PLACEHOLDER / PENDING_INVITE
-  // rows have no person_id and would fail the service-side membership
-  // check anyway.
-  const eligibleContacts = members.filter((m) => m.status === 'ACTIVE' && m.personId);
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!editable || !isDirty) return;
-    try {
-      const payload: UpdateFamilySettingsPayload = {};
-      if (form.displayName !== initial.displayName) payload.displayName = form.displayName;
-      await update.mutateAsync(payload);
-      toast('Family settings saved', 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
-    }
-  }
-
-  return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <Card title="Family name">
-        <Field
-          id="displayName"
-          label="Display name"
-          value={form.displayName}
-          onChange={(v) => setForm((f) => ({ ...f, displayName: v }))}
-          placeholder='e.g. "The Tromsness Family"'
-          disabled={!editable}
-          hint="Displayed on your family page and shared with schools."
-          dirty={dirtyFields.has('displayName')}
-        />
-      </Card>
-
-      {/* Category routing replaces the single primary-contact dropdown
-          that used to live here. The GENERAL category is the new
-          "primary contact for the family" — when it changes, the server
-          also flips platform_family_members.is_primary_contact so the
-          /family page badge + /family/settings hero stay in sync. */}
-      <PrimaryContactCategoriesCard editable={editable} eligibleContacts={eligibleContacts} />
-
-      <Card title="Family members">
-        <FamilyRosterSummary members={members} />
-      </Card>
-
-      {editable && (
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
-      )}
-    </form>
-  );
-}
-
-/**
- * Read-only summary of who's in the family — guardians + children —
- * with deep-link to /family for the actual roster management. The
- * Family tab focuses on settings; promotion / invite / add UI stays
- * on the dedicated family page so this card doesn't grow into a
- * second copy of those flows.
- */
-function FamilyRosterSummary({ members }: { members: FamilyMemberDto[] }) {
-  const familyView = useFamilyView();
-  const guardians = members;
-  const children = familyView.data?.children ?? [];
-
-  return (
-    <div className="text-sm">
-      <p className="text-xs font-medium text-gray-700">Guardians</p>
-      {guardians.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500">No guardians on file.</p>
-      ) : (
-        <ul className="mt-1 flex flex-wrap gap-2">
-          {guardians.map((m) => {
-            const heroName = m.preferredName?.trim() ? m.preferredName : m.firstName;
-            return (
-              <li
-                key={m.id}
-                className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700"
-              >
-                {heroName} {m.lastName}
-                {m.isPrimaryContact && <span className="text-[10px] text-gray-500">(primary)</span>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <p className="mt-3 text-xs font-medium text-gray-700">Children</p>
-      {children.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500">No children on file.</p>
-      ) : (
-        <ul className="mt-1 flex flex-wrap gap-2">
-          {children.map((c) => {
-            const heroName = c.preferredName?.trim() ? c.preferredName : c.firstName;
-            return (
-              <li
-                key={c.id}
-                className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700"
-              >
-                {heroName}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div className="mt-3">
-        <Link
-          href="/family"
-          className="text-sm font-medium text-campus-700 hover:text-campus-600"
-        >
-          Manage family members →
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── Primary contacts by category ──────────────────────────
 
 const CATEGORY_META: Record<
   FamilyContactCategory,
@@ -396,171 +249,547 @@ const CATEGORY_META: Record<
 };
 
 /**
- * 8-row primary-contact router. Each category drops down the
- * eligible guardians and persists via PATCH /family/contact-preferences.
- * The card maintains its own dirty state independent of the outer
- * Family-tab form — the Save Changes button gates only on the rows
- * that actually changed, sends a partial update, and the server
- * upserts category-by-category. Empty (unset) state is allowed at
- * read time but a save requires every saved category to point to a
- * valid guardian (server validates).
+ * Family tab. New layout, top to bottom:
+ *
+ *   1. FamilyCompletionCard — weighted progress bar + checklist that
+ *      deep-links to the tab/page where each missing item lives.
+ *   2. Family name (display name override).
+ *   3. Family members — compact list + deep-link to /family for the
+ *      actual roster management (invite, add, promote, remove).
+ *   4. Primary contacts by category — 8-row routing table.
+ *   5. ONE Save Changes button at the bottom. Saves the display name
+ *      AND any dirty contact-category routes in parallel.
+ *
+ * The single-save shape is intentional: the previous two-button
+ * layout invited "did I save both?" confusion, and the categories
+ * card's separate button rejected a stale displayName change because
+ * the two forms didn't share state. Lifting both into FamilyTab fixes
+ * that and surfaces dirty state per section via small dot indicators.
  */
-function PrimaryContactCategoriesCard({
-  editable,
-  eligibleContacts,
+function FamilyTab({
+  settings,
+  members,
+  onNavigate,
 }: {
-  editable: boolean;
-  eligibleContacts: FamilyMemberDto[];
+  settings: FamilySettingsDto;
+  members: FamilyMemberDto[];
+  onNavigate: (tab: TabKey) => void;
 }) {
-  const { data, isLoading } = useFamilyContactPreferences();
-  const update = useUpdateFamilyContactPreferences();
+  const updateSettings = useUpdateFamilySettings();
+  const updatePrefs = useUpdateFamilyContactPreferences();
+  const { data: prefsData } = useFamilyContactPreferences();
   const { toast } = useToast();
 
-  // Build initial state per category — fall back to '' (unset) for
-  // any category the server hasn't seeded yet. This happens on first
-  // visit for a family that has no primary contact set; the server's
-  // lazy seed only fires when a primary exists.
-  const initial = useMemo(() => {
-    const m: Record<FamilyContactCategory, string> = {} as Record<FamilyContactCategory, string>;
-    for (const c of FAMILY_CONTACT_CATEGORIES) m[c] = '';
-    for (const row of data ?? []) m[row.category] = row.primaryPersonId;
-    return m;
-  }, [data]);
+  // Only ACTIVE members (already linked to an iam_person) can be
+  // routed for any contact category — PLACEHOLDER / PENDING_INVITE
+  // rows have no person_id and would fail the service-side membership
+  // check anyway.
+  const eligibleContacts = members.filter((m) => m.status === 'ACTIVE' && m.personId);
 
-  const [form, setForm] = useState<Record<FamilyContactCategory, string>>(initial);
+  // Unified state: family display name + the 8 category routes.
+  // Save fires both endpoints in parallel when their respective
+  // slices are dirty.
+  const initial = useMemo(() => {
+    const prefs: Record<FamilyContactCategory, string> = {} as Record<
+      FamilyContactCategory,
+      string
+    >;
+    for (const c of FAMILY_CONTACT_CATEGORIES) prefs[c] = '';
+    for (const row of prefsData ?? []) prefs[row.category] = row.primaryPersonId;
+    return {
+      displayName: settings.displayName ?? '',
+      ...prefs,
+    };
+  }, [settings.displayName, prefsData]);
+
+  type FormShape = typeof initial;
+  const [form, setForm] = useState<FormShape>(initial);
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
   useBeforeUnloadOnDirty(isDirty);
   useEffect(() => setForm(initial), [initial]);
 
-  async function onSave() {
-    if (!editable || !isDirty) return;
-    const preferences = (Array.from(dirtyFields) as FamilyContactCategory[])
-      .filter((category) => form[category])
-      .map((category) => ({ category, primaryPersonId: form[category]! }));
-    if (preferences.length === 0) return;
+  const editable = settings.canEdit;
+  const nameDirty = dirtyFields.has('displayName');
+  const dirtyCategories = (Array.from(dirtyFields) as Array<keyof FormShape>).filter(
+    (k): k is FamilyContactCategory =>
+      k !== 'displayName' && (FAMILY_CONTACT_CATEGORIES as readonly string[]).includes(k),
+  );
+  const categoriesDirty = dirtyCategories.length > 0;
+  const busy = updateSettings.isPending || updatePrefs.isPending;
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editable || !isDirty || busy) return;
+    const tasks: Promise<unknown>[] = [];
+    if (nameDirty) {
+      const payload: UpdateFamilySettingsPayload = { displayName: form.displayName };
+      tasks.push(updateSettings.mutateAsync(payload));
+    }
+    if (categoriesDirty) {
+      const preferences = dirtyCategories
+        .filter((category) => form[category])
+        .map((category) => ({ category, primaryPersonId: form[category]! }));
+      if (preferences.length > 0) {
+        tasks.push(updatePrefs.mutateAsync({ preferences }));
+      }
+    }
     try {
-      await update.mutateAsync({ preferences });
-      toast('Contact routing saved', 'success');
+      await Promise.all(tasks);
+      toast('Family settings saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
   }
 
-  if (eligibleContacts.length === 0) {
-    return (
-      <Card
-        title="Primary Contacts by Category"
-        description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
-      >
-        <p className="text-sm text-gray-600">
-          No connected guardians yet. Add or invite a guardian on{' '}
-          <Link href="/family" className="text-campus-700 hover:text-campus-600">
-            the family page
-          </Link>{' '}
-          to start routing contact categories.
-        </p>
-      </Card>
-    );
-  }
-
   return (
-    <Card
-      title="Primary Contacts by Category"
-      description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
-    >
-      {isLoading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sr-only">
-              <tr>
-                <th>Category</th>
-                <th>Primary Contact</th>
-              </tr>
-            </thead>
-            <tbody>
-              {FAMILY_CONTACT_CATEGORIES.map((category) => {
-                const meta = CATEGORY_META[category];
-                const dirty = dirtyFields.has(category);
-                return (
-                  <tr key={category} className="border-b border-gray-100 last:border-b-0">
-                    <td className="py-3 pr-3 align-top">
-                      <div className="flex items-start gap-2">
-                        <span aria-hidden className="text-base leading-none">
-                          {meta.icon}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900">{meta.label}</div>
-                          <p className="text-xs text-gray-500">{meta.hint}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 align-top">
-                      <label className="sr-only" htmlFor={'contact-cat-' + category}>
-                        Primary contact for {meta.label}
-                        {dirty && ' (modified)'}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <select
-                          id={'contact-cat-' + category}
-                          value={form[category]}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, [category]: e.target.value }))
-                          }
-                          disabled={!editable}
-                          className={cn(
-                            'block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-                            dirty
-                              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-                              : 'border border-gray-300',
-                          )}
-                        >
-                          <option value="">— Not set —</option>
-                          {eligibleContacts.map((m) => {
-                            const name =
-                              (m.preferredName?.trim() ? m.preferredName : null) ||
-                              [m.firstName, m.lastName].filter(Boolean).join(' ') ||
-                              m.email ||
-                              'Member';
-                            return (
-                              <option key={m.id} value={m.personId ?? ''}>
-                                {name}
-                              </option>
-                            );
-                          })}
-                        </select>
-                        {dirty && (
-                          <span
-                            aria-label="Modified"
-                            title="Modified — save to keep this change"
-                            className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
-                          />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      <FamilyCompletionCard
+        settings={settings}
+        members={members}
+        prefs={prefsData ?? null}
+        onNavigate={onNavigate}
+      />
+
+      <Card title="Family name" dirty={nameDirty}>
+        <Field
+          id="displayName"
+          label="Display name"
+          value={form.displayName}
+          onChange={(v) => setForm((f) => ({ ...f, displayName: v }))}
+          placeholder='e.g. "The Tromsness Family"'
+          disabled={!editable}
+          hint="Displayed on your family page and shared with schools."
+          dirty={nameDirty}
+        />
+      </Card>
+
+      <Card title="Family members">
+        <FamilyMembersList members={members} />
+      </Card>
+
+      <Card
+        title="Primary contacts by category"
+        description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
+        dirty={categoriesDirty}
+      >
+        {eligibleContacts.length === 0 ? (
+          <p className="text-sm text-gray-600">
+            No connected guardians yet. Add or invite a guardian on{' '}
+            <Link href="/family" className="text-campus-700 hover:text-campus-600">
+              the family page
+            </Link>{' '}
+            to start routing contact categories.
+          </p>
+        ) : (
+          <CategoryRoutingTable
+            value={form}
+            onChange={(category, personId) =>
+              setForm((f) => ({ ...f, [category]: personId }))
+            }
+            dirtyFields={dirtyFields}
+            eligibleContacts={eligibleContacts}
+            editable={editable}
+          />
+        )}
+      </Card>
 
       {editable && (
-        <div className="mt-3 flex justify-end">
+        <div className="flex justify-end">
           <button
-            type="button"
-            onClick={() => void onSave()}
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            type="submit"
+            disabled={!isDirty || busy}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
           >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Categories'}</span>
+            {busy && <LoadingSpinner size="sm" />}
+            <span>{busy ? 'Saving…' : 'Save Changes'}</span>
           </button>
         </div>
       )}
+    </form>
+  );
+}
+
+// ─── Completion status card ────────────────────────────────
+
+/**
+ * Checklist item the FamilyCompletionCard renders. `complete` drives
+ * the ✅/❌ glyph + the colour; `weight` is the percentage point this
+ * item contributes when satisfied. `navigate` (optional) makes the
+ * row a clickable deep-link to wherever the missing piece lives.
+ */
+interface CompletionItem {
+  label: string;
+  complete: boolean;
+  weight: number;
+  navigate?: () => void;
+  hint?: string;
+}
+
+function FamilyCompletionCard({
+  settings,
+  members,
+  prefs,
+  onNavigate,
+}: {
+  settings: FamilySettingsDto;
+  members: FamilyMemberDto[];
+  prefs: FamilyContactPreferenceDto[] | null;
+  onNavigate: (tab: TabKey) => void;
+}) {
+  const familyView = useFamilyView();
+  const { data: ecs } = useFamilyEmergencyContacts();
+  const children = familyView.data?.children ?? [];
+
+  const items: CompletionItem[] = useMemo(() => {
+    const hasName = Boolean(settings.displayName?.trim());
+    const hasGeneralPrimary = (prefs ?? []).some(
+      (p) => p.category === 'GENERAL' && p.primaryPersonId,
+    );
+    const hasHomeAddress = Boolean(
+      settings.addressLine1 && settings.city && settings.state && settings.postalCode,
+    );
+    // 2+ contacts with a phone counts — covers Adam + Ashley as
+    // guardians by default. Phones come from iam_person on
+    // guardian rows (FamilyMemberDto.primaryPhone) and from the
+    // manual contact's phonePrimary column.
+    const guardiansWithPhone = members.filter(
+      (m) => m.status === 'ACTIVE' && (m.primaryPhone ?? '').trim().length > 0,
+    ).length;
+    const manualECsWithPhone = (ecs ?? []).filter(
+      (c) => c.phonePrimary && c.phonePrimary.trim().length > 0,
+    ).length;
+    const enoughEmergency = guardiansWithPhone + manualECsWithPhone >= 2;
+    const hasDoctor = Boolean(settings.doctorName?.trim());
+    const hasInsurance = Boolean(settings.insuranceProvider?.trim());
+    const hasAnyChild = children.length > 0;
+    const allChildrenLinked = hasAnyChild && children.every((c) => c.status === 'LINKED');
+    const unlinkedCount = children.filter((c) => c.status !== 'LINKED').length;
+    const guardiansComplete =
+      members.filter((m) => m.status === 'ACTIVE').length > 0 &&
+      members
+        .filter((m) => m.status === 'ACTIVE')
+        .every((m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim());
+    // "Customised" = at least one category routes to someone other
+    // than the GENERAL contact. If everything routes to the same
+    // person we treat it as "default — not yet customised."
+    const generalPersonId = (prefs ?? []).find((p) => p.category === 'GENERAL')?.primaryPersonId;
+    const customisedPrefs = (prefs ?? []).some(
+      (p) => p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
+    );
+    // Mailing-address is satisfied when the user explicitly answered
+    // the toggle: either same-as-home (mailingAddressDifferent=false)
+    // OR different + filled out.
+    const mailingSatisfied = !settings.mailingAddressDifferent
+      ? true
+      : Boolean(settings.mailingLine1 && settings.mailingCity && settings.mailingState);
+
+    return [
+      { label: 'Family name set', complete: hasName, weight: 5 },
+      { label: 'Primary contact assigned (General)', complete: hasGeneralPrimary, weight: 5 },
+      {
+        label: 'Home address on file',
+        complete: hasHomeAddress,
+        weight: 15,
+        navigate: () => onNavigate('addresses'),
+      },
+      {
+        label: 'At least 2 emergency contacts with phone',
+        complete: enoughEmergency,
+        weight: 15,
+        navigate: () => onNavigate('emergency'),
+      },
+      {
+        label: 'Family doctor on file',
+        complete: hasDoctor,
+        weight: 10,
+        navigate: () => onNavigate('health'),
+      },
+      {
+        label: 'Insurance on file',
+        complete: hasInsurance,
+        weight: 10,
+        navigate: () => onNavigate('health'),
+      },
+      { label: 'At least one child added', complete: hasAnyChild, weight: 10, hint: hasAnyChild ? undefined : 'Add children on /family.' },
+      {
+        label: allChildrenLinked
+          ? 'All children have linked accounts'
+          : hasAnyChild
+            ? `Children have accounts (${children.length - unlinkedCount} of ${children.length} connected)`
+            : 'All children have linked accounts',
+        complete: allChildrenLinked,
+        weight: 10,
+      },
+      {
+        label: 'All guardian profiles complete (phone + email)',
+        complete: guardiansComplete,
+        weight: 10,
+      },
+      {
+        label: 'Communication preferences customised',
+        complete: customisedPrefs,
+        weight: 5,
+      },
+      { label: 'Mailing address (if different from home)', complete: mailingSatisfied, weight: 5, navigate: () => onNavigate('addresses') },
+    ];
+  }, [settings, members, prefs, children, ecs, onNavigate]);
+
+  const totalWeight = items.reduce((sum, i) => sum + i.weight, 0);
+  const earned = items.filter((i) => i.complete).reduce((sum, i) => sum + i.weight, 0);
+  const percent = totalWeight === 0 ? 0 : Math.round((earned / totalWeight) * 100);
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold text-gray-900">Family profile</h2>
+        <span className="text-sm font-semibold text-gray-900" aria-live="polite">
+          {percent}% complete
+        </span>
+      </div>
+      <div
+        className="mt-2 h-2 w-full rounded-full bg-gray-200"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <div
+          className="h-2 rounded-full bg-green-500 transition-[width]"
+          style={{ width: percent + '%' }}
+        />
+      </div>
+      <ul className="mt-3 flex flex-col gap-1">
+        {items.map((item) => {
+          const baseClasses =
+            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left';
+          const interactive = item.navigate && !item.complete;
+          const content = (
+            <>
+              <span
+                aria-hidden
+                className={item.complete ? 'text-green-600' : 'text-red-400'}
+              >
+                {item.complete ? '✅' : '❌'}
+              </span>
+              <span className={item.complete ? 'text-gray-700' : 'text-gray-900'}>
+                {item.label}
+              </span>
+              {interactive && (
+                <span className="ml-auto text-xs font-medium text-campus-700">Fix →</span>
+              )}
+            </>
+          );
+          return (
+            <li key={item.label}>
+              {interactive ? (
+                <button
+                  type="button"
+                  onClick={item.navigate}
+                  className={cn(baseClasses, 'hover:bg-gray-50')}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={cn(baseClasses, 'cursor-default')}>{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Card>
+  );
+}
+
+// ─── Compact family-members list ───────────────────────────
+
+/**
+ * Replaces the old chip-cloud roster summary with a two-section list
+ * that shows guardian-role + child-account status at a glance.
+ * Mutations still live on /family — this card is reference data
+ * with a deep-link.
+ */
+function FamilyMembersList({ members }: { members: FamilyMemberDto[] }) {
+  const familyView = useFamilyView();
+  const guardians = members.filter((m) => m.status === 'ACTIVE');
+  const placeholderGuardians = members.filter((m) => m.status !== 'ACTIVE');
+  const children = familyView.data?.children ?? [];
+
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Guardians</p>
+        {guardians.length === 0 && placeholderGuardians.length === 0 ? (
+          <p className="mt-1 text-gray-500">No guardians on file.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
+            {guardians.map((m) => {
+              const heroName = m.preferredName?.trim() ? m.preferredName : m.firstName;
+              return (
+                <li key={m.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-gray-900">
+                    {heroName} {m.lastName}
+                    {m.isCurrentUser && (
+                      <span className="ml-1 text-xs font-normal text-gray-500">(you)</span>
+                    )}
+                  </span>
+                  {m.isPrimaryContact ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+                      ⭐ Primary
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500">Guardian</span>
+                  )}
+                </li>
+              );
+            })}
+            {placeholderGuardians.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between gap-2 px-3 py-2 text-gray-500"
+              >
+                <span>
+                  {m.firstName} {m.lastName}
+                </span>
+                <span className="text-xs">
+                  {m.status === 'PENDING_INVITE' ? 'Invite sent' : 'Pending'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Children</p>
+        {children.length === 0 ? (
+          <p className="mt-1 text-gray-500">No children on file.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
+            {children.map((c) => {
+              const heroName = c.preferredName?.trim() ? c.preferredName : c.firstName;
+              const linked = c.status === 'LINKED';
+              return (
+                <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-gray-900">
+                    {heroName}
+                    {c.preferredName?.trim() && c.preferredName !== c.firstName && (
+                      <span className="ml-1 text-xs text-gray-500">
+                        ({c.firstName} {c.lastName})
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-xs font-medium',
+                      linked ? 'text-green-700' : 'text-amber-700',
+                    )}
+                  >
+                    {linked ? '✅ Connected' : '⚠️ No account'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div>
+        <Link href="/family" className="text-sm font-medium text-campus-700 hover:text-campus-600">
+          Manage family members →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ─── Category routing table (controlled child of FamilyTab) ─
+
+function CategoryRoutingTable({
+  value,
+  onChange,
+  dirtyFields,
+  eligibleContacts,
+  editable,
+}: {
+  value: Record<string, string>;
+  onChange: (category: FamilyContactCategory, personId: string) => void;
+  dirtyFields: ReadonlySet<string>;
+  eligibleContacts: FamilyMemberDto[];
+  editable: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="sr-only">
+          <tr>
+            <th>Category</th>
+            <th>Primary Contact</th>
+          </tr>
+        </thead>
+        <tbody>
+          {FAMILY_CONTACT_CATEGORIES.map((category) => {
+            const meta = CATEGORY_META[category];
+            const dirty = dirtyFields.has(category);
+            return (
+              <tr key={category} className="border-b border-gray-100 last:border-b-0">
+                <td className="py-3 pr-3 align-top">
+                  <div className="flex items-start gap-2">
+                    <span aria-hidden className="text-base leading-none">
+                      {meta.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900">{meta.label}</div>
+                      <p className="text-xs text-gray-500">{meta.hint}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-3 align-top">
+                  <label className="sr-only" htmlFor={'contact-cat-' + category}>
+                    Primary contact for {meta.label}
+                    {dirty && ' (modified)'}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      id={'contact-cat-' + category}
+                      value={value[category] ?? ''}
+                      onChange={(e) => onChange(category, e.target.value)}
+                      disabled={!editable}
+                      className={cn(
+                        'block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+                        dirty
+                          ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                          : 'border border-gray-300',
+                      )}
+                    >
+                      <option value="">— Not set —</option>
+                      {eligibleContacts.map((m) => {
+                        const name =
+                          (m.preferredName?.trim() ? m.preferredName : null) ||
+                          [m.firstName, m.lastName].filter(Boolean).join(' ') ||
+                          m.email ||
+                          'Member';
+                        return (
+                          <option key={m.id} value={m.personId ?? ''}>
+                            {name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {dirty && (
+                      <span
+                        aria-label="Modified"
+                        title="Modified — save to keep this change"
+                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
+                      />
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1582,17 +1811,32 @@ function Card({
   title,
   description,
   children,
+  dirty,
 }: {
-  title: string;
+  title?: string;
   description?: string;
   children: React.ReactNode;
+  dirty?: boolean;
 }) {
   return (
     <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-        {description && <p className="mt-0.5 text-xs text-gray-500">{description}</p>}
-      </div>
+      {(title || description) && (
+        <div className="mb-3">
+          {title && (
+            <h2 className="text-sm font-semibold text-gray-900">
+              {title}
+              {dirty && (
+                <span
+                  aria-label="Unsaved changes in this section"
+                  title="Unsaved changes in this section"
+                  className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                />
+              )}
+            </h2>
+          )}
+          {description && <p className="mt-0.5 text-xs text-gray-500">{description}</p>}
+        </div>
+      )}
       {children}
     </section>
   );
