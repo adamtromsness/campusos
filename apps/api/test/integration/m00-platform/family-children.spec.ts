@@ -727,14 +727,64 @@ describe('integration:m00-platform/family-children', () => {
       expect(invitation?.targetPersonId).toBe(userBPersonId);
     });
 
-    it('refuses a caller already in a family with a 400', async () => {
-      // user B is HoH of their own family — registration normally
-      // creates one; for the test, lazy-create by adding a placeholder.
+    it('refuses a caller whose family has children with a 400', async () => {
+      // user B is HoH of their own family AND has at least one child
+      // — this is the "real family, not just a registration singleton"
+      // case that the dissolve-on-accept fix below intentionally still
+      // refuses. The empty-singleton path is covered by the next test.
       await controller.create(reqB(), { firstName: 'B', lastName: 'Child' });
       const code = (await controller.inviteGuardian(reqA(), {})).code;
       await expect(controller.accept(reqB(), { code })).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it("dissolves the caller's empty singleton family and joins the inviter's", async () => {
+      // Seed user B as HEAD_OF_HOUSEHOLD of an empty singleton family
+      // — the shape /auth/register normally creates: family row + one
+      // platform_family_members row, no children, no co-parents. This
+      // is the case the dissolve-on-accept fix is meant to support.
+      const oldFamilyId = generateId();
+      const oldMemberId = generateId();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_families (id, name, home_language, mailing_address_same)
+         VALUES ($1::uuid, NULL, 'en', true)`,
+        oldFamilyId,
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.platform_family_members
+           (id, family_id, person_id, member_role, is_primary_contact, joined_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', true, now())`,
+        oldMemberId,
+        oldFamilyId,
+        userBPersonId,
+      );
+      const beforeMember = await prisma.familyMember.findUnique({
+        where: { personId: userBPersonId },
+        select: { familyId: true },
+      });
+      expect(beforeMember?.familyId).toBe(oldFamilyId);
+
+      // Seed A's family so the GUARDIAN_INVITE has a target.
+      await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      const result = await controller.accept(reqB(), { code });
+      if (result.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+
+      // B is now a member of A's family (the new family id from the
+      // result), not the old singleton.
+      const afterMember = await prisma.familyMember.findUnique({
+        where: { personId: userBPersonId },
+        select: { familyId: true },
+      });
+      expect(afterMember?.familyId).toBe(result.family.id);
+      expect(afterMember?.familyId).not.toBe(oldFamilyId);
+
+      // The old empty family was deleted in the same tx.
+      const orphanFamily = await prisma.platformFamily.findUnique({
+        where: { id: oldFamilyId },
+      });
+      expect(orphanFamily).toBeNull();
     });
 
     it('refuses the inviter accepting their own GUARDIAN_INVITE', async () => {

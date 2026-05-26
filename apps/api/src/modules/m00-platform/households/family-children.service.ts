@@ -1939,18 +1939,50 @@ export class FamilyChildrenService {
 
     // platform_family_members.person_id is UNIQUE — a person can only
     // be a member of one family. If the caller is already a member of
-    // ANY family, refuse with a clear 400.
+    // ANY family, we need to decide what to do:
+    //
+    //   - Same family as the invite → 400 ("already a guardian of
+    //     this family"). Idempotent-friendly.
+    //   - Different family, but that family is "empty" (the auto-
+    //     seeded singleton from /auth/register, with no children and
+    //     no other guardians) → dissolve it and continue. This is
+    //     the common case where Parent B registered independently,
+    //     hasn't added any children of their own yet, and now Parent
+    //     A invites them as a co-parent.
+    //   - Different family that has children or other guardians of
+    //     its own → 400 with a clearer message. Merging two real
+    //     families isn't supported on this surface yet.
     const existing = await this.prisma.familyMember.findUnique({
       where: { personId },
-      select: { familyId: true },
+      select: { id: true, familyId: true },
     });
+    let existingFamilyToDissolve: string | null = null;
     if (existing) {
       if (existing.familyId === familyId) {
         throw new BadRequestException('You are already a guardian of this family');
       }
-      throw new BadRequestException(
-        'You are already a member of another family. Leave that family before joining a new one.',
+      const childCountRows = await this.prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*)::bigint AS cnt
+         FROM platform.platform_family_children
+         WHERE family_id = $1::uuid`,
+        existing.familyId,
       );
+      const otherMemberRows = await this.prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*)::bigint AS cnt
+         FROM platform.platform_family_members
+         WHERE family_id = $1::uuid AND id <> $2::uuid`,
+        existing.familyId,
+        existing.id,
+      );
+      const childCount = Number(childCountRows[0]?.cnt ?? 0n);
+      const otherMemberCount = Number(otherMemberRows[0]?.cnt ?? 0n);
+      if (childCount > 0 || otherMemberCount > 0) {
+        throw new BadRequestException(
+          'You already belong to a family with children or other guardians. Joining another family as a guardian isn\'t supported yet.',
+        );
+      }
+      // Empty singleton — safe to dissolve in the same tx as the join.
+      existingFamilyToDissolve = existing.familyId;
     }
 
     // metadata.familyMemberId distinguishes a targeted invite (from
@@ -1960,6 +1992,15 @@ export class FamilyChildrenService {
     // Targeted invites UPDATE the existing PLACEHOLDER /
     // PENDING_INVITE row to ACTIVE; open invites INSERT a new row.
     await this.prisma.$transaction(async (tx) => {
+      if (existingFamilyToDissolve) {
+        // Drop the singleton family_members row first so the UNIQUE
+        // (person_id) constraint releases before the join below
+        // tries to UPDATE/INSERT a new row for this person. Then
+        // delete the now-empty family (its FK-cascade siblings —
+        // emergency contacts, contact preferences — go with it).
+        await tx.familyMember.delete({ where: { id: existing!.id } });
+        await tx.platformFamily.delete({ where: { id: existingFamilyToDissolve } });
+      }
       if (targetMemberId) {
         const targetRows = await tx.$queryRawUnsafe<
           Array<{ family_id: string; status: string }>
