@@ -13,6 +13,7 @@ import {
   useFamilyView,
   useReorderFamilyEmergencyContacts,
   useUpdateFamilyContactPreferences,
+  useUpdateFamilyEmergencyContact,
   useUpdateFamilyMember,
   useUpdateFamilySettings,
   type FamilyContactCategory,
@@ -1019,27 +1020,12 @@ function GuardianContactRow({
         )}
       </td>
       <td className="px-2 py-3">
-        {editable ? (
-          <label
-            className="inline-flex cursor-pointer items-center gap-1 text-sm"
-            title="Toggle whether this guardian is authorized to pick the child up from school"
-          >
-            <input
-              type="checkbox"
-              checked={row.pickup}
-              onChange={(e) => void togglePickup(e.target.checked)}
-              disabled={update.isPending}
-              className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
-            />
-            <span className={row.pickup ? 'text-emerald-700' : 'text-gray-500'}>
-              {row.pickup ? '✅ Yes' : '❌ No'}
-            </span>
-          </label>
-        ) : row.pickup ? (
-          <span className="text-emerald-700">✅ Yes</span>
-        ) : (
-          <span className="text-gray-500">❌ No</span>
-        )}
+        <PickupBadge
+          value={row.pickup}
+          onToggle={(next) => void togglePickup(next)}
+          busy={update.isPending}
+          editable={editable}
+        />
       </td>
       <td className="px-2 py-3">
         <span
@@ -1093,6 +1079,7 @@ function ManualContactRow({
   onMoveDown: () => void;
 }) {
   const remove = useDeleteFamilyEmergencyContact(contact.id);
+  const update = useUpdateFamilyEmergencyContact(contact.id);
   const { toast } = useToast();
   const isFirst = index === 0;
   const isLast = index === total - 1;
@@ -1104,6 +1091,15 @@ function ManualContactRow({
       toast('Contact removed', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+
+  async function togglePickup(next: boolean) {
+    try {
+      await update.mutateAsync({ authorizedPickup: next });
+      toast(next ? 'Authorized for pickup' : 'Pickup authorization removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
   }
 
@@ -1122,11 +1118,12 @@ function ManualContactRow({
         )}
       </td>
       <td className="px-2 py-3">
-        {contact.authorizedPickup ? (
-          <span className="text-emerald-700">✅ Yes</span>
-        ) : (
-          <span className="text-gray-500">❌ No</span>
-        )}
+        <PickupBadge
+          value={contact.authorizedPickup}
+          onToggle={(next) => void togglePickup(next)}
+          busy={update.isPending}
+          editable={editable}
+        />
       </td>
       <td className="px-2 py-3">
         <span
@@ -1165,6 +1162,73 @@ function ManualContactRow({
         </td>
       )}
     </tr>
+  );
+}
+
+/**
+ * Pickup-authorization badge — a single clickable pill that
+ * replaces the older checkbox + ✅/❌ text combo in the emergency-
+ * contacts Pickup column. Clicking persists immediately via the
+ * row's existing toggle handler; the row passes `busy` while the
+ * mutation is pending so a double-click doesn't fire two writes.
+ *
+ *   Authorized (true)   → green pill "✓ Yes"
+ *   Not authorized (false) → grey pill "No"
+ *
+ * Read-only callers (canEdit === false) render the same pill
+ * without the click affordance and without the focus ring.
+ */
+function PickupBadge({
+  value,
+  onToggle,
+  busy,
+  editable,
+}: {
+  value: boolean;
+  onToggle: (next: boolean) => void;
+  busy: boolean;
+  editable: boolean;
+}) {
+  const yes = value;
+  const className = cn(
+    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors',
+    yes
+      ? 'border-green-200 bg-green-50 text-green-700'
+      : 'border-gray-200 bg-gray-50 text-gray-500',
+    editable && !busy
+      ? yes
+        ? 'cursor-pointer hover:bg-green-100'
+        : 'cursor-pointer hover:bg-gray-100'
+      : 'cursor-default',
+    busy && 'opacity-60',
+  );
+  const label = yes ? '✓ Yes' : 'No';
+  const title = editable
+    ? yes
+      ? 'Authorized for pickup — click to remove'
+      : 'Not authorized — click to allow pickup'
+    : yes
+      ? 'Authorized for pickup'
+      : 'Not authorized for pickup';
+
+  if (!editable) {
+    return (
+      <span className={className} title={title}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!yes)}
+      disabled={busy}
+      title={title}
+      aria-pressed={yes}
+      className={className}
+    >
+      {label}
+    </button>
   );
 }
 
