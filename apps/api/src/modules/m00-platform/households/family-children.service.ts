@@ -95,17 +95,20 @@ interface FamilyChildRow {
 function computeAccessLevel(
   status: string,
   managedByPersonId: string | null,
-  viewerPersonId: string,
+  familyGuardianPersonIds: ReadonlySet<string>,
 ): FamilyAccessLevel {
   // PLACEHOLDER + every other pre-link state: the row has no linked
   // iam_person yet, so there's no "account holder" to manage. Edit
   // permission comes from family membership, not account custody.
   if (status !== 'LINKED' && status !== 'ACTIVE') return 'PLACEHOLDER';
-  // LINKED / ACTIVE: account is in custody of the viewer iff
-  // platform_users.managed_by_person_id matches the viewer's
-  // iam_person.id. Anything else (NULL or another person) means the
-  // account holder owns their identity and the viewer is read-only.
-  if (managedByPersonId && managedByPersonId === viewerPersonId) return 'MANAGED';
+  // LINKED / ACTIVE: the row is MANAGED iff its account custodian
+  // (platform_users.managed_by_person_id) is ANY guardian in the
+  // viewer's family. Co-guardians share management rights — Adam
+  // marks a child managed-by-Adam; Ashley joins as a co-parent and
+  // immediately gets the same MANAGED access as Adam. Without this,
+  // co-parents saw "INDEPENDENT" + a read-only profile for kids the
+  // family clearly owns.
+  if (managedByPersonId && familyGuardianPersonIds.has(managedByPersonId)) return 'MANAGED';
   return 'INDEPENDENT';
 }
 
@@ -171,6 +174,12 @@ export class FamilyChildrenService {
     });
     if (!family) return null;
 
+    // The guardian set is reused by both the member projection (a
+    // member's accessLevel maps "managed by" through the family) and
+    // the child projection (children's accessLevel uses the same
+    // set so all co-guardians see managed kids as MANAGED).
+    const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
+
     // LEFT JOIN iam_person so PLACEHOLDER / PENDING_INVITE rows
     // (person_id NULL) come through with family_members.first_name /
     // last_name / email instead of NULL columns. COALESCE picks
@@ -235,7 +244,7 @@ export class FamilyChildrenService {
       accessLevel: computeAccessLevel(
         r.status === 'ACTIVE' ? 'LINKED' : r.status,
         r.managed_by_person_id,
-        personId,
+        familyGuardians,
       ),
       emergencyAuthorizedPickup: r.emergency_authorized_pickup,
       emergencyPriorityOrder: r.emergency_priority_order,
@@ -253,7 +262,7 @@ export class FamilyChildrenService {
       viewerRole: resolved.role,
       viewerPersonId: personId,
       members,
-      children: childRows.map((r) => this.toDto(r, personId)),
+      children: childRows.map((r) => this.toDto(r, familyGuardians)),
     };
   }
 
@@ -1088,11 +1097,12 @@ export class FamilyChildrenService {
   async listForUser(personId: string): Promise<FamilyChildDto[]> {
     const familyId = await this.findFamilyForPerson(personId);
     if (!familyId) return [];
+    const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
     const rows = await this.prisma.$queryRawUnsafe<FamilyChildRow[]>(
       this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       familyId,
     );
-    return rows.map((r) => this.toDto(r, personId));
+    return rows.map((r) => this.toDto(r, familyGuardians));
   }
 
   async create(personId: string, dto: CreateFamilyChildDto): Promise<FamilyChildDto> {
@@ -1122,12 +1132,14 @@ export class FamilyChildrenService {
     dto: UpdateFamilyChildDto,
   ): Promise<FamilyChildDto> {
     const row = await this.requireOwnedRow(personId, childId);
+    const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
 
     // INDEPENDENT children own their own identity — only the account
     // holder (or an admin via a future surface) can edit. The caller
     // can still see the row via GET because they're a parent in the
-    // family, but PATCH refuses.
-    const accessLevel = computeAccessLevel(row.status, row.managed_by_person_id, personId);
+    // family, but PATCH refuses. Co-guardians share MANAGED rights
+    // when the managing person is anywhere in the family.
+    const accessLevel = computeAccessLevel(row.status, row.managed_by_person_id, familyGuardians);
     if (accessLevel === 'INDEPENDENT') {
       throw new HttpException(
         'This account is managed by the account holder. You can view but not edit their information.',
@@ -1189,7 +1201,7 @@ export class FamilyChildrenService {
     }
 
     if (childSet.length === 0 && Object.keys(personPatch).length === 0) {
-      return this.toDto(row, personId);
+      return this.toDto(row, familyGuardians);
     }
 
     const linkedPersonId = row.person_id;
@@ -1462,6 +1474,7 @@ export class FamilyChildrenService {
         type: true,
         status: true,
         inviterPersonId: true,
+        targetEmail: true,
         metadata: true,
         expiresAt: true,
       },
@@ -1653,7 +1666,8 @@ export class FamilyChildrenService {
         // Pickup-only update (or no-op) — return the freshly-updated row.
         return this.requireMemberById(memberId, personId);
       }
-      const accessLevel = computeAccessLevel('LINKED', row.managed_by_person_id ?? null, personId);
+      const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
+      const accessLevel = computeAccessLevel('LINKED', row.managed_by_person_id ?? null, familyGuardians);
       if (accessLevel === 'INDEPENDENT') {
         throw new HttpException(
           'This account is managed by the account holder. You can view but not edit their information.',
@@ -1923,10 +1937,20 @@ export class FamilyChildrenService {
    */
   private async acceptGuardianInvite(
     personId: string,
-    invitation: { id: string; inviterPersonId: string; metadata: unknown },
+    invitation: {
+      id: string;
+      inviterPersonId: string;
+      targetEmail: string | null;
+      metadata: unknown;
+    },
   ): Promise<FamilyLinkResultDto> {
     const metadata = invitation.metadata as
-      | { familyId?: string; familyMemberId?: string }
+      | {
+          familyId?: string;
+          familyMemberId?: string;
+          targetFirstName?: string;
+          targetLastName?: string;
+        }
       | null;
     const familyId = metadata?.familyId;
     const targetMemberId = metadata?.familyMemberId;
@@ -2028,14 +2052,61 @@ export class FamilyChildrenService {
           targetMemberId,
         );
       } else {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO platform.platform_family_members
-             (id, family_id, person_id, member_role, is_primary_contact, status, joined_at)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, 'ACTIVE', now())`,
-          generateId(),
+        // Open invite — look for an unclaimed PLACEHOLDER /
+        // PENDING_INVITE row in this family that matches the
+        // accepter by email or by (first_name, last_name). The
+        // common case: Adam previously added Ashley as a placeholder
+        // guardian via /family/members POST, THEN issued an open
+        // /family/invite-guardian code; without this match, the
+        // accept would INSERT a duplicate ACTIVE row and the
+        // /family page would render Ashley twice (once for the
+        // placeholder + once for the ACTIVE row). Match in priority
+        // order: email > name. Pick the oldest match so re-clicks
+        // are deterministic.
+        const claimable = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT pfm.id::text AS id
+           FROM platform.platform_family_members pfm
+           WHERE pfm.family_id = $1::uuid
+             AND pfm.person_id IS NULL
+             AND pfm.status IN ('PLACEHOLDER', 'PENDING_INVITE')
+             AND (
+               ($2::text IS NOT NULL AND LOWER(pfm.email) = LOWER($2::text))
+               OR (
+                 $3::text IS NOT NULL AND $4::text IS NOT NULL
+                 AND LOWER(pfm.first_name) = LOWER($3::text)
+                 AND LOWER(pfm.last_name)  = LOWER($4::text)
+               )
+             )
+           ORDER BY pfm.created_at ASC
+           LIMIT 1`,
           familyId,
-          personId,
+          invitation.targetEmail,
+          metadata?.targetFirstName ?? null,
+          metadata?.targetLastName ?? null,
         );
+        if (claimable[0]) {
+          await tx.$executeRawUnsafe(
+            `UPDATE platform.platform_family_members
+               SET person_id = $1::uuid,
+                   status = 'ACTIVE',
+                   invite_code = NULL,
+                   invite_sent_at = NULL,
+                   joined_at = now(),
+                   updated_at = now()
+             WHERE id = $2::uuid`,
+            personId,
+            claimable[0].id,
+          );
+        } else {
+          await tx.$executeRawUnsafe(
+            `INSERT INTO platform.platform_family_members
+               (id, family_id, person_id, member_role, is_primary_contact, status, joined_at)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'HEAD_OF_HOUSEHOLD', false, 'ACTIVE', now())`,
+            generateId(),
+            familyId,
+            personId,
+          );
+        }
       }
       await tx.$executeRawUnsafe(
         `UPDATE platform.platform_invitations
@@ -2230,6 +2301,37 @@ export class FamilyChildrenService {
 
   // ─── helpers ───────────────────────────────────────────────
 
+  /**
+   * The set of iam_person.id values that count as "guardians of the
+   * viewer's family" for access-level purposes — used by
+   * computeAccessLevel to expand MANAGED beyond the single
+   * managed_by_person_id to include every co-guardian.
+   *
+   * Resolved via resolveViewerFamily so it works for both PARENT
+   * (member of family_members) and CHILD (LINKED platform_family_children)
+   * viewers. For the brand-new 0-persona case where the viewer has
+   * no family yet, falls back to the viewer's own personId (so
+   * single-user behaviour is preserved).
+   *
+   * Always includes the viewer's own personId, even if they're not
+   * yet an ACTIVE member of any family.
+   */
+  private async loadFamilyGuardianPersonIds(viewerPersonId: string): Promise<Set<string>> {
+    const set = new Set<string>([viewerPersonId]);
+    const resolved = await this.resolveViewerFamily(viewerPersonId);
+    if (!resolved) return set;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ person_id: string }>>(
+      `SELECT person_id::text AS person_id
+       FROM platform.platform_family_members
+       WHERE family_id = $1::uuid
+         AND status = 'ACTIVE'
+         AND person_id IS NOT NULL`,
+      resolved.familyId,
+    );
+    for (const r of rows) set.add(r.person_id);
+    return set;
+  }
+
   private async findFamilyForPerson(personId: string): Promise<string | null> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ family_id: string }>>(
       `SELECT family_id::text AS family_id
@@ -2300,7 +2402,8 @@ export class FamilyChildrenService {
   private async requireById(childId: string, viewerPersonId: string): Promise<FamilyChildDto> {
     const row = await this.findById(childId);
     if (!row) throw new NotFoundException('Family child not found');
-    return this.toDto(row, viewerPersonId);
+    const familyGuardians = await this.loadFamilyGuardianPersonIds(viewerPersonId);
+    return this.toDto(row, familyGuardians);
   }
 
   private async findById(childId: string): Promise<FamilyChildRow | null> {
@@ -2354,7 +2457,7 @@ export class FamilyChildrenService {
     );
   }
 
-  private toDto(r: FamilyChildRow, viewerPersonId: string): FamilyChildDto {
+  private toDto(r: FamilyChildRow, familyGuardians: ReadonlySet<string>): FamilyChildDto {
     return {
       id: r.id,
       familyId: r.family_id,
@@ -2368,7 +2471,7 @@ export class FamilyChildrenService {
       primaryPhone: r.primary_phone,
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
-      accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, viewerPersonId),
+      accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, familyGuardians),
       emergencyContactSource:
         r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
       email: r.email,
@@ -2476,6 +2579,9 @@ export class FamilyChildrenService {
   }
 
   private async requireMemberById(memberId: string, viewerPersonId?: string): Promise<FamilyMemberDto> {
+    const familyGuardians = viewerPersonId
+      ? await this.loadFamilyGuardianPersonIds(viewerPersonId)
+      : new Set<string>();
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
         id: string;
@@ -2533,7 +2639,7 @@ export class FamilyChildrenService {
       accessLevel: computeAccessLevel(
         row.status === 'ACTIVE' ? 'LINKED' : row.status,
         row.managed_by_person_id,
-        viewerPersonId ?? '',
+        familyGuardians,
       ),
       emergencyAuthorizedPickup: row.emergency_authorized_pickup,
       emergencyPriorityOrder: row.emergency_priority_order,

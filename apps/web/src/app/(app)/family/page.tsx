@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
+import { useAuthActions } from '@/lib/auth-context';
 import {
   useAcceptFamilyLink,
   useAddFamilyMember,
@@ -1278,6 +1279,7 @@ function ChildCard({ child, onSendLink }: { child: FamilyChildDto; onSendLink: (
 
 function LinkCodeSection() {
   const accept = useAcceptFamilyLink();
+  const { refreshUser } = useAuthActions();
   const { toast } = useToast();
   const [code, setCode] = useState('');
 
@@ -1290,6 +1292,13 @@ function LinkCodeSection() {
     }
     try {
       await accept.mutateAsync({ code: trimmed });
+      // Pull /auth/me back into the auth store so any new persona
+      // (PARENT for a GUARDIAN_INVITE accept; CHILD for a parent-side
+      // CHILD_LINK accept) activates immediately in the top bar +
+      // persona switcher. Without this, the server-side persona cache
+      // is fresh but the client's Zustand store still shows the
+      // pre-accept "Set up your profile" state.
+      await refreshUser();
       toast('Linked successfully', 'success');
       setCode('');
     } catch (err) {

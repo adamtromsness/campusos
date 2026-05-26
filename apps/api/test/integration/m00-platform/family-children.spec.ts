@@ -793,6 +793,100 @@ describe('integration:m00-platform/family-children', () => {
         BadRequestException,
       );
     });
+
+    it('claims an existing PLACEHOLDER member instead of inserting a duplicate', async () => {
+      // user A names "Ashley" via /family/members POST (placeholder
+      // row, person_id NULL), then issues an OPEN guardian-invite
+      // code (no familyMemberId metadata). user B accepts.
+      //
+      // Without the placeholder-claim fix, the open-invite accept
+      // would INSERT a fresh ACTIVE row → /family renders Ashley
+      // twice (once for the placeholder, once for the new ACTIVE
+      // row). With the fix, the accept matches the placeholder by
+      // first_name + last_name and promotes it in place.
+      await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
+      await controller.addMember(reqA(), {
+        firstName: 'Ashley',
+        lastName: 'Smith',
+        email: 'ashley@example.test',
+      });
+      const code = (
+        await controller.inviteGuardian(reqA(), {
+          firstName: 'Ashley',
+          lastName: 'Smith',
+        })
+      ).code;
+
+      const result = await controller.accept(reqB(), { code });
+      if (result.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+
+      const memberRows = await prisma.familyMember.findMany({
+        where: { familyId: result.family.id },
+        select: { id: true, personId: true, status: true, firstName: true },
+      });
+      // Two rows would mean: A's own HEAD row + Ashley's placeholder
+      // + Ashley's promoted ACTIVE. The fix collapses placeholder +
+      // ACTIVE into a single row → total = 2.
+      expect(memberRows.length).toBe(2);
+      const ashleyRows = memberRows.filter(
+        (r) => r.firstName === 'Ashley' || r.personId === userBPersonId,
+      );
+      expect(ashleyRows.length).toBe(1);
+      expect(ashleyRows[0]!.personId).toBe(userBPersonId);
+      expect(ashleyRows[0]!.status).toBe('ACTIVE');
+    });
+  });
+
+  // ─── Co-guardian shared MANAGED access ─────────────────────
+
+  describe('co-guardian MANAGED access', () => {
+    it('a co-guardian sees children managed by another guardian as MANAGED, not INDEPENDENT', async () => {
+      // Adam (userA) creates a child via createChildAccount — the
+      // resulting platform_users row's managed_by_person_id = Adam.
+      // Then Ashley (userB) accepts a GUARDIAN_INVITE and lands in
+      // Adam's family.
+      //
+      // Pre-fix Ashley's GET /family/children showed the child as
+      // INDEPENDENT because computeAccessLevel only matched
+      // managed_by against Ashley's OWN personId. Post-fix, the
+      // guardian-set includes Adam's id too, so Ashley sees MANAGED.
+      const placeholder = await controller.create(reqA(), {
+        firstName: 'Junior',
+        lastName: 'A',
+      });
+      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      expect(linked.accessLevel).toBe('MANAGED');
+
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      const accept = await controller.accept(reqB(), { code });
+      if (accept.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+
+      const ashleyView = await controller.list(reqB());
+      const fromAshleyView = ashleyView.find((c) => c.id === placeholder.id);
+      expect(fromAshleyView?.accessLevel).toBe('MANAGED');
+    });
+
+    it('activates the PARENT persona for a guardian-invite accepter', async () => {
+      // Bug 3 / the "Set up your profile" pill issue: Ashley accepts
+      // an invite, the family has a LINKED child (so the PARENT
+      // condition is met), and refreshPersonaCacheSafe writes the
+      // platform_personas row. Verifies the cache is populated
+      // before /auth/me is called.
+      const placeholder = await controller.create(reqA(), {
+        firstName: 'Junior',
+        lastName: 'A',
+      });
+      await controller.createAccount(reqA(), placeholder.id, {});
+
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      await controller.accept(reqB(), { code });
+
+      const personas = await prisma.platformPersona.findMany({
+        where: { personId: userBPersonId, isActive: true },
+        select: { type: true },
+      });
+      expect(personas.map((p) => p.type)).toContain('PARENT');
+    });
   });
 
   // ─── LINKED-child edit — sync iam_person + family_children ──
