@@ -648,6 +648,11 @@ export interface FamilySettingsDto {
   insuranceProvider: string | null;
   insurancePolicy: string | null;
   insuranceGroup: string | null;
+  // Three-state opt-outs. null = not answered, true = has one,
+  // false = explicit "we don't have one" — counts as ✅ in the
+  // family-profile completion checker.
+  hasFamilyDoctor: boolean | null;
+  hasInsurance: boolean | null;
   medicalNotes: string | null;
   primaryContactPersonId: string | null;
   primaryContactName: string | null;
@@ -676,6 +681,8 @@ export interface UpdateFamilySettingsPayload {
   insuranceProvider?: string | null;
   insurancePolicy?: string | null;
   insuranceGroup?: string | null;
+  hasFamilyDoctor?: boolean | null;
+  hasInsurance?: boolean | null;
   medicalNotes?: string | null;
   primaryContactPersonId?: string;
 }

@@ -611,6 +611,12 @@ export class FamilySettingsDto {
   @ApiPropertyOptional() insuranceProvider!: string | null;
   @ApiPropertyOptional() insurancePolicy!: string | null;
   @ApiPropertyOptional() insuranceGroup!: string | null;
+  // Three-state opt-out toggles. null = not answered, true = has
+  // one (defaults filled below), false = explicit "we don't have
+  // one" — the completion checker treats false as ✅ complete so a
+  // family without a doctor / insurance can still hit 100%.
+  @ApiPropertyOptional() hasFamilyDoctor!: boolean | null;
+  @ApiPropertyOptional() hasInsurance!: boolean | null;
   // Family-wide medical notes shared with schools and inherited
   // by children whose medical_source is 'FAMILY'.
   @ApiPropertyOptional() medicalNotes!: string | null;
@@ -661,6 +667,11 @@ export class UpdateFamilySettingsDto {
     | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insurancePolicy?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) insuranceGroup?: string | null;
+  // Opt-out toggles — pass true / false to set, null to reset to
+  // "not answered." Send the boolean explicitly (not undefined,
+  // which the partial-update path skips entirely).
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() hasFamilyDoctor?: boolean | null;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() hasInsurance?: boolean | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) medicalNotes?: string | null;
   // Promote a guardian to primary contact. Service runs a tx that
   // demotes the previous primary first so the partial UNIQUE INDEX

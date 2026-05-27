@@ -477,8 +477,15 @@ function FamilyCompletionCard({
     ).length;
     const totalContactsWithPhone = guardiansWithPhone + manualECsWithPhone;
     const enoughEmergency = totalContactsWithPhone >= 2;
-    const hasDoctor = Boolean(settings.doctorName?.trim());
-    const hasInsurance = Boolean(settings.insuranceProvider?.trim());
+    // Doctor / insurance are ✅ when the fields are filled OR the
+    // user explicitly opted out via hasFamilyDoctor / hasInsurance
+    // === false. Leaving the row in NULL ("not answered") with empty
+    // fields still counts as ❌ — the opt-out is a deliberate choice
+    // a family can make, not a silent default.
+    const hasDoctor =
+      Boolean(settings.doctorName?.trim()) || settings.hasFamilyDoctor === false;
+    const hasInsurance =
+      Boolean(settings.insuranceProvider?.trim()) || settings.hasInsurance === false;
     const hasAnyChild = children.length > 0;
     const unlinkedChildren = children.filter((c) => c.status !== 'LINKED');
     const allChildrenLinked = hasAnyChild && unlinkedChildren.length === 0;
@@ -551,7 +558,8 @@ function FamilyCompletionCard({
         navigate: goHealth,
         details: [
           {
-            label: 'No doctor information entered',
+            label:
+              'No doctor on file (or check "We don\'t have a family doctor" on the Health tab)',
             action: { label: 'Go to Health tab', onClick: goHealth },
           },
         ],
@@ -563,7 +571,8 @@ function FamilyCompletionCard({
         navigate: goHealth,
         details: [
           {
-            label: 'No insurance information entered',
+            label:
+              'No insurance on file (or check "We don\'t have insurance" on the Health tab)',
             action: { label: 'Go to Health tab', onClick: goHealth },
           },
         ],
@@ -1846,6 +1855,12 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
   const update = useUpdateFamilySettings();
   const { toast } = useToast();
 
+  // noDoctor / noInsurance are the UI inverses of has_family_doctor /
+  // has_insurance. They flip on the explicit-opt-out checkbox and
+  // serialize back as `false` (or null when unchecked AND fields are
+  // empty — leaving the row in "not answered" so first-time users
+  // don't get an opt-out auto-applied). Existing rows with NULL keep
+  // their checkbox unchecked.
   const initial = useMemo(
     () => ({
       doctorName: settings.doctorName ?? '',
@@ -1854,6 +1869,8 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
       insuranceProvider: settings.insuranceProvider ?? '',
       insurancePolicy: settings.insurancePolicy ?? '',
       insuranceGroup: settings.insuranceGroup ?? '',
+      noDoctor: settings.hasFamilyDoctor === false,
+      noInsurance: settings.hasInsurance === false,
       medicalNotes: settings.medicalNotes ?? '',
     }),
     [settings],
@@ -1870,7 +1887,47 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
     if (!editable || !isDirty) return;
     const payload: UpdateFamilySettingsPayload = {};
     for (const k of Object.keys(form) as Array<keyof typeof form>) {
+      if (k === 'noDoctor' || k === 'noInsurance') continue;
       if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
+    }
+    // Doctor opt-out: checked → has_family_doctor = false AND clear
+    // the doctor fields server-side so the next read doesn't carry
+    // a stale name. Unchecked: only flip back to has_family_doctor =
+    // true if the user has filled in *any* doctor field — otherwise
+    // we leave it null ("not answered"), the legacy state.
+    if (form.noDoctor !== initial.noDoctor) {
+      if (form.noDoctor) {
+        payload.hasFamilyDoctor = false;
+        payload.doctorName = null;
+        payload.doctorPhone = null;
+        payload.doctorClinic = null;
+      } else {
+        payload.hasFamilyDoctor = null;
+      }
+    }
+    if (form.noInsurance !== initial.noInsurance) {
+      if (form.noInsurance) {
+        payload.hasInsurance = false;
+        payload.insuranceProvider = null;
+        payload.insurancePolicy = null;
+        payload.insuranceGroup = null;
+      } else {
+        payload.hasInsurance = null;
+      }
+    }
+    // Filling in a doctor field implicitly answers "yes we have one"
+    // — flip has_family_doctor to true so the read stays consistent
+    // (false + filled fields would be self-contradictory).
+    const willHaveDoctorFields =
+      (form.doctorName || form.doctorPhone || form.doctorClinic) && !form.noDoctor;
+    if (willHaveDoctorFields && settings.hasFamilyDoctor !== true) {
+      payload.hasFamilyDoctor = true;
+    }
+    const willHaveInsuranceFields =
+      (form.insuranceProvider || form.insurancePolicy || form.insuranceGroup) &&
+      !form.noInsurance;
+    if (willHaveInsuranceFields && settings.hasInsurance !== true) {
+      payload.hasInsurance = true;
     }
     try {
       await update.mutateAsync(payload);
@@ -1883,74 +1940,103 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       <Card title="Family doctor">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="doctorName"
-            label="Doctor name"
-            value={form.doctorName}
-            onChange={(v) => setForm((f) => ({ ...f, doctorName: v }))}
-            disabled={!editable}
-            dirty={dirtyFields.has('doctorName')}
-          />
-          <div>
-            <label htmlFor="doctorPhone" className="block text-xs font-medium text-gray-700">
-              Doctor phone
-              {dirtyFields.has('doctorPhone') && (
-                <span
-                  aria-label="Modified"
-                  title="Modified — save to keep this change"
-                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-                />
-              )}
-            </label>
-            <PhoneInput
-              id="doctorPhone"
-              value={form.doctorPhone}
-              onChange={(raw) => setForm((f) => ({ ...f, doctorPhone: raw }))}
+        <OptOutCheckbox
+          id="noDoctor"
+          label="We don't have a family doctor"
+          checked={form.noDoctor}
+          onChange={(v) => setForm((f) => ({ ...f, noDoctor: v }))}
+          dirty={dirtyFields.has('noDoctor')}
+          disabled={!editable}
+        />
+        {form.noDoctor ? (
+          <p className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            No family doctor on file. Children can still specify their own doctor on their
+            Medical tab.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <Field
+              id="doctorName"
+              label="Doctor name"
+              value={form.doctorName}
+              onChange={(v) => setForm((f) => ({ ...f, doctorName: v }))}
               disabled={!editable}
-              dirty={dirtyFields.has('doctorPhone')}
+              dirty={dirtyFields.has('doctorName')}
+            />
+            <div>
+              <label htmlFor="doctorPhone" className="block text-xs font-medium text-gray-700">
+                Doctor phone
+                {dirtyFields.has('doctorPhone') && (
+                  <span
+                    aria-label="Modified"
+                    title="Modified — save to keep this change"
+                    className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                  />
+                )}
+              </label>
+              <PhoneInput
+                id="doctorPhone"
+                value={form.doctorPhone}
+                onChange={(raw) => setForm((f) => ({ ...f, doctorPhone: raw }))}
+                disabled={!editable}
+                dirty={dirtyFields.has('doctorPhone')}
+              />
+            </div>
+            <Field
+              id="doctorClinic"
+              label="Clinic / practice"
+              value={form.doctorClinic}
+              onChange={(v) => setForm((f) => ({ ...f, doctorClinic: v }))}
+              disabled={!editable}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('doctorClinic')}
             />
           </div>
-          <Field
-            id="doctorClinic"
-            label="Clinic / practice"
-            value={form.doctorClinic}
-            onChange={(v) => setForm((f) => ({ ...f, doctorClinic: v }))}
-            disabled={!editable}
-            className="sm:col-span-2"
-            dirty={dirtyFields.has('doctorClinic')}
-          />
-        </div>
+        )}
       </Card>
 
       <Card title="Family insurance">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="insuranceProvider"
-            label="Provider"
-            value={form.insuranceProvider}
-            onChange={(v) => setForm((f) => ({ ...f, insuranceProvider: v }))}
-            disabled={!editable}
-            className="sm:col-span-2"
-            dirty={dirtyFields.has('insuranceProvider')}
-          />
-          <Field
-            id="insurancePolicy"
-            label="Policy number"
-            value={form.insurancePolicy}
-            onChange={(v) => setForm((f) => ({ ...f, insurancePolicy: v }))}
-            disabled={!editable}
-            dirty={dirtyFields.has('insurancePolicy')}
-          />
-          <Field
-            id="insuranceGroup"
-            label="Group number"
-            value={form.insuranceGroup}
-            onChange={(v) => setForm((f) => ({ ...f, insuranceGroup: v }))}
-            disabled={!editable}
-            dirty={dirtyFields.has('insuranceGroup')}
-          />
-        </div>
+        <OptOutCheckbox
+          id="noInsurance"
+          label="We don't have insurance"
+          checked={form.noInsurance}
+          onChange={(v) => setForm((f) => ({ ...f, noInsurance: v }))}
+          dirty={dirtyFields.has('noInsurance')}
+          disabled={!editable}
+        />
+        {form.noInsurance ? (
+          <p className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            No insurance on file.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <Field
+              id="insuranceProvider"
+              label="Provider"
+              value={form.insuranceProvider}
+              onChange={(v) => setForm((f) => ({ ...f, insuranceProvider: v }))}
+              disabled={!editable}
+              className="sm:col-span-2"
+              dirty={dirtyFields.has('insuranceProvider')}
+            />
+            <Field
+              id="insurancePolicy"
+              label="Policy number"
+              value={form.insurancePolicy}
+              onChange={(v) => setForm((f) => ({ ...f, insurancePolicy: v }))}
+              disabled={!editable}
+              dirty={dirtyFields.has('insurancePolicy')}
+            />
+            <Field
+              id="insuranceGroup"
+              label="Group number"
+              value={form.insuranceGroup}
+              onChange={(v) => setForm((f) => ({ ...f, insuranceGroup: v }))}
+              disabled={!editable}
+              dirty={dirtyFields.has('insuranceGroup')}
+            />
+          </div>
+        )}
       </Card>
 
       <Card
@@ -2087,6 +2173,55 @@ function Field({
       />
       {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
     </div>
+  );
+}
+
+/**
+ * Checkbox + label primitive for an explicit "we don't have one"
+ * opt-out toggle. Used by HealthTab for the family doctor and
+ * insurance sections; the dirty dot follows the same blue-circle
+ * convention as Field.
+ */
+function OptOutCheckbox({
+  id,
+  label,
+  checked,
+  onChange,
+  disabled,
+  dirty,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  dirty?: boolean;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        'inline-flex items-center gap-2 text-sm text-gray-700',
+        disabled && 'cursor-not-allowed opacity-60',
+      )}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+        className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+      />
+      <span>{label}</span>
+      {dirty && (
+        <span
+          aria-label="Modified"
+          title="Modified — save to keep this change"
+          className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
+        />
+      )}
+    </label>
   );
 }
 

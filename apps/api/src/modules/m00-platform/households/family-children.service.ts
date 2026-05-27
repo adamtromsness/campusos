@@ -402,6 +402,8 @@ export class FamilyChildrenService {
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        has_family_doctor: boolean | null;
+        has_insurance: boolean | null;
         medical_notes: string | null;
         primary_contact_person_id: string | null;
         primary_first_name: string | null;
@@ -419,6 +421,7 @@ export class FamilyChildrenService {
          pf.mailing_postal_code, pf.mailing_country,
          pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
          pf.insurance_provider, pf.insurance_policy, pf.insurance_group,
+         pf.has_family_doctor, pf.has_insurance,
          pf.medical_notes,
          pc.person_id::text AS primary_contact_person_id,
          p.first_name AS primary_first_name,
@@ -467,6 +470,8 @@ export class FamilyChildrenService {
       insuranceProvider: row.insurance_provider,
       insurancePolicy: row.insurance_policy,
       insuranceGroup: row.insurance_group,
+      hasFamilyDoctor: row.has_family_doctor,
+      hasInsurance: row.has_insurance,
       medicalNotes: row.medical_notes,
       primaryContactPersonId: row.primary_contact_person_id,
       primaryContactName: primaryName,
@@ -511,6 +516,8 @@ export class FamilyChildrenService {
       insuranceProvider: 'insurance_provider',
       insurancePolicy: 'insurance_policy',
       insuranceGroup: 'insurance_group',
+      hasFamilyDoctor: 'has_family_doctor',
+      hasInsurance: 'has_insurance',
       medicalNotes: 'medical_notes',
     };
 
