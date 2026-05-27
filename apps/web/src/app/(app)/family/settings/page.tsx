@@ -613,9 +613,10 @@ function FamilyMembersList({ members }: { members: FamilyMemberDto[] }) {
   const guardians = members.filter((m) => m.status === 'ACTIVE');
   const placeholderGuardians = members.filter((m) => m.status !== 'ACTIVE');
   const children = familyView.data?.children ?? [];
+  const isParent = familyView.data?.viewerRole === 'PARENT';
 
   return (
-    <div className="flex flex-col gap-4 text-sm">
+    <div className="flex flex-col gap-5 text-sm">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Guardians</p>
         {guardians.length === 0 && placeholderGuardians.length === 0 ? (
@@ -657,6 +658,22 @@ function FamilyMembersList({ members }: { members: FamilyMemberDto[] }) {
             ))}
           </ul>
         )}
+        {isParent && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Link
+              href="/family?action=invite-guardian"
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              Invite Guardian
+            </Link>
+            <Link
+              href="/family?action=add-guardian"
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              Add Guardian
+            </Link>
+          </div>
+        )}
       </div>
 
       <div>
@@ -691,12 +708,16 @@ function FamilyMembersList({ members }: { members: FamilyMemberDto[] }) {
             })}
           </ul>
         )}
-      </div>
-
-      <div>
-        <Link href="/family" className="text-sm font-medium text-campus-700 hover:text-campus-600">
-          Manage family members →
-        </Link>
+        {isParent && (
+          <div className="mt-2">
+            <Link
+              href="/family"
+              className="text-sm font-medium text-campus-700 hover:text-campus-600"
+            >
+              Manage children →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

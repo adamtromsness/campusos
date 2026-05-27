@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
 import {
@@ -61,6 +61,22 @@ export default function FamilyPage() {
   const [inviteGuardianOpen, setInviteGuardianOpen] = useState(false);
   const [addGuardianOpen, setAddGuardianOpen] = useState(false);
   const [inviteChildOpen, setInviteChildOpen] = useState(false);
+
+  // Deep-link from /family/settings — `?action=invite-guardian` or
+  // `?action=add-guardian` auto-opens the matching modal so the
+  // settings page can show real action buttons instead of dumping
+  // the user on this page without context. The router replace strips
+  // the query once consumed so a back-button doesn't re-trigger.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (!action) return;
+    if (action === 'invite-guardian') setInviteGuardianOpen(true);
+    else if (action === 'add-guardian') setAddGuardianOpen(true);
+    else if (action === 'invite-child') setInviteChildOpen(true);
+    router.replace('/family');
+  }, [searchParams, router]);
 
   if (isLoading) return <PageLoader label="Loading your family…" />;
   if (error) {
