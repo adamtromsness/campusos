@@ -12,10 +12,18 @@ import {
   useCreateChildAccount,
   useDeleteChildEmergencyContact,
   useDeleteFamilyChild,
+  useAddChildEmail,
+  useAddChildPhone,
+  useChildEmails,
+  useChildPhones,
+  useDeleteChildEmail,
+  useDeleteChildPhone,
   useFamilyChildren,
   useFamilyEmergencyContacts,
   useFamilySettings,
   useFamilyView,
+  useUpdateChildEmail,
+  useUpdateChildPhone,
   useSendChildLink,
   useUpdateChildDietary,
   useUpdateChildMedical,
@@ -37,6 +45,12 @@ import { cn } from '@/components/ui/cn';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { formatPhone } from '@/lib/phone-format';
+import type {
+  PersonEmailDto,
+  PersonEmailType,
+  PersonPhoneDto,
+  PersonPhoneType,
+} from '@/lib/types';
 
 /**
  * /family/children/[id] — tabbed detail view for a family child.
@@ -681,173 +695,923 @@ function EnrolmentBlock({ child }: { child: FamilyChildDto }) {
  * existing iam_person fields (primary phone + notes) and a placeholder
  * card explaining where the address-inherit flow is going.
  */
+/**
+ * Mirrors the adult /profile Contact tab top-to-bottom:
+ *   1. Phone numbers      — multi-row list, primary radio, per-row save
+ *   2. Email addresses    — multi-row list, primary radio, per-row save
+ *   3. Home address       — FAMILY/CUSTOM toggle, single Save Changes
+ *   4. Mailing address    — same Save Changes when "different from home"
+ *   5. Guardian contacts  — read-only primary phone + email per guardian
+ *   6. Emergency contacts — existing source toggle + family/per-child
+ *
+ * Non-LINKED children: only the home/mailing address form renders
+ * (the multi-row lists require iam_person.id which placeholders don't
+ * have yet) plus a short note explaining what's coming when the
+ * account is created.
+ *
+ * INDEPENDENT children: parent sees read-only phones + emails (the
+ * child manages their own profile). Address still editable by the
+ * parent — addresses live on platform_family_children, not iam_person.
+ */
 function ContactTab({ child }: { child: FamilyChildDto }) {
-  const readOnly = child.accessLevel === 'INDEPENDENT' && child.status === 'LINKED';
-  const linked = child.status === 'LINKED';
-
-  if (!linked) {
-    return (
-      <SectionCard title="Contact">
-        <p className="text-xs text-gray-600">
-          Phone, address, and contact details become available once {child.firstName} has a
-          CampusOS account.
-        </p>
-      </SectionCard>
-    );
-  }
+  const isLinked = child.status === 'LINKED';
+  const isManaged = child.accessLevel === 'MANAGED';
 
   return (
     <div className="flex flex-col gap-5">
-      <FamilyAddressCard />
-      <PhoneNotesCard child={child} readOnly={readOnly} />
+      {isLinked ? (
+        <>
+          <ChildPhoneListCard childId={child.id} editable={isManaged} />
+          <ChildEmailListCard childId={child.id} editable={isManaged} />
+        </>
+      ) : (
+        <SectionCard title="Phone numbers & emails">
+          <p className="text-sm text-gray-600">
+            Multi-phone and multi-email lists become available once {child.firstName} has a
+            CampusOS account.
+          </p>
+        </SectionCard>
+      )}
+
+      <ChildAddressCards child={child} />
+
+      <GuardianContactsPanel />
+
       <EmergencyContactsContactTabSection child={child} />
     </div>
   );
 }
 
-/**
- * Family-inherited address card. The /family/settings record is the
- * source of truth for now; per-child custom addresses are a future
- * commit (would need new columns on the child row + a source toggle
- * the same shape as Medical's). Today we always render the family
- * address read-only with a deep-link to edit at the family level.
- */
-function FamilyAddressCard() {
-  const { data, isLoading } = useFamilySettings();
+// ─── Child phones / emails ─────────────────────────────────
+
+const CHILD_PHONE_TYPES: Array<{ value: PersonPhoneType; label: string }> = [
+  { value: 'CELL', label: 'Cell' },
+  { value: 'HOME', label: 'Home' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+function ChildPhoneListCard({ childId, editable }: { childId: string; editable: boolean }) {
+  const { data, isLoading } = useChildPhones(childId);
+  const add = useAddChildPhone(childId);
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [draftNumber, setDraftNumber] = useState('');
+  const [draftType, setDraftType] = useState<PersonPhoneType>('CELL');
+
+  async function onAdd() {
+    if (!draftNumber.trim()) {
+      toast('Enter a phone number first.', 'error');
+      return;
+    }
+    try {
+      await add.mutateAsync({
+        number: draftNumber.trim(),
+        type: draftType,
+        textsAllowed: draftType === 'CELL',
+      });
+      setDraftNumber('');
+      setDraftType('CELL');
+      setAddOpen(false);
+      toast('Phone added', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add phone.', 'error');
+    }
+  }
+
+  const phones = data ?? [];
+
   return (
-    <SectionCard
-      title="Address"
-      description="Inherited from your family settings. To use a different address for this child, contact support — per-child overrides are coming soon."
-    >
+    <SectionCard title="Phone numbers">
       {isLoading ? (
         <p className="text-sm text-gray-500">Loading…</p>
-      ) : !data ||
-        (!data.addressLine1 && !data.city && !data.state && !data.postalCode) ? (
-        <p className="text-sm text-gray-500">No family address on file yet.</p>
+      ) : phones.length === 0 && !addOpen ? (
+        <p className="text-sm text-gray-500">No phones on file yet.</p>
       ) : (
-        <div className="text-sm text-gray-700">
-          <p>{[data.addressLine1, data.addressLine2].filter(Boolean).join(', ')}</p>
-          <p>
-            {[data.city, data.state, data.postalCode].filter(Boolean).join(', ')}
-            {data.country && (data.city || data.state || data.postalCode) ? ', ' : ''}
-            {data.country}
-          </p>
-          {data.homePhone && <p className="mt-1 text-xs text-gray-500">Home phone: {data.homePhone}</p>}
-        </div>
+        <ul className="flex flex-col gap-2">
+          {phones.map((p) => (
+            <ChildPhoneRow
+              key={p.id}
+              childId={childId}
+              phone={p}
+              canDelete={phones.length > 1}
+              editable={editable}
+            />
+          ))}
+        </ul>
       )}
-      <div className="mt-3">
-        <Link
-          href="/family/settings"
-          className="text-sm font-medium text-campus-700 hover:text-campus-600"
-        >
-          Edit family address →
-        </Link>
-      </div>
+
+      {editable && (addOpen ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Phone number</label>
+              <PhoneInput value={draftNumber} onChange={setDraftNumber} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as PersonPhoneType)}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              >
+                {CHILD_PHONE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddOpen(false);
+                setDraftNumber('');
+                setDraftType('CELL');
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onAdd()}
+              disabled={add.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {add.isPending && <LoadingSpinner size="sm" />}
+              <span>{add.isPending ? 'Adding…' : 'Add phone'}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
+            + Add phone
+          </button>
+        </div>
+      ))}
+      {!editable && phones.length > 0 && (
+        <p className="mt-3 text-xs text-gray-500">
+          Read-only — this child manages their own profile.
+        </p>
+      )}
     </SectionCard>
   );
 }
 
-function PhoneNotesCard({ child, readOnly }: { child: FamilyChildDto; readOnly: boolean }) {
+function ChildPhoneRow({
+  childId,
+  phone,
+  canDelete,
+  editable,
+}: {
+  childId: string;
+  phone: PersonPhoneDto;
+  canDelete: boolean;
+  editable: boolean;
+}) {
+  const update = useUpdateChildPhone(childId, phone.id);
+  const remove = useDeleteChildPhone(childId, phone.id);
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [number, setNumber] = useState(phone.number);
+
+  useEffect(() => {
+    setNumber(phone.number);
+  }, [phone.number]);
+
+  const numberDirty = number.replace(/\D/g, '') !== phone.number.replace(/\D/g, '');
+
+  async function saveNumber() {
+    try {
+      await update.mutateAsync({ number });
+      toast('Phone updated', 'success');
+      setEditing(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+  async function toggleField<K extends 'type' | 'textsAllowed' | 'isPrimary'>(
+    key: K,
+    value: K extends 'type' ? PersonPhoneType : boolean,
+  ) {
+    try {
+      await update.mutateAsync({ [key]: value } as never);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+  async function onRemove() {
+    if (typeof window !== 'undefined' && !window.confirm('Remove this phone?')) return;
+    try {
+      await remove.mutateAsync();
+      toast('Phone removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+
+  return (
+    <li className="rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {editable && editing ? (
+          <div className="flex flex-1 items-center gap-2">
+            <PhoneInput value={number} onChange={setNumber} className="!mt-0" />
+            <button
+              type="button"
+              onClick={() => void saveNumber()}
+              disabled={!numberDirty || update.isPending}
+              className="inline-flex items-center rounded-md bg-campus-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNumber(phone.number);
+                setEditing(false);
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => editable && setEditing(true)}
+            disabled={!editable}
+            title={editable ? 'Edit phone number' : 'Read-only'}
+            className={cn(
+              'text-base font-medium text-gray-900',
+              editable && 'hover:text-campus-700',
+            )}
+          >
+            {formatPhone(phone.number) || '—'}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+        <label className="inline-flex items-center gap-1">
+          <span className="text-xs text-gray-500">Type</span>
+          <select
+            value={phone.type}
+            onChange={(e) => void toggleField('type', e.target.value as PersonPhoneType)}
+            disabled={!editable || update.isPending}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:opacity-60"
+          >
+            {CHILD_PHONE_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="inline-flex items-center gap-1 text-xs text-gray-700">
+          <input
+            type="radio"
+            name={'child-primary-phone-' + childId}
+            checked={phone.isPrimary}
+            onChange={() => void toggleField('isPrimary', true)}
+            disabled={!editable || update.isPending || phone.isPrimary}
+            className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+          />
+          Primary
+        </label>
+        {editable && (
+          <span className="ml-auto">
+            <button
+              type="button"
+              onClick={() => void onRemove()}
+              disabled={!canDelete || remove.isPending}
+              title={canDelete ? 'Remove this phone' : 'Add another phone first.'}
+              aria-label="Remove phone"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              🗑
+            </button>
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+const CHILD_EMAIL_TYPES: Array<{ value: PersonEmailType; label: string }> = [
+  { value: 'PERSONAL', label: 'Personal' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'SCHOOL', label: 'School' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+const CHILD_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function ChildEmailListCard({ childId, editable }: { childId: string; editable: boolean }) {
+  const { data, isLoading } = useChildEmails(childId);
+  const add = useAddChildEmail(childId);
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [draftEmail, setDraftEmail] = useState('');
+  const [draftType, setDraftType] = useState<PersonEmailType>('PERSONAL');
+
+  async function onAdd() {
+    const trimmed = draftEmail.trim();
+    if (!trimmed) {
+      toast('Enter an email first.', 'error');
+      return;
+    }
+    if (!CHILD_EMAIL_RE.test(trimmed)) {
+      toast('That doesn’t look like a valid email.', 'error');
+      return;
+    }
+    try {
+      await add.mutateAsync({ email: trimmed, type: draftType });
+      setDraftEmail('');
+      setDraftType('PERSONAL');
+      setAddOpen(false);
+      toast('Email added', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add email.', 'error');
+    }
+  }
+
+  const emails = data ?? [];
+
+  return (
+    <SectionCard title="Email addresses">
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : emails.length === 0 && !addOpen ? (
+        <p className="text-sm text-gray-500">No emails on file yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {emails.map((e) => (
+            <ChildEmailRow
+              key={e.id}
+              childId={childId}
+              email={e}
+              canDelete={emails.length > 1}
+              editable={editable}
+            />
+          ))}
+        </ul>
+      )}
+
+      {editable && (addOpen ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Email address</label>
+              <input
+                type="email"
+                value={draftEmail}
+                onChange={(e) => setDraftEmail(e.target.value)}
+                placeholder="kid@example.com"
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as PersonEmailType)}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              >
+                {CHILD_EMAIL_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddOpen(false);
+                setDraftEmail('');
+                setDraftType('PERSONAL');
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onAdd()}
+              disabled={add.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {add.isPending && <LoadingSpinner size="sm" />}
+              <span>{add.isPending ? 'Adding…' : 'Add email'}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
+            + Add email
+          </button>
+        </div>
+      ))}
+      {!editable && emails.length > 0 && (
+        <p className="mt-3 text-xs text-gray-500">
+          Read-only — this child manages their own profile.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
+function ChildEmailRow({
+  childId,
+  email,
+  canDelete,
+  editable,
+}: {
+  childId: string;
+  email: PersonEmailDto;
+  canDelete: boolean;
+  editable: boolean;
+}) {
+  const update = useUpdateChildEmail(childId, email.id);
+  const remove = useDeleteChildEmail(childId, email.id);
+  const { toast } = useToast();
+
+  async function toggleField<K extends 'type' | 'isPrimary'>(
+    key: K,
+    value: K extends 'type' ? PersonEmailType : boolean,
+  ) {
+    try {
+      await update.mutateAsync({ [key]: value } as never);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+  async function onRemove() {
+    if (typeof window !== 'undefined' && !window.confirm('Remove this email?')) return;
+    try {
+      await remove.mutateAsync();
+      toast('Email removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+
+  return (
+    <li className="rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-base font-medium text-gray-900 break-all">{email.email}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+        <label className="inline-flex items-center gap-1">
+          <span className="text-xs text-gray-500">Type</span>
+          <select
+            value={email.type}
+            onChange={(e) => void toggleField('type', e.target.value as PersonEmailType)}
+            disabled={!editable || update.isPending}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:opacity-60"
+          >
+            {CHILD_EMAIL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="inline-flex items-center gap-1 text-xs text-gray-700">
+          <input
+            type="radio"
+            name={'child-primary-email-' + childId}
+            checked={email.isPrimary}
+            onChange={() => void toggleField('isPrimary', true)}
+            disabled={!editable || update.isPending || email.isPrimary}
+            className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+          />
+          Primary
+        </label>
+        {editable && (
+          <span className="ml-auto">
+            <button
+              type="button"
+              onClick={() => void onRemove()}
+              disabled={!canDelete || remove.isPending}
+              title={canDelete ? 'Remove this email' : 'Add another email first.'}
+              aria-label="Remove email"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              🗑
+            </button>
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// ─── Child home + mailing address ──────────────────────────
+
+/**
+ * Two cards rendered together: home address (FAMILY/CUSTOM toggle)
+ * and mailing address ("different from home" toggle). Both write
+ * through the same useUpdateFamilyChild mutation with a single
+ * Save Changes button at the bottom. Mirrors the adult /profile
+ * Contact tab's address shape. Editing is parent-side regardless
+ * of accessLevel — addresses live on platform_family_children,
+ * not on the child's iam_person.
+ */
+function ChildAddressCards({ child }: { child: FamilyChildDto }) {
   const { toast } = useToast();
   const update = useUpdateFamilyChild(child.id);
+  const familySettings = useFamilySettings();
+  const editable = child.accessLevel === 'MANAGED' || child.accessLevel === 'PLACEHOLDER';
+
   const initial = useMemo(
-    () => ({ phone: child.primaryPhone ?? '', notes: child.notes ?? '' }),
-    [child.primaryPhone, child.notes],
+    () => ({
+      addressSource: child.addressSource,
+      customAddressLine1: child.customAddressLine1 ?? '',
+      customAddressLine2: child.customAddressLine2 ?? '',
+      customCity: child.customCity ?? '',
+      customState: child.customState ?? '',
+      customPostalCode: child.customPostalCode ?? '',
+      customCountry: child.customCountry ?? '',
+      mailingAddressDifferent: child.mailingAddressDifferent,
+      mailingLine1: child.mailingLine1 ?? '',
+      mailingLine2: child.mailingLine2 ?? '',
+      mailingCity: child.mailingCity ?? '',
+      mailingState: child.mailingState ?? '',
+      mailingPostalCode: child.mailingPostalCode ?? '',
+      mailingCountry: child.mailingCountry ?? '',
+    }),
+    [child],
   );
   const [form, setForm] = useState(initial);
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
   useBeforeUnloadOnDirty(isDirty);
+  useEffect(() => setForm(initial), [initial]);
 
-  useEffect(() => {
-    setForm(initial);
-  }, [child.id, initial]);
-
-  async function save() {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!isDirty) return;
     try {
       await update.mutateAsync({
-        primaryPhone: form.phone.trim() || null,
-        notes: form.notes.trim() || null,
+        addressSource: form.addressSource,
+        customAddressLine1: form.customAddressLine1.trim() || null,
+        customAddressLine2: form.customAddressLine2.trim() || null,
+        customCity: form.customCity.trim() || null,
+        customState: form.customState.trim() || null,
+        customPostalCode: form.customPostalCode.trim() || null,
+        customCountry: form.customCountry.trim() || null,
+        mailingAddressDifferent: form.mailingAddressDifferent,
+        mailingLine1: form.mailingAddressDifferent ? form.mailingLine1.trim() || null : null,
+        mailingLine2: form.mailingAddressDifferent ? form.mailingLine2.trim() || null : null,
+        mailingCity: form.mailingAddressDifferent ? form.mailingCity.trim() || null : null,
+        mailingState: form.mailingAddressDifferent ? form.mailingState.trim() || null : null,
+        mailingPostalCode: form.mailingAddressDifferent
+          ? form.mailingPostalCode.trim() || null
+          : null,
+        mailingCountry: form.mailingAddressDifferent ? form.mailingCountry.trim() || null : null,
       });
-      toast('Saved', 'success');
+      toast('Address saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
   }
 
-  if (readOnly) {
-    return (
-      <SectionCard title="Phone & notes">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ReadOnlyField label="Phone" value={formatPhone(child.primaryPhone)} />
+  const fs = familySettings.data;
+  const familyAddressString = fs
+    ? [
+        [fs.addressLine1, fs.addressLine2].filter(Boolean).join(', '),
+        [fs.city, fs.state, fs.postalCode].filter(Boolean).join(', '),
+        fs.country,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      <SectionCard title="Home address">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {form.addressSource === 'FAMILY'
+              ? "Using your family's home address."
+              : 'Using a custom address for this child.'}
+          </p>
+          {editable && (
+            <button
+              type="button"
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  addressSource: f.addressSource === 'FAMILY' ? 'CUSTOM' : 'FAMILY',
+                }))
+              }
+              className="text-xs font-medium text-campus-700 hover:text-campus-600"
+            >
+              {form.addressSource === 'FAMILY' ? 'Use custom →' : '← Use family'}
+            </button>
+          )}
         </div>
-        {child.notes && (
-          <div className="mt-4">
-            <p className="text-xs font-medium text-gray-700">Notes</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{child.notes}</p>
+
+        {form.addressSource === 'FAMILY' ? (
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {familyAddressString || (
+              <span className="text-gray-500">No family address on file yet.</span>
+            )}
+            <div className="mt-2">
+              <Link
+                href="/family/settings?tab=addresses"
+                className="text-xs font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family address →
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChildAddressField
+              id="customAddressLine1"
+              label="Street address"
+              value={form.customAddressLine1}
+              onChange={(v) => setForm((f) => ({ ...f, customAddressLine1: v }))}
+              dirty={dirtyFields.has('customAddressLine1')}
+              disabled={!editable}
+              className="sm:col-span-2"
+            />
+            <ChildAddressField
+              id="customAddressLine2"
+              label="Apt / suite"
+              value={form.customAddressLine2}
+              onChange={(v) => setForm((f) => ({ ...f, customAddressLine2: v }))}
+              dirty={dirtyFields.has('customAddressLine2')}
+              disabled={!editable}
+              className="sm:col-span-2"
+            />
+            <ChildAddressField
+              id="customCity"
+              label="City"
+              value={form.customCity}
+              onChange={(v) => setForm((f) => ({ ...f, customCity: v }))}
+              dirty={dirtyFields.has('customCity')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="customState"
+              label="State / province"
+              value={form.customState}
+              onChange={(v) => setForm((f) => ({ ...f, customState: v }))}
+              dirty={dirtyFields.has('customState')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="customPostalCode"
+              label="ZIP / postal code"
+              value={form.customPostalCode}
+              onChange={(v) => setForm((f) => ({ ...f, customPostalCode: v }))}
+              dirty={dirtyFields.has('customPostalCode')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="customCountry"
+              label="Country"
+              value={form.customCountry}
+              onChange={(v) => setForm((f) => ({ ...f, customCountry: v }))}
+              dirty={dirtyFields.has('customCountry')}
+              disabled={!editable}
+            />
           </div>
         )}
       </SectionCard>
-    );
-  }
 
-  return (
-    <SectionCard title="Phone & notes">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="primaryPhone" className="block text-xs font-medium text-gray-700">
-            Phone
-            {dirtyFields.has('phone') && (
-              <span
-                aria-label="Modified"
-                title="Modified — save to keep this change"
-                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-              />
-            )}
-          </label>
-          <PhoneInput
-            id="primaryPhone"
-            value={form.phone}
-            onChange={(raw) => setForm((f) => ({ ...f, phone: raw }))}
-            dirty={dirtyFields.has('phone')}
+      <SectionCard title="Mailing address">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.mailingAddressDifferent}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
+            }
+            disabled={!editable}
+            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
           />
-        </div>
-      </div>
-      <div className="mt-4">
-        <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
-          Notes
-          {dirtyFields.has('notes') && (
+          Mailing address is different from home address
+          {dirtyFields.has('mailingAddressDifferent') && (
             <span
               aria-label="Modified"
               title="Modified — save to keep this change"
-              className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+              className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
             />
           )}
         </label>
-        <textarea
-          id="notes"
-          value={form.notes}
-          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          rows={3}
-          placeholder="Allergies, accommodations, things teachers should know…"
-          className={cn(
-            'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
-            dirtyFields.has('notes')
-              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-              : 'border border-gray-300',
-          )}
-        />
-      </div>
-      <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={!isDirty || update.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-        >
-          {update.isPending && <LoadingSpinner size="sm" />}
-          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-        </button>
-      </div>
+        {form.mailingAddressDifferent && (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <ChildAddressField
+              id="mailingLine1"
+              label="Street address"
+              value={form.mailingLine1}
+              onChange={(v) => setForm((f) => ({ ...f, mailingLine1: v }))}
+              dirty={dirtyFields.has('mailingLine1')}
+              disabled={!editable}
+              className="sm:col-span-2"
+            />
+            <ChildAddressField
+              id="mailingLine2"
+              label="Apt / suite"
+              value={form.mailingLine2}
+              onChange={(v) => setForm((f) => ({ ...f, mailingLine2: v }))}
+              dirty={dirtyFields.has('mailingLine2')}
+              disabled={!editable}
+              className="sm:col-span-2"
+            />
+            <ChildAddressField
+              id="mailingCity"
+              label="City"
+              value={form.mailingCity}
+              onChange={(v) => setForm((f) => ({ ...f, mailingCity: v }))}
+              dirty={dirtyFields.has('mailingCity')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="mailingState"
+              label="State / province"
+              value={form.mailingState}
+              onChange={(v) => setForm((f) => ({ ...f, mailingState: v }))}
+              dirty={dirtyFields.has('mailingState')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="mailingPostalCode"
+              label="ZIP / postal code"
+              value={form.mailingPostalCode}
+              onChange={(v) => setForm((f) => ({ ...f, mailingPostalCode: v }))}
+              dirty={dirtyFields.has('mailingPostalCode')}
+              disabled={!editable}
+            />
+            <ChildAddressField
+              id="mailingCountry"
+              label="Country"
+              value={form.mailingCountry}
+              onChange={(v) => setForm((f) => ({ ...f, mailingCountry: v }))}
+              dirty={dirtyFields.has('mailingCountry')}
+              disabled={!editable}
+            />
+          </div>
+        )}
+
+        {editable && (
+          <div className="mt-4 flex justify-end">
+            <button
+              type="submit"
+              disabled={!isDirty || update.isPending}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
+            >
+              {update.isPending && <LoadingSpinner size="sm" />}
+              <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
+            </button>
+          </div>
+        )}
+      </SectionCard>
+    </form>
+  );
+}
+
+function ChildAddressField({
+  id,
+  label,
+  value,
+  onChange,
+  dirty,
+  disabled,
+  className,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  dirty: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
+        {label}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+          dirty
+            ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+            : 'border border-gray-300',
+        )}
+      />
+    </div>
+  );
+}
+
+// ─── Guardian contacts (read-only panel) ───────────────────
+
+/**
+ * Read-only quick-reference panel. School staff opening a child's
+ * profile shouldn't have to click through to /family to see what
+ * each parent's primary phone + email is. The data is sourced from
+ * the family-members listing — primaryPhone / primaryPhoneType /
+ * email / primaryEmailType are populated server-side from
+ * platform_person_phones / platform_person_emails (is_primary=true).
+ *
+ * Guardian contact info itself is managed on the guardian's own
+ * profile; we surface a friendly nudge for that.
+ */
+function GuardianContactsPanel() {
+  const familyView = useFamilyView();
+  const guardians = (familyView.data?.members ?? []).filter((m) => m.status === 'ACTIVE');
+
+  const phoneTypeLabel = (t: string | null) => {
+    if (!t) return '';
+    const map: Record<string, string> = {
+      CELL: 'Cell',
+      HOME: 'Home',
+      WORK: 'Work',
+      OTHER: 'Other',
+    };
+    return map[t] ?? t;
+  };
+
+  return (
+    <SectionCard title="Parents & Guardians">
+      {guardians.length === 0 ? (
+        <p className="text-sm text-gray-500">No guardians on file.</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {guardians.map((g) => {
+            const heroName = g.preferredName?.trim() ? g.preferredName : g.firstName;
+            const fullName =
+              [heroName, g.lastName].filter(Boolean).join(' ').trim() || g.email || 'Guardian';
+            const phoneLabel = phoneTypeLabel(g.primaryPhoneType);
+            return (
+              <li key={g.id} className="rounded-md border border-gray-200 bg-white p-3">
+                <p className="text-sm font-medium text-gray-900">
+                  {fullName}
+                  <span className="ml-2 text-xs font-normal text-gray-500">Parent/Guardian</span>
+                </p>
+                {g.primaryPhone ? (
+                  <p className="mt-1 text-xs text-gray-700">
+                    <span aria-hidden className="mr-1">
+                      📱
+                    </span>
+                    {formatPhone(g.primaryPhone)}
+                    <span className="text-gray-500">
+                      {' '}
+                      ({phoneLabel ? phoneLabel + ', ' : ''}primary)
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-500">No phone on file</p>
+                )}
+                {g.email ? (
+                  <p className="mt-0.5 text-xs text-gray-700">
+                    <span aria-hidden className="mr-1">
+                      ✉️
+                    </span>
+                    {g.email}
+                    <span className="text-gray-500"> (primary)</span>
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-gray-500">No email on file</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="mt-3 text-xs text-gray-500">
+        Read-only — this info comes from each guardian&rsquo;s profile.
+      </p>
     </SectionCard>
   );
 }
