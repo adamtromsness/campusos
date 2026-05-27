@@ -412,17 +412,33 @@ function FamilyTab({
 // ─── Completion status card ────────────────────────────────
 
 /**
+ * Sub-item rendered indented under a failed CompletionItem so the
+ * user can see *who* / *what* is missing, not just that something is
+ * wrong. `complete=true` sub-items get a green check (used for
+ * showing the guardians that are already done alongside the ones
+ * that aren't); `action` (optional) renders an inline pill button.
+ */
+interface CompletionSubItem {
+  label: string;
+  complete?: boolean;
+  action?: { label: string; href?: string; onClick?: () => void };
+}
+
+/**
  * Checklist item the FamilyCompletionCard renders. `complete` drives
  * the ✅/❌ glyph + the colour; `weight` is the percentage point this
- * item contributes when satisfied. `navigate` (optional) makes the
- * row a clickable deep-link to wherever the missing piece lives.
+ * item contributes when satisfied. `navigate` / `href` (optional)
+ * makes the row a clickable deep-link to wherever the missing piece
+ * lives. `details` lists per-resource diagnostics shown below the
+ * row when the item is incomplete.
  */
 interface CompletionItem {
   label: string;
   complete: boolean;
   weight: number;
   navigate?: () => void;
-  hint?: string;
+  href?: string;
+  details?: CompletionSubItem[];
 }
 
 function FamilyCompletionCard({
@@ -452,23 +468,34 @@ function FamilyCompletionCard({
     // guardians by default. Phones come from iam_person on
     // guardian rows (FamilyMemberDto.primaryPhone) and from the
     // manual contact's phonePrimary column.
-    const guardiansWithPhone = members.filter(
-      (m) => m.status === 'ACTIVE' && (m.primaryPhone ?? '').trim().length > 0,
+    const activeGuardians = members.filter((m) => m.status === 'ACTIVE');
+    const guardiansWithPhone = activeGuardians.filter(
+      (m) => (m.primaryPhone ?? '').trim().length > 0,
     ).length;
     const manualECsWithPhone = (ecs ?? []).filter(
       (c) => c.phonePrimary && c.phonePrimary.trim().length > 0,
     ).length;
-    const enoughEmergency = guardiansWithPhone + manualECsWithPhone >= 2;
+    const totalContactsWithPhone = guardiansWithPhone + manualECsWithPhone;
+    const enoughEmergency = totalContactsWithPhone >= 2;
     const hasDoctor = Boolean(settings.doctorName?.trim());
     const hasInsurance = Boolean(settings.insuranceProvider?.trim());
     const hasAnyChild = children.length > 0;
-    const allChildrenLinked = hasAnyChild && children.every((c) => c.status === 'LINKED');
-    const unlinkedCount = children.filter((c) => c.status !== 'LINKED').length;
+    const unlinkedChildren = children.filter((c) => c.status !== 'LINKED');
+    const allChildrenLinked = hasAnyChild && unlinkedChildren.length === 0;
+    // Per-guardian profile completeness. A guardian is "complete"
+    // when their iam_person has both a phone and an email recorded.
+    // We show every active guardian as a sub-item so the user can
+    // see at a glance who they need to nudge (or fix themselves).
+    const guardianStatus = activeGuardians.map((m) => {
+      const heroName = m.preferredName?.trim() ? m.preferredName : m.firstName;
+      const fullName = [heroName, m.lastName].filter(Boolean).join(' ').trim() || 'Guardian';
+      const missing: string[] = [];
+      if (!(m.primaryPhone ?? '').trim()) missing.push('phone');
+      if (!(m.email ?? '').trim()) missing.push('email');
+      return { name: fullName, missing, isCurrentUser: m.isCurrentUser };
+    });
     const guardiansComplete =
-      members.filter((m) => m.status === 'ACTIVE').length > 0 &&
-      members
-        .filter((m) => m.status === 'ACTIVE')
-        .every((m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim());
+      guardianStatus.length > 0 && guardianStatus.every((g) => g.missing.length === 0);
     // "Customised" = at least one category routes to someone other
     // than the GENERAL contact. If everything routes to the same
     // person we treat it as "default — not yet customised."
@@ -483,6 +510,10 @@ function FamilyCompletionCard({
       ? true
       : Boolean(settings.mailingLine1 && settings.mailingCity && settings.mailingState);
 
+    const goAddresses = () => onNavigate('addresses');
+    const goEmergency = () => onNavigate('emergency');
+    const goHealth = () => onNavigate('health');
+
     return [
       { label: 'Family name set', complete: hasName, weight: 5 },
       { label: 'Primary contact assigned (General)', complete: hasGeneralPrimary, weight: 5 },
@@ -490,47 +521,125 @@ function FamilyCompletionCard({
         label: 'Home address on file',
         complete: hasHomeAddress,
         weight: 15,
-        navigate: () => onNavigate('addresses'),
+        navigate: goAddresses,
+        details: [
+          {
+            label: 'No home address entered',
+            action: { label: 'Go to Addresses', onClick: goAddresses },
+          },
+        ],
       },
       {
         label: 'At least 2 emergency contacts with phone',
         complete: enoughEmergency,
         weight: 15,
-        navigate: () => onNavigate('emergency'),
+        navigate: goEmergency,
+        details: [
+          {
+            label:
+              totalContactsWithPhone === 0
+                ? 'No emergency contacts with phone on file'
+                : `Only ${totalContactsWithPhone} emergency contact${totalContactsWithPhone === 1 ? '' : 's'} on file`,
+            action: { label: 'Add Contact', onClick: goEmergency },
+          },
+        ],
       },
       {
         label: 'Family doctor on file',
         complete: hasDoctor,
         weight: 10,
-        navigate: () => onNavigate('health'),
+        navigate: goHealth,
+        details: [
+          {
+            label: 'No doctor information entered',
+            action: { label: 'Go to Health tab', onClick: goHealth },
+          },
+        ],
       },
       {
         label: 'Insurance on file',
         complete: hasInsurance,
         weight: 10,
-        navigate: () => onNavigate('health'),
+        navigate: goHealth,
+        details: [
+          {
+            label: 'No insurance information entered',
+            action: { label: 'Go to Health tab', onClick: goHealth },
+          },
+        ],
       },
-      { label: 'At least one child added', complete: hasAnyChild, weight: 10, hint: hasAnyChild ? undefined : 'Add children on /family.' },
+      {
+        label: 'At least one child added',
+        complete: hasAnyChild,
+        weight: 10,
+        href: '/family',
+        details: [
+          {
+            label: 'No children on this family yet',
+            action: { label: 'Add Child', href: '/family' },
+          },
+        ],
+      },
       {
         label: allChildrenLinked
           ? 'All children have linked accounts'
           : hasAnyChild
-            ? `Children have accounts (${children.length - unlinkedCount} of ${children.length} connected)`
+            ? `Children have accounts (${children.length - unlinkedChildren.length} of ${children.length} connected)`
             : 'All children have linked accounts',
         complete: allChildrenLinked,
         weight: 10,
+        href: '/family',
+        details: unlinkedChildren.map((c) => {
+          const heroName = c.preferredName?.trim() ? c.preferredName : c.firstName;
+          const fullName = [heroName, c.lastName].filter(Boolean).join(' ').trim() || 'Child';
+          return {
+            label: `${fullName} — no account`,
+            action: { label: 'Create Account', href: '/family' },
+          };
+        }),
       },
       {
         label: 'All guardian profiles complete (phone + email)',
         complete: guardiansComplete,
         weight: 10,
+        href: '/profile',
+        // Show every guardian — green check on the ones who are done,
+        // diagnostic + action on the ones who aren't. Self gets a
+        // working /profile link; non-self guardians get a /family
+        // link so the caller can at least see them and nudge.
+        details: guardianStatus.map((g) =>
+          g.missing.length === 0
+            ? { label: `${g.name} — complete`, complete: true }
+            : {
+                label: `${g.name} — missing: ${g.missing.join(', ')}`,
+                action: g.isCurrentUser
+                  ? { label: 'Edit Profile', href: '/profile' }
+                  : { label: 'View on Family', href: '/family' },
+              },
+        ),
       },
       {
         label: 'Communication preferences customised',
         complete: customisedPrefs,
         weight: 5,
+        details: [
+          {
+            label: 'All categories route to the same person',
+          },
+        ],
       },
-      { label: 'Mailing address (if different from home)', complete: mailingSatisfied, weight: 5, navigate: () => onNavigate('addresses') },
+      {
+        label: 'Mailing address (if different from home)',
+        complete: mailingSatisfied,
+        weight: 5,
+        navigate: goAddresses,
+        details: [
+          {
+            label: 'No mailing address entered',
+            action: { label: 'Go to Addresses', onClick: goAddresses },
+          },
+        ],
+      },
     ];
   }, [settings, members, prefs, children, ecs, onNavigate]);
 
@@ -559,44 +668,108 @@ function FamilyCompletionCard({
         />
       </div>
       <ul className="mt-3 flex flex-col gap-1">
-        {items.map((item) => {
-          const baseClasses =
-            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left';
-          const interactive = item.navigate && !item.complete;
-          const content = (
-            <>
-              <span
-                aria-hidden
-                className={item.complete ? 'text-green-600' : 'text-red-400'}
-              >
-                {item.complete ? '✅' : '❌'}
-              </span>
-              <span className={item.complete ? 'text-gray-700' : 'text-gray-900'}>
-                {item.label}
-              </span>
-              {interactive && (
-                <span className="ml-auto text-xs font-medium text-campus-700">Fix →</span>
-              )}
-            </>
-          );
-          return (
-            <li key={item.label}>
-              {interactive ? (
-                <button
-                  type="button"
-                  onClick={item.navigate}
-                  className={cn(baseClasses, 'hover:bg-gray-50')}
-                >
-                  {content}
-                </button>
-              ) : (
-                <div className={cn(baseClasses, 'cursor-default')}>{content}</div>
-              )}
-            </li>
-          );
-        })}
+        {items.map((item) => (
+          <CompletionItemRow key={item.label} item={item} />
+        ))}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * Row for a single CompletionItem. Renders the ✅/❌ glyph, label,
+ * and optional "Fix →" arrow on the parent row; when incomplete and
+ * `details` is non-empty, renders an indented sub-list beneath with
+ * per-resource diagnostics + inline action pills.
+ */
+function CompletionItemRow({ item }: { item: CompletionItem }) {
+  const baseClasses =
+    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left';
+  const hasParentAction = Boolean(item.navigate || item.href);
+  const interactive = !item.complete && hasParentAction;
+  const showDetails = !item.complete && item.details && item.details.length > 0;
+
+  const rowContent = (
+    <>
+      <span aria-hidden className={item.complete ? 'text-green-600' : 'text-red-400'}>
+        {item.complete ? '✅' : '❌'}
+      </span>
+      <span className={item.complete ? 'text-gray-700' : 'text-gray-900'}>{item.label}</span>
+      {interactive && (
+        <span className="ml-auto text-xs font-medium text-campus-700">Fix →</span>
+      )}
+    </>
+  );
+
+  let row: React.ReactNode;
+  if (interactive && item.href) {
+    row = (
+      <Link href={item.href} className={cn(baseClasses, 'hover:bg-gray-50')}>
+        {rowContent}
+      </Link>
+    );
+  } else if (interactive && item.navigate) {
+    row = (
+      <button
+        type="button"
+        onClick={item.navigate}
+        className={cn(baseClasses, 'hover:bg-gray-50')}
+      >
+        {rowContent}
+      </button>
+    );
+  } else {
+    row = <div className={cn(baseClasses, 'cursor-default')}>{rowContent}</div>;
+  }
+
+  return (
+    <li>
+      {row}
+      {showDetails && (
+        <ul className="mb-1 ml-8 mt-1 flex flex-col gap-1">
+          {item.details!.map((d, idx) => (
+            <li
+              key={d.label + ':' + idx}
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-xs"
+            >
+              <span aria-hidden className="text-gray-400">
+                └
+              </span>
+              <span className={d.complete ? 'text-green-700' : 'text-gray-700'}>
+                {d.complete && (
+                  <span aria-hidden className="mr-1 text-green-600">
+                    ✅
+                  </span>
+                )}
+                {d.label}
+              </span>
+              {d.action && <CompletionSubAction action={d.action} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function CompletionSubAction({
+  action,
+}: {
+  action: NonNullable<CompletionSubItem['action']>;
+}) {
+  const classes =
+    'ml-auto inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50';
+  if (action.href) {
+    return (
+      <Link href={action.href} className={classes}>
+        {action.label}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={action.onClick} className={classes}>
+      {action.label}
+    </button>
   );
 }
 
