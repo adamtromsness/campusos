@@ -15,6 +15,7 @@ import {
   useFamilyChildren,
   useFamilyEmergencyContacts,
   useFamilySettings,
+  useFamilyView,
   useSendChildLink,
   useUpdateChildDietary,
   useUpdateChildMedical,
@@ -1438,13 +1439,91 @@ function EmergencyContactsContactTabSection({ child }: { child: FamilyChildDto }
 }
 
 /**
- * Read-only block that shows the family-inherited emergency contacts.
- * Surface a deep-link to /family/settings so the user can edit at the
- * family level without bouncing through "this isn't editable here"
- * confusion.
+ * Read-only block showing the family-inherited emergency contacts.
+ *
+ * The /api/v1/family/settings/emergency-contacts endpoint only
+ * returns rows from platform_family_emergency_contacts (manuals).
+ * Active guardians from platform_family_members are added on the
+ * /family/settings Emergency tab via a client-side merge — they're
+ * not in the same physical table, so the server can't return them
+ * without changing the response shape. To stay consistent with
+ * what the parent sees on /family/settings, we mirror that same
+ * merge here on the read-only child view.
+ *
+ * Sort uses the unified priority_order namespace (both tables share
+ * it; see /family/settings EmergencyTab), with the same default
+ * tie-break — guardians first, then manuals by createdAt, when
+ * everyone's priority is 0.
  */
+interface InheritedEcRow {
+  key: string;
+  kind: 'guardian' | 'manual';
+  name: string;
+  relationship: string;
+  phonePrimary: string | null;
+  phoneAlternate: string | null;
+  email: string | null;
+  authorizedPickup: boolean;
+  priority: number;
+  tieBreak: number;
+}
+
 function FamilyEmergencyContactsInherited() {
-  const { data, isLoading } = useFamilyEmergencyContacts();
+  const familyView = useFamilyView();
+  const { data: manualContacts, isLoading } = useFamilyEmergencyContacts();
+
+  const members = familyView.data?.members ?? [];
+  // Manual rows may have linkedPersonId pointing back at a guardian —
+  // when that's set, the row was created from the "link a guardian"
+  // flow and is already represented in the guardians block. Skip it
+  // here so the same person doesn't appear twice. Guardian rows take
+  // precedence because they carry the live phone from iam_person.
+  const guardianPersonIds = new Set(
+    members
+      .filter((m) => m.status === 'ACTIVE' && m.personId)
+      .map((m) => m.personId as string),
+  );
+
+  const guardianRows: InheritedEcRow[] = members
+    .filter((m) => m.status === 'ACTIVE')
+    .map((m, i) => {
+      const heroName = m.preferredName?.trim() ? m.preferredName : m.firstName;
+      const fullName =
+        [heroName, m.lastName].filter(Boolean).join(' ').trim() || m.email || 'Guardian';
+      return {
+        key: 'guardian:' + m.id,
+        kind: 'guardian' as const,
+        name: fullName,
+        relationship: 'Parent/Guardian',
+        phonePrimary: m.primaryPhone,
+        phoneAlternate: null,
+        email: m.email,
+        authorizedPickup: m.emergencyAuthorizedPickup,
+        priority: m.emergencyPriorityOrder,
+        tieBreak: 1000 + i,
+      };
+    });
+
+  const manualRows: InheritedEcRow[] = (manualContacts ?? [])
+    .filter((c) => !c.linkedPersonId || !guardianPersonIds.has(c.linkedPersonId))
+    .map((c, i) => ({
+      key: 'manual:' + c.id,
+      kind: 'manual' as const,
+      name: c.name,
+      relationship: c.relationship,
+      phonePrimary: c.phonePrimary,
+      phoneAlternate: c.phoneAlternate,
+      email: c.email,
+      authorizedPickup: c.authorizedPickup,
+      priority: c.priorityOrder,
+      tieBreak: 2000 + i,
+    }));
+
+  const rows: InheritedEcRow[] = [...guardianRows, ...manualRows].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.tieBreak - b.tieBreak;
+  });
+
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between gap-2">
@@ -1452,7 +1531,7 @@ function FamilyEmergencyContactsInherited() {
           Family contacts
         </h3>
         <Link
-          href="/family/settings"
+          href="/family/settings?tab=emergency"
           className="text-sm font-medium text-campus-700 hover:text-campus-600"
         >
           Edit family contacts →
@@ -1460,11 +1539,11 @@ function FamilyEmergencyContactsInherited() {
       </div>
       {isLoading ? (
         <p className="mt-2 text-sm text-gray-500">Loading…</p>
-      ) : !data || data.length === 0 ? (
+      ) : rows.length === 0 ? (
         <p className="mt-2 text-sm text-gray-500">
           No family emergency contacts yet.{' '}
           <Link
-            href="/family/settings"
+            href="/family/settings?tab=emergency"
             className="font-medium text-campus-700 hover:text-campus-600"
           >
             Add one in family settings.
@@ -1472,25 +1551,27 @@ function FamilyEmergencyContactsInherited() {
         </p>
       ) : (
         <ul className="mt-2 flex flex-col gap-2">
-          {data.map((c, i) => (
+          {rows.map((r, i) => (
             <li
-              key={c.id}
+              key={r.key}
               className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-white p-3"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-900">
-                  <span className="text-xs text-gray-400">{i + 1}.</span> {c.name}
-                  <span className="ml-2 text-xs font-normal text-gray-500">{c.relationship}</span>
+                  <span className="text-xs text-gray-400">{i + 1}.</span> {r.name}
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    {r.relationship}
+                  </span>
                 </p>
                 <p className="mt-0.5 text-xs text-gray-600">
-                  {formatPhone(c.phonePrimary)}
-                  {c.phoneAlternate && (
-                    <span className="text-gray-500"> · {formatPhone(c.phoneAlternate)}</span>
+                  {formatPhone(r.phonePrimary)}
+                  {r.phoneAlternate && (
+                    <span className="text-gray-500"> · {formatPhone(r.phoneAlternate)}</span>
                   )}
                 </p>
-                {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
+                {r.email && <p className="text-xs text-gray-500">{r.email}</p>}
                 <p className="mt-0.5 text-xs">
-                  {c.authorizedPickup ? (
+                  {r.authorizedPickup ? (
                     <span className="text-emerald-700">✓ Authorized for pickup</span>
                   ) : (
                     <span className="text-gray-500">Not authorized for pickup</span>
