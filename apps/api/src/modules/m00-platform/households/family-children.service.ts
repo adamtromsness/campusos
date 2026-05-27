@@ -208,7 +208,21 @@ export class FamilyChildrenService {
               COALESCE(p.first_name, pfm.first_name) AS first_name,
               COALESCE(p.last_name, pfm.last_name) AS last_name,
               p.preferred_name AS preferred_name,
-              pfm.email AS email,
+              -- Primary contact email lives in platform_person_emails
+              -- when the member has a linked iam_person. Falls back
+              -- to pfm.email for PLACEHOLDER / PENDING_INVITE rows
+              -- (no person_id) and historic rows that haven't had
+              -- their first /profile/me/emails lazy-seed yet. The
+              -- completion checker treats "has email" as the source
+              -- of truth for guardian-profile completeness.
+              COALESCE(
+                (SELECT pe.email
+                   FROM platform.platform_person_emails pe
+                  WHERE pe.person_id = pfm.person_id
+                  ORDER BY pe.is_primary DESC, pe.created_at ASC
+                  LIMIT 1),
+                pfm.email
+              ) AS email,
               p.primary_phone AS primary_phone,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
@@ -2658,7 +2672,21 @@ export class FamilyChildrenService {
               COALESCE(p.first_name, pfm.first_name) AS first_name,
               COALESCE(p.last_name, pfm.last_name) AS last_name,
               p.preferred_name AS preferred_name,
-              pfm.email AS email,
+              -- Primary contact email lives in platform_person_emails
+              -- when the member has a linked iam_person. Falls back
+              -- to pfm.email for PLACEHOLDER / PENDING_INVITE rows
+              -- (no person_id) and historic rows that haven't had
+              -- their first /profile/me/emails lazy-seed yet. The
+              -- completion checker treats "has email" as the source
+              -- of truth for guardian-profile completeness.
+              COALESCE(
+                (SELECT pe.email
+                   FROM platform.platform_person_emails pe
+                  WHERE pe.person_id = pfm.person_id
+                  ORDER BY pe.is_primary DESC, pe.created_at ASC
+                  LIMIT 1),
+                pfm.email
+              ) AS email,
               p.primary_phone AS primary_phone,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { TenantPrismaService } from '@shared/tenant';
 import {
+  AddPersonEmailDto,
   AddPersonPhoneDto,
   AdultAllergyEntry,
   AdultConditionEntry,
@@ -17,6 +18,8 @@ import {
   EmergencyContactDto,
   GuardianEmploymentDto,
   HouseholdSummaryDto,
+  PersonEmailDto,
+  PersonEmailType,
   PersonPhoneDto,
   PersonPhoneType,
   ProfileResponseDto,
@@ -25,6 +28,7 @@ import {
   UpdateAdultMedicalInfoDto,
   UpdateEmergencyContactDto,
   UpdateMyProfileDto,
+  UpdatePersonEmailDto,
   UpdatePersonPhoneDto,
 } from './dto/profile.dto';
 
@@ -448,6 +452,220 @@ export class ProfileService {
         : 'CELL') as PersonPhoneType,
       textsAllowed: row.textsAllowed,
       isPrimary: row.isPrimary,
+    };
+  }
+
+  // ── Multi-email list — /profile/me/emails ────────────────────────────
+
+  /**
+   * List the calling user's emails, primary first then by creation
+   * time. Lazy-seeds a single PERSONAL/primary row from the auth
+   * row's email (platform_users.email) when:
+   *   - no rows exist yet, AND
+   *   - the auth row has a non-empty, non-synthetic email.
+   *
+   * Same shape as listMyPhones: the migration backfill caught
+   * existing rows, this catches forward registrations until the
+   * registration service is updated to write both. Synthetic
+   * `@external.invalid` addresses (createMemberAccount placeholders)
+   * are intentionally skipped — those aren't real and shouldn't
+   * become someone's contact email by accident.
+   */
+  async listMyEmails(personId: string): Promise<PersonEmailDto[]> {
+    let rows = await this.platform.platformPersonEmail.findMany({
+      where: { personId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (rows.length === 0) {
+      const account = await this.platform.platformUser.findUnique({
+        where: { personId },
+        select: { email: true },
+      });
+      const seedEmail = account?.email?.trim();
+      if (seedEmail && !seedEmail.endsWith('@external.invalid')) {
+        try {
+          await this.platform.platformPersonEmail.create({
+            data: {
+              id: randomUUID(),
+              personId,
+              email: seedEmail,
+              type: 'PERSONAL',
+              isPrimary: true,
+              verified: true,
+            },
+          });
+        } catch {
+          // Race with another tab/request seeding — re-read.
+        }
+        rows = await this.platform.platformPersonEmail.findMany({
+          where: { personId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        });
+      }
+    }
+    return rows.map(this.toEmailDto);
+  }
+
+  /**
+   * Add an email. If isPrimary is set OR no other rows exist (first
+   * email defaults to primary), demote any existing primary in the
+   * same tx. Case-insensitive duplicate check throws 409.
+   */
+  async addMyEmail(personId: string, dto: AddPersonEmailDto): Promise<PersonEmailDto> {
+    const normalised = dto.email.trim();
+    if (!normalised) throw new BadRequestException('Email is required.');
+
+    const existing = await this.platform.platformPersonEmail.findMany({
+      where: { personId },
+      select: { id: true, email: true, isPrimary: true },
+    });
+    const lower = normalised.toLowerCase();
+    if (existing.some((r) => r.email.toLowerCase() === lower)) {
+      throw new ConflictException('This email is already on your list.');
+    }
+    const shouldBePrimary = dto.isPrimary === true || existing.length === 0;
+
+    const id = randomUUID();
+    await this.platform.$transaction(async (tx) => {
+      if (shouldBePrimary) {
+        await tx.platformPersonEmail.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonEmail.create({
+        data: {
+          id,
+          personId,
+          email: normalised,
+          type: dto.type ?? 'PERSONAL',
+          isPrimary: shouldBePrimary,
+          verified: false,
+        },
+      });
+    });
+
+    const created = await this.platform.platformPersonEmail.findUniqueOrThrow({
+      where: { id },
+    });
+    return this.toEmailDto(created);
+  }
+
+  /**
+   * Update an email's type / isPrimary. Email address itself is
+   * immutable — to change it the user deletes and re-adds. Promotes
+   * the next-oldest row to primary if the caller explicitly demotes
+   * the current primary, so the family / iam path always has *some*
+   * primary email to read.
+   */
+  async updateMyEmail(
+    personId: string,
+    emailId: string,
+    dto: UpdatePersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    const existing = await this.platform.platformPersonEmail.findUnique({
+      where: { id: emailId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Email not found');
+    }
+
+    const willBePrimary = dto.isPrimary === true && !existing.isPrimary;
+    const losesPrimary = dto.isPrimary === false && existing.isPrimary;
+
+    await this.platform.$transaction(async (tx) => {
+      if (willBePrimary) {
+        await tx.platformPersonEmail.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonEmail.update({
+        where: { id: emailId },
+        data: {
+          type: dto.type ?? undefined,
+          isPrimary: dto.isPrimary ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+      if (losesPrimary) {
+        // Demoted the current primary without a replacement. Promote
+        // the next-oldest row so /family + completion checks always
+        // see a primary address.
+        const fallback = await tx.platformPersonEmail.findFirst({
+          where: { personId, NOT: { id: emailId } },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (fallback) {
+          await tx.platformPersonEmail.update({
+            where: { id: fallback.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+        }
+      }
+    });
+
+    const refreshed = await this.platform.platformPersonEmail.findUniqueOrThrow({
+      where: { id: emailId },
+    });
+    return this.toEmailDto(refreshed);
+  }
+
+  /**
+   * Delete an email. The last remaining email cannot be deleted —
+   * a person must always have at least one contact email on file.
+   * If the deleted row was primary, the next-oldest survivor is
+   * promoted automatically.
+   */
+  async deleteMyEmail(personId: string, emailId: string): Promise<void> {
+    const existing = await this.platform.platformPersonEmail.findUnique({
+      where: { id: emailId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Email not found');
+    }
+
+    const total = await this.platform.platformPersonEmail.count({
+      where: { personId },
+    });
+    if (total <= 1) {
+      throw new BadRequestException(
+        'You must have at least one email on file. Add another email before removing this one.',
+      );
+    }
+
+    await this.platform.$transaction(async (tx) => {
+      await tx.platformPersonEmail.delete({ where: { id: emailId } });
+      if (existing.isPrimary) {
+        const next = await tx.platformPersonEmail.findFirst({
+          where: { personId },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (next) {
+          await tx.platformPersonEmail.update({
+            where: { id: next.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+        }
+      }
+    });
+  }
+
+  private toEmailDto(row: {
+    id: string;
+    email: string;
+    type: string;
+    isPrimary: boolean;
+    verified: boolean;
+  }): PersonEmailDto {
+    return {
+      id: row.id,
+      email: row.email,
+      type: (row.type === 'WORK' || row.type === 'SCHOOL' || row.type === 'OTHER'
+        ? row.type
+        : 'PERSONAL') as PersonEmailType,
+      isPrimary: row.isPrimary,
+      verified: row.verified,
     };
   }
 

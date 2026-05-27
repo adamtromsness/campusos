@@ -10,11 +10,15 @@ import { cn } from '@/components/ui/cn';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  useAddMyEmail,
   useAddMyPhone,
+  useDeleteMyEmail,
   useDeleteMyPhone,
+  useMyEmails,
   useMyMedical,
   useMyPhones,
   useMyProfile,
+  useUpdateMyEmail,
   useUpdateMyMedical,
   useUpdateMyPhone,
   useUpdateMyProfile,
@@ -23,6 +27,8 @@ import type {
   AdultAllergyEntry,
   AdultConditionEntry,
   AdultMedicationEntry,
+  PersonEmailDto,
+  PersonEmailType,
   PersonPhoneDto,
   PersonPhoneType,
 } from '@/lib/types';
@@ -511,12 +517,14 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      {/* PhoneListCard lives OUTSIDE this <form> in its own card —
-          phone rows persist immediately per-row (add/edit/delete fire
-          their own mutations), so they don't share the address card's
-          Save Changes button. Rendered as a sibling here so the
-          layout still reads top-to-bottom. */}
+      {/* PhoneListCard + EmailListCard live OUTSIDE this <form> in
+          their own cards — both lists persist immediately per-row
+          (add/edit/delete fire their own mutations), so they don't
+          share the address card's Save Changes button. Rendered as
+          siblings here so the layout still reads top-to-bottom:
+          phones → emails → home address → mailing address. */}
       <PhoneListCard />
+      <EmailListCard />
 
       <SectionCard title="Home address">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -980,6 +988,224 @@ function PhoneRow({ phone, canDelete }: { phone: PersonPhoneDto; canDelete: bool
             disabled={!canDelete || remove.isPending}
             title={canDelete ? 'Remove this phone' : 'Add another phone before removing this one.'}
             aria-label="Remove phone"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            🗑
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+// ─── Email list card (used by Contact tab) ─────────────────
+
+const EMAIL_TYPES: Array<{ value: PersonEmailType; label: string }> = [
+  { value: 'PERSONAL', label: 'Personal' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'SCHOOL', label: 'School' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Multi-email list. Mirrors PhoneListCard's per-row mutation shape —
+ * adding / changing type / flipping primary / deleting persists
+ * immediately so the card is independent of the address-card's Save
+ * Changes button. The server keeps platform_person_emails as the
+ * source of truth for "contact email" across the family roster and
+ * the completion checker; the login email (platform_users.email)
+ * stays separate and is read-only here.
+ */
+function EmailListCard() {
+  const { data, isLoading } = useMyEmails();
+  const add = useAddMyEmail();
+  const { toast } = useToast();
+  const loginEmail = useAuthStore((s) => s.user?.email ?? null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [draftEmail, setDraftEmail] = useState('');
+  const [draftType, setDraftType] = useState<PersonEmailType>('PERSONAL');
+
+  async function onAdd() {
+    const trimmed = draftEmail.trim();
+    if (!trimmed) {
+      toast('Enter an email first.', 'error');
+      return;
+    }
+    if (!EMAIL_RE.test(trimmed)) {
+      toast('That doesn’t look like a valid email.', 'error');
+      return;
+    }
+    try {
+      await add.mutateAsync({ email: trimmed, type: draftType });
+      setDraftEmail('');
+      setDraftType('PERSONAL');
+      setAddOpen(false);
+      toast('Email added', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not add email.', 'error');
+    }
+  }
+
+  const emails = data ?? [];
+
+  return (
+    <SectionCard title="Email addresses">
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : emails.length === 0 && !addOpen ? (
+        <p className="text-sm text-gray-500">No emails on file yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {emails.map((e) => (
+            <EmailRow key={e.id} email={e} canDelete={emails.length > 1} />
+          ))}
+        </ul>
+      )}
+
+      {addOpen ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Email address</label>
+              <input
+                type="email"
+                value={draftEmail}
+                onChange={(e) => setDraftEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as PersonEmailType)}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              >
+                {EMAIL_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddOpen(false);
+                setDraftEmail('');
+                setDraftType('PERSONAL');
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onAdd()}
+              disabled={add.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
+              {add.isPending && <LoadingSpinner size="sm" />}
+              <span>{add.isPending ? 'Adding…' : 'Add email'}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
+            + Add email
+          </button>
+        </div>
+      )}
+
+      {loginEmail && (
+        <p className="mt-3 text-xs text-gray-500">
+          Your login email (<span className="font-medium text-gray-700">{loginEmail}</span>) is
+          managed in Account settings — changing your primary contact email here doesn’t change
+          how you sign in.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
+function EmailRow({ email, canDelete }: { email: PersonEmailDto; canDelete: boolean }) {
+  const update = useUpdateMyEmail(email.id);
+  const remove = useDeleteMyEmail(email.id);
+  const { toast } = useToast();
+
+  async function toggleField<K extends 'type' | 'isPrimary'>(
+    key: K,
+    value: K extends 'type' ? PersonEmailType : boolean,
+  ) {
+    try {
+      await update.mutateAsync({ [key]: value } as never);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
+    }
+  }
+
+  async function onRemove() {
+    if (typeof window !== 'undefined' && !window.confirm('Remove this email?')) return;
+    try {
+      await remove.mutateAsync();
+      toast('Email removed', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not remove.', 'error');
+    }
+  }
+
+  return (
+    <li className="rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-base font-medium text-gray-900 break-all">{email.email}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+        <label className="inline-flex items-center gap-1">
+          <span className="text-xs text-gray-500">Type</span>
+          <select
+            value={email.type}
+            onChange={(e) => void toggleField('type', e.target.value as PersonEmailType)}
+            disabled={update.isPending}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:opacity-60"
+          >
+            {EMAIL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          className="inline-flex items-center gap-1 text-xs text-gray-700"
+          title="The default email schools and other surfaces use."
+        >
+          <input
+            type="radio"
+            name="primary-email"
+            checked={email.isPrimary}
+            onChange={() => void toggleField('isPrimary', true)}
+            disabled={update.isPending || email.isPrimary}
+            className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+          />
+          Primary
+        </label>
+        <span className="ml-auto">
+          <button
+            type="button"
+            onClick={() => void onRemove()}
+            disabled={!canDelete || remove.isPending}
+            title={canDelete ? 'Remove this email' : 'Add another email before removing this one.'}
+            aria-label="Remove email"
             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             🗑

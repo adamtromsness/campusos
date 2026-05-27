@@ -312,6 +312,41 @@ export class UpdatePersonPhoneDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
 }
 
+// ─── /profile/me/emails — multi-email list ─────────────────
+
+export const PERSON_EMAIL_TYPES = ['PERSONAL', 'WORK', 'SCHOOL', 'OTHER'] as const;
+export type PersonEmailType = (typeof PERSON_EMAIL_TYPES)[number];
+
+export class PersonEmailDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() email!: string;
+  @ApiProperty({ enum: PERSON_EMAIL_TYPES }) type!: PersonEmailType;
+  @ApiProperty() isPrimary!: boolean;
+  @ApiProperty() verified!: boolean;
+}
+
+export class AddPersonEmailDto {
+  @ApiProperty() @IsEmail() @MaxLength(254) email!: string;
+  @ApiPropertyOptional({ enum: PERSON_EMAIL_TYPES })
+  @IsOptional()
+  @IsIn(PERSON_EMAIL_TYPES)
+  type?: PersonEmailType;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
+// Email itself is immutable on update — to change the address the
+// user must delete the row and add a new one. This keeps the
+// (future) verified-email flow honest: each address goes through
+// verification once at insert, and editing the string would
+// invalidate that verification.
+export class UpdatePersonEmailDto {
+  @ApiPropertyOptional({ enum: PERSON_EMAIL_TYPES })
+  @IsOptional()
+  @IsIn(PERSON_EMAIL_TYPES)
+  type?: PersonEmailType;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
 // ─── /profile/me/medical — adult medical info ──────────────
 
 export const ADULT_MEDICAL_SOURCES = ['FAMILY', 'CUSTOM'] as const;

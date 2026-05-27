@@ -593,6 +593,28 @@ model PlatformPersonPhone {
   @@schema("platform")
 }
 
+// Multi-email list per iam_person. Mirrors PlatformPersonPhone.
+// Becomes the canonical source for "where do we email this person?"
+// — the platform_users.email column stays as the login / IdP
+// identifier (separate concern, not edited from /profile).
+model PlatformPersonEmail {
+  id          String   @id @db.Uuid
+  personId    String   @map("person_id") @db.Uuid
+  email       String
+  type        String   @default("PERSONAL")
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime? @map("updated_at") @db.Timestamptz()
+
+  // The partial UNIQUE on (person_id) WHERE is_primary = true and the
+  // case-insensitive UNIQUE on (person_id, LOWER(email)) live in the
+  // migration (they can't be expressed via @@unique).
+  @@index([personId, isPrimary, createdAt])
+  @@map("platform_person_emails")
+  @@schema("platform")
+}
+
 // Adult-side medical info — parallel to PlatformChildMedicalInfo
 // for adults (parents/guardians/staff) on /profile → Medical &
 // Health. Same JSONB shape on allergies / medications / conditions;

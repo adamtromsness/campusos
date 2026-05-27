@@ -1975,6 +1975,32 @@ export interface UpdatePersonPhonePayload {
   isPrimary?: boolean;
 }
 
+// ── Multi-email list (/profile/me/emails) ────────────────
+
+export type PersonEmailType = 'PERSONAL' | 'WORK' | 'SCHOOL' | 'OTHER';
+
+export interface PersonEmailDto {
+  id: string;
+  email: string;
+  type: PersonEmailType;
+  isPrimary: boolean;
+  verified: boolean;
+}
+
+export interface AddPersonEmailPayload {
+  email: string;
+  type?: PersonEmailType;
+  isPrimary?: boolean;
+}
+
+// Email address itself is immutable on update — the API only
+// accepts type / isPrimary. To change an address the user deletes
+// and adds a new one.
+export interface UpdatePersonEmailPayload {
+  type?: PersonEmailType;
+  isPrimary?: boolean;
+}
+
 // ── Adult medical info (/profile/me/medical) ─────────────
 
 export type AdultMedicalSource = 'FAMILY' | 'CUSTOM';

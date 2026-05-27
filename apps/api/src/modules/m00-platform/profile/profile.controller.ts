@@ -16,13 +16,16 @@ import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
 import { ProfileService } from './profile.service';
 import {
+  AddPersonEmailDto,
   AddPersonPhoneDto,
   AdultMedicalInfoDto,
+  PersonEmailDto,
   PersonPhoneDto,
   ProfileResponseDto,
   UpdateAdminProfileDto,
   UpdateAdultMedicalInfoDto,
   UpdateMyProfileDto,
+  UpdatePersonEmailDto,
   UpdatePersonPhoneDto,
 } from './dto/profile.dto';
 
@@ -119,6 +122,51 @@ export class ProfileController {
     @Param('phoneId', ParseUUIDPipe) phoneId: string,
   ): Promise<void> {
     await this.profile.deleteMyPhone(req.user!.personId, phoneId);
+  }
+
+  // Multi-email list — /profile/me/emails. Same shape as the phones
+  // endpoints above. Email address itself is immutable on update
+  // (PATCH only accepts type + isPrimary) — to change an address the
+  // user deletes the row and adds a new one.
+  @Get('profile/me/emails')
+  @ApiOperation({ summary: 'List the calling user’s emails, primary first' })
+  async listMyEmails(@Req() req: AuthedRequest): Promise<PersonEmailDto[]> {
+    return this.profile.listMyEmails(req.user!.personId);
+  }
+
+  @Post('profile/me/emails')
+  @ApiOperation({
+    summary:
+      'Add an email. First email auto-becomes primary; setting isPrimary demotes the existing primary in the same tx.',
+  })
+  async addMyEmail(
+    @Req() req: AuthedRequest,
+    @Body() dto: AddPersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    return this.profile.addMyEmail(req.user!.personId, dto);
+  }
+
+  @Patch('profile/me/emails/:emailId')
+  @ApiOperation({ summary: 'Update an email (type / isPrimary). Address is immutable.' })
+  async updateMyEmail(
+    @Req() req: AuthedRequest,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+    @Body() dto: UpdatePersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    return this.profile.updateMyEmail(req.user!.personId, emailId, dto);
+  }
+
+  @Delete('profile/me/emails/:emailId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete an email. Last remaining email cannot be deleted; if it was primary, the next-oldest is promoted.',
+  })
+  async deleteMyEmail(
+    @Req() req: AuthedRequest,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+  ): Promise<void> {
+    await this.profile.deleteMyEmail(req.user!.personId, emailId);
   }
 
   @Get('profile/:personId')

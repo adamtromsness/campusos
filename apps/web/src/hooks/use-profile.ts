@@ -4,15 +4,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type {
   AddHouseholdMemberPayload,
+  AddPersonEmailPayload,
   AddPersonPhonePayload,
   AdultMedicalInfoDto,
   HouseholdDto,
+  PersonEmailDto,
   PersonPhoneDto,
   ProfileDto,
   UpdateAdminProfilePayload,
   UpdateAdultMedicalInfoPayload,
   UpdateHouseholdMemberPayload,
   UpdateHouseholdPayload,
+  UpdatePersonEmailPayload,
   UpdatePersonPhonePayload,
   UpdateProfilePayload,
 } from '@/lib/types';
@@ -102,6 +105,60 @@ export function useDeleteMyPhone(phoneId: string) {
     mutationFn: () =>
       apiFetch<void>('/api/v1/profile/me/phones/' + phoneId, { method: 'DELETE' }),
     onSuccess: () => invalidatePhones(qc),
+  });
+}
+
+// ── Multi-email list — /profile/me/emails ────────────────
+
+export function useMyEmails(enabled = true) {
+  return useQuery({
+    queryKey: ['profile', 'me', 'emails'] as const,
+    queryFn: () => apiFetch<PersonEmailDto[]>('/api/v1/profile/me/emails'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+// Email mutations also touch the family roster: FamilyMemberDto.email
+// is sourced from platform_person_emails on the server, so adding /
+// removing / re-prioritising emails affects the completion checker.
+// Invalidate /family alongside the emails query.
+const invalidateEmails = (qc: ReturnType<typeof useQueryClient>) => {
+  void qc.invalidateQueries({ queryKey: ['profile', 'me', 'emails'] });
+  void qc.invalidateQueries({ queryKey: ['profile', 'me'] });
+  void qc.invalidateQueries({ queryKey: ['family'] });
+};
+
+export function useAddMyEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddPersonEmailPayload) =>
+      apiFetch<PersonEmailDto>('/api/v1/profile/me/emails', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateEmails(qc),
+  });
+}
+
+export function useUpdateMyEmail(emailId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdatePersonEmailPayload) =>
+      apiFetch<PersonEmailDto>('/api/v1/profile/me/emails/' + emailId, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateEmails(qc),
+  });
+}
+
+export function useDeleteMyEmail(emailId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/profile/me/emails/' + emailId, { method: 'DELETE' }),
+    onSuccess: () => invalidateEmails(qc),
   });
 }
 
