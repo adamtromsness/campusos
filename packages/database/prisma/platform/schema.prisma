@@ -189,7 +189,6 @@ model IamPerson {
   gender             String?
   primaryPhone       String?    @map("primary_phone")
   secondaryPhone     String?    @map("secondary_phone")
-  workPhone          String?    @map("work_phone")
   phoneTypePrimary   String?    @map("phone_type_primary")
   phoneTypeSecondary String?    @map("phone_type_secondary")
   preferredLanguage  String     @default("en") @map("preferred_language")
@@ -215,12 +214,16 @@ model IamPerson {
   customMailingState     String? @map("custom_mailing_state")
   customMailingPostalCode String? @map("custom_mailing_postal_code")
   customMailingCountry   String? @map("custom_mailing_country")
-  workEmail          String?    @map("work_email")
   employer           String?
   jobTitle           String?    @map("job_title")
   // Occupation-tab fields. employmentStatus is a TEXT + CHECK enum
   // at the DB level (see migration); industry is open free-text with
   // a fixed UI dropdown. work_address_* mirror the home-address shape.
+  // Work phone / work email used to live here but were redundant
+  // with platform_person_phones / platform_person_emails (type='WORK')
+  // — dropped in the 20260527020000 migration. occupationNotes is the
+  // free-text "anything else" field (shift schedules, availability,
+  // preferred contact times); 500-char cap at the app layer.
   employmentStatus   String?    @map("employment_status")
   industry           String?
   workAddressLine1   String?    @map("work_address_line1")
@@ -229,6 +232,7 @@ model IamPerson {
   workState          String?    @map("work_state")
   workPostalCode     String?    @map("work_postal_code")
   workCountry        String?    @map("work_country")
+  occupationNotes    String?    @map("occupation_notes")
   // About-tab fields. interests + languages are JSONB string arrays;
   // bio is free text capped at 500 chars on the wire side.
   bio                String?

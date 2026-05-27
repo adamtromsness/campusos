@@ -1847,7 +1847,6 @@ export interface ProfileDto {
   phoneTypePrimary: PhoneType | null;
   secondaryPhone: string | null;
   phoneTypeSecondary: PhoneType | null;
-  workPhone: string | null;
   preferredLanguage: string;
   notes: string | null;
   profileUpdatedAt: string | null;
@@ -1867,7 +1866,6 @@ export interface ProfileDto {
   customMailingState: string | null;
   customMailingPostalCode: string | null;
   customMailingCountry: string | null;
-  workEmail: string | null;
   employer: string | null;
   jobTitle: string | null;
   employmentStatus: string | null;
@@ -1878,6 +1876,9 @@ export interface ProfileDto {
   workState: string | null;
   workPostalCode: string | null;
   workCountry: string | null;
+  // Free-text "anything else schools should know" — 500-char cap
+  // on the wire. See OccupationTab in /profile.
+  occupationNotes: string | null;
   // About tab.
   bio: string | null;
   interests: string[];
@@ -1909,7 +1910,6 @@ export interface UpdateProfilePayload {
   phoneTypePrimary?: PhoneType | null;
   secondaryPhone?: string | null;
   phoneTypeSecondary?: PhoneType | null;
-  workPhone?: string | null;
   personalEmail?: string | null;
   preferredLanguage?: string;
   notes?: string | null;
@@ -1920,7 +1920,6 @@ export interface UpdateProfilePayload {
   primaryLanguage?: string | null;
   // Adult Contact tab.
   jobTitle?: string | null;
-  workEmail?: string | null;
   employmentStatus?: string | null;
   industry?: string | null;
   workAddressLine1?: string | null;
@@ -1929,6 +1928,7 @@ export interface UpdateProfilePayload {
   workState?: string | null;
   workPostalCode?: string | null;
   workCountry?: string | null;
+  occupationNotes?: string | null;
   bio?: string | null;
   interests?: string[];
   languages?: string[];

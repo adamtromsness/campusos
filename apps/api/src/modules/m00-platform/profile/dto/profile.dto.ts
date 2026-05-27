@@ -77,7 +77,6 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() phoneTypePrimary?: PhoneType | null;
   @ApiPropertyOptional() secondaryPhone?: string | null;
   @ApiPropertyOptional() phoneTypeSecondary?: PhoneType | null;
-  @ApiPropertyOptional() workPhone?: string | null;
   @ApiProperty() preferredLanguage!: string;
   @ApiPropertyOptional() notes?: string | null;
   @ApiPropertyOptional() profileUpdatedAt?: string | null;
@@ -103,13 +102,14 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() customMailingState?: string | null;
   @ApiPropertyOptional() customMailingPostalCode?: string | null;
   @ApiPropertyOptional() customMailingCountry?: string | null;
-  // Work contact (platform-wide; distinct from the per-tenant
-  // sis_guardian_employment that the admin profile path uses).
-  @ApiPropertyOptional() workEmail?: string | null;
-  @ApiPropertyOptional() employer?: string | null;
-  @ApiPropertyOptional() jobTitle?: string | null;
   // Occupation-tab fields. employmentStatus is enum-shaped (validated
   // by the CHECK constraint on the column); industry is open text.
+  // Work phone / email used to live here but were redundant with
+  // platform_person_phones / platform_person_emails (type='WORK') —
+  // dropped 2026-05-27. occupationNotes is the free-text "anything
+  // else schools should know" field; 500-char cap on the wire DTO.
+  @ApiPropertyOptional() employer?: string | null;
+  @ApiPropertyOptional() jobTitle?: string | null;
   @ApiPropertyOptional() employmentStatus?: string | null;
   @ApiPropertyOptional() industry?: string | null;
   @ApiPropertyOptional() workAddressLine1?: string | null;
@@ -118,6 +118,7 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() workState?: string | null;
   @ApiPropertyOptional() workPostalCode?: string | null;
   @ApiPropertyOptional() workCountry?: string | null;
+  @ApiPropertyOptional() occupationNotes?: string | null;
   // About-tab fields. interests + languages are arrays of strings.
   @ApiPropertyOptional() bio?: string | null;
   @ApiProperty({ type: [String] }) interests!: string[];
@@ -183,7 +184,6 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsIn(PHONE_TYPES) phoneTypePrimary?: PhoneType | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) secondaryPhone?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsIn(PHONE_TYPES) phoneTypeSecondary?: PhoneType | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) workPhone?: string | null;
 
   // Self-editable on /profile/me. The admin path (UpdateAdminProfileDto)
   // already exposes gender — this carve-out duplicates it onto the
@@ -205,9 +205,10 @@ export class UpdateMyProfileDto {
   // Adult Contact-tab additions. employer above writes to BOTH
   // iam_person.employer (the new platform-wide canonical) AND
   // sis_guardian_employment.employer (per-tenant legacy) for
-  // continuity; jobTitle + workEmail are platform-only.
+  // continuity; jobTitle is platform-only. Work phone / work email
+  // moved to the multi-row platform_person_phones / _emails tables
+  // with type='WORK' (dropped from iam_person 2026-05-27).
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) jobTitle?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) workEmail?: string | null;
   // Occupation-tab additions.
   @ApiPropertyOptional()
   @IsOptional()
@@ -229,6 +230,10 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workState?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) workPostalCode?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workCountry?: string | null;
+  // Free-text "anything else schools should know" — shift schedules,
+  // availability during school hours, preferred contact times.
+  // 500-char cap is the wire contract; DB column is unbounded TEXT.
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) occupationNotes?: string | null;
   // About-tab. bio capped at 500 chars per spec; interests +
   // languages whole-list replace, capped at 30 entries each.
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) bio?: string | null;

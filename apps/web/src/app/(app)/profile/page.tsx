@@ -1267,14 +1267,13 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
       employer: profile.employer ?? '',
       jobTitle: profile.jobTitle ?? '',
       industry: profile.industry ?? '',
-      workPhone: profile.workPhone ?? '',
-      workEmail: profile.workEmail ?? '',
       workAddressLine1: profile.workAddressLine1 ?? '',
       workAddressLine2: profile.workAddressLine2 ?? '',
       workCity: profile.workCity ?? '',
       workState: profile.workState ?? '',
       workPostalCode: profile.workPostalCode ?? '',
       workCountry: profile.workCountry ?? '',
+      occupationNotes: profile.occupationNotes ?? '',
     }),
     [profile],
   );
@@ -1296,8 +1295,6 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
         employer: form.employer.trim() || null,
         jobTitle: form.jobTitle.trim() || null,
         industry: form.industry || null,
-        workPhone: form.workPhone.trim() || null,
-        workEmail: form.workEmail.trim() || null,
         // When the user collapsed the address section, blank the
         // columns out so a previously-saved work address doesn't
         // silently linger after the toggle was unchecked.
@@ -1307,6 +1304,7 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
         workState: showWorkAddress ? form.workState.trim() || null : null,
         workPostalCode: showWorkAddress ? form.workPostalCode.trim() || null : null,
         workCountry: showWorkAddress ? form.workCountry.trim() || null : null,
+        occupationNotes: form.occupationNotes.trim() || null,
       });
       toast('Occupation saved', 'success');
     } catch (err) {
@@ -1384,32 +1382,6 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Work contact">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="workPhone" className="block text-xs font-medium text-gray-700">
-              Work phone
-              {dirtyFields.has('workPhone') && <DirtyDot />}
-            </label>
-            <PhoneInput
-              id="workPhone"
-              value={form.workPhone}
-              onChange={(raw) => setForm((f) => ({ ...f, workPhone: raw }))}
-              dirty={dirtyFields.has('workPhone')}
-            />
-          </div>
-          <EditField
-            id="workEmail"
-            label="Work email"
-            type="email"
-            value={form.workEmail}
-            onChange={(v) => setForm((f) => ({ ...f, workEmail: v }))}
-            autoComplete="email"
-            dirty={dirtyFields.has('workEmail')}
-          />
-        </div>
-      </SectionCard>
-
       <SectionCard title="Work address (optional)">
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -1474,6 +1446,44 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
         </p>
       </SectionCard>
 
+      <SectionCard title="Additional information">
+        <label htmlFor="occupationNotes" className="block text-xs font-medium text-gray-700">
+          Notes
+          {dirtyFields.has('occupationNotes') && <DirtyDot />}
+        </label>
+        <textarea
+          id="occupationNotes"
+          value={form.occupationNotes}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, occupationNotes: e.target.value.slice(0, OCCUPATION_NOTES_MAX) }))
+          }
+          rows={4}
+          maxLength={OCCUPATION_NOTES_MAX}
+          placeholder="Share anything relevant for the school — shift schedules, availability during school hours, preferred contact times, travel schedule, or other notes."
+          className={cn(
+            'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+            dirtyFields.has('occupationNotes')
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
+          )}
+        />
+        <p className="mt-1 flex items-center justify-between text-xs text-gray-500">
+          <span>
+            Share anything relevant for the school — shift schedules, availability during school
+            hours, preferred contact times, travel schedule, or other notes.
+          </span>
+          <span
+            className={cn(
+              'ml-2 shrink-0 tabular-nums',
+              form.occupationNotes.length >= OCCUPATION_NOTES_MAX && 'text-red-600',
+            )}
+            aria-live="polite"
+          >
+            {form.occupationNotes.length} / {OCCUPATION_NOTES_MAX}
+          </span>
+        </p>
+      </SectionCard>
+
       <div className="flex justify-end">
         <button
           type="submit"
@@ -1487,6 +1497,8 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     </form>
   );
 }
+
+const OCCUPATION_NOTES_MAX = 500;
 
 function DirtyDot() {
   return (

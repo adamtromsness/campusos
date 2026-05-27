@@ -53,7 +53,6 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
   const [phoneTypeSecondary, setPhoneTypeSecondary] = useState<PhoneType | ''>(
     profile.phoneTypeSecondary ?? '',
   );
-  const [workPhone, setWorkPhone] = useState(profile.workPhone ?? '');
   const [personalEmail, setPersonalEmail] = useState(profile.personalEmail ?? '');
   const [preferredLanguage, setPreferredLanguage] = useState(profile.preferredLanguage);
   const [notes, setNotes] = useState(profile.notes ?? '');
@@ -75,7 +74,6 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
     phoneTypePrimary !== (profile.phoneTypePrimary ?? '') ||
     secondaryPhone !== (profile.secondaryPhone ?? '') ||
     phoneTypeSecondary !== (profile.phoneTypeSecondary ?? '') ||
-    workPhone !== (profile.workPhone ?? '') ||
     personalEmail !== (profile.personalEmail ?? '') ||
     preferredLanguage !== profile.preferredLanguage ||
     notes !== (profile.notes ?? '') ||
@@ -102,7 +100,6 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
       phoneTypePrimary: phoneTypePrimary || null,
       secondaryPhone: secondaryPhone || null,
       phoneTypeSecondary: phoneTypeSecondary || null,
-      workPhone: workPhone || null,
       personalEmail: personalEmail || null,
       preferredLanguage,
       notes: notes || null,
@@ -193,13 +190,6 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
         </Field>
         <Field label="Secondary phone type">
           <PhoneTypeSelect value={phoneTypeSecondary} onChange={setPhoneTypeSecondary} />
-        </Field>
-        <Field label="Work phone">
-          <input
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
-            value={workPhone}
-            onChange={(e) => setWorkPhone(e.target.value)}
-          />
         </Field>
         <Field label="Personal email" hint="Distinct from your login email below">
           <input

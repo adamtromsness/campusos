@@ -46,7 +46,6 @@ interface IamPersonRow {
   gender: string | null;
   primary_phone: string | null;
   secondary_phone: string | null;
-  work_phone: string | null;
   phone_type_primary: 'MOBILE' | 'HOME' | 'WORK' | null;
   phone_type_secondary: 'MOBILE' | 'HOME' | 'WORK' | null;
   preferred_language: string;
@@ -72,7 +71,6 @@ interface IamPersonRow {
   custom_mailing_state: string | null;
   custom_mailing_postal_code: string | null;
   custom_mailing_country: string | null;
-  work_email: string | null;
   employer: string | null;
   job_title: string | null;
   employment_status: string | null;
@@ -83,6 +81,7 @@ interface IamPersonRow {
   work_state: string | null;
   work_postal_code: string | null;
   work_country: string | null;
+  occupation_notes: string | null;
   bio: string | null;
   interests: unknown;
   languages: unknown;
@@ -917,7 +916,6 @@ export class ProfileService {
       'phoneTypePrimary',
       'secondaryPhone',
       'phoneTypeSecondary',
-      'workPhone',
       'personalEmail',
       'preferredLanguage',
       'notes',
@@ -943,10 +941,11 @@ export class ProfileService {
       'customMailingState',
       'customMailingPostalCode',
       'customMailingCountry',
-      'workEmail',
       'employer',
       'jobTitle',
-      // Occupation tab additions.
+      // Occupation tab additions. Work phone / email moved to
+      // platform_person_phones / platform_person_emails (type='WORK')
+      // 2026-05-27; not editable here anymore.
       'employmentStatus',
       'industry',
       'workAddressLine1',
@@ -955,6 +954,7 @@ export class ProfileService {
       'workState',
       'workPostalCode',
       'workCountry',
+      'occupationNotes',
       // About tab. bio is a string; interests/languages are arrays of
       // strings that Prisma persists as JSONB on the column side.
       'bio',
@@ -984,7 +984,7 @@ export class ProfileService {
       'SELECT p.id::text AS id, p.first_name, p.last_name, p.middle_name, p.preferred_name, ' +
         'p.suffix, p.previous_names, p.date_of_birth::text AS date_of_birth, ' +
         'p.gender, ' +
-        'p.primary_phone, p.secondary_phone, p.work_phone, ' +
+        'p.primary_phone, p.secondary_phone, ' +
         'p.phone_type_primary, p.phone_type_secondary, ' +
         'p.preferred_language, p.personal_email, p.notes, ' +
         'p.profile_updated_at::text AS profile_updated_at, ' +
@@ -994,10 +994,11 @@ export class ProfileService {
         'p.mailing_same_as_home, ' +
         'p.custom_mailing_line1, p.custom_mailing_line2, p.custom_mailing_city, ' +
         'p.custom_mailing_state, p.custom_mailing_postal_code, p.custom_mailing_country, ' +
-        'p.work_email, p.employer, p.job_title, ' +
+        'p.employer, p.job_title, ' +
         'p.employment_status, p.industry, ' +
         'p.work_address_line1, p.work_address_line2, p.work_city, p.work_state, ' +
         'p.work_postal_code, p.work_country, ' +
+        'p.occupation_notes, ' +
         'p.bio, p.interests, p.languages, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
@@ -1398,7 +1399,6 @@ export class ProfileService {
       phoneTypePrimary: person.phone_type_primary,
       secondaryPhone: person.secondary_phone,
       phoneTypeSecondary: person.phone_type_secondary,
-      workPhone: person.work_phone,
       preferredLanguage: person.preferred_language,
       notes: person.notes,
       profileUpdatedAt: person.profile_updated_at,
@@ -1420,7 +1420,6 @@ export class ProfileService {
       customMailingState: person.custom_mailing_state,
       customMailingPostalCode: person.custom_mailing_postal_code,
       customMailingCountry: person.custom_mailing_country,
-      workEmail: person.work_email,
       employer: person.employer,
       jobTitle: person.job_title,
       employmentStatus: person.employment_status,
@@ -1431,6 +1430,7 @@ export class ProfileService {
       workState: person.work_state,
       workPostalCode: person.work_postal_code,
       workCountry: person.work_country,
+      occupationNotes: person.occupation_notes,
       bio: person.bio,
       interests: Array.isArray(person.interests) ? (person.interests as string[]) : [],
       languages: Array.isArray(person.languages) ? (person.languages as string[]) : [],
