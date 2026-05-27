@@ -1775,6 +1775,8 @@ export interface CreatePaymentPlanPayload {
 
 export type PhoneType = 'MOBILE' | 'HOME' | 'WORK';
 
+export type WorkLocationType = 'OFFICE' | 'REMOTE' | 'HYBRID';
+
 // The 7 active values used by the Cycle 6.1 UI. Legacy values
 // (LEGACY_MEMBER_ROLES below) survive in the database for backwards
 // compat with the cross-school sibling-detection scaffolding.
@@ -1876,6 +1878,9 @@ export interface ProfileDto {
   workState: string | null;
   workPostalCode: string | null;
   workCountry: string | null;
+  // Work location type. Null = not answered. REMOTE hides the
+  // work-address fields in the Occupation tab.
+  workLocationType: WorkLocationType | null;
   // Free-text "anything else schools should know" — 500-char cap
   // on the wire. See OccupationTab in /profile.
   occupationNotes: string | null;
@@ -1928,6 +1933,7 @@ export interface UpdateProfilePayload {
   workState?: string | null;
   workPostalCode?: string | null;
   workCountry?: string | null;
+  workLocationType?: WorkLocationType | null;
   occupationNotes?: string | null;
   bio?: string | null;
   interests?: string[];

@@ -31,6 +31,7 @@ import type {
   PersonEmailType,
   PersonPhoneDto,
   PersonPhoneType,
+  WorkLocationType,
 } from '@/lib/types';
 import {
   useAcceptFamilyLink,
@@ -1223,10 +1224,27 @@ const EMPLOYMENT_STATUSES: Array<{ value: string; label: string }> = [
   { value: 'EMPLOYED_FULL_TIME', label: 'Employed full-time' },
   { value: 'EMPLOYED_PART_TIME', label: 'Employed part-time' },
   { value: 'SELF_EMPLOYED', label: 'Self-employed' },
-  { value: 'UNEMPLOYED', label: 'Unemployed' },
+  { value: 'STAY_AT_HOME_PARENT', label: 'Stay-at-home parent' },
   { value: 'RETIRED', label: 'Retired' },
+  { value: 'UNEMPLOYED', label: 'Unemployed' },
   { value: 'STUDENT', label: 'Student' },
-  { value: 'HOMEMAKER', label: 'Homemaker' },
+];
+
+// Statuses that have employer / industry / job title / work
+// location. Everything else (Retired, Unemployed, Stay-at-home
+// parent, Student, Not Specified) shows only the Additional
+// information notes — a retired grandparent might note "available
+// for pickup anytime", a student might note their schedule.
+const EMPLOYED_STATUSES = new Set([
+  'EMPLOYED_FULL_TIME',
+  'EMPLOYED_PART_TIME',
+  'SELF_EMPLOYED',
+]);
+
+const WORK_LOCATION_TYPES: Array<{ value: WorkLocationType; label: string }> = [
+  { value: 'OFFICE', label: 'Office / On-site' },
+  { value: 'REMOTE', label: 'Remote' },
+  { value: 'HYBRID', label: 'Hybrid' },
 ];
 
 const INDUSTRIES = [
@@ -1257,16 +1275,13 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
   const { toast } = useToast();
   const update = useUpdateMyProfile();
 
-  const hasWorkAddress = Boolean(
-    profile.workAddressLine1 || profile.workCity || profile.workState || profile.workPostalCode,
-  );
-
   const initial = useMemo(
     () => ({
       employmentStatus: profile.employmentStatus ?? '',
       employer: profile.employer ?? '',
       jobTitle: profile.jobTitle ?? '',
       industry: profile.industry ?? '',
+      workLocationType: (profile.workLocationType ?? '') as WorkLocationType | '',
       workAddressLine1: profile.workAddressLine1 ?? '',
       workAddressLine2: profile.workAddressLine2 ?? '',
       workCity: profile.workCity ?? '',
@@ -1278,13 +1293,24 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     [profile],
   );
   const [form, setForm] = useState(initial);
-  const [showWorkAddress, setShowWorkAddress] = useState(hasWorkAddress);
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
   useBeforeUnloadOnDirty(isDirty);
   useEffect(() => {
     setForm(initial);
-    setShowWorkAddress(hasWorkAddress);
-  }, [initial, hasWorkAddress]);
+  }, [initial]);
+
+  // Status drives field visibility. "Employed" statuses surface the
+  // full employment + work-location surface; everything else collapses
+  // to just the Additional information notes field. We compute it
+  // from the form value so the UI switches the moment the dropdown
+  // changes, not only after save.
+  const isEmployed = EMPLOYED_STATUSES.has(form.employmentStatus);
+  // Work-location radio. OFFICE / HYBRID render the address grid;
+  // REMOTE hides it and shows a "no address needed" note. HYBRID
+  // adds a "this is your primary office" hint above the grid.
+  const showWorkAddress =
+    isEmployed &&
+    (form.workLocationType === 'OFFICE' || form.workLocationType === 'HYBRID');
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1292,12 +1318,15 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     try {
       await update.mutateAsync({
         employmentStatus: form.employmentStatus || null,
-        employer: form.employer.trim() || null,
-        jobTitle: form.jobTitle.trim() || null,
-        industry: form.industry || null,
-        // When the user collapsed the address section, blank the
-        // columns out so a previously-saved work address doesn't
-        // silently linger after the toggle was unchecked.
+        // Non-employed statuses null out the employment surface so a
+        // user who switches from EMPLOYED → RETIRED doesn't leave a
+        // stale employer / title / industry on file. The address
+        // columns follow the same logic; the workLocationType column
+        // gets nulled too so the saved value matches the rendered UI.
+        employer: isEmployed ? form.employer.trim() || null : null,
+        jobTitle: isEmployed ? form.jobTitle.trim() || null : null,
+        industry: isEmployed ? form.industry || null : null,
+        workLocationType: isEmployed && form.workLocationType ? form.workLocationType : null,
         workAddressLine1: showWorkAddress ? form.workAddressLine1.trim() || null : null,
         workAddressLine2: showWorkAddress ? form.workAddressLine2.trim() || null : null,
         workCity: showWorkAddress ? form.workCity.trim() || null : null,
@@ -1316,7 +1345,7 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       <SectionCard title="Employment">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div className={isEmployed ? undefined : 'sm:col-span-2'}>
             <label htmlFor="employmentStatus" className="block text-xs font-medium text-gray-700">
               Employment status
               {dirtyFields.has('employmentStatus') && <DirtyDot />}
@@ -1339,112 +1368,146 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="industry" className="block text-xs font-medium text-gray-700">
-              Industry
-              {dirtyFields.has('industry') && <DirtyDot />}
-            </label>
-            <select
-              id="industry"
-              value={form.industry}
-              onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
-              className={cn(
-                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
-                dirtyFields.has('industry')
-                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-                  : 'border border-gray-300',
-              )}
-            >
-              <option value="">— Not specified —</option>
-              {INDUSTRIES.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
-          </div>
-          <EditField
-            id="employer"
-            label="Employer / company"
-            value={form.employer}
-            onChange={(v) => setForm((f) => ({ ...f, employer: v }))}
-            autoComplete="organization"
-            dirty={dirtyFields.has('employer')}
-          />
-          <EditField
-            id="jobTitle"
-            label="Job title / position"
-            value={form.jobTitle}
-            onChange={(v) => setForm((f) => ({ ...f, jobTitle: v }))}
-            autoComplete="organization-title"
-            dirty={dirtyFields.has('jobTitle')}
-          />
+          {isEmployed && (
+            <>
+              <div>
+                <label htmlFor="industry" className="block text-xs font-medium text-gray-700">
+                  Industry
+                  {dirtyFields.has('industry') && <DirtyDot />}
+                </label>
+                <select
+                  id="industry"
+                  value={form.industry}
+                  onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+                  className={cn(
+                    'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                    dirtyFields.has('industry')
+                      ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                      : 'border border-gray-300',
+                  )}
+                >
+                  <option value="">— Not specified —</option>
+                  {INDUSTRIES.map((i) => (
+                    <option key={i} value={i}>
+                      {i}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <EditField
+                id="employer"
+                label="Employer / company"
+                value={form.employer}
+                onChange={(v) => setForm((f) => ({ ...f, employer: v }))}
+                autoComplete="organization"
+                dirty={dirtyFields.has('employer')}
+              />
+              <EditField
+                id="jobTitle"
+                label="Job title / position"
+                value={form.jobTitle}
+                onChange={(v) => setForm((f) => ({ ...f, jobTitle: v }))}
+                autoComplete="organization-title"
+                dirty={dirtyFields.has('jobTitle')}
+              />
+            </>
+          )}
         </div>
       </SectionCard>
 
-      <SectionCard title="Work address (optional)">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={showWorkAddress}
-            onChange={(e) => setShowWorkAddress(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
-          />
-          Add work address
-        </label>
-        {showWorkAddress && (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <EditField
-              id="workAddressLine1"
-              label="Street address"
-              value={form.workAddressLine1}
-              onChange={(v) => setForm((f) => ({ ...f, workAddressLine1: v }))}
-              className="sm:col-span-2"
-              dirty={dirtyFields.has('workAddressLine1')}
-            />
-            <EditField
-              id="workAddressLine2"
-              label="Suite / floor"
-              value={form.workAddressLine2}
-              onChange={(v) => setForm((f) => ({ ...f, workAddressLine2: v }))}
-              className="sm:col-span-2"
-              dirty={dirtyFields.has('workAddressLine2')}
-            />
-            <EditField
-              id="workCity"
-              label="City"
-              value={form.workCity}
-              onChange={(v) => setForm((f) => ({ ...f, workCity: v }))}
-              dirty={dirtyFields.has('workCity')}
-            />
-            <EditField
-              id="workState"
-              label="State / province"
-              value={form.workState}
-              onChange={(v) => setForm((f) => ({ ...f, workState: v }))}
-              dirty={dirtyFields.has('workState')}
-            />
-            <EditField
-              id="workPostalCode"
-              label="ZIP / postal code"
-              value={form.workPostalCode}
-              onChange={(v) => setForm((f) => ({ ...f, workPostalCode: v }))}
-              dirty={dirtyFields.has('workPostalCode')}
-            />
-            <EditField
-              id="workCountry"
-              label="Country"
-              value={form.workCountry}
-              onChange={(v) => setForm((f) => ({ ...f, workCountry: v }))}
-              dirty={dirtyFields.has('workCountry')}
-            />
-          </div>
-        )}
-        <p className="mt-3 text-xs text-gray-500">
-          Schools use this to understand your availability and may use it as an emergency contact
-          during work hours.
-        </p>
-      </SectionCard>
+      {isEmployed && (
+        <SectionCard title="Work location">
+          <fieldset>
+            <legend className="sr-only">Work location</legend>
+            <div className="flex flex-col gap-2">
+              {WORK_LOCATION_TYPES.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="inline-flex items-center gap-2 text-sm text-gray-900"
+                >
+                  <input
+                    type="radio"
+                    name="workLocationType"
+                    value={opt.value}
+                    checked={form.workLocationType === opt.value}
+                    onChange={() =>
+                      setForm((f) => ({ ...f, workLocationType: opt.value }))
+                    }
+                    className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500"
+                  />
+                  <span>{opt.label}</span>
+                  {dirtyFields.has('workLocationType') &&
+                    form.workLocationType === opt.value && <DirtyDot />}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {form.workLocationType === 'REMOTE' && (
+            <p className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              Works remotely — no office address needed.
+            </p>
+          )}
+
+          {form.workLocationType === 'HYBRID' && (
+            <p className="mt-3 text-xs text-gray-500">Enter your primary office location.</p>
+          )}
+
+          {showWorkAddress && (
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <EditField
+                id="workAddressLine1"
+                label="Street address"
+                value={form.workAddressLine1}
+                onChange={(v) => setForm((f) => ({ ...f, workAddressLine1: v }))}
+                className="sm:col-span-2"
+                dirty={dirtyFields.has('workAddressLine1')}
+              />
+              <EditField
+                id="workAddressLine2"
+                label="Suite / floor"
+                value={form.workAddressLine2}
+                onChange={(v) => setForm((f) => ({ ...f, workAddressLine2: v }))}
+                className="sm:col-span-2"
+                dirty={dirtyFields.has('workAddressLine2')}
+              />
+              <EditField
+                id="workCity"
+                label="City"
+                value={form.workCity}
+                onChange={(v) => setForm((f) => ({ ...f, workCity: v }))}
+                dirty={dirtyFields.has('workCity')}
+              />
+              <EditField
+                id="workState"
+                label="State / province"
+                value={form.workState}
+                onChange={(v) => setForm((f) => ({ ...f, workState: v }))}
+                dirty={dirtyFields.has('workState')}
+              />
+              <EditField
+                id="workPostalCode"
+                label="ZIP / postal code"
+                value={form.workPostalCode}
+                onChange={(v) => setForm((f) => ({ ...f, workPostalCode: v }))}
+                dirty={dirtyFields.has('workPostalCode')}
+              />
+              <EditField
+                id="workCountry"
+                label="Country"
+                value={form.workCountry}
+                onChange={(v) => setForm((f) => ({ ...f, workCountry: v }))}
+                dirty={dirtyFields.has('workCountry')}
+              />
+            </div>
+          )}
+
+          <p className="mt-3 text-xs text-gray-500">
+            Schools use this to understand your availability and may use it as an emergency
+            contact during work hours.
+          </p>
+        </SectionCard>
+      )}
 
       <SectionCard title="Additional information">
         <label htmlFor="occupationNotes" className="block text-xs font-medium text-gray-700">

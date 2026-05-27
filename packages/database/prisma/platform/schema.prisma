@@ -232,6 +232,10 @@ model IamPerson {
   workState          String?    @map("work_state")
   workPostalCode     String?    @map("work_postal_code")
   workCountry        String?    @map("work_country")
+  // Work location type: OFFICE / REMOTE / HYBRID. NULL = not
+  // answered. REMOTE hides the work_address_* columns in the UI;
+  // HYBRID shows them with a "primary office location" hint.
+  workLocationType   String?    @map("work_location_type")
   occupationNotes    String?    @map("occupation_notes")
   // About-tab fields. interests + languages are JSONB string arrays;
   // bio is free text capped at 500 chars on the wire side.

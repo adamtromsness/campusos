@@ -118,6 +118,7 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() workState?: string | null;
   @ApiPropertyOptional() workPostalCode?: string | null;
   @ApiPropertyOptional() workCountry?: string | null;
+  @ApiPropertyOptional() workLocationType?: 'OFFICE' | 'REMOTE' | 'HYBRID' | null;
   @ApiPropertyOptional() occupationNotes?: string | null;
   // About-tab fields. interests + languages are arrays of strings.
   @ApiPropertyOptional() bio?: string | null;
@@ -219,7 +220,7 @@ export class UpdateMyProfileDto {
     'UNEMPLOYED',
     'RETIRED',
     'STUDENT',
-    'HOMEMAKER',
+    'STAY_AT_HOME_PARENT',
     'NOT_SPECIFIED',
   ])
   employmentStatus?: string | null;
@@ -230,6 +231,12 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workState?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) workPostalCode?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) workCountry?: string | null;
+  // Work location type. Null = not answered. REMOTE hides the
+  // work_address_* fields in the UI; OFFICE / HYBRID surface them.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['OFFICE', 'REMOTE', 'HYBRID'])
+  workLocationType?: 'OFFICE' | 'REMOTE' | 'HYBRID' | null;
   // Free-text "anything else schools should know" — shift schedules,
   // availability during school hours, preferred contact times.
   // 500-char cap is the wire contract; DB column is unbounded TEXT.

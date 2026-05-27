@@ -81,6 +81,7 @@ interface IamPersonRow {
   work_state: string | null;
   work_postal_code: string | null;
   work_country: string | null;
+  work_location_type: 'OFFICE' | 'REMOTE' | 'HYBRID' | null;
   occupation_notes: string | null;
   bio: string | null;
   interests: unknown;
@@ -954,6 +955,7 @@ export class ProfileService {
       'workState',
       'workPostalCode',
       'workCountry',
+      'workLocationType',
       'occupationNotes',
       // About tab. bio is a string; interests/languages are arrays of
       // strings that Prisma persists as JSONB on the column side.
@@ -997,7 +999,7 @@ export class ProfileService {
         'p.employer, p.job_title, ' +
         'p.employment_status, p.industry, ' +
         'p.work_address_line1, p.work_address_line2, p.work_city, p.work_state, ' +
-        'p.work_postal_code, p.work_country, ' +
+        'p.work_postal_code, p.work_country, p.work_location_type, ' +
         'p.occupation_notes, ' +
         'p.bio, p.interests, p.languages, ' +
         'COALESCE(p.person_type::text, NULL) AS person_type, ' +
@@ -1430,6 +1432,7 @@ export class ProfileService {
       workState: person.work_state,
       workPostalCode: person.work_postal_code,
       workCountry: person.work_country,
+      workLocationType: person.work_location_type,
       occupationNotes: person.occupation_notes,
       bio: person.bio,
       interests: Array.isArray(person.interests) ? (person.interests as string[]) : [],
