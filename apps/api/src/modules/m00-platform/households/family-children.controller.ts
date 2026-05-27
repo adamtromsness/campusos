@@ -15,6 +15,14 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { FamilyChildrenService } from './family-children.service';
 import {
+  AddPersonEmailDto,
+  AddPersonPhoneDto,
+  PersonEmailDto,
+  PersonPhoneDto,
+  UpdatePersonEmailDto,
+  UpdatePersonPhoneDto,
+} from '@modules/m00-platform/profile/dto/profile.dto';
+import {
   AcceptFamilyLinkDto,
   AddChildEmergencyContactDto,
   AddFamilyEmergencyContactDto,
@@ -397,6 +405,99 @@ export class FamilyChildrenController {
     @Body() dto: UpdateChildMedicalInfoDto,
   ): Promise<ChildMedicalInfoDto> {
     return this.children.updateChildMedical(req.user!.personId, id, dto);
+  }
+
+  // ── Child multi-phone — /family/children/:id/phones ──────────────────
+  // Mirrors /profile/me/phones; the wire shape is the shared
+  // PersonPhoneDto / Add* / Update* triple from the profile module.
+  // requireLinkedChildOwned in the service rejects non-LINKED rows
+  // and other-family child ids with 400/404.
+
+  @Get('children/:id/phones')
+  @ApiOperation({ summary: 'List phones for a LINKED child (primary first).' })
+  async listChildPhones(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PersonPhoneDto[]> {
+    return this.children.listChildPhones(req.user!.personId, id);
+  }
+
+  @Post('children/:id/phones')
+  @ApiOperation({ summary: 'Add a phone to a LINKED child.' })
+  async addChildPhone(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddPersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    return this.children.addChildPhone(req.user!.personId, id, dto);
+  }
+
+  @Patch('children/:id/phones/:phoneId')
+  @ApiOperation({ summary: 'Update a child phone (number / type / textsAllowed / isPrimary).' })
+  async updateChildPhone(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('phoneId', ParseUUIDPipe) phoneId: string,
+    @Body() dto: UpdatePersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    return this.children.updateChildPhone(req.user!.personId, id, phoneId, dto);
+  }
+
+  @Delete('children/:id/phones/:phoneId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a child phone. If primary, next-oldest is promoted.' })
+  async deleteChildPhone(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('phoneId', ParseUUIDPipe) phoneId: string,
+  ): Promise<void> {
+    await this.children.deleteChildPhone(req.user!.personId, id, phoneId);
+  }
+
+  // ── Child multi-email — /family/children/:id/emails ──────────────────
+
+  @Get('children/:id/emails')
+  @ApiOperation({ summary: 'List emails for a LINKED child (primary first).' })
+  async listChildEmails(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PersonEmailDto[]> {
+    return this.children.listChildEmails(req.user!.personId, id);
+  }
+
+  @Post('children/:id/emails')
+  @ApiOperation({ summary: 'Add an email to a LINKED child.' })
+  async addChildEmail(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddPersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    return this.children.addChildEmail(req.user!.personId, id, dto);
+  }
+
+  @Patch('children/:id/emails/:emailId')
+  @ApiOperation({ summary: 'Update a child email (type / isPrimary). Address is immutable.' })
+  async updateChildEmail(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+    @Body() dto: UpdatePersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    return this.children.updateChildEmail(req.user!.personId, id, emailId, dto);
+  }
+
+  @Delete('children/:id/emails/:emailId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete a child email. Last remaining email cannot be deleted; if primary, next-oldest is promoted.',
+  })
+  async deleteChildEmail(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
+  ): Promise<void> {
+    await this.children.deleteChildEmail(req.user!.personId, id, emailId);
   }
 
   @Get('children/:id/emergency-contacts')

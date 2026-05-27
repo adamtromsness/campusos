@@ -61,6 +61,25 @@ export class FamilyChildDto {
   // contacts. See the per-tab UI for the semantics.
   @ApiProperty({ enum: EMERGENCY_CONTACT_SOURCES })
   emergencyContactSource!: EmergencyContactSource;
+  // Per-child home address. addressSource 'FAMILY' (default) inherits
+  // from platform_families; 'CUSTOM' uses the customAddress* columns.
+  // mailingAddressDifferent === false (default) → mailing equals home;
+  // true → the mailing* columns are authoritative. Mirrors the shape
+  // on the adult /profile Contact tab.
+  @ApiProperty({ enum: ['FAMILY', 'CUSTOM'] }) addressSource!: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional() customAddressLine1!: string | null;
+  @ApiPropertyOptional() customAddressLine2!: string | null;
+  @ApiPropertyOptional() customCity!: string | null;
+  @ApiPropertyOptional() customState!: string | null;
+  @ApiPropertyOptional() customPostalCode!: string | null;
+  @ApiPropertyOptional() customCountry!: string | null;
+  @ApiProperty() mailingAddressDifferent!: boolean;
+  @ApiPropertyOptional() mailingLine1!: string | null;
+  @ApiPropertyOptional() mailingLine2!: string | null;
+  @ApiPropertyOptional() mailingCity!: string | null;
+  @ApiPropertyOptional() mailingState!: string | null;
+  @ApiPropertyOptional() mailingPostalCode!: string | null;
+  @ApiPropertyOptional() mailingCountry!: string | null;
   // Login email — joins platform_users.email. Populated for LINKED
   // children only; PLACEHOLDER / PENDING_LINK have no platform_users
   // row yet and this is null. Read-only on this DTO — email changes
@@ -106,6 +125,25 @@ export class UpdateFamilyChildDto {
   @IsOptional()
   @IsIn(EMERGENCY_CONTACT_SOURCES)
   emergencyContactSource?: EmergencyContactSource;
+  // Per-child home + mailing address. Empty strings on string fields
+  // null-out the column (same convention as UpdateFamilySettingsDto).
+  @ApiPropertyOptional({ enum: ['FAMILY', 'CUSTOM'] })
+  @IsOptional()
+  @IsIn(['FAMILY', 'CUSTOM'])
+  addressSource?: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customState?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customPostalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCountry?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() mailingAddressDifferent?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) mailingLine1?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) mailingLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingCity?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingState?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) mailingPostalCode?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mailingCountry?: string | null;
 }
 
 export class CreateChildAccountDto {
@@ -222,6 +260,13 @@ export class FamilyMemberDto {
   // the family Emergency Contacts tab to render the guardian row's
   // phone column. Null for PLACEHOLDER / PENDING_INVITE rows.
   @ApiPropertyOptional() primaryPhone?: string | null;
+  // Primary phone + email type info for the read-only Guardian
+  // Contacts panel on the child Contact tab. Surfaced for ACTIVE
+  // guardians via subqueries on platform_person_phones /
+  // platform_person_emails (is_primary=true). Null when the row
+  // hasn't been seeded yet or for PLACEHOLDER members.
+  @ApiPropertyOptional() primaryPhoneType?: string | null;
+  @ApiPropertyOptional() primaryEmailType?: string | null;
   @ApiProperty() memberRole!: string;
   @ApiProperty() isPrimaryContact!: boolean;
   @ApiProperty() isCurrentUser!: boolean;

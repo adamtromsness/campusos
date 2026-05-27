@@ -2,6 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import type {
+  AddPersonEmailPayload,
+  AddPersonPhonePayload,
+  PersonEmailDto,
+  PersonPhoneDto,
+  UpdatePersonEmailPayload,
+  UpdatePersonPhonePayload,
+} from '@/lib/types';
 
 export type FamilyChildStatus = 'PLACEHOLDER' | 'PENDING_LINK' | 'LINKED';
 
@@ -43,6 +51,23 @@ export interface FamilyChildDto {
   // as additive "additional contacts for this child only".
   // CUSTOM → only per-child rows are used; family contacts ignored.
   emergencyContactSource: EmergencyContactSource;
+  // Per-child home + mailing address. addressSource 'FAMILY' (default)
+  // inherits from family settings; 'CUSTOM' uses customAddress* fields.
+  // mailingAddressDifferent === true → mailing* columns are used.
+  addressSource: 'FAMILY' | 'CUSTOM';
+  customAddressLine1: string | null;
+  customAddressLine2: string | null;
+  customCity: string | null;
+  customState: string | null;
+  customPostalCode: string | null;
+  customCountry: string | null;
+  mailingAddressDifferent: boolean;
+  mailingLine1: string | null;
+  mailingLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingPostalCode: string | null;
+  mailingCountry: string | null;
   // Login email from platform_users.email. LINKED children only;
   // null for pre-link rows. Read-only on this surface.
   email: string | null;
@@ -72,6 +97,20 @@ export interface UpdateFamilyChildPayload {
   primaryPhone?: string | null;
   notes?: string | null;
   emergencyContactSource?: EmergencyContactSource;
+  addressSource?: 'FAMILY' | 'CUSTOM';
+  customAddressLine1?: string | null;
+  customAddressLine2?: string | null;
+  customCity?: string | null;
+  customState?: string | null;
+  customPostalCode?: string | null;
+  customCountry?: string | null;
+  mailingAddressDifferent?: boolean;
+  mailingLine1?: string | null;
+  mailingLine2?: string | null;
+  mailingCity?: string | null;
+  mailingState?: string | null;
+  mailingPostalCode?: string | null;
+  mailingCountry?: string | null;
 }
 
 export interface CreateChildAccountPayload {
@@ -108,6 +147,12 @@ export interface FamilyMemberDto {
   // Surfaced for ACTIVE guardians (joined to iam_person). Used by the
   // family Emergency Contacts tab to render the guardian's phone.
   primaryPhone: string | null;
+  // Primary phone + email TYPE for the read-only Guardian Contacts
+  // panel on the child Contact tab. Sourced via subquery into
+  // platform_person_phones / platform_person_emails (is_primary=true).
+  // Null for PLACEHOLDER members or when the row hasn't been seeded.
+  primaryPhoneType: string | null;
+  primaryEmailType: string | null;
   memberRole: string;
   isPrimaryContact: boolean;
   isCurrentUser: boolean;
@@ -563,6 +608,112 @@ export function useUpdateChildMedical(childId: string) {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => childSectionInvalidate(qc, childId),
+  });
+}
+
+// ─── Child phones — /family/children/:id/phones ──────────────
+
+const CHILD_PHONES_KEY = (childId: string) =>
+  ['family', 'children', childId, 'phones'] as const;
+const invalidateChildPhones = (qc: ReturnType<typeof useQueryClient>, childId: string) => {
+  void qc.invalidateQueries({ queryKey: CHILD_PHONES_KEY(childId) });
+  void qc.invalidateQueries({ queryKey: KEY });
+};
+
+export function useChildPhones(childId: string, enabled = true) {
+  return useQuery({
+    queryKey: CHILD_PHONES_KEY(childId),
+    queryFn: () => apiFetch<PersonPhoneDto[]>('/api/v1/family/children/' + childId + '/phones'),
+    enabled: enabled && Boolean(childId),
+    staleTime: 30_000,
+  });
+}
+
+export function useAddChildPhone(childId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddPersonPhonePayload) =>
+      apiFetch<PersonPhoneDto>('/api/v1/family/children/' + childId + '/phones', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateChildPhones(qc, childId),
+  });
+}
+
+export function useUpdateChildPhone(childId: string, phoneId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdatePersonPhonePayload) =>
+      apiFetch<PersonPhoneDto>(
+        '/api/v1/family/children/' + childId + '/phones/' + phoneId,
+        { method: 'PATCH', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => invalidateChildPhones(qc, childId),
+  });
+}
+
+export function useDeleteChildPhone(childId: string, phoneId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/family/children/' + childId + '/phones/' + phoneId, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => invalidateChildPhones(qc, childId),
+  });
+}
+
+// ─── Child emails — /family/children/:id/emails ──────────────
+
+const CHILD_EMAILS_KEY = (childId: string) =>
+  ['family', 'children', childId, 'emails'] as const;
+const invalidateChildEmails = (qc: ReturnType<typeof useQueryClient>, childId: string) => {
+  void qc.invalidateQueries({ queryKey: CHILD_EMAILS_KEY(childId) });
+  void qc.invalidateQueries({ queryKey: KEY });
+};
+
+export function useChildEmails(childId: string, enabled = true) {
+  return useQuery({
+    queryKey: CHILD_EMAILS_KEY(childId),
+    queryFn: () => apiFetch<PersonEmailDto[]>('/api/v1/family/children/' + childId + '/emails'),
+    enabled: enabled && Boolean(childId),
+    staleTime: 30_000,
+  });
+}
+
+export function useAddChildEmail(childId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddPersonEmailPayload) =>
+      apiFetch<PersonEmailDto>('/api/v1/family/children/' + childId + '/emails', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateChildEmails(qc, childId),
+  });
+}
+
+export function useUpdateChildEmail(childId: string, emailId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdatePersonEmailPayload) =>
+      apiFetch<PersonEmailDto>(
+        '/api/v1/family/children/' + childId + '/emails/' + emailId,
+        { method: 'PATCH', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => invalidateChildEmails(qc, childId),
+  });
+}
+
+export function useDeleteChildEmail(childId: string, emailId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>('/api/v1/family/children/' + childId + '/emails/' + emailId, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => invalidateChildEmails(qc, childId),
   });
 }
 

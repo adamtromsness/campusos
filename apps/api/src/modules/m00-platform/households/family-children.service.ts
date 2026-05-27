@@ -10,6 +10,16 @@ import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomInt } from 'crypto';
 import { generateId } from '@campusos/database';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import {
+  AddPersonEmailDto,
+  AddPersonPhoneDto,
+  PersonEmailDto,
+  PersonEmailType,
+  PersonPhoneDto,
+  PersonPhoneType,
+  UpdatePersonEmailDto,
+  UpdatePersonPhoneDto,
+} from '@modules/m00-platform/profile/dto/profile.dto';
 import { RedisService } from '@shared/cache';
 import {
   AcceptFamilyLinkDto,
@@ -80,6 +90,20 @@ interface FamilyChildRow {
   notes: string | null;
   status: string;
   emergency_contact_source: string;
+  address_source: string;
+  custom_address_line1: string | null;
+  custom_address_line2: string | null;
+  custom_city: string | null;
+  custom_state: string | null;
+  custom_postal_code: string | null;
+  custom_country: string | null;
+  mailing_address_different: boolean;
+  mailing_line1: string | null;
+  mailing_line2: string | null;
+  mailing_city: string | null;
+  mailing_state: string | null;
+  mailing_postal_code: string | null;
+  mailing_country: string | null;
   // Login email — joins through platform_users for LINKED children
   // only. PLACEHOLDER / PENDING_LINK rows have no platform_users row
   // yet and this will be null.
@@ -193,6 +217,8 @@ export class FamilyChildrenService {
         preferred_name: string | null;
         email: string | null;
         primary_phone: string | null;
+        primary_phone_type: string | null;
+        primary_email_type: string | null;
         member_role: string;
         is_primary_contact: boolean;
         emergency_authorized_pickup: boolean;
@@ -224,6 +250,17 @@ export class FamilyChildrenService {
                 pfm.email
               ) AS email,
               p.primary_phone AS primary_phone,
+              -- Primary phone + email TYPE for the read-only Guardian
+              -- Contacts panel on the child Contact tab. Null when
+              -- the row hasn't been seeded yet (e.g. PLACEHOLDER).
+              (SELECT pp.type
+                 FROM platform.platform_person_phones pp
+                WHERE pp.person_id = pfm.person_id AND pp.is_primary = true
+                LIMIT 1) AS primary_phone_type,
+              (SELECT pe.type
+                 FROM platform.platform_person_emails pe
+                WHERE pe.person_id = pfm.person_id AND pe.is_primary = true
+                LIMIT 1) AS primary_email_type,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
               pfm.emergency_authorized_pickup,
@@ -261,6 +298,8 @@ export class FamilyChildrenService {
       preferredName: r.preferred_name,
       email: r.email,
       primaryPhone: r.primary_phone,
+      primaryPhoneType: r.primary_phone_type,
+      primaryEmailType: r.primary_email_type,
       memberRole: r.member_role,
       isPrimaryContact: r.is_primary_contact,
       isCurrentUser: r.person_id !== null && r.person_id === personId,
@@ -1220,6 +1259,34 @@ export class FamilyChildrenService {
     if (dto.emergencyContactSource !== undefined) {
       childSet.push('emergency_contact_source = $' + ci++);
       childArgs.push(dto.emergencyContactSource);
+    }
+    // Per-child address. String fields use the same '' → null
+    // coercion as UpdateFamilySettingsDto so clients can submit an
+    // empty input to clear a previously-saved value.
+    const addressCols: Array<[keyof typeof dto, string]> = [
+      ['addressSource', 'address_source'],
+      ['customAddressLine1', 'custom_address_line1'],
+      ['customAddressLine2', 'custom_address_line2'],
+      ['customCity', 'custom_city'],
+      ['customState', 'custom_state'],
+      ['customPostalCode', 'custom_postal_code'],
+      ['customCountry', 'custom_country'],
+      ['mailingLine1', 'mailing_line1'],
+      ['mailingLine2', 'mailing_line2'],
+      ['mailingCity', 'mailing_city'],
+      ['mailingState', 'mailing_state'],
+      ['mailingPostalCode', 'mailing_postal_code'],
+      ['mailingCountry', 'mailing_country'],
+    ];
+    for (const [dtoKey, col] of addressCols) {
+      const v = dto[dtoKey];
+      if (v === undefined) continue;
+      childSet.push(col + ' = $' + ci++);
+      childArgs.push(typeof v === 'string' && v.trim() === '' ? null : v);
+    }
+    if (dto.mailingAddressDifferent !== undefined) {
+      childSet.push('mailing_address_different = $' + ci++);
+      childArgs.push(dto.mailingAddressDifferent);
     }
 
     const personPatch: Record<string, unknown> = {};
@@ -2518,6 +2585,12 @@ export class FamilyChildrenService {
       '  p.notes AS notes, ' +
       '  pfc.status, ' +
       '  pfc.emergency_contact_source AS emergency_contact_source, ' +
+      '  pfc.address_source, ' +
+      '  pfc.custom_address_line1, pfc.custom_address_line2, ' +
+      '  pfc.custom_city, pfc.custom_state, pfc.custom_postal_code, pfc.custom_country, ' +
+      '  pfc.mailing_address_different, ' +
+      '  pfc.mailing_line1, pfc.mailing_line2, pfc.mailing_city, ' +
+      '  pfc.mailing_state, pfc.mailing_postal_code, pfc.mailing_country, ' +
       '  pu.email AS email, ' +
       '  pfc.invite_code, pfc.invite_email, ' +
       '  pfc.invite_sent_at::text AS invite_sent_at, ' +
@@ -2547,6 +2620,22 @@ export class FamilyChildrenService {
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, familyGuardians),
       emergencyContactSource:
         r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
+      addressSource: (r.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
+      customAddressLine1: r.custom_address_line1,
+      customAddressLine2: r.custom_address_line2,
+      customCity: r.custom_city,
+      customState: r.custom_state,
+      customPostalCode: r.custom_postal_code,
+      customCountry: r.custom_country,
+      mailingAddressDifferent: r.mailing_address_different,
+      mailingLine1: r.mailing_line1,
+      mailingLine2: r.mailing_line2,
+      mailingCity: r.mailing_city,
+      mailingState: r.mailing_state,
+      mailingPostalCode: r.mailing_postal_code,
+      mailingCountry: r.mailing_country,
       email: r.email,
       inviteCode: r.invite_code,
       inviteEmail: r.invite_email,
@@ -2664,6 +2753,8 @@ export class FamilyChildrenService {
         preferred_name: string | null;
         email: string | null;
         primary_phone: string | null;
+        primary_phone_type: string | null;
+        primary_email_type: string | null;
         member_role: string;
         is_primary_contact: boolean;
         emergency_authorized_pickup: boolean;
@@ -2695,6 +2786,14 @@ export class FamilyChildrenService {
                 pfm.email
               ) AS email,
               p.primary_phone AS primary_phone,
+              (SELECT pp.type
+                 FROM platform.platform_person_phones pp
+                WHERE pp.person_id = pfm.person_id AND pp.is_primary = true
+                LIMIT 1) AS primary_phone_type,
+              (SELECT pe.type
+                 FROM platform.platform_person_emails pe
+                WHERE pe.person_id = pfm.person_id AND pe.is_primary = true
+                LIMIT 1) AS primary_email_type,
               pfm.member_role::text AS member_role,
               pfm.is_primary_contact,
               pfm.emergency_authorized_pickup,
@@ -2719,6 +2818,8 @@ export class FamilyChildrenService {
       preferredName: row.preferred_name,
       email: row.email,
       primaryPhone: row.primary_phone,
+      primaryPhoneType: row.primary_phone_type,
+      primaryEmailType: row.primary_email_type,
       memberRole: row.member_role,
       isPrimaryContact: row.is_primary_contact,
       isCurrentUser: row.person_id !== null && row.person_id === viewerPersonId,
@@ -2951,6 +3052,394 @@ export class FamilyChildrenService {
       insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
+    };
+  }
+
+  // ─── Child phones / emails (multi-row contact lists) ──────
+  //
+  // Mirror /profile/me/phones + /profile/me/emails but key off the
+  // child's iam_person.id rather than the caller's. Only LINKED
+  // children can carry these rows (no iam_person → nothing to attach
+  // to). Authorization matches the existing child-section endpoints:
+  // `requireLinkedChildOwned` enforces same-family + LINKED; the
+  // frontend further gates the write affordances behind accessLevel
+  // === 'MANAGED' for parents of independent kids.
+
+  async listChildPhones(callerPersonId: string, childId: string): Promise<PersonPhoneDto[]> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    let rows = await this.prisma.platformPersonPhone.findMany({
+      where: { personId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (rows.length === 0) {
+      const ip = await this.prisma.iamPerson.findUnique({
+        where: { id: personId },
+        select: { primaryPhone: true },
+      });
+      if (ip?.primaryPhone) {
+        try {
+          await this.prisma.platformPersonPhone.create({
+            data: {
+              id: generateId(),
+              personId,
+              number: ip.primaryPhone,
+              type: 'CELL',
+              textsAllowed: true,
+              isPrimary: true,
+            },
+          });
+        } catch {
+          // Race seed — re-read below.
+        }
+        rows = await this.prisma.platformPersonPhone.findMany({
+          where: { personId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        });
+      }
+    }
+    return rows.map((r) => this.personPhoneRowToDto(r));
+  }
+
+  async addChildPhone(
+    callerPersonId: string,
+    childId: string,
+    dto: AddPersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformPersonPhone.findMany({
+      where: { personId },
+      select: { id: true, isPrimary: true },
+    });
+    const shouldBePrimary = dto.isPrimary === true || existing.length === 0;
+    const id = generateId();
+    await this.prisma.$transaction(async (tx) => {
+      if (shouldBePrimary) {
+        await tx.platformPersonPhone.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonPhone.create({
+        data: {
+          id,
+          personId,
+          number: dto.number,
+          type: dto.type ?? 'CELL',
+          textsAllowed: dto.textsAllowed ?? false,
+          isPrimary: shouldBePrimary,
+        },
+      });
+      if (shouldBePrimary) {
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: dto.number },
+        });
+      }
+    });
+    const created = await this.prisma.platformPersonPhone.findUniqueOrThrow({
+      where: { id },
+    });
+    return this.personPhoneRowToDto(created);
+  }
+
+  async updateChildPhone(
+    callerPersonId: string,
+    childId: string,
+    phoneId: string,
+    dto: UpdatePersonPhoneDto,
+  ): Promise<PersonPhoneDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformPersonPhone.findUnique({
+      where: { id: phoneId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Phone not found');
+    }
+    const willBePrimary = dto.isPrimary === true && !existing.isPrimary;
+    const losesPrimary = dto.isPrimary === false && existing.isPrimary;
+    await this.prisma.$transaction(async (tx) => {
+      if (willBePrimary) {
+        await tx.platformPersonPhone.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      const updated = await tx.platformPersonPhone.update({
+        where: { id: phoneId },
+        data: {
+          number: dto.number ?? undefined,
+          type: dto.type ?? undefined,
+          textsAllowed: dto.textsAllowed ?? undefined,
+          isPrimary: dto.isPrimary ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+      if (updated.isPrimary) {
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: updated.number },
+        });
+      } else if (losesPrimary) {
+        const next = await tx.platformPersonPhone.findFirst({
+          where: { personId, isPrimary: true },
+        });
+        const fallback = next
+          ? next.number
+          : (
+              await tx.platformPersonPhone.findFirst({
+                where: { personId },
+                orderBy: { createdAt: 'asc' },
+              })
+            )?.number ?? null;
+        await tx.iamPerson.update({
+          where: { id: personId },
+          data: { primaryPhone: fallback },
+        });
+      }
+    });
+    const refreshed = await this.prisma.platformPersonPhone.findUniqueOrThrow({
+      where: { id: phoneId },
+    });
+    return this.personPhoneRowToDto(refreshed);
+  }
+
+  async deleteChildPhone(
+    callerPersonId: string,
+    childId: string,
+    phoneId: string,
+  ): Promise<void> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformPersonPhone.findUnique({
+      where: { id: phoneId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Phone not found');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.platformPersonPhone.delete({ where: { id: phoneId } });
+      if (existing.isPrimary) {
+        const next = await tx.platformPersonPhone.findFirst({
+          where: { personId },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (next) {
+          await tx.platformPersonPhone.update({
+            where: { id: next.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+          await tx.iamPerson.update({
+            where: { id: personId },
+            data: { primaryPhone: next.number },
+          });
+        } else {
+          await tx.iamPerson.update({
+            where: { id: personId },
+            data: { primaryPhone: null },
+          });
+        }
+      }
+    });
+  }
+
+  private personPhoneRowToDto(row: {
+    id: string;
+    number: string;
+    type: string;
+    textsAllowed: boolean;
+    isPrimary: boolean;
+  }): PersonPhoneDto {
+    return {
+      id: row.id,
+      number: row.number,
+      type: (row.type === 'HOME' || row.type === 'WORK' || row.type === 'OTHER'
+        ? row.type
+        : 'CELL') as PersonPhoneType,
+      textsAllowed: row.textsAllowed,
+      isPrimary: row.isPrimary,
+    };
+  }
+
+  async listChildEmails(callerPersonId: string, childId: string): Promise<PersonEmailDto[]> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    let rows = await this.prisma.platformPersonEmail.findMany({
+      where: { personId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (rows.length === 0) {
+      // Seed from platform_users.email (the child's login email if
+      // they have an account). Synthetic @external.invalid seeded
+      // for parent-created accounts is skipped — that placeholder
+      // shouldn't graduate into a usable contact email.
+      const account = await this.prisma.platformUser.findUnique({
+        where: { personId },
+        select: { email: true },
+      });
+      const seedEmail = account?.email?.trim();
+      if (seedEmail && !seedEmail.endsWith('@external.invalid')) {
+        try {
+          await this.prisma.platformPersonEmail.create({
+            data: {
+              id: generateId(),
+              personId,
+              email: seedEmail,
+              type: 'PERSONAL',
+              isPrimary: true,
+              verified: true,
+            },
+          });
+        } catch {
+          // Race seed — re-read below.
+        }
+        rows = await this.prisma.platformPersonEmail.findMany({
+          where: { personId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        });
+      }
+    }
+    return rows.map((r) => this.personEmailRowToDto(r));
+  }
+
+  async addChildEmail(
+    callerPersonId: string,
+    childId: string,
+    dto: AddPersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const normalised = dto.email.trim();
+    if (!normalised) throw new BadRequestException('Email is required.');
+    const existing = await this.prisma.platformPersonEmail.findMany({
+      where: { personId },
+      select: { id: true, email: true, isPrimary: true },
+    });
+    const lower = normalised.toLowerCase();
+    if (existing.some((r) => r.email.toLowerCase() === lower)) {
+      throw new ConflictException('This email is already on this child’s list.');
+    }
+    const shouldBePrimary = dto.isPrimary === true || existing.length === 0;
+    const id = generateId();
+    await this.prisma.$transaction(async (tx) => {
+      if (shouldBePrimary) {
+        await tx.platformPersonEmail.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonEmail.create({
+        data: {
+          id,
+          personId,
+          email: normalised,
+          type: dto.type ?? 'PERSONAL',
+          isPrimary: shouldBePrimary,
+          verified: false,
+        },
+      });
+    });
+    const created = await this.prisma.platformPersonEmail.findUniqueOrThrow({
+      where: { id },
+    });
+    return this.personEmailRowToDto(created);
+  }
+
+  async updateChildEmail(
+    callerPersonId: string,
+    childId: string,
+    emailId: string,
+    dto: UpdatePersonEmailDto,
+  ): Promise<PersonEmailDto> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformPersonEmail.findUnique({
+      where: { id: emailId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Email not found');
+    }
+    const willBePrimary = dto.isPrimary === true && !existing.isPrimary;
+    const losesPrimary = dto.isPrimary === false && existing.isPrimary;
+    await this.prisma.$transaction(async (tx) => {
+      if (willBePrimary) {
+        await tx.platformPersonEmail.updateMany({
+          where: { personId, isPrimary: true },
+          data: { isPrimary: false, updatedAt: new Date() },
+        });
+      }
+      await tx.platformPersonEmail.update({
+        where: { id: emailId },
+        data: {
+          type: dto.type ?? undefined,
+          isPrimary: dto.isPrimary ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+      if (losesPrimary) {
+        const fallback = await tx.platformPersonEmail.findFirst({
+          where: { personId, NOT: { id: emailId } },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (fallback) {
+          await tx.platformPersonEmail.update({
+            where: { id: fallback.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+        }
+      }
+    });
+    const refreshed = await this.prisma.platformPersonEmail.findUniqueOrThrow({
+      where: { id: emailId },
+    });
+    return this.personEmailRowToDto(refreshed);
+  }
+
+  async deleteChildEmail(
+    callerPersonId: string,
+    childId: string,
+    emailId: string,
+  ): Promise<void> {
+    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const existing = await this.prisma.platformPersonEmail.findUnique({
+      where: { id: emailId },
+    });
+    if (!existing || existing.personId !== personId) {
+      throw new NotFoundException('Email not found');
+    }
+    const total = await this.prisma.platformPersonEmail.count({ where: { personId } });
+    if (total <= 1) {
+      throw new BadRequestException(
+        'A child must have at least one email on file. Add another email before removing this one.',
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.platformPersonEmail.delete({ where: { id: emailId } });
+      if (existing.isPrimary) {
+        const next = await tx.platformPersonEmail.findFirst({
+          where: { personId },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (next) {
+          await tx.platformPersonEmail.update({
+            where: { id: next.id },
+            data: { isPrimary: true, updatedAt: new Date() },
+          });
+        }
+      }
+    });
+  }
+
+  private personEmailRowToDto(row: {
+    id: string;
+    email: string;
+    type: string;
+    isPrimary: boolean;
+    verified: boolean;
+  }): PersonEmailDto {
+    return {
+      id: row.id,
+      email: row.email,
+      type: (row.type === 'WORK' || row.type === 'SCHOOL' || row.type === 'OTHER'
+        ? row.type
+        : 'PERSONAL') as PersonEmailType,
+      isPrimary: row.isPrimary,
+      verified: row.verified,
     };
   }
 

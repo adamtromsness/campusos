@@ -376,6 +376,25 @@ model PlatformFamilyChild {
   // 'CUSTOM' (only use per-child contacts, ignoring family defaults).
   // CHECK constraint enforces the enum at the DB level.
   emergencyContactSource   String    @default("FAMILY") @map("emergency_contact_source")
+  // Per-child home + mailing address. address_source 'FAMILY' (the
+  // default) inherits from platform_families; 'CUSTOM' uses the
+  // custom_address_* columns. mailing_address_different mirrors the
+  // shape on platform_families / iam_person — when false, the
+  // mailing address equals the home address.
+  addressSource            String    @default("FAMILY") @map("address_source")
+  customAddressLine1       String?   @map("custom_address_line1")
+  customAddressLine2       String?   @map("custom_address_line2")
+  customCity               String?   @map("custom_city")
+  customState              String?   @map("custom_state")
+  customPostalCode         String?   @map("custom_postal_code")
+  customCountry            String?   @map("custom_country")
+  mailingAddressDifferent  Boolean   @default(false) @map("mailing_address_different")
+  mailingLine1             String?   @map("mailing_line1")
+  mailingLine2             String?   @map("mailing_line2")
+  mailingCity              String?   @map("mailing_city")
+  mailingState             String?   @map("mailing_state")
+  mailingPostalCode        String?   @map("mailing_postal_code")
+  mailingCountry           String?   @map("mailing_country")
   inviteCode               String?   @map("invite_code")
   inviteEmail              String?   @map("invite_email")
   inviteSentAt             DateTime? @map("invite_sent_at") @db.Timestamptz()
