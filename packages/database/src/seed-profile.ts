@@ -184,13 +184,34 @@ async function seedProfile(): Promise<void> {
         phoneTypePrimary: upd.phoneTypePrimary ?? null,
         secondaryPhone: upd.secondaryPhone ?? null,
         phoneTypeSecondary: upd.phoneTypeSecondary ?? null,
-        workPhone: upd.workPhone ?? null,
         personalEmail: upd.personalEmail ?? null,
         preferredLanguage: upd.preferredLanguage ?? 'en',
         dateOfBirth: upd.dateOfBirth ? new Date(upd.dateOfBirth) : undefined,
         profileUpdatedAt: new Date(TODAY_ISO),
       },
     });
+    // Work phone moved off iam_person (was iam_person.work_phone, now
+    // dropped) and into platform_person_phones with type='WORK'.
+    // Idempotency: only create if no existing WORK row for this
+    // person carries the same number. is_primary stays false since
+    // the primary stays on the iam_person.primary_phone CELL row.
+    if (upd.workPhone) {
+      const existingWork = await client.platformPersonPhone.findFirst({
+        where: { personId: account.personId, type: 'WORK', number: upd.workPhone },
+      });
+      if (!existingWork) {
+        await client.platformPersonPhone.create({
+          data: {
+            id: generateId(),
+            personId: account.personId,
+            number: upd.workPhone,
+            type: 'WORK',
+            textsAllowed: false,
+            isPrimary: false,
+          },
+        });
+      }
+    }
     cUpdated += 1;
   }
   console.log('  C) iam_person personal fields populated on ' + cUpdated + ' accounts');
