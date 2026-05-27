@@ -17,7 +17,6 @@ import {
   useUpdateFamilyMember,
   useUpdateFamilySettings,
   type FamilyContactCategory,
-  type FamilyContactPreferenceDto,
   type FamilyEmergencyContactDto,
   type FamilyMemberDto,
   type FamilySettingsDto,
@@ -192,7 +191,7 @@ function Tabs({
         )}
         {active === 'addresses' && <AddressesTab settings={settings} />}
         {active === 'emergency' && (
-          <EmergencyTab editable={settings.canEdit} members={members} />
+          <EmergencyTab settings={settings} editable={settings.canEdit} members={members} />
         )}
         {active === 'health' && <HealthTab settings={settings} />}
       </div>
@@ -343,14 +342,11 @@ function FamilyTab({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <FamilyCompletionCard
-        settings={settings}
-        members={members}
-        prefs={prefsData ?? null}
-        onNavigate={onNavigate}
-      />
+      <SectionOverviewCard settings={settings} onNavigate={onNavigate} />
 
-      <Card title="Family name" dirty={nameDirty}>
+      <IncompleteItemsBanner settings={settings} section="family" />
+
+      <Card id="family-name" title="Family name" dirty={nameDirty}>
         <Field
           id="displayName"
           label="Display name"
@@ -363,11 +359,12 @@ function FamilyTab({
         />
       </Card>
 
-      <Card title="Family members">
+      <Card id="family-members" title="Family members">
         <FamilyMembersList members={members} />
       </Card>
 
       <Card
+        id="family-categories"
         title="Primary contacts by category"
         description="Specify which guardian is the primary contact for each area. Schools will reach out to this person first for matters in each category."
         dirty={categoriesDirty}
@@ -409,54 +406,74 @@ function FamilyTab({
   );
 }
 
-// ─── Completion status card ────────────────────────────────
+// ─── Completion status ─────────────────────────────────────
+
+type SectionKey = 'family' | 'addresses' | 'emergency' | 'health';
+
+const SECTION_META: Record<SectionKey, { label: string; tabKey: TabKey }> = {
+  family: { label: 'Family', tabKey: 'family' },
+  addresses: { label: 'Addresses', tabKey: 'addresses' },
+  emergency: { label: 'Emergency Contacts', tabKey: 'emergency' },
+  health: { label: 'Health & Insurance', tabKey: 'health' },
+};
 
 /**
- * Sub-item rendered indented under a failed CompletionItem so the
- * user can see *who* / *what* is missing, not just that something is
- * wrong. `complete=true` sub-items get a green check (used for
- * showing the guardians that are already done alongside the ones
- * that aren't); `action` (optional) renders an inline pill button.
- */
-interface CompletionSubItem {
-  label: string;
-  complete?: boolean;
-  action?: { label: string; href?: string; onClick?: () => void };
-}
-
-/**
- * Checklist item the FamilyCompletionCard renders. `complete` drives
- * the ✅/❌ glyph + the colour; `weight` is the percentage point this
- * item contributes when satisfied. `navigate` / `href` (optional)
- * makes the row a clickable deep-link to wherever the missing piece
- * lives. `details` lists per-resource diagnostics shown below the
- * row when the item is incomplete.
+ * A single completion check. `weight` rolls up into the global
+ * percentage; `section` groups items into the 4 tab buckets.
+ *
+ * Fix navigation is mode-driven:
+ *   - `scrollTargetId` → the fix lives on the same tab as the
+ *     item; the per-tab banner renders [Fix ↓] that scrollIntoView's
+ *     the matching `<section id="...">`.
+ *   - `href` → the fix lives on a different page (e.g. /family for
+ *     children, /profile for guardians); the banner renders [Fix →].
+ *   - Neither → no actionable fix surface; the bullet is informational.
  */
 interface CompletionItem {
+  key: string;
   label: string;
   complete: boolean;
   weight: number;
-  navigate?: () => void;
+  section: SectionKey;
+  scrollTargetId?: string;
   href?: string;
-  details?: CompletionSubItem[];
 }
 
-function FamilyCompletionCard({
-  settings,
-  members,
-  prefs,
-  onNavigate,
-}: {
-  settings: FamilySettingsDto;
-  members: FamilyMemberDto[];
-  prefs: FamilyContactPreferenceDto[] | null;
-  onNavigate: (tab: TabKey) => void;
-}) {
+interface CompletionSectionState {
+  items: CompletionItem[];
+  incomplete: CompletionItem[];
+  complete: boolean;
+  remaining: number;
+}
+
+interface CompletionState {
+  items: CompletionItem[];
+  percent: number;
+  bySection: Record<SectionKey, CompletionSectionState>;
+}
+
+/**
+ * Single source of truth for the 11 weighted completion checks +
+ * how they roll up into the 4 section buckets. All renderers
+ * (SectionOverviewCard on the Family tab, IncompleteItemsBanner on
+ * every tab) read from this — so the bookkeeping is in one place
+ * and the rendering layer just consumes results.
+ *
+ * Items themselves are computed in a useMemo on the loaded data;
+ * the data is fetched via the React Query hooks each consumer would
+ * call anyway (`useFamilyView` / `useFamilyEmergencyContacts` /
+ * `useFamilyContactPreferences`), and React Query dedupes the
+ * underlying network calls so multiple consumers don't cost extra.
+ */
+function useCompletionState(settings: FamilySettingsDto): CompletionState {
   const familyView = useFamilyView();
   const { data: ecs } = useFamilyEmergencyContacts();
+  const { data: prefsData } = useFamilyContactPreferences();
+  const members = familyView.data?.members ?? [];
   const children = familyView.data?.children ?? [];
+  const prefs = prefsData ?? null;
 
-  const items: CompletionItem[] = useMemo(() => {
+  const items = useMemo<CompletionItem[]>(() => {
     const hasName = Boolean(settings.displayName?.trim());
     const hasGeneralPrimary = (prefs ?? []).some(
       (p) => p.category === 'GENERAL' && p.primaryPersonId,
@@ -464,10 +481,6 @@ function FamilyCompletionCard({
     const hasHomeAddress = Boolean(
       settings.addressLine1 && settings.city && settings.state && settings.postalCode,
     );
-    // 2+ contacts with a phone counts — covers Adam + Ashley as
-    // guardians by default. Phones come from iam_person on
-    // guardian rows (FamilyMemberDto.primaryPhone) and from the
-    // manual contact's phonePrimary column.
     const activeGuardians = members.filter((m) => m.status === 'ACTIVE');
     const guardiansWithPhone = activeGuardians.filter(
       (m) => (m.primaryPhone ?? '').trim().length > 0,
@@ -477,11 +490,6 @@ function FamilyCompletionCard({
     ).length;
     const totalContactsWithPhone = guardiansWithPhone + manualECsWithPhone;
     const enoughEmergency = totalContactsWithPhone >= 2;
-    // Doctor / insurance are ✅ when the fields are filled OR the
-    // user explicitly opted out via hasFamilyDoctor / hasInsurance
-    // === false. Leaving the row in NULL ("not answered") with empty
-    // fields still counts as ❌ — the opt-out is a deliberate choice
-    // a family can make, not a silent default.
     const hasDoctor =
       Boolean(settings.doctorName?.trim()) || settings.hasFamilyDoctor === false;
     const hasInsurance =
@@ -489,107 +497,55 @@ function FamilyCompletionCard({
     const hasAnyChild = children.length > 0;
     const unlinkedChildren = children.filter((c) => c.status !== 'LINKED');
     const allChildrenLinked = hasAnyChild && unlinkedChildren.length === 0;
-    // Per-guardian profile completeness. A guardian is "complete"
-    // when their iam_person has both a phone and an email recorded.
-    // We show every active guardian as a sub-item so the user can
-    // see at a glance who they need to nudge (or fix themselves).
-    const guardianStatus = activeGuardians.map((m) => {
-      const heroName = m.preferredName?.trim() ? m.preferredName : m.firstName;
-      const fullName = [heroName, m.lastName].filter(Boolean).join(' ').trim() || 'Guardian';
-      const missing: string[] = [];
-      if (!(m.primaryPhone ?? '').trim()) missing.push('phone');
-      if (!(m.email ?? '').trim()) missing.push('email');
-      return { name: fullName, missing, isCurrentUser: m.isCurrentUser };
-    });
     const guardiansComplete =
-      guardianStatus.length > 0 && guardianStatus.every((g) => g.missing.length === 0);
-    // "Customised" = at least one category routes to someone other
-    // than the GENERAL contact. If everything routes to the same
-    // person we treat it as "default — not yet customised."
+      activeGuardians.length > 0 &&
+      activeGuardians.every(
+        (m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim(),
+      );
     const generalPersonId = (prefs ?? []).find((p) => p.category === 'GENERAL')?.primaryPersonId;
     const customisedPrefs = (prefs ?? []).some(
-      (p) => p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
+      (p) =>
+        p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
     );
-    // Mailing-address is satisfied when the user explicitly answered
-    // the toggle: either same-as-home (mailingAddressDifferent=false)
-    // OR different + filled out.
     const mailingSatisfied = !settings.mailingAddressDifferent
       ? true
       : Boolean(settings.mailingLine1 && settings.mailingCity && settings.mailingState);
 
-    const goAddresses = () => onNavigate('addresses');
-    const goEmergency = () => onNavigate('emergency');
-    const goHealth = () => onNavigate('health');
-
     return [
-      { label: 'Family name set', complete: hasName, weight: 5 },
-      { label: 'Primary contact assigned (General)', complete: hasGeneralPrimary, weight: 5 },
       {
-        label: 'Home address on file',
-        complete: hasHomeAddress,
-        weight: 15,
-        navigate: goAddresses,
-        details: [
-          {
-            label: 'No home address entered',
-            action: { label: 'Go to Addresses', onClick: goAddresses },
-          },
-        ],
+        key: 'family-name',
+        label: 'Family name set',
+        complete: hasName,
+        weight: 5,
+        section: 'family',
+        scrollTargetId: 'family-name',
       },
       {
-        label: 'At least 2 emergency contacts with phone',
-        complete: enoughEmergency,
-        weight: 15,
-        navigate: goEmergency,
-        details: [
-          {
-            label:
-              totalContactsWithPhone === 0
-                ? 'No emergency contacts with phone on file'
-                : `Only ${totalContactsWithPhone} emergency contact${totalContactsWithPhone === 1 ? '' : 's'} on file`,
-            action: { label: 'Add Contact', onClick: goEmergency },
-          },
-        ],
+        key: 'primary-contact',
+        label: 'Primary contact assigned (General)',
+        complete: hasGeneralPrimary,
+        weight: 5,
+        section: 'family',
+        scrollTargetId: 'family-categories',
       },
       {
-        label: 'Family doctor on file',
-        complete: hasDoctor,
-        weight: 10,
-        navigate: goHealth,
-        details: [
-          {
-            label:
-              'No doctor on file (or check "We don\'t have a family doctor" on the Health tab)',
-            action: { label: 'Go to Health tab', onClick: goHealth },
-          },
-        ],
+        key: 'communication-prefs',
+        label: 'Communication preferences customised',
+        complete: customisedPrefs,
+        weight: 5,
+        section: 'family',
+        scrollTargetId: 'family-categories',
       },
       {
-        label: 'Insurance on file',
-        complete: hasInsurance,
-        weight: 10,
-        navigate: goHealth,
-        details: [
-          {
-            label:
-              'No insurance on file (or check "We don\'t have insurance" on the Health tab)',
-            action: { label: 'Go to Health tab', onClick: goHealth },
-          },
-        ],
-      },
-      {
+        key: 'at-least-one-child',
         label: 'At least one child added',
         complete: hasAnyChild,
         weight: 10,
+        section: 'family',
         href: '/family',
-        details: [
-          {
-            label: 'No children on this family yet',
-            action: { label: 'Add Child', href: '/family' },
-          },
-        ],
       },
       {
+        key: 'all-children-linked',
         label: allChildrenLinked
           ? 'All children have linked accounts'
           : hasAnyChild
@@ -597,64 +553,101 @@ function FamilyCompletionCard({
             : 'All children have linked accounts',
         complete: allChildrenLinked,
         weight: 10,
+        section: 'family',
         href: '/family',
-        details: unlinkedChildren.map((c) => {
-          const heroName = c.preferredName?.trim() ? c.preferredName : c.firstName;
-          const fullName = [heroName, c.lastName].filter(Boolean).join(' ').trim() || 'Child';
-          return {
-            label: `${fullName} — no account`,
-            action: { label: 'Create Account', href: '/family' },
-          };
-        }),
       },
       {
+        key: 'guardian-profiles',
         label: 'All guardian profiles complete (phone + email)',
         complete: guardiansComplete,
         weight: 10,
+        section: 'family',
         href: '/profile',
-        // Show every guardian — green check on the ones who are done,
-        // diagnostic + action on the ones who aren't. Self gets a
-        // working /profile link; non-self guardians get a /family
-        // link so the caller can at least see them and nudge.
-        details: guardianStatus.map((g) =>
-          g.missing.length === 0
-            ? { label: `${g.name} — complete`, complete: true }
-            : {
-                label: `${g.name} — missing: ${g.missing.join(', ')}`,
-                action: g.isCurrentUser
-                  ? { label: 'Edit Profile', href: '/profile' }
-                  : { label: 'View on Family', href: '/family' },
-              },
-        ),
       },
       {
-        label: 'Communication preferences customised',
-        complete: customisedPrefs,
-        weight: 5,
-        details: [
-          {
-            label: 'All categories route to the same person',
-          },
-        ],
+        key: 'home-address',
+        label: 'Home address on file',
+        complete: hasHomeAddress,
+        weight: 15,
+        section: 'addresses',
+        scrollTargetId: 'addresses-home',
       },
       {
+        key: 'mailing-address',
         label: 'Mailing address (if different from home)',
         complete: mailingSatisfied,
         weight: 5,
-        navigate: goAddresses,
-        details: [
-          {
-            label: 'No mailing address entered',
-            action: { label: 'Go to Addresses', onClick: goAddresses },
-          },
-        ],
+        section: 'addresses',
+        scrollTargetId: 'addresses-mailing',
+      },
+      {
+        key: 'emergency-contacts',
+        label:
+          totalContactsWithPhone >= 2
+            ? 'At least 2 emergency contacts with phone'
+            : totalContactsWithPhone === 0
+              ? 'At least 2 emergency contacts with phone — none on file'
+              : `At least 2 emergency contacts with phone — only ${totalContactsWithPhone} on file`,
+        complete: enoughEmergency,
+        weight: 15,
+        section: 'emergency',
+        scrollTargetId: 'emergency-list',
+      },
+      {
+        key: 'family-doctor',
+        label: 'Family doctor on file (or mark as none)',
+        complete: hasDoctor,
+        weight: 10,
+        section: 'health',
+        scrollTargetId: 'health-doctor',
+      },
+      {
+        key: 'family-insurance',
+        label: 'Insurance on file (or mark as none)',
+        complete: hasInsurance,
+        weight: 10,
+        section: 'health',
+        scrollTargetId: 'health-insurance',
       },
     ];
-  }, [settings, members, prefs, children, ecs, onNavigate]);
+  }, [settings, members, children, prefs, ecs]);
 
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0);
   const earned = items.filter((i) => i.complete).reduce((sum, i) => sum + i.weight, 0);
   const percent = totalWeight === 0 ? 0 : Math.round((earned / totalWeight) * 100);
+
+  const bySection = (Object.keys(SECTION_META) as SectionKey[]).reduce(
+    (acc, key) => {
+      const sectionItems = items.filter((i) => i.section === key);
+      const incomplete = sectionItems.filter((i) => !i.complete);
+      acc[key] = {
+        items: sectionItems,
+        incomplete,
+        complete: incomplete.length === 0,
+        remaining: incomplete.length,
+      };
+      return acc;
+    },
+    {} as Record<SectionKey, CompletionSectionState>,
+  );
+
+  return { items, percent, bySection };
+}
+
+/**
+ * Family-tab overview. Replaces the legacy 11-row checklist with a
+ * 4-row section roll-up so the surface stays compact; per-item
+ * diagnostics live on each tab's IncompleteItemsBanner.
+ */
+function SectionOverviewCard({
+  settings,
+  onNavigate,
+}: {
+  settings: FamilySettingsDto;
+  onNavigate: (tab: TabKey) => void;
+}) {
+  const { percent, bySection } = useCompletionState(settings);
+  const order: SectionKey[] = ['family', 'addresses', 'emergency', 'health'];
 
   return (
     <Card>
@@ -677,109 +670,134 @@ function FamilyCompletionCard({
         />
       </div>
       <ul className="mt-3 flex flex-col gap-1">
-        {items.map((item) => (
-          <CompletionItemRow key={item.label} item={item} />
-        ))}
+        {order.map((key) => {
+          const meta = SECTION_META[key];
+          const section = bySection[key];
+          const rowClasses =
+            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left';
+          const interactive = !section.complete;
+          const remainingLabel =
+            section.remaining === 1 ? '1 item remaining' : `${section.remaining} items remaining`;
+          const content = (
+            <>
+              <span aria-hidden className={section.complete ? 'text-green-600' : 'text-red-400'}>
+                {section.complete ? '✅' : '❌'}
+              </span>
+              <span className={section.complete ? 'text-gray-700' : 'text-gray-900'}>
+                {meta.label} — {section.complete ? 'complete' : remainingLabel}
+              </span>
+              {interactive && (
+                <span className="ml-auto text-xs font-medium text-campus-700">Fix →</span>
+              )}
+            </>
+          );
+          return (
+            <li key={key}>
+              {interactive ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate(meta.tabKey)}
+                  className={cn(rowClasses, 'hover:bg-gray-50')}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={cn(rowClasses, 'cursor-default')}>{content}</div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );
 }
 
+function scrollToId(id: string) {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 /**
- * Row for a single CompletionItem. Renders the ✅/❌ glyph, label,
- * and optional "Fix →" arrow on the parent row; when incomplete and
- * `details` is non-empty, renders an indented sub-list beneath with
- * per-resource diagnostics + inline action pills.
+ * Per-tab status strip. Shows a compact amber alert listing the
+ * tab's incomplete items (each with [Fix ↓] / [Fix →] depending on
+ * whether the destination is in-tab or cross-page), or a small
+ * green "Section complete" bar when there are none.
+ *
+ * Goes at the top of every tab. Family tab shows it below the
+ * 4-section overview, focused on Family-section items only.
  */
-function CompletionItemRow({ item }: { item: CompletionItem }) {
-  const baseClasses =
-    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left';
-  const hasParentAction = Boolean(item.navigate || item.href);
-  const interactive = !item.complete && hasParentAction;
-  const showDetails = !item.complete && item.details && item.details.length > 0;
+function IncompleteItemsBanner({
+  settings,
+  section,
+}: {
+  settings: FamilySettingsDto;
+  section: SectionKey;
+}) {
+  const { bySection } = useCompletionState(settings);
+  const state = bySection[section];
 
-  const rowContent = (
-    <>
-      <span aria-hidden className={item.complete ? 'text-green-600' : 'text-red-400'}>
-        {item.complete ? '✅' : '❌'}
-      </span>
-      <span className={item.complete ? 'text-gray-700' : 'text-gray-900'}>{item.label}</span>
-      {interactive && (
-        <span className="ml-auto text-xs font-medium text-campus-700">Fix →</span>
-      )}
-    </>
-  );
-
-  let row: React.ReactNode;
-  if (interactive && item.href) {
-    row = (
-      <Link href={item.href} className={cn(baseClasses, 'hover:bg-gray-50')}>
-        {rowContent}
-      </Link>
-    );
-  } else if (interactive && item.navigate) {
-    row = (
-      <button
-        type="button"
-        onClick={item.navigate}
-        className={cn(baseClasses, 'hover:bg-gray-50')}
+  if (state.complete) {
+    return (
+      <section
+        aria-live="polite"
+        className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800"
       >
-        {rowContent}
-      </button>
+        <span aria-hidden>✅</span>
+        <span>Section complete</span>
+      </section>
     );
-  } else {
-    row = <div className={cn(baseClasses, 'cursor-default')}>{rowContent}</div>;
   }
 
+  const noun = state.remaining === 1 ? 'item' : 'items';
   return (
-    <li>
-      {row}
-      {showDetails && (
-        <ul className="mb-1 ml-8 mt-1 flex flex-col gap-1">
-          {item.details!.map((d, idx) => (
-            <li
-              key={d.label + ':' + idx}
-              className="flex items-center gap-2 rounded-md px-2 py-1 text-xs"
-            >
-              <span aria-hidden className="text-gray-400">
-                └
-              </span>
-              <span className={d.complete ? 'text-green-700' : 'text-gray-700'}>
-                {d.complete && (
-                  <span aria-hidden className="mr-1 text-green-600">
-                    ✅
-                  </span>
-                )}
-                {d.label}
-              </span>
-              {d.action && <CompletionSubAction action={d.action} />}
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
+    <section
+      aria-live="polite"
+      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
+    >
+      <p className="text-sm font-semibold text-amber-900">
+        <span aria-hidden className="mr-1">
+          ⚠️
+        </span>
+        {state.remaining} {noun} to complete
+      </p>
+      <ul className="mt-1 flex flex-col gap-1 text-sm text-amber-900">
+        {state.incomplete.map((item) => (
+          <li
+            key={item.key}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <span aria-hidden className="text-amber-700">
+              •
+            </span>
+            <span className="flex-1 min-w-0">{item.label}</span>
+            <IncompleteFixAction item={item} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-function CompletionSubAction({
-  action,
-}: {
-  action: NonNullable<CompletionSubItem['action']>;
-}) {
+function IncompleteFixAction({ item }: { item: CompletionItem }) {
   const classes =
-    'ml-auto inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50';
-  if (action.href) {
+    'inline-flex items-center justify-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 shadow-sm hover:bg-amber-100';
+  if (item.scrollTargetId) {
+    const id = item.scrollTargetId;
     return (
-      <Link href={action.href} className={classes}>
-        {action.label}
+      <button type="button" onClick={() => scrollToId(id)} className={classes}>
+        Fix ↓
+      </button>
+    );
+  }
+  if (item.href) {
+    return (
+      <Link href={item.href} className={classes}>
+        Fix →
       </Link>
     );
   }
-  return (
-    <button type="button" onClick={action.onClick} className={classes}>
-      {action.label}
-    </button>
-  );
+  return null;
 }
 
 // ─── Compact family-members list ───────────────────────────
@@ -1047,7 +1065,12 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <Card title="Home address" description="Required — used by schools and for shipping.">
+      <IncompleteItemsBanner settings={settings} section="addresses" />
+      <Card
+        id="addresses-home"
+        title="Home address"
+        description="Required — used by schools and for shipping."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="addressLine1"
@@ -1102,7 +1125,7 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
         </div>
       </Card>
 
-      <Card title="Mailing address">
+      <Card id="addresses-mailing" title="Mailing address">
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -1262,9 +1285,11 @@ const MANUAL_RELATIONSHIPS = [
  * Add flow is manual-only.
  */
 function EmergencyTab({
+  settings,
   editable,
   members,
 }: {
+  settings: FamilySettingsDto;
   editable: boolean;
   members: FamilyMemberDto[];
 }) {
@@ -1325,7 +1350,9 @@ function EmergencyTab({
 
   return (
     <div className="flex flex-col gap-5">
+      <IncompleteItemsBanner settings={settings} section="emergency" />
       <Card
+        id="emergency-list"
         title="Family emergency contacts"
         description="Guardians appear automatically with their profile info. Reorder any row — priority is your family's choice, not determined by role. Shared with every child whose Contact tab inherits from family."
       >
@@ -1939,7 +1966,8 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <Card title="Family doctor">
+      <IncompleteItemsBanner settings={settings} section="health" />
+      <Card id="health-doctor" title="Family doctor">
         <OptOutCheckbox
           id="noDoctor"
           label="We don't have a family doctor"
@@ -1995,7 +2023,7 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
         )}
       </Card>
 
-      <Card title="Family insurance">
+      <Card id="health-insurance" title="Family insurance">
         <OptOutCheckbox
           id="noInsurance"
           label="We don't have insurance"
@@ -2088,18 +2116,23 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
 // ─── Primitives ────────────────────────────────────────────
 
 function Card({
+  id,
   title,
   description,
   children,
   dirty,
 }: {
+  id?: string;
   title?: string;
   description?: string;
   children: React.ReactNode;
   dirty?: boolean;
 }) {
   return (
-    <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
+    <section
+      id={id}
+      className="rounded-card border border-gray-200 bg-white p-5 shadow-sm scroll-mt-4"
+    >
       {(title || description) && (
         <div className="mb-3">
           {title && (
