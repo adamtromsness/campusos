@@ -719,6 +719,10 @@ function ContactTab({ child }: { child: FamilyChildDto }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Guardians first — when a school opens a child's contact tab,
+          the first thing they need is how to reach the parents. */}
+      <GuardianContactsPanel />
+
       {isLinked ? (
         <>
           <ChildPhoneListCard childId={child.id} editable={isManaged} />
@@ -734,8 +738,6 @@ function ContactTab({ child }: { child: FamilyChildDto }) {
       )}
 
       <ChildAddressCards child={child} />
-
-      <GuardianContactsPanel />
 
       <EmergencyContactsContactTabSection child={child} />
     </div>
@@ -1042,14 +1044,24 @@ function ChildEmailListCard({ childId, editable }: { childId: string; editable: 
     }
   }
 
-  const emails = data ?? [];
+  // Defensive: hide synthetic placeholder logins (@minor.invalid for
+  // parent-managed minors, @external.invalid for placeholder
+  // guardians). The server already filters these out of the
+  // response, but guard here too so a stale cache can't leak one. A
+  // young child legitimately has no email — the parent adds a real
+  // one when they're old enough.
+  const emails = (data ?? []).filter(
+    (e) => !/@(?:minor|external)\.invalid$/i.test(e.email),
+  );
 
   return (
     <SectionCard title="Email addresses">
       {isLoading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : emails.length === 0 && !addOpen ? (
-        <p className="text-sm text-gray-500">No emails on file yet.</p>
+        <p className="text-sm text-gray-500">
+          No email on file — this is a parent-managed account.
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {emails.map((e) => (

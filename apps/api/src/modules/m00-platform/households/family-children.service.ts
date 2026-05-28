@@ -3259,6 +3259,20 @@ export class FamilyChildrenService {
     };
   }
 
+  /**
+   * Synthetic login addresses are never real contact emails:
+   *   @external.invalid — placeholder guardian (createMemberAccount)
+   *   @minor.invalid    — parent-managed minor (syntheticChildEmail)
+   * We neither seed them into platform_person_emails nor surface
+   * them on the child Contact tab — a young child legitimately has
+   * no email, and showing the unroutable placeholder confuses
+   * parents + schools.
+   */
+  private isPlaceholderEmail(email: string | null | undefined): boolean {
+    const e = (email ?? '').toLowerCase();
+    return e.endsWith('@external.invalid') || e.endsWith('@minor.invalid');
+  }
+
   async listChildEmails(callerPersonId: string, childId: string): Promise<PersonEmailDto[]> {
     const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     let rows = await this.prisma.platformPersonEmail.findMany({
@@ -3267,15 +3281,15 @@ export class FamilyChildrenService {
     });
     if (rows.length === 0) {
       // Seed from platform_users.email (the child's login email if
-      // they have an account). Synthetic @external.invalid seeded
-      // for parent-created accounts is skipped — that placeholder
+      // they have an account). Synthetic placeholder logins
+      // (@external.invalid / @minor.invalid) are skipped — those
       // shouldn't graduate into a usable contact email.
       const account = await this.prisma.platformUser.findUnique({
         where: { personId },
         select: { email: true },
       });
       const seedEmail = account?.email?.trim();
-      if (seedEmail && !seedEmail.endsWith('@external.invalid')) {
+      if (seedEmail && !this.isPlaceholderEmail(seedEmail)) {
         try {
           await this.prisma.platformPersonEmail.create({
             data: {
@@ -3296,7 +3310,12 @@ export class FamilyChildrenService {
         });
       }
     }
-    return rows.map((r) => this.personEmailRowToDto(r));
+    // Filter placeholder rows that may have been seeded by an earlier
+    // build (before @minor.invalid was excluded). They stay in the DB
+    // — inert — but never reach the client.
+    return rows
+      .filter((r) => !this.isPlaceholderEmail(r.email))
+      .map((r) => this.personEmailRowToDto(r));
   }
 
   async addChildEmail(
@@ -3315,7 +3334,13 @@ export class FamilyChildrenService {
     if (existing.some((r) => r.email.toLowerCase() === lower)) {
       throw new ConflictException('This email is already on this child’s list.');
     }
-    const shouldBePrimary = dto.isPrimary === true || existing.length === 0;
+    // Count only real emails — a hidden @minor.invalid / @external.invalid
+    // placeholder must not block the first real email from becoming
+    // primary. shouldBePrimary then demotes any existing primary
+    // (including the hidden placeholder) inside the tx, so the real
+    // email lands as the single visible primary.
+    const realExisting = existing.filter((r) => !this.isPlaceholderEmail(r.email));
+    const shouldBePrimary = dto.isPrimary === true || realExisting.length === 0;
     const id = generateId();
     await this.prisma.$transaction(async (tx) => {
       if (shouldBePrimary) {
