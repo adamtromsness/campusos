@@ -46,6 +46,7 @@ import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { formatPhone } from '@/lib/phone-format';
 import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
+import { CountryField, formatAddressOneLine } from '@/components/ui/CountryField';
 import type {
   PersonEmailDto,
   PersonEmailType,
@@ -1259,25 +1260,103 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       customCity: child.customCity ?? '',
       customState: child.customState ?? '',
       customPostalCode: child.customPostalCode ?? '',
-      customCountry: child.customCountry ?? '',
+      customCountry: child.customCountry ?? 'United States',
       mailingAddressDifferent: child.mailingAddressDifferent,
       mailingLine1: child.mailingLine1 ?? '',
       mailingLine2: child.mailingLine2 ?? '',
       mailingCity: child.mailingCity ?? '',
       mailingState: child.mailingState ?? '',
       mailingPostalCode: child.mailingPostalCode ?? '',
-      mailingCountry: child.mailingCountry ?? '',
+      mailingCountry: child.mailingCountry ?? 'United States',
     }),
     [child],
   );
   const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState<Set<string>>(new Set());
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
   useBeforeUnloadOnDirty(isDirty);
-  useEffect(() => setForm(initial), [initial]);
+  useEffect(() => {
+    setForm(initial);
+    setErrors(new Set());
+  }, [initial]);
+
+  const isCustomHome = form.addressSource === 'CUSTOM';
+  // "Same as physical address" is the positive sense of the stored
+  // mailing_address_different flag.
+  const sameAsPhysical = !form.mailingAddressDifferent;
+
+  const fs = familySettings.data;
+  // The resolved physical address — family-inherited or the child's
+  // own custom address — used for the read-only mailing display.
+  const physical =
+    form.addressSource === 'FAMILY'
+      ? {
+          line1: fs?.addressLine1 ?? '',
+          line2: fs?.addressLine2 ?? '',
+          city: fs?.city ?? '',
+          state: fs?.state ?? '',
+          postalCode: fs?.postalCode ?? '',
+          country: fs?.country ?? '',
+        }
+      : {
+          line1: form.customAddressLine1,
+          line2: form.customAddressLine2,
+          city: form.customCity,
+          state: form.customState,
+          postalCode: form.customPostalCode,
+          country: form.customCountry,
+        };
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+    if (errors.has(key as string)) {
+      setErrors((prev) => {
+        const next = new Set(prev);
+        next.delete(key as string);
+        return next;
+      });
+    }
+  }
+
+  function validate(): Set<string> {
+    const missing = new Set<string>();
+    // Custom home requires the full set (family-inherited is validated
+    // on the family-settings tab). Apartment/unit stays optional.
+    if (isCustomHome) {
+      for (const k of [
+        'customAddressLine1',
+        'customCity',
+        'customState',
+        'customPostalCode',
+        'customCountry',
+      ] as Array<keyof typeof form>) {
+        if (!String(form[k]).trim()) missing.add(k);
+      }
+    }
+    if (!sameAsPhysical) {
+      for (const k of [
+        'mailingLine1',
+        'mailingCity',
+        'mailingState',
+        'mailingPostalCode',
+        'mailingCountry',
+      ] as Array<keyof typeof form>) {
+        if (!String(form[k]).trim()) missing.add(k);
+      }
+    }
+    return missing;
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isDirty) return;
+    const missing = validate();
+    if (missing.size > 0) {
+      setErrors(missing);
+      toast('Please fill in all required address fields.', 'error');
+      return;
+    }
+    setErrors(new Set());
     try {
       await update.mutateAsync({
         addressSource: form.addressSource,
@@ -1303,25 +1382,14 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
     }
   }
 
-  const fs = familySettings.data;
-  const familyAddressString = fs
-    ? [
-        [fs.addressLine1, fs.addressLine2].filter(Boolean).join(', '),
-        [fs.city, fs.state, fs.postalCode].filter(Boolean).join(', '),
-        fs.country,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : '';
-
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       <SectionCard title="Home address">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-gray-600">
-            {form.addressSource === 'FAMILY'
-              ? "Using your family's home address."
-              : 'Using a custom address for this child.'}
+            {isCustomHome
+              ? 'Custom address for this child.'
+              : "Using your family's home address."}
           </p>
           {editable && (
             <FamilyCustomToggle
@@ -1331,9 +1399,9 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
           )}
         </div>
 
-        {form.addressSource === 'FAMILY' ? (
+        {!isCustomHome ? (
           <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {familyAddressString || (
+            {formatAddressOneLine(physical) || (
               <span className="text-gray-500">No family address on file yet.</span>
             )}
             <div className="mt-2">
@@ -1351,16 +1419,20 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               id="customAddressLine1"
               label="Street address"
               value={form.customAddressLine1}
-              onChange={(v) => setForm((f) => ({ ...f, customAddressLine1: v }))}
+              onChange={(v) => setField('customAddressLine1', v)}
               dirty={dirtyFields.has('customAddressLine1')}
               disabled={!editable}
               className="sm:col-span-2"
+              required
+              error={
+                errors.has('customAddressLine1') ? 'Street address is required.' : undefined
+              }
             />
             <ChildAddressField
               id="customAddressLine2"
-              label="Apt / suite"
+              label="Apartment / unit"
               value={form.customAddressLine2}
-              onChange={(v) => setForm((f) => ({ ...f, customAddressLine2: v }))}
+              onChange={(v) => setField('customAddressLine2', v)}
               dirty={dirtyFields.has('customAddressLine2')}
               disabled={!editable}
               className="sm:col-span-2"
@@ -1369,33 +1441,42 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               id="customCity"
               label="City"
               value={form.customCity}
-              onChange={(v) => setForm((f) => ({ ...f, customCity: v }))}
+              onChange={(v) => setField('customCity', v)}
               dirty={dirtyFields.has('customCity')}
               disabled={!editable}
+              required
+              error={errors.has('customCity') ? 'City is required.' : undefined}
             />
             <ChildAddressField
               id="customState"
               label="State / province"
               value={form.customState}
-              onChange={(v) => setForm((f) => ({ ...f, customState: v }))}
+              onChange={(v) => setField('customState', v)}
               dirty={dirtyFields.has('customState')}
               disabled={!editable}
+              required
+              error={errors.has('customState') ? 'State / province is required.' : undefined}
             />
             <ChildAddressField
               id="customPostalCode"
               label="ZIP / postal code"
               value={form.customPostalCode}
-              onChange={(v) => setForm((f) => ({ ...f, customPostalCode: v }))}
+              onChange={(v) => setField('customPostalCode', v)}
               dirty={dirtyFields.has('customPostalCode')}
               disabled={!editable}
+              required
+              error={
+                errors.has('customPostalCode') ? 'ZIP / postal code is required.' : undefined
+              }
             />
-            <ChildAddressField
+            <CountryField
               id="customCountry"
-              label="Country"
               value={form.customCountry}
-              onChange={(v) => setForm((f) => ({ ...f, customCountry: v }))}
+              onChange={(v) => setField('customCountry', v)}
               dirty={dirtyFields.has('customCountry')}
               disabled={!editable}
+              required
+              error={errors.has('customCountry') ? 'Country is required.' : undefined}
             />
           </div>
         )}
@@ -1405,14 +1486,14 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={form.mailingAddressDifferent}
+            checked={sameAsPhysical}
             onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
+              setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
             }
             disabled={!editable}
             className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
           />
-          Mailing address is different from home address
+          Same as physical address
           {dirtyFields.has('mailingAddressDifferent') && (
             <span
               aria-label="Modified"
@@ -1421,22 +1502,34 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
             />
           )}
         </label>
-        {form.mailingAddressDifferent && (
+
+        {sameAsPhysical ? (
+          // Read-only one-line display of the resolved physical
+          // address (family-inherited or custom), matching the home
+          // display style.
+          <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {formatAddressOneLine(physical) || (
+              <span className="text-gray-500">No physical address on file yet.</span>
+            )}
+          </div>
+        ) : (
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <ChildAddressField
               id="mailingLine1"
               label="Street address"
               value={form.mailingLine1}
-              onChange={(v) => setForm((f) => ({ ...f, mailingLine1: v }))}
+              onChange={(v) => setField('mailingLine1', v)}
               dirty={dirtyFields.has('mailingLine1')}
               disabled={!editable}
               className="sm:col-span-2"
+              required
+              error={errors.has('mailingLine1') ? 'Street address is required.' : undefined}
             />
             <ChildAddressField
               id="mailingLine2"
-              label="Apt / suite"
+              label="Apartment / unit"
               value={form.mailingLine2}
-              onChange={(v) => setForm((f) => ({ ...f, mailingLine2: v }))}
+              onChange={(v) => setField('mailingLine2', v)}
               dirty={dirtyFields.has('mailingLine2')}
               disabled={!editable}
               className="sm:col-span-2"
@@ -1445,33 +1538,42 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               id="mailingCity"
               label="City"
               value={form.mailingCity}
-              onChange={(v) => setForm((f) => ({ ...f, mailingCity: v }))}
+              onChange={(v) => setField('mailingCity', v)}
               dirty={dirtyFields.has('mailingCity')}
               disabled={!editable}
+              required
+              error={errors.has('mailingCity') ? 'City is required.' : undefined}
             />
             <ChildAddressField
               id="mailingState"
               label="State / province"
               value={form.mailingState}
-              onChange={(v) => setForm((f) => ({ ...f, mailingState: v }))}
+              onChange={(v) => setField('mailingState', v)}
               dirty={dirtyFields.has('mailingState')}
               disabled={!editable}
+              required
+              error={errors.has('mailingState') ? 'State / province is required.' : undefined}
             />
             <ChildAddressField
               id="mailingPostalCode"
               label="ZIP / postal code"
               value={form.mailingPostalCode}
-              onChange={(v) => setForm((f) => ({ ...f, mailingPostalCode: v }))}
+              onChange={(v) => setField('mailingPostalCode', v)}
               dirty={dirtyFields.has('mailingPostalCode')}
               disabled={!editable}
+              required
+              error={
+                errors.has('mailingPostalCode') ? 'ZIP / postal code is required.' : undefined
+              }
             />
-            <ChildAddressField
+            <CountryField
               id="mailingCountry"
-              label="Country"
               value={form.mailingCountry}
-              onChange={(v) => setForm((f) => ({ ...f, mailingCountry: v }))}
+              onChange={(v) => setField('mailingCountry', v)}
               dirty={dirtyFields.has('mailingCountry')}
               disabled={!editable}
+              required
+              error={errors.has('mailingCountry') ? 'Country is required.' : undefined}
             />
           </div>
         )}
@@ -1501,6 +1603,8 @@ function ChildAddressField({
   dirty,
   disabled,
   className,
+  required,
+  error,
 }: {
   id: string;
   label: string;
@@ -1509,11 +1613,18 @@ function ChildAddressField({
   dirty: boolean;
   disabled?: boolean;
   className?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
+        {required && (
+          <span className="ml-0.5 text-red-500" aria-hidden>
+            *
+          </span>
+        )}
         {dirty && (
           <span
             aria-label="Modified"
@@ -1528,13 +1639,17 @@ function ChildAddressField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
+        aria-invalid={error ? true : undefined}
         className={cn(
           'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-          dirty
-            ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-            : 'border border-gray-300',
+          error
+            ? 'border border-red-400 focus:ring-red-400'
+            : dirty
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
         )}
       />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }
