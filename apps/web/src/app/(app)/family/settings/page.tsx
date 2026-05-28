@@ -478,8 +478,15 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
     const hasGeneralPrimary = (prefs ?? []).some(
       (p) => p.category === 'GENERAL' && p.primaryPersonId,
     );
+    // Home address is complete only when every required field is set
+    // (street, city, state, ZIP, country) — matches the Addresses-tab
+    // form validation. Apartment/unit is optional.
     const hasHomeAddress = Boolean(
-      settings.addressLine1 && settings.city && settings.state && settings.postalCode,
+      settings.addressLine1 &&
+        settings.city &&
+        settings.state &&
+        settings.postalCode &&
+        settings.country,
     );
     const activeGuardians = members.filter((m) => m.status === 'ACTIVE');
     const guardiansWithPhone = activeGuardians.filter(
@@ -507,9 +514,18 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
       (p) =>
         p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
     );
+    // Mailing address is satisfied when it's the same as home, or
+    // (when separate) every required mailing field is filled — same
+    // required set as the home address.
     const mailingSatisfied = !settings.mailingAddressDifferent
       ? true
-      : Boolean(settings.mailingLine1 && settings.mailingCity && settings.mailingState);
+      : Boolean(
+          settings.mailingLine1 &&
+            settings.mailingCity &&
+            settings.mailingState &&
+            settings.mailingPostalCode &&
+            settings.mailingCountry,
+        );
 
     return [
       {
@@ -1016,6 +1032,21 @@ function CategoryRoutingTable({
 
 // ─── Addresses tab ─────────────────────────────────────────
 
+// Common country options for the address dropdowns. The column is
+// free-text on the wire so any historic value still round-trips —
+// an unrecognised stored value is appended so it stays selectable.
+const COUNTRY_OPTIONS = [
+  'United States',
+  'Canada',
+  'Mexico',
+  'United Kingdom',
+  'Australia',
+  'India',
+  'Germany',
+  'France',
+  'Other',
+];
+
 function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
   const update = useUpdateFamilySettings();
   const { toast } = useToast();
@@ -1027,34 +1058,131 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
       city: settings.city ?? '',
       state: settings.state ?? '',
       postalCode: settings.postalCode ?? '',
-      country: settings.country ?? '',
+      country: settings.country ?? 'United States',
       mailingAddressDifferent: settings.mailingAddressDifferent,
       mailingLine1: settings.mailingLine1 ?? '',
       mailingLine2: settings.mailingLine2 ?? '',
       mailingCity: settings.mailingCity ?? '',
       mailingState: settings.mailingState ?? '',
       mailingPostalCode: settings.mailingPostalCode ?? '',
-      mailingCountry: settings.mailingCountry ?? '',
+      mailingCountry: settings.mailingCountry ?? 'United States',
     }),
     [settings],
   );
   const [form, setForm] = useState(initial);
+  const [errors, setErrors] = useState<Set<string>>(new Set());
   const { isDirty, dirtyFields } = useFormDirty(form, initial);
   useBeforeUnloadOnDirty(isDirty);
-  useEffect(() => setForm(initial), [initial]);
+  useEffect(() => {
+    setForm(initial);
+    setErrors(new Set());
+  }, [initial]);
 
   const editable = settings.canEdit;
+  // "Same as home" is the positive sense of the stored
+  // mailing_address_different flag.
+  const sameAsHome = !form.mailingAddressDifferent;
+
+  // Required home fields (everything except apartment/unit). Mailing
+  // mirrors them only when the user keeps a separate mailing address.
+  const HOME_REQUIRED: Array<keyof typeof form> = [
+    'addressLine1',
+    'city',
+    'state',
+    'postalCode',
+    'country',
+  ];
+  const MAILING_REQUIRED: Array<keyof typeof form> = [
+    'mailingLine1',
+    'mailingCity',
+    'mailingState',
+    'mailingPostalCode',
+    'mailingCountry',
+  ];
+
+  function validate(): Set<string> {
+    const missing = new Set<string>();
+    for (const k of HOME_REQUIRED) {
+      if (!String(form[k]).trim()) missing.add(k);
+    }
+    if (!sameAsHome) {
+      for (const k of MAILING_REQUIRED) {
+        if (!String(form[k]).trim()) missing.add(k);
+      }
+    }
+    return missing;
+  }
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+    // Clear a field's error as soon as the user starts fixing it.
+    if (errors.has(key as string)) {
+      setErrors((prev) => {
+        const next = new Set(prev);
+        next.delete(key as string);
+        return next;
+      });
+    }
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!editable || !isDirty) return;
+    const missing = validate();
+    if (missing.size > 0) {
+      setErrors(missing);
+      toast('Please fill in all required address fields.', 'error');
+      return;
+    }
+    setErrors(new Set());
+
     const payload: UpdateFamilySettingsPayload = {};
-    for (const k of Object.keys(form) as Array<keyof typeof form>) {
-      if (form[k] !== initial[k]) {
-        // typescript: assign each key separately
-        (payload as Record<string, unknown>)[k] = form[k];
+    const homeKeys: Array<keyof typeof form> = [
+      'addressLine1',
+      'addressLine2',
+      'city',
+      'state',
+      'postalCode',
+      'country',
+    ];
+    for (const k of homeKeys) {
+      if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
+    }
+    if (form.mailingAddressDifferent !== initial.mailingAddressDifferent) {
+      payload.mailingAddressDifferent = form.mailingAddressDifferent;
+    }
+    if (sameAsHome) {
+      // Same-as-home: null out the mailing columns. The read path
+      // returns home values for display, and the spec allows the
+      // mailing_* columns to be NULL in this mode.
+      if (
+        initial.mailingAddressDifferent ||
+        initial.mailingLine1 ||
+        initial.mailingCity ||
+        initial.mailingState ||
+        initial.mailingPostalCode
+      ) {
+        payload.mailingLine1 = null;
+        payload.mailingLine2 = null;
+        payload.mailingCity = null;
+        payload.mailingState = null;
+        payload.mailingPostalCode = null;
+        payload.mailingCountry = null;
+      }
+    } else {
+      const mailingKeys: Array<keyof typeof form> = [
+        'mailingLine1',
+        'mailingLine2',
+        'mailingCity',
+        'mailingState',
+        'mailingPostalCode',
+        'mailingCountry',
+      ];
+      for (const k of mailingKeys) {
+        if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
       }
     }
+
     try {
       await update.mutateAsync(payload);
       toast('Addresses saved', 'success');
@@ -1069,23 +1197,25 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
       <Card
         id="addresses-home"
         title="Home address"
-        description="Required — used by schools and for shipping."
+        description="Your family's physical residential address. Used by schools for district verification, emergency response, and official records."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="addressLine1"
             label="Street address"
             value={form.addressLine1}
-            onChange={(v) => setForm((f) => ({ ...f, addressLine1: v }))}
+            onChange={(v) => setField('addressLine1', v)}
             disabled={!editable}
             className="sm:col-span-2"
             dirty={dirtyFields.has('addressLine1')}
+            required
+            error={errors.has('addressLine1') ? 'Street address is required.' : undefined}
           />
           <Field
             id="addressLine2"
             label="Apartment / unit"
             value={form.addressLine2}
-            onChange={(v) => setForm((f) => ({ ...f, addressLine2: v }))}
+            onChange={(v) => setField('addressLine2', v)}
             disabled={!editable}
             className="sm:col-span-2"
             dirty={dirtyFields.has('addressLine2')}
@@ -1094,109 +1224,128 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
             id="city"
             label="City"
             value={form.city}
-            onChange={(v) => setForm((f) => ({ ...f, city: v }))}
+            onChange={(v) => setField('city', v)}
             disabled={!editable}
             dirty={dirtyFields.has('city')}
+            required
+            error={errors.has('city') ? 'City is required.' : undefined}
           />
           <Field
             id="state"
             label="State / province"
             value={form.state}
-            onChange={(v) => setForm((f) => ({ ...f, state: v }))}
+            onChange={(v) => setField('state', v)}
             disabled={!editable}
             dirty={dirtyFields.has('state')}
+            required
+            error={errors.has('state') ? 'State / province is required.' : undefined}
           />
           <Field
             id="postalCode"
             label="ZIP / postal code"
             value={form.postalCode}
-            onChange={(v) => setForm((f) => ({ ...f, postalCode: v }))}
+            onChange={(v) => setField('postalCode', v)}
             disabled={!editable}
             dirty={dirtyFields.has('postalCode')}
+            required
+            error={errors.has('postalCode') ? 'ZIP / postal code is required.' : undefined}
           />
-          <Field
+          <CountryField
             id="country"
-            label="Country"
             value={form.country}
-            onChange={(v) => setForm((f) => ({ ...f, country: v }))}
+            onChange={(v) => setField('country', v)}
             disabled={!editable}
             dirty={dirtyFields.has('country')}
+            error={errors.has('country') ? 'Country is required.' : undefined}
           />
         </div>
       </Card>
 
-      <Card id="addresses-mailing" title="Mailing address">
+      <Card
+        id="addresses-mailing"
+        title="Mailing address"
+        description="Where mail and packages should be sent. Schools use this for report cards, official letters, and any physical correspondence."
+      >
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={form.mailingAddressDifferent}
+            checked={sameAsHome}
             onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
+              setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
             }
             disabled={!editable}
             className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
           />
-          Mailing address is different from home address
+          Same as home address
         </label>
 
-        {form.mailingAddressDifferent ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field
-              id="mailingLine1"
-              label="Street address"
-              value={form.mailingLine1}
-              onChange={(v) => setForm((f) => ({ ...f, mailingLine1: v }))}
-              disabled={!editable}
-              className="sm:col-span-2"
-              dirty={dirtyFields.has('mailingLine1')}
-            />
-            <Field
-              id="mailingLine2"
-              label="Apartment / unit"
-              value={form.mailingLine2}
-              onChange={(v) => setForm((f) => ({ ...f, mailingLine2: v }))}
-              disabled={!editable}
-              className="sm:col-span-2"
-              dirty={dirtyFields.has('mailingLine2')}
-            />
-            <Field
-              id="mailingCity"
-              label="City"
-              value={form.mailingCity}
-              onChange={(v) => setForm((f) => ({ ...f, mailingCity: v }))}
-              disabled={!editable}
-              dirty={dirtyFields.has('mailingCity')}
-            />
-            <Field
-              id="mailingState"
-              label="State / province"
-              value={form.mailingState}
-              onChange={(v) => setForm((f) => ({ ...f, mailingState: v }))}
-              disabled={!editable}
-              dirty={dirtyFields.has('mailingState')}
-            />
-            <Field
-              id="mailingPostalCode"
-              label="ZIP / postal code"
-              value={form.mailingPostalCode}
-              onChange={(v) => setForm((f) => ({ ...f, mailingPostalCode: v }))}
-              disabled={!editable}
-              dirty={dirtyFields.has('mailingPostalCode')}
-            />
-            <Field
-              id="mailingCountry"
-              label="Country"
-              value={form.mailingCountry}
-              onChange={(v) => setForm((f) => ({ ...f, mailingCountry: v }))}
-              disabled={!editable}
-              dirty={dirtyFields.has('mailingCountry')}
-            />
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-gray-500">
-            Mailing address is the same as home address.
-          </p>
-        )}
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {/* When "same as home", the mailing fields stay VISIBLE but
+              read-only, populated live from the home values — so the
+              user can see exactly what the mailing address resolves to
+              and it auto-updates if they edit the home address above. */}
+          <Field
+            id="mailingLine1"
+            label="Street address"
+            value={sameAsHome ? form.addressLine1 : form.mailingLine1}
+            onChange={(v) => setField('mailingLine1', v)}
+            disabled={!editable || sameAsHome}
+            className="sm:col-span-2"
+            dirty={!sameAsHome && dirtyFields.has('mailingLine1')}
+            required={!sameAsHome}
+            error={errors.has('mailingLine1') ? 'Street address is required.' : undefined}
+          />
+          <Field
+            id="mailingLine2"
+            label="Apartment / unit"
+            value={sameAsHome ? form.addressLine2 : form.mailingLine2}
+            onChange={(v) => setField('mailingLine2', v)}
+            disabled={!editable || sameAsHome}
+            className="sm:col-span-2"
+            dirty={!sameAsHome && dirtyFields.has('mailingLine2')}
+          />
+          <Field
+            id="mailingCity"
+            label="City"
+            value={sameAsHome ? form.city : form.mailingCity}
+            onChange={(v) => setField('mailingCity', v)}
+            disabled={!editable || sameAsHome}
+            dirty={!sameAsHome && dirtyFields.has('mailingCity')}
+            required={!sameAsHome}
+            error={errors.has('mailingCity') ? 'City is required.' : undefined}
+          />
+          <Field
+            id="mailingState"
+            label="State / province"
+            value={sameAsHome ? form.state : form.mailingState}
+            onChange={(v) => setField('mailingState', v)}
+            disabled={!editable || sameAsHome}
+            dirty={!sameAsHome && dirtyFields.has('mailingState')}
+            required={!sameAsHome}
+            error={errors.has('mailingState') ? 'State / province is required.' : undefined}
+          />
+          <Field
+            id="mailingPostalCode"
+            label="ZIP / postal code"
+            value={sameAsHome ? form.postalCode : form.mailingPostalCode}
+            onChange={(v) => setField('mailingPostalCode', v)}
+            disabled={!editable || sameAsHome}
+            dirty={!sameAsHome && dirtyFields.has('mailingPostalCode')}
+            required={!sameAsHome}
+            error={
+              errors.has('mailingPostalCode') ? 'ZIP / postal code is required.' : undefined
+            }
+          />
+          <CountryField
+            id="mailingCountry"
+            value={sameAsHome ? form.country : form.mailingCountry}
+            onChange={(v) => setField('mailingCountry', v)}
+            disabled={!editable || sameAsHome}
+            dirty={!sameAsHome && dirtyFields.has('mailingCountry')}
+            required={!sameAsHome}
+            error={errors.has('mailingCountry') ? 'Country is required.' : undefined}
+          />
+        </div>
       </Card>
 
       {editable && (
@@ -1212,6 +1361,70 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
         </div>
       )}
     </form>
+  );
+}
+
+/**
+ * Country dropdown. The DB column is free text, so an unrecognised
+ * stored value is appended to the option list to keep it selectable
+ * (no silent data loss on save).
+ */
+function CountryField({
+  id,
+  value,
+  onChange,
+  disabled,
+  dirty,
+  required,
+  error,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  dirty?: boolean;
+  required?: boolean;
+  error?: string;
+}) {
+  const options = COUNTRY_OPTIONS.includes(value) || !value
+    ? COUNTRY_OPTIONS
+    : [value, ...COUNTRY_OPTIONS];
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700">
+        Country
+        {required && <span className="ml-0.5 text-red-500" aria-hidden>*</span>}
+        {dirty && (
+          <span
+            aria-label="Modified"
+            title="Modified — save to keep this change"
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+          />
+        )}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        className={cn(
+          'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+          error
+            ? 'border border-red-400 focus:ring-red-400'
+            : dirty
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
+        )}
+      >
+        {options.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }
 
@@ -2166,6 +2379,8 @@ function Field({
   disabled,
   className,
   dirty,
+  required,
+  error,
 }: {
   id: string;
   label: string;
@@ -2177,11 +2392,14 @@ function Field({
   disabled?: boolean;
   className?: string;
   dirty?: boolean;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
+        {required && <span className="ml-0.5 text-red-500" aria-hidden>*</span>}
         {dirty && (
           <span
             aria-label="Modified"
@@ -2197,14 +2415,21 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
+        aria-invalid={error ? true : undefined}
         className={cn(
           'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-          dirty
-            ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-            : 'border border-gray-300',
+          error
+            ? 'border border-red-400 focus:ring-red-400'
+            : dirty
+              ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+              : 'border border-gray-300',
         )}
       />
-      {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+      {error ? (
+        <p className="mt-1 text-xs text-red-600">{error}</p>
+      ) : (
+        hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      )}
     </div>
   );
 }
