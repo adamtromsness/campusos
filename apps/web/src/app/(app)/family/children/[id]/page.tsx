@@ -45,6 +45,7 @@ import { cn } from '@/components/ui/cn';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { formatPhone } from '@/lib/phone-format';
+import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import type {
   PersonEmailDto,
   PersonEmailType,
@@ -1323,18 +1324,10 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               : 'Using a custom address for this child.'}
           </p>
           {editable && (
-            <button
-              type="button"
-              onClick={() =>
-                setForm((f) => ({
-                  ...f,
-                  addressSource: f.addressSource === 'FAMILY' ? 'CUSTOM' : 'FAMILY',
-                }))
-              }
-              className="text-xs font-medium text-campus-700 hover:text-campus-600"
-            >
-              {form.addressSource === 'FAMILY' ? 'Use custom →' : '← Use family'}
-            </button>
+            <FamilyCustomToggle
+              value={form.addressSource}
+              onChange={(next) => setForm((f) => ({ ...f, addressSource: next }))}
+            />
           )}
         </div>
 
@@ -1782,12 +1775,10 @@ function MedicalSection({ childId }: { childId: string }) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Doctor &amp; Insurance
           </h3>
-          <SourceToggle
+          <FamilyCustomToggle
             value={source}
             onChange={(next) => void flipSource(next)}
-            busy={update.isPending}
-            familyLabel="Use family"
-            customLabel="Use custom"
+            disabled={update.isPending}
           />
         </div>
 
@@ -1860,49 +1851,6 @@ function MedicalSection({ childId }: { childId: string }) {
  * because the source choice is a single field and a save-button per
  * toggle would feel heavier than necessary.
  */
-function SourceToggle<TSource extends 'FAMILY' | 'CUSTOM'>({
-  value,
-  onChange,
-  busy,
-  familyLabel,
-  customLabel,
-}: {
-  value: TSource;
-  onChange: (next: TSource) => void;
-  busy: boolean;
-  familyLabel: string;
-  customLabel: string;
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
-      <button
-        type="button"
-        onClick={() => onChange('FAMILY' as TSource)}
-        disabled={busy}
-        className={cn(
-          'rounded px-3 py-1',
-          value === 'FAMILY' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
-          busy && 'opacity-60',
-        )}
-      >
-        {familyLabel}
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('CUSTOM' as TSource)}
-        disabled={busy}
-        className={cn(
-          'rounded px-3 py-1',
-          value === 'CUSTOM' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
-          busy && 'opacity-60',
-        )}
-      >
-        {customLabel}
-      </button>
-    </div>
-  );
-}
-
 function AllergiesCard({
   items,
   onChange,
@@ -2189,12 +2137,10 @@ function EmergencyContactsContactTabSection({ child }: { child: FamilyChildDto }
             ? 'Using your family contacts plus any additional contacts for this child.'
             : 'Using a custom contact list for this child only. Family contacts are ignored.'}
         </p>
-        <SourceToggle
+        <FamilyCustomToggle
           value={child.emergencyContactSource}
           onChange={(next) => void flipSource(next)}
-          busy={updateChild.isPending}
-          familyLabel="Use family"
-          customLabel="Use custom"
+          disabled={updateChild.isPending}
         />
       </div>
 

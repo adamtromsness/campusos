@@ -41,6 +41,7 @@ import {
 import Link from 'next/link';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import { formatPhone } from '@/lib/phone-format';
 import type { ProfileDto } from '@/lib/types';
 
@@ -534,12 +535,10 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
               ? 'Using your family home address.'
               : 'Using a custom address for your profile.'}
           </p>
-          <SourceToggle
+          <FamilyCustomToggle
             value={form.addressSource}
             onChange={(next) => setForm((f) => ({ ...f, addressSource: next }))}
-            busy={update.isPending}
-            familyLabel="Use family"
-            customLabel="Use custom"
+            disabled={update.isPending}
           />
         </div>
 
@@ -688,49 +687,6 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         </button>
       </div>
     </form>
-  );
-}
-
-function SourceToggle({
-  value,
-  onChange,
-  busy,
-  familyLabel,
-  customLabel,
-}: {
-  value: 'FAMILY' | 'CUSTOM';
-  onChange: (next: 'FAMILY' | 'CUSTOM') => void;
-  busy: boolean;
-  familyLabel: string;
-  customLabel: string;
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
-      <button
-        type="button"
-        onClick={() => onChange('FAMILY')}
-        disabled={busy}
-        className={cn(
-          'rounded px-3 py-1',
-          value === 'FAMILY' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
-          busy && 'opacity-60',
-        )}
-      >
-        {familyLabel}
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('CUSTOM')}
-        disabled={busy}
-        className={cn(
-          'rounded px-3 py-1',
-          value === 'CUSTOM' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900',
-          busy && 'opacity-60',
-        )}
-      >
-        {customLabel}
-      </button>
-    </div>
   );
 }
 
@@ -1721,10 +1677,10 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Doctor &amp; Insurance
           </h3>
-          <SourceToggle
+          <FamilyCustomToggle
             value={source}
             onChange={(next) => void flipSource(next)}
-            busy={update.isPending}
+            disabled={update.isPending}
             familyLabel="Use family"
             customLabel="Use my own"
           />
