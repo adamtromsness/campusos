@@ -42,6 +42,7 @@ import Link from 'next/link';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
+import { StickySaveBar } from '@/components/ui/StickySaveBar';
 import { formatPhone } from '@/lib/phone-format';
 import type { ProfileDto } from '@/lib/types';
 
@@ -184,7 +185,9 @@ function Tabs({ profile }: { profile: ProfileDto }) {
         </ul>
       </nav>
 
-      <div className="mt-6">
+      {/* pb-24 reserves clearance so the viewport-fixed StickySaveBar
+          each tab renders never covers the tab's last field. */}
+      <div className="mt-6 pb-24">
         {active === 'account' && <AccountTab profile={profile} />}
         {active === 'contact' && <ContactTab profile={profile} />}
         {active === 'occupation' && <OccupationTab profile={profile} />}
@@ -232,8 +235,8 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
     if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     const v: typeof errors = {};
     if (!form.firstName.trim()) v.firstName = 'First name is required';
     if (!form.lastName.trim()) v.lastName = 'Last name is required';
@@ -255,6 +258,16 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
+  }
+
+  function onDiscard() {
+    setForm(initial);
+    setErrors({});
   }
 
   return (
@@ -351,17 +364,14 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
 
         <AccountInfo profile={profile} personas={personas} />
 
-        <div className="mt-5 flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void doSave()}
+        onDiscard={onDiscard}
+        saving={update.isPending}
+      />
     </SectionCard>
   );
 }
@@ -463,9 +473,8 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
   useBeforeUnloadOnDirty(isDirty);
   useEffect(() => setForm(initial), [initial]);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!isDirty) return;
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     try {
       await update.mutateAsync({
         addressSource: form.addressSource,
@@ -504,6 +513,11 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
   }
 
   const fs = familySettings.data;
@@ -676,16 +690,13 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         )}
       </SectionCard>
 
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={!isDirty || update.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-        >
-          {update.isPending && <LoadingSpinner size="sm" />}
-          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-        </button>
-      </div>
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void doSave()}
+        onDiscard={() => setForm(initial)}
+        saving={update.isPending}
+      />
     </form>
   );
 }
@@ -1268,9 +1279,8 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     isEmployed &&
     (form.workLocationType === 'OFFICE' || form.workLocationType === 'HYBRID');
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!isDirty) return;
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     try {
       await update.mutateAsync({
         employmentStatus: form.employmentStatus || null,
@@ -1295,6 +1305,11 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
   }
 
   return (
@@ -1503,16 +1518,13 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
         </p>
       </SectionCard>
 
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={!isDirty || update.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-        >
-          {update.isPending && <LoadingSpinner size="sm" />}
-          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-        </button>
-      </div>
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void doSave()}
+        onDiscard={() => setForm(initial)}
+        saving={update.isPending}
+      />
     </form>
   );
 }
@@ -1630,6 +1642,21 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
     }
   }
 
+  function onDiscardDoctor() {
+    if (!data) return;
+    setDoctor({
+      name: data.doctorName ?? '',
+      phone: data.doctorPhone ?? '',
+      clinic: data.doctorClinic ?? '',
+      insuranceProvider: data.insuranceProvider ?? '',
+      insurancePolicy: data.insurancePolicy ?? '',
+      insuranceGroup: data.insuranceGroup ?? '',
+      bloodType: data.bloodType ?? '',
+      medicalNotes: data.medicalNotes ?? '',
+    });
+    setDoctorDirty(false);
+  }
+
   async function commitList<K extends 'allergies' | 'medications' | 'conditions'>(
     key: K,
     next: NonNullable<Parameters<typeof update.mutateAsync>[0][K]>,
@@ -1740,18 +1767,13 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
             className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
           />
         </div>
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={() => void saveDoctor()}
-            disabled={!doctorDirty || update.isPending}
-            className="inline-flex items-center gap-2 rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save'}</span>
-          </button>
-        </div>
       </div>
+      <StickySaveBar
+        isDirty={doctorDirty}
+        onSave={() => void saveDoctor()}
+        onDiscard={onDiscardDoctor}
+        saving={update.isPending}
+      />
     </SectionCard>
   );
 }
@@ -2013,7 +2035,7 @@ function AboutTab({ profile }: { profile: ProfileDto }) {
   useEffect(() => setForm(initial), [initial]);
 
   async function onSave() {
-    if (!isDirty) return;
+    if (!isDirty || update.isPending) return;
     try {
       await update.mutateAsync({
         bio: form.bio.trim() || null,
@@ -2067,17 +2089,12 @@ function AboutTab({ profile }: { profile: ProfileDto }) {
         />
       </SectionCard>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => void onSave()}
-          disabled={!isDirty || update.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-        >
-          {update.isPending && <LoadingSpinner size="sm" />}
-          <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-        </button>
-      </div>
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void onSave()}
+        onDiscard={() => setForm(initial)}
+        saving={update.isPending}
+      />
     </div>
   );
 }

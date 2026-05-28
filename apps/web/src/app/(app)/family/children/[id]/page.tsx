@@ -47,6 +47,7 @@ import { PhoneInput } from '@/components/ui/PhoneInput';
 import { formatPhone } from '@/lib/phone-format';
 import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import { CountryField, formatAddressOneLine } from '@/components/ui/CountryField';
+import { StickySaveBar } from '@/components/ui/StickySaveBar';
 import type {
   PersonEmailDto,
   PersonEmailType,
@@ -720,7 +721,10 @@ function ContactTab({ child }: { child: FamilyChildDto }) {
   const isManaged = child.accessLevel === 'MANAGED';
 
   return (
-    <div className="flex flex-col gap-5">
+    // pb-24 reserves clearance so the viewport-fixed StickySaveBar
+    // (rendered from the address form below) never covers the last
+    // interactive element of the Emergency Contacts section.
+    <div className="flex flex-col gap-5 pb-24">
       {/* Guardians first — when a school opens a child's contact tab,
           the first thing they need is how to reach the parents. */}
       <GuardianContactsPanel />
@@ -1347,9 +1351,8 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
     return missing;
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!isDirty) return;
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     const missing = validate();
     if (missing.size > 0) {
       setErrors(missing);
@@ -1380,6 +1383,16 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
+  }
+
+  function onDiscard() {
+    setForm(initial);
+    setErrors(new Set());
   }
 
   return (
@@ -1578,19 +1591,19 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
           </div>
         )}
 
-        {editable && (
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={!isDirty || update.isPending}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-            >
-              {update.isPending && <LoadingSpinner size="sm" />}
-              <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-            </button>
-          </div>
-        )}
       </SectionCard>
+
+      {/* Hidden submit keeps Enter-to-save working inside the form;
+          the visible control is the viewport-fixed StickySaveBar. */}
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+      {editable && (
+        <StickySaveBar
+          isDirty={isDirty}
+          onSave={() => void doSave()}
+          onDiscard={onDiscard}
+          saving={update.isPending}
+        />
+      )}
     </form>
   );
 }
