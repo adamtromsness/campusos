@@ -115,6 +115,11 @@ export interface UpdateFamilyChildPayload {
 
 export interface CreateChildAccountPayload {
   email?: string;
+  // DOB + gender are required server-side to provision the account
+  // (Account Creation spec, Step 2). DOB may already be on the
+  // placeholder row; gender is collected at account creation.
+  dateOfBirth?: string;
+  gender?: string;
 }
 
 export interface SendChildLinkPayload {
@@ -893,6 +898,43 @@ export function usePeopleSearch(query: string, enabled = true, includeSelf = fal
       ),
     enabled: enabled && trimmed.length >= 2,
     staleTime: 30_000,
+  });
+}
+
+// ─── Duplicate detection (account-creation safety) ─────────
+
+export interface CheckDuplicatePayload {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+}
+
+export interface CheckDuplicateResult {
+  exists: boolean;
+  // Present only when exists. Given name + last initial ("Alivia T.").
+  displayName?: string;
+  // Coarse role label only ("Parent", "Student", …) — never PII.
+  context?: string;
+  // True when the matched account is already managed by the caller, so
+  // the UI may offer a direct link; otherwise a claim request is needed.
+  alreadyManagedByCurrentUser?: boolean;
+}
+
+/**
+ * POST /api/v1/people/check-duplicate — Account Creation spec, Step 3.
+ * A mutation (not a query) so the form can fire it imperatively on
+ * email-blur or after the name+DOB triple is complete. The server only
+ * returns a strong match (exact email OR name+DOB) and a minimal
+ * descriptor; partial-name probes never match.
+ */
+export function useCheckDuplicate() {
+  return useMutation({
+    mutationFn: (payload: CheckDuplicatePayload) =>
+      apiFetch<CheckDuplicateResult>('/api/v1/people/check-duplicate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
   });
 }
 
