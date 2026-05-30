@@ -533,3 +533,28 @@ pnpm --filter @campusos/api exec vitest run \
   test/integration/m00-platform/relationships.spec.ts \
   --config vitest.integration.config.ts                         # 23/23 pass
 ```
+
+#### Edit-permission bugfix — 2026-05-30 (persona-based gate)
+
+The edit gate keyed off `iam_person.person_type === 'GUARDIAN'`, but a
+self-registered parent (personas `Parent · Substitute`, person_type not
+`GUARDIAN`) got `canEdit:false` on their own profile and their children.
+
+- `canEditFamilyStructure` now keys off the caller's **derived personas**:
+  edit-eligible if any active persona ∈ `EDIT_ELIGIBLE_PERSONAS` (`PARENT`).
+  `Substitute`/`Student`/`Staff`-only never qualify. The controller fetches
+  personas via `PersonaResolutionService.getActivePersonas`; the
+  self-or-active-guardian condition is unchanged.
+- `isGuardianOf`'s household path now requires a **guardian-role** member
+  (`PARENT`/`GUARDIAN`/`HEAD_OF_HOUSEHOLD`/`SPOUSE`) so a co-resident
+  student can't edit a sibling's structure.
+- **Bootstrap:** no explicit relationship row is created on child
+  creation — the creating parent is already the family's
+  `HEAD_OF_HOUSEHOLD` over the LINKED child, which `isActiveGuardianOf`'s
+  household path recognises, so they can edit immediately. No backfill
+  needed for already-created children (their household membership
+  predates this fix). Considered creating a `LEGAL_GUARDIAN` row at
+  creation but rejected it: it FKs `iam_person` and would break the
+  `iam_person` teardown in several existing specs.
+- Tests: 8 reworked persona/bootstrap cases (still 23/23).
+
