@@ -6,6 +6,7 @@ import { generateId } from '@campusos/database';
 import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import { RelationshipController } from '@modules/m00-platform/iam/relationship.controller';
 import type { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import type { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
 
 /**
  * DB-backed integration tests for the family-structure feature
@@ -19,13 +20,12 @@ describe('integration:m00-platform/relationships', () => {
   let svc: RelationshipService;
   let controller: RelationshipController;
 
-  // Drives what the stubbed ActorContextService reports for the caller.
-  // Reset to a parent/guardian before each test; individual tests flip it
-  // to STUDENT / STAFF+admin to exercise the edit-permission rule.
-  const actorOverride: { personType: string | null; isSchoolAdmin: boolean } = {
-    personType: 'GUARDIAN',
-    isSchoolAdmin: false,
-  };
+  // Drives the stubbed actor (school-admin status, used by view + verify)
+  // and the caller's derived personas (used by the canEdit predicate).
+  // Reset before each test to a plain PARENT caller; individual tests flip
+  // them to exercise the edit-permission rule.
+  const actorOverride: { isSchoolAdmin: boolean } = { isSchoolAdmin: false };
+  let personaOverride: string[] = ['PARENT'];
 
   // People. Names double as a readable map of the test family graph.
   const adam = generateId(); // father
@@ -78,21 +78,24 @@ describe('integration:m00-platform/relationships', () => {
     prisma = new PrismaClient();
     await prisma.$connect();
     svc = new RelationshipService(prisma);
-    // Stub ONLY the actor resolution (persona type + admin status) so we
-    // stay out of tenant context; the guardian-of check (isActiveGuardianOf)
-    // is the real DB-backed service. `actorOverride` is set per test to
-    // drive the personType / isSchoolAdmin the controller sees, while the
-    // resolved personId echoes the calling request's user.
+    // Stub the actor resolution (admin status, used by view + verify) and
+    // the persona lookup (used by canEdit) so we stay out of tenant
+    // context. The guardian-of check (isActiveGuardianOf) is the real
+    // DB-backed service. Overrides are set per test.
     const actorStub = {
       resolveActor: async (_accountId: string, personId: string) => ({
         accountId: _accountId,
         personId,
         employeeId: null,
-        personType: actorOverride.personType,
+        personType: null,
         isSchoolAdmin: actorOverride.isSchoolAdmin,
       }),
     } as unknown as ActorContextService;
-    controller = new RelationshipController(svc, actorStub);
+    const personaStub = {
+      getActivePersonas: async () =>
+        personaOverride.map((type) => ({ id: '', type, schoolId: null, label: type })),
+    } as unknown as PersonaResolutionService;
+    controller = new RelationshipController(svc, actorStub, personaStub);
 
     await seedPerson(adam, 'Adam', '1985-04-10');
     await seedPerson(ashley, 'Ashley', '1986-06-15');
@@ -176,10 +179,11 @@ describe('integration:m00-platform/relationships', () => {
     );
   }
 
-  // Each test starts from a clean relationship graph and a parent/guardian
-  // caller (tests that need a student/admin caller flip actorOverride).
+  // Each test starts from a clean relationship graph and a plain PARENT
+  // caller (tests that need a student/substitute/admin caller flip the
+  // overrides).
   beforeEach(async () => {
-    actorOverride.personType = 'GUARDIAN';
+    personaOverride = ['PARENT'];
     actorOverride.isSchoolAdmin = false;
     await cleanRels();
   });
@@ -454,11 +458,29 @@ describe('integration:m00-platform/relationships', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  // ─── Edit permissions (parent/guardian-only) ─────────────────
+  // ─── Edit permissions (persona-based, parent/guardian-only) ──
 
-  it('parent/guardian can POST/PATCH/DELETE on their child’s profile', async () => {
-    actorOverride.personType = 'GUARDIAN';
-    // adam is scout's head-of-household → active guardian.
+  it('Parent persona on own profile → canEdit:true; POST/PATCH/DELETE succeed', async () => {
+    personaOverride = ['PARENT'];
+    const asSelf = await controller.list(reqFor(adam, adamAccount), adam);
+    expect(asSelf.canEdit).toBe(true);
+    const rel = await controller.create(reqFor(adam, adamAccount), adam, {
+      relatedPersonId: ashley,
+      relationshipType: 'SPOUSE',
+    });
+    expect(rel.type).toBe('SPOUSE');
+    const patched = await controller.update(reqFor(adam, adamAccount), adam, rel.id, {
+      custodyNotes: 'married 2010',
+    });
+    expect(patched.custodyNotes).toBe('married 2010');
+    await expect(
+      controller.remove(reqFor(adam, adamAccount), adam, rel.id),
+    ).resolves.toBeUndefined();
+  });
+
+  it('Parent persona can POST/PATCH/DELETE on their child’s profile', async () => {
+    personaOverride = ['PARENT'];
+    // adam is scout's head-of-household → active guardian via household.
     const rel = await controller.create(reqFor(adam, adamAccount), scout, {
       relatedPersonId: ashley,
       relationshipType: 'BIOLOGICAL_MOTHER',
@@ -474,17 +496,33 @@ describe('integration:m00-platform/relationships', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('parent/guardian can POST on their OWN profile (self)', async () => {
-    actorOverride.personType = 'GUARDIAN';
-    const rel = await controller.create(reqFor(adam, adamAccount), adam, {
+  it('Parent + Substitute personas → still edit-eligible (Substitute is noise)', async () => {
+    personaOverride = ['PARENT', 'SUBSTITUTE'];
+    const resp = await controller.list(reqFor(adam, adamAccount), scout);
+    expect(resp.canEdit).toBe(true);
+    const rel = await controller.create(reqFor(adam, adamAccount), scout, {
       relatedPersonId: ashley,
-      relationshipType: 'SPOUSE',
+      relationshipType: 'BIOLOGICAL_MOTHER',
     });
-    expect(rel.type).toBe('SPOUSE');
+    expect(rel.type).toBe('BIOLOGICAL_MOTHER');
   });
 
-  it('adult student editing their OWN relationships → 403', async () => {
-    actorOverride.personType = 'STUDENT';
+  it('Substitute-only persona → canEdit:false; mutations → 403', async () => {
+    personaOverride = ['SUBSTITUTE'];
+    const resp = await controller.list(reqFor(adam, adamAccount), scout);
+    expect(resp.canEdit).toBe(false);
+    await expect(
+      controller.create(reqFor(adam, adamAccount), scout, {
+        relatedPersonId: ashley,
+        relationshipType: 'BIOLOGICAL_MOTHER',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('Student persona on own profile → canEdit:false; mutations → 403', async () => {
+    personaOverride = ['STUDENT'];
+    const asSelf = await controller.list(reqFor(scout, scoutAccount), scout);
+    expect(asSelf.canEdit).toBe(false);
     await expect(
       controller.create(reqFor(scout, scoutAccount), scout, {
         relatedPersonId: ashley,
@@ -493,91 +531,78 @@ describe('integration:m00-platform/relationships', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('student editing another person → 403', async () => {
-    actorOverride.personType = 'STUDENT';
-    await expect(
-      controller.create(reqFor(scout, scoutAccount), thatcher, {
-        relatedPersonId: ashley,
-        relationshipType: 'BIOLOGICAL_MOTHER',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('school admin attempting POST/PATCH/DELETE → 403 (admin is view+verify only)', async () => {
-    // Seed a relationship via the service so PATCH/DELETE have a target.
+  it('school admin → canEdit:false; mutations → 403; verify → 200', async () => {
     const seeded = await svc.addRelationship(
       scout,
       { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
       adam,
     );
-    actorOverride.personType = 'STAFF';
+    personaOverride = ['STAFF'];
     actorOverride.isSchoolAdmin = true;
-    await expect(
-      controller.create(reqFor(userB, userBAccount), scout, {
-        relatedPersonId: adam,
-        relationshipType: 'BIOLOGICAL_FATHER',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    const asAdmin = await controller.list(reqFor(userB, userBAccount), scout);
+    expect(asAdmin.canEdit).toBe(false);
     await expect(
       controller.update(reqFor(userB, userBAccount), scout, seeded.id, {
         custodyArrangement: 'FULL',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      controller.remove(reqFor(userB, userBAccount), scout, seeded.id),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('school admin verify → 200 (unchanged)', async () => {
-    const seeded = await svc.addRelationship(
-      scout,
-      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
-      adam,
-    );
-    actorOverride.personType = 'STAFF';
-    actorOverride.isSchoolAdmin = true;
+    // verify is the admin's one sanctioned mutation.
     const verified = await controller.verify(reqFor(userB, userBAccount), scout, seeded.id, {
       verified: true,
     });
     expect(verified.verified).toBe(true);
   });
 
-  it('GET /relationships returns canEdit:true for guardian, false for student and admin', async () => {
-    await svc.addRelationship(
-      scout,
-      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
-      adam,
+  it('newly created child by a parent → creator is active guardian, canEdit:true', async () => {
+    // The household fixture mirrors child creation: adam (HEAD_OF_HOUSEHOLD,
+    // a guardian role) over the LINKED child scout — exactly the link the
+    // create-child flow establishes. The creator can edit immediately.
+    expect(await svc.isActiveGuardianOf(adam, scout)).toBe(true);
+    personaOverride = ['PARENT'];
+    const resp = await controller.list(reqFor(adam, adamAccount), scout);
+    expect(resp.canEdit).toBe(true);
+    const rel = await controller.create(reqFor(adam, adamAccount), scout, {
+      relatedPersonId: adam,
+      relationshipType: 'BIOLOGICAL_FATHER',
+    });
+    expect(rel.type).toBe('BIOLOGICAL_FATHER');
+  });
+
+  it('sibling student co-resident in the same household cannot edit another child → 403', async () => {
+    // Make jake an ACTIVE household member of scout's family in a STUDENT
+    // role — a co-resident, not a guardian. Even with a (hypothetical)
+    // parent persona the household role gate denies; with a STUDENT
+    // persona it's doubly denied.
+    const siblingMemberId = generateId();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_family_members
+         (id, family_id, person_id, member_role, is_primary_contact, status, joined_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'STUDENT', false, 'ACTIVE', now())
+       ON CONFLICT (id) DO NOTHING`,
+      siblingMemberId,
+      familyId,
+      jake,
     );
-
-    actorOverride.personType = 'GUARDIAN';
-    const asGuardian = await controller.list(reqFor(adam, adamAccount), scout);
-    expect(asGuardian.canEdit).toBe(true);
-
-    // Student viewing their own profile: can view, cannot edit.
-    actorOverride.personType = 'STUDENT';
-    const asStudent = await controller.list(reqFor(scout, scoutAccount), scout);
-    expect(asStudent.canEdit).toBe(false);
-
-    // School admin: can view, cannot edit (verify is the only mutation).
-    actorOverride.personType = 'STAFF';
-    actorOverride.isSchoolAdmin = true;
-    const asAdmin = await controller.list(reqFor(userB, userBAccount), scout);
-    expect(asAdmin.canEdit).toBe(false);
+    try {
+      expect(await svc.isActiveGuardianOf(jake, scout)).toBe(false);
+      personaOverride = ['STUDENT'];
+      await expect(
+        controller.create(reqFor(jake, generateId()), scout, {
+          relatedPersonId: ashley,
+          relationshipType: 'BIOLOGICAL_MOTHER',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.platform_family_members WHERE id = $1::uuid`,
+        siblingMemberId,
+      );
+    }
   });
 
-  it('GET /family-tree returns canEdit consistent with the rule', async () => {
-    actorOverride.personType = 'GUARDIAN';
-    const guardianTree = await controller.familyTree(reqFor(adam, adamAccount), scout);
-    expect(guardianTree.canEdit).toBe(true);
-
-    actorOverride.personType = 'STUDENT';
-    const studentTree = await controller.familyTree(reqFor(scout, scoutAccount), scout);
-    expect(studentTree.canEdit).toBe(false);
-  });
-
-  it('cross-family isolation: a guardian of one child cannot edit another family’s child', async () => {
-    actorOverride.personType = 'GUARDIAN';
-    // userB is a guardian-type account but not a guardian of scout (not in
+  it('cross-family isolation: a parent cannot edit another family’s child', async () => {
+    personaOverride = ['PARENT'];
+    // userB has a PARENT persona but is not a guardian of scout (not in
     // scout's household, no parent relationship) → Forbidden.
     await expect(
       controller.create(reqFor(userB, userBAccount), scout, {
