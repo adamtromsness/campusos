@@ -376,9 +376,7 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
         saving={update.isPending}
       />
     </SectionCard>
-      {myPersonId && (
-        <FamilyStructureSection personId={myPersonId} canManage variant="self" />
-      )}
+      {myPersonId && <FamilyStructureSection personId={myPersonId} variant="self" />}
     </div>
   );
 }

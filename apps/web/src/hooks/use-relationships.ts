@@ -66,6 +66,9 @@ export interface DerivedSibling {
 export interface RelationshipsResponse {
   relationships: Relationship[];
   derivedSiblings: DerivedSibling[];
+  // Server-computed rendering hint: true when the current user may
+  // add/edit/remove this person's relationships (parent/guardian only).
+  canEdit: boolean;
 }
 
 export interface FamilyTree {
@@ -77,6 +80,7 @@ export interface FamilyTree {
   spouses: Relationship[];
   other: Relationship[];
   siblings: DerivedSibling[];
+  canEdit: boolean;
 }
 
 export interface CreateRelationshipPayload {

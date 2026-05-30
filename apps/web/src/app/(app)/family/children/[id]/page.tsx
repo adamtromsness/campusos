@@ -282,13 +282,10 @@ function AccountTab({ child, onSendLink }: { child: FamilyChildDto; onSendLink: 
       {readOnly ? <AccountReadOnly child={child} /> : <AccountEditForm child={child} />}
       {child.status !== 'LINKED' && <LifecycleActions child={child} onSendLink={onSendLink} />}
       {/* Family structure needs a canonical iam_person — LINKED only.
-          Managed children can be edited; INDEPENDENT is read-only. */}
+          Edit permission (parent/guardian-only) is decided server-side
+          and returned as canEdit on the relationships response. */}
       {child.status === 'LINKED' && child.personId && (
-        <FamilyStructureSection
-          personId={child.personId}
-          canManage={child.accessLevel === 'MANAGED'}
-          variant="child"
-        />
+        <FamilyStructureSection personId={child.personId} variant="child" />
       )}
       <EnrolmentBlock child={child} />
     </div>
