@@ -1222,13 +1222,16 @@ export class FamilyChildrenService {
     }
 
     // For LINKED children, the iam_person row is the canonical source
-    // of name + DOB. Mirror those fields onto platform_family_children
-    // so the existing /family/children GET (which reads from the
-    // mirror) stays consistent without a join. middle_name +
-    // preferred_name + primary_phone + notes only exist on iam_person,
-    // so they're skipped silently for PLACEHOLDER children. gender
-    // lives on family_children for everyone — there's no
-    // iam_person.gender column.
+    // of name + DOB + gender. Mirror those fields onto
+    // platform_family_children so the existing /family/children GET
+    // (which reads from the mirror) stays consistent without a join.
+    // gender is ALSO written to iam_person below (see personPatch) so
+    // the child's own /profile page — which reads iam_person.gender —
+    // matches the parent's family view. Without that mirror the parent
+    // would see the value they set while the child saw "Not Specified".
+    // middle_name + preferred_name + primary_phone + notes only exist
+    // on iam_person, so they're skipped silently for PLACEHOLDER
+    // children (no person_id yet) but still persist on family_children.
     const childSet: string[] = [];
     const childArgs: unknown[] = [];
     let ci = 1;
@@ -1295,6 +1298,7 @@ export class FamilyChildrenService {
       if (dto.middleName !== undefined) personPatch.middleName = dto.middleName;
       if (dto.lastName !== undefined) personPatch.lastName = dto.lastName;
       if (dto.preferredName !== undefined) personPatch.preferredName = dto.preferredName;
+      if (dto.gender !== undefined) personPatch.gender = dto.gender;
       if (dto.primaryPhone !== undefined) personPatch.primaryPhone = dto.primaryPhone;
       if (dto.notes !== undefined) personPatch.notes = dto.notes;
       if (dto.dateOfBirth !== undefined) {

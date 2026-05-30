@@ -350,13 +350,18 @@ describe('integration:m00-platform/family-children', () => {
     const linked = await controller.createAccount(reqA(), c.id, {});
     expect(linked.accessLevel).toBe('MANAGED');
 
-    const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie' });
+    const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie', gender: 'F' });
     expect(updated.firstName).toBe('Sophie');
+    expect(updated.gender).toBe('F');
+    // gender must land on iam_person too — that's what the child's own
+    // /profile page reads. A family-mirror-only write left the parent
+    // seeing "Female" while the child saw "Not Specified".
     const person = await prisma.iamPerson.findUnique({
       where: { id: linked.personId! },
-      select: { firstName: true },
+      select: { firstName: true, gender: true },
     });
     expect(person?.firstName).toBe('Sophie');
+    expect(person?.gender).toBe('F');
   });
 
   it('patch INDEPENDENT LINKED child → 403', async () => {
@@ -1277,7 +1282,13 @@ describe('integration:m00-platform/family-children', () => {
       expect(initialMedical.allergies).toEqual([]);
       expect(initialMedical.doctorName).toBeNull();
 
+      // medicalSource: 'CUSTOM' is required to override the per-child
+      // doctor/insurance — in 'FAMILY' mode (the default) those fields
+      // inherit from platform_families and the read path shadows the
+      // per-child columns. This mirrors the web client, which flips to
+      // CUSTOM before sending any doctor/insurance override.
       const updatedMedical = await controller.updateMedical(reqA(), childId, {
+        medicalSource: 'CUSTOM',
         allergies: [{ name: 'Peanuts', severity: 'SEVERE', type: 'FOOD' }],
         doctorName: 'Dr. Sarah Johnson',
         doctorPhone: '+1-316-555-0100',

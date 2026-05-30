@@ -364,3 +364,57 @@ pnpm --filter @campusos/api exec vitest run \
   test/integration/m00-platform/auth-me-personas.spec.ts \
   --config vitest.integration.config.ts                               # 9/9 pass
 ```
+
+## Manual-QA follow-up — 2026-05-30 (linked-child gender sync)
+
+**Bug: parent's family view and the child's own profile disagreed on
+gender.** A parent editing a LINKED child via PATCH
+`/family/children/:id` wrote `gender` to `platform_family_children`
+(the family-view mirror) but not to `iam_person`. The child's own
+`/profile` page reads `iam_person.gender`, so the parent saw e.g.
+"Female" while the child saw "Not Specified".
+
+Root cause was a stale assumption in
+`FamilyChildrenService.update` (`m00-platform/households/family-children.service.ts`):
+a comment claimed "there's no `iam_person.gender` column" and the
+`personPatch` object (the LINKED-child iam_person write) omitted
+`gender`. In fact `iam_person.gender` was added by migration
+`20260525200000_iam_person_gender` and is the canonical value
+`/profile/me` reads.
+
+Fix:
+
+1. `personPatch` now includes `gender` for LINKED children, so the
+   PATCH writes gender to **both** `platform_family_children` (mirror,
+   unchanged) and `iam_person` (canonical) inside the existing
+   transaction. Stale comment corrected.
+2. One-time backfill migration
+   `20260530000000_sync_linked_child_gender_to_iam_person` copies the
+   family-mirror gender into `iam_person` for any LINKED child whose
+   `iam_person.gender` is NULL or stale. Idempotent — the family
+   mirror wins because it holds the parent's most-recent entry.
+3. The existing "patch MANAGED LINKED child" integration spec now
+   asserts gender lands on `iam_person` as well as the DTO.
+
+**Folded-in test fix (unrelated stale test).** The
+`family-children.spec.ts` "medical / emergency / dietary upsert
+round-trip" test was failing on `main` independently of the gender
+work. It set a per-child `doctorName` and expected to read it back, but
+never set `medicalSource: 'CUSTOM'`. The FAMILY/CUSTOM medical
+inheritance toggle (commit `ad90251`, shipped 41 min after the test in
+`a2707d6`) made `getChildMedical` shadow the per-child doctor/insurance
+columns with the family-level values whenever `medicalSource = 'FAMILY'`
+(the default). The web client always flips to CUSTOM before sending any
+doctor override (`saveDoctor`/`flipSource` in the child page), so
+production is correct — the test simply never modelled the override
+flow. Fixed by adding `medicalSource: 'CUSTOM'` to the test payload.
+
+Verification:
+
+```
+pnpm --filter @campusos/api exec tsc --noEmit                         # ✓ 0 errors
+pnpm --filter @campusos/database migrate:deploy                       # ✓ backfill applied
+pnpm --filter @campusos/api exec vitest run \
+  test/integration/m00-platform/family-children.spec.ts \
+  --config vitest.integration.config.ts                               # 54/54 pass
+```
