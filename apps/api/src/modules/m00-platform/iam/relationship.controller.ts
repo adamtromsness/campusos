@@ -15,6 +15,7 @@ import type { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ActorContextService } from './actor-context.service';
 import { RelationshipService } from './relationship.service';
+import { canEditFamilyStructure } from './relationship.auth';
 import {
   CreateRelationshipDto,
   FamilyTreeDto,
@@ -28,22 +29,22 @@ interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
 }
 
-// Age (whole years) at or above which a person may edit their OWN
-// relationships. Below this, only a parent/guardian or school admin can.
-const SELF_EDIT_MIN_AGE = 18;
-
 /**
- * Family-structure relationships (Step 3). Auth-only at the guard level;
- * the per-row authorisation (self / parent-guardian / school-admin)
- * is enforced in each handler because the rules depend on the
- * caller's relationship to :personId, not a static permission code.
+ * Family-structure relationships. Auth-only at the guard level; the
+ * per-row authorisation is enforced in each handler because the rules
+ * depend on the caller's relationship to :personId, not a static
+ * permission code.
  *
- * Access model (design §9):
- *   - GET     : self, parent/guardian, or school admin
- *   - POST    : parent/guardian, or self if an adult
- *   - PATCH   : parent/guardian, self (if adult), or school admin
- *   - DELETE  : parent/guardian, or self if an adult
+ * Access model (Family Structure on Profiles spec §1):
+ *   - GET     : self, parent/guardian, or school admin (canViewFamilyStructure)
+ *   - POST    : parent/guardian only (canEditFamilyStructure)
+ *   - PATCH   : parent/guardian only (canEditFamilyStructure)
+ *   - DELETE  : parent/guardian only (canEditFamilyStructure)
  *   - verify  : school admin only
+ *
+ * GET responses carry a `canEdit` flag (same predicate) so the UI never
+ * re-implements the rule. The flag is a rendering hint; every mutation
+ * re-checks server-side.
  */
 @ApiTags('Family Structure')
 @ApiBearerAuth()
@@ -62,7 +63,8 @@ export class RelationshipController {
     @Param('personId') personId: string,
   ): Promise<GetRelationshipsResponseDto> {
     await this.assertCanView(req, personId);
-    return this.relationships.getRelationships(personId);
+    const resp = await this.relationships.getRelationships(personId);
+    return { ...resp, canEdit: await this.computeCanEdit(req, personId) };
   }
 
   @Post(':personId/relationships')
@@ -72,7 +74,7 @@ export class RelationshipController {
     @Param('personId') personId: string,
     @Body() dto: CreateRelationshipDto,
   ): Promise<RelationshipDto> {
-    await this.assertCanManage(req, personId);
+    await this.assertCanEdit(req, personId);
     return this.relationships.addRelationship(personId, dto, req.user!.personId);
   }
 
@@ -84,7 +86,7 @@ export class RelationshipController {
     @Param('id') id: string,
     @Body() dto: UpdateRelationshipDto,
   ): Promise<RelationshipDto> {
-    await this.assertCanManage(req, personId, { allowSchoolAdmin: true });
+    await this.assertCanEdit(req, personId);
     return this.relationships.updateRelationship(personId, id, dto);
   }
 
@@ -96,7 +98,7 @@ export class RelationshipController {
     @Param('personId') personId: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.assertCanManage(req, personId);
+    await this.assertCanEdit(req, personId);
     await this.relationships.deleteRelationship(personId, id);
   }
 
@@ -107,7 +109,8 @@ export class RelationshipController {
     @Param('personId') personId: string,
   ): Promise<FamilyTreeDto> {
     await this.assertCanView(req, personId);
-    return this.relationships.getFamilyTree(personId);
+    const tree = await this.relationships.getFamilyTree(personId);
+    return { ...tree, canEdit: await this.computeCanEdit(req, personId) };
   }
 
   @Patch(':personId/relationships/:id/verify')
@@ -129,48 +132,34 @@ export class RelationshipController {
 
   // ─── Authorisation helpers ────────────────────────────────────
 
+  /** Self, an active guardian of the person, or a school admin. */
   private async assertCanView(req: AuthedRequest, personId: string): Promise<void> {
     const caller = req.user!.personId;
     if (caller === personId) return;
-    if (await this.relationships.isGuardianOf(caller, personId)) return;
+    if (await this.relationships.isActiveGuardianOf(caller, personId)) return;
     const actor = await this.actors.resolveActor(req.user!.sub, caller);
     if (actor.isSchoolAdmin) return;
     throw new ForbiddenException('You are not authorised to view this person’s family structure.');
   }
 
-  private async assertCanManage(
-    req: AuthedRequest,
-    personId: string,
-    opts: { allowSchoolAdmin?: boolean } = {},
-  ): Promise<void> {
-    const caller = req.user!.personId;
-    if (await this.relationships.isGuardianOf(caller, personId)) return;
-    if (caller === personId && (await this.isAdult(personId))) return;
-    if (opts.allowSchoolAdmin) {
-      const actor = await this.actors.resolveActor(req.user!.sub, caller);
-      if (actor.isSchoolAdmin) return;
+  /** Parent/guardian-only edit — the canEditFamilyStructure predicate. */
+  private async assertCanEdit(req: AuthedRequest, personId: string): Promise<void> {
+    if (!(await this.computeCanEdit(req, personId))) {
+      throw new ForbiddenException(
+        'Only a parent or guardian can edit this person’s family structure.',
+      );
     }
-    throw new ForbiddenException(
-      'You are not authorised to manage this person’s family structure.',
-    );
   }
 
   /**
-   * A caller may edit their OWN relationships only if they're an adult.
-   * Unknown DOB is treated as adult — adults (guardians/staff) frequently
-   * have no DOB on file, whereas enrolled students are seeded with one.
+   * Resolve the caller's edit permission for `personId` via the shared
+   * canEditFamilyStructure predicate. Used both to gate mutations and to
+   * stamp the `canEdit` flag on GET responses, so the two never drift.
    */
-  private async isAdult(personId: string): Promise<boolean> {
-    const person = await this.prisma.iamPerson.findUnique({
-      where: { id: personId },
-      select: { dateOfBirth: true },
-    });
-    const dob = person?.dateOfBirth;
-    if (!dob) return true;
-    const now = new Date();
-    let age = now.getUTCFullYear() - dob.getUTCFullYear();
-    const m = now.getUTCMonth() - dob.getUTCMonth();
-    if (m < 0 || (m === 0 && now.getUTCDate() < dob.getUTCDate())) age--;
-    return age >= SELF_EDIT_MIN_AGE;
+  private async computeCanEdit(req: AuthedRequest, personId: string): Promise<boolean> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return canEditFamilyStructure(actor, personId, (caller, target) =>
+      this.relationships.isActiveGuardianOf(caller, target),
+    );
   }
 }

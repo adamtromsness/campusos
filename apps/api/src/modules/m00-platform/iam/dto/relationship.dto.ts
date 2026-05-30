@@ -160,6 +160,10 @@ export class DerivedSiblingDto {
 export class GetRelationshipsResponseDto {
   @ApiProperty({ type: [RelationshipDto] }) relationships!: RelationshipDto[];
   @ApiProperty({ type: [DerivedSiblingDto] }) derivedSiblings!: DerivedSiblingDto[];
+  // Rendering hint for the UI (parent/guardian-only edit). The server
+  // still enforces the same rule on every mutation — this is not the
+  // security boundary. Computed + set by the controller, not the service.
+  @ApiProperty() canEdit?: boolean;
 }
 
 export class FamilyTreeNodeDto {
@@ -175,4 +179,6 @@ export class FamilyTreeDto {
   @ApiProperty({ type: [RelationshipDto] }) spouses!: RelationshipDto[];
   @ApiProperty({ type: [RelationshipDto] }) other!: RelationshipDto[];
   @ApiProperty({ type: [DerivedSiblingDto] }) siblings!: DerivedSiblingDto[];
+  // Rendering hint (parent/guardian-only edit); server-enforced on writes.
+  @ApiProperty() canEdit?: boolean;
 }
