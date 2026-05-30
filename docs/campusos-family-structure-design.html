@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Family Structure &amp; Person Relationships Design</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.container{max-width:960px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);margin:36px 0 10px;padding-top:16px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:12px}
+h3{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+h4{font-size:13px;font-weight:600;color:var(--text);margin:12px 0 4px}
+p,li{font-size:13px;line-height:1.8}
+.sub{font-size:15px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+th{background:#d5e8f0;padding:6px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:5px 10px;border:1px solid #ddd;vertical-align:top}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11px}
+pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto;font-size:11px;line-height:1.6;margin:10px 0}
+ol,ul{padding-left:20px;margin:8px 0}
+.box{border-radius:10px;padding:16px 20px;margin:14px 0;border-left:5px solid}
+.box-blue{background:var(--blue-bg);border-color:var(--blue)}
+.box-green{background:var(--green-bg);border-color:var(--green)}
+.box-amber{background:var(--amber-bg);border-color:var(--amber)}
+.box-red{background:var(--red-bg);border-color:var(--red)}
+.box-purple{background:var(--purple-bg);border-color:var(--purple)}
+.decision{background:#f0f4ff;border:2px solid #4a6fa5;border-radius:10px;padding:14px 18px;margin:14px 0}
+.decision h4{color:#4a6fa5;margin-top:0}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;margin-right:4px}
+.tag-api{background:#e0e7ff;color:#3730a3}
+.tag-web{background:#fce7f3;color:#9d174d}
+.tag-db{background:#d1fae5;color:#065f46}
+.tree{font-family:'DM Sans',monospace;font-size:13px;line-height:1.6;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin:14px 0;white-space:pre}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">CampusOS</span><span class="sep">|</span><a href="#">Design Hub</a><span class="sep">|</span><span style="color:#ffd700;font-size:13px;font-weight:600">FAMILY STRUCTURE DESIGN</span></div>
+<div class="container">
+<h1>Family Structure &amp; Person Relationships</h1>
+<p class="sub">Representing biological, legal, and step-family relationships between people — separate from the household/account management model. Enables custody-aware school operations, derived sibling detection, and family tree visualization.</p>
+
+<div class="box box-blue">
+<h4 style="margin-top:0">Two Separate Concepts</h4>
+<p><strong>Household</strong> (existing): who lives together, manages accounts, picks up children. Modeled by <code>platform_families</code> + <code>platform_family_members</code> + <code>platform_family_children</code>. A child of divorced parents belongs to <strong>two households</strong>.</p>
+<p><strong>Family Structure</strong> (new): who is biologically or legally related to whom. Modeled by <code>platform_person_relationships</code>. A child has exactly <strong>one set of biological parents</strong> regardless of how many households they belong to. Step-parents, half-siblings, and custody arrangements live here.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>1. Relationship Types</h2>
+
+<table>
+<tr><th>Relationship Type</th><th>Direction</th><th>Example</th><th>Auto-reciprocal</th></tr>
+<tr><td><code>BIOLOGICAL_MOTHER</code></td><td>child → mother</td><td>Alivia's biological mother is Ashley</td><td>Yes → BIOLOGICAL_CHILD</td></tr>
+<tr><td><code>BIOLOGICAL_FATHER</code></td><td>child → father</td><td>Alivia's biological father is Adam</td><td>Yes → BIOLOGICAL_CHILD</td></tr>
+<tr><td><code>BIOLOGICAL_CHILD</code></td><td>parent → child</td><td>Ashley's biological child is Alivia</td><td>Auto-created reciprocal</td></tr>
+<tr><td><code>ADOPTIVE_MOTHER</code></td><td>child → mother</td><td>Jake's adoptive mother is Sarah</td><td>Yes → ADOPTIVE_CHILD</td></tr>
+<tr><td><code>ADOPTIVE_FATHER</code></td><td>child → father</td><td>Jake's adoptive father is Adam</td><td>Yes → ADOPTIVE_CHILD</td></tr>
+<tr><td><code>ADOPTIVE_CHILD</code></td><td>parent → child</td><td>Auto-created reciprocal</td><td>Auto-created reciprocal</td></tr>
+<tr><td><code>STEP_MOTHER</code></td><td>child → step-mother</td><td>Alivia's step-mother is Sarah</td><td>Yes → STEP_CHILD</td></tr>
+<tr><td><code>STEP_FATHER</code></td><td>child → step-father</td><td>Jake's step-father is Adam</td><td>Yes → STEP_CHILD</td></tr>
+<tr><td><code>STEP_CHILD</code></td><td>step-parent → child</td><td>Auto-created reciprocal</td><td>Auto-created reciprocal</td></tr>
+<tr><td><code>LEGAL_GUARDIAN</code></td><td>child → guardian</td><td>Child's legal guardian is grandparent</td><td>Yes → LEGAL_WARD</td></tr>
+<tr><td><code>LEGAL_WARD</code></td><td>guardian → child</td><td>Auto-created reciprocal</td><td>Auto-created reciprocal</td></tr>
+<tr><td><code>SPOUSE</code></td><td>person ↔ person</td><td>Adam and Ashley are spouses</td><td>Yes → SPOUSE</td></tr>
+<tr><td><code>DOMESTIC_PARTNER</code></td><td>person ↔ person</td><td>Equivalent to spouse for benefits/custody</td><td>Yes → DOMESTIC_PARTNER</td></tr>
+<tr><td><code>GRANDPARENT</code></td><td>child → grandparent</td><td>Alivia's grandparent is Debbie</td><td>Yes → GRANDCHILD</td></tr>
+<tr><td><code>GRANDCHILD</code></td><td>grandparent → child</td><td>Auto-created reciprocal</td><td>Auto-created reciprocal</td></tr>
+</table>
+
+<div class="decision">
+<h4>DECISION — Auto-reciprocal relationships</h4>
+<p>When a user creates a relationship "Alivia → BIOLOGICAL_MOTHER → Ashley", the system automatically creates the reciprocal "Ashley → BIOLOGICAL_CHILD → Alivia". This ensures the family tree is navigable from either direction. Deleting one side deletes both.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>2. Schema</h2>
+
+<h3>platform_person_relationships (new table)</h3>
+<pre>
+CREATE TABLE IF NOT EXISTS platform.platform_person_relationships (
+  id                  UUID PRIMARY KEY,
+  person_id           UUID NOT NULL REFERENCES platform.iam_person(id),
+  related_person_id   UUID NOT NULL REFERENCES platform.iam_person(id),
+  relationship_type   TEXT NOT NULL CHECK (relationship_type IN (
+    'BIOLOGICAL_MOTHER', 'BIOLOGICAL_FATHER', 'BIOLOGICAL_CHILD',
+    'ADOPTIVE_MOTHER', 'ADOPTIVE_FATHER', 'ADOPTIVE_CHILD',
+    'STEP_MOTHER', 'STEP_FATHER', 'STEP_CHILD',
+    'LEGAL_GUARDIAN', 'LEGAL_WARD',
+    'SPOUSE', 'DOMESTIC_PARTNER',
+    'GRANDPARENT', 'GRANDCHILD'
+  )),
+  is_legal_custody    BOOLEAN DEFAULT false,
+  custody_arrangement TEXT,         -- 'FULL', 'JOINT', 'WEEKDAYS', 'WEEKENDS', 'SUMMERS', 'SUPERVISED', 'NONE'
+  custody_notes       TEXT,         -- free text: "Every other weekend", "School year only"
+  is_primary_residence BOOLEAN DEFAULT false,  -- does the child primarily live with this person?
+  verified            BOOLEAN DEFAULT false,   -- school has verified documentation
+  verified_by         UUID REFERENCES platform.iam_person(id),
+  verified_at         TIMESTAMPTZ,
+  start_date          DATE,         -- when the relationship started (adoption date, marriage date)
+  end_date            DATE,         -- when it ended (divorce date) — NULL = current
+  created_by          UUID NOT NULL REFERENCES platform.iam_person(id),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ,
+  UNIQUE (person_id, related_person_id, relationship_type),
+  CHECK (person_id != related_person_id)
+);
+
+CREATE INDEX idx_person_relationships_person ON platform.platform_person_relationships(person_id);
+CREATE INDEX idx_person_relationships_related ON platform.platform_person_relationships(related_person_id);
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>3. Derived Relationships</h2>
+
+<p>The system computes these automatically from the stored relationships — they are never stored directly.</p>
+
+<h3>Sibling detection</h3>
+<table>
+<tr><th>Derived Type</th><th>Logic</th><th>Example</th></tr>
+<tr><td>Full sibling</td><td>Share BOTH biological mother AND biological father</td><td>Alivia and Thatcher have the same mother (Ashley) and father (Adam)</td></tr>
+<tr><td>Half-sibling (maternal)</td><td>Share biological mother but different biological father</td><td>Alivia (mother: Ashley, father: Adam) and Jake (mother: Ashley, father: Carlos)</td></tr>
+<tr><td>Half-sibling (paternal)</td><td>Share biological father but different biological mother</td><td>Alivia (father: Adam, mother: Ashley) and Emma (father: Adam, mother: Sarah)</td></tr>
+<tr><td>Step-sibling</td><td>No shared biological parents, but a parent's spouse/partner is the other child's biological parent</td><td>Alivia (parents: Adam + Ashley) and Jake (parents: Sarah + Carlos), where Adam married Sarah</td></tr>
+<tr><td>Adoptive sibling</td><td>Share an adoptive parent</td><td>Two children both adopted by Adam and Ashley</td></tr>
+</table>
+
+<h3>Derivation query (siblings)</h3>
+<pre>
+-- Find all siblings of a given person
+WITH person_parents AS (
+  -- Get this person's biological/adoptive parents
+  SELECT related_person_id AS parent_id, relationship_type
+  FROM platform.platform_person_relationships
+  WHERE person_id = $1
+    AND relationship_type IN ('BIOLOGICAL_MOTHER','BIOLOGICAL_FATHER',
+                               'ADOPTIVE_MOTHER','ADOPTIVE_FATHER')
+    AND end_date IS NULL
+),
+sibling_candidates AS (
+  -- Find other children of those parents
+  SELECT pr.person_id AS sibling_id,
+         pr.related_person_id AS shared_parent_id,
+         pr.relationship_type
+  FROM platform.platform_person_relationships pr
+  JOIN person_parents pp ON pr.related_person_id = pp.parent_id
+  WHERE pr.relationship_type IN ('BIOLOGICAL_CHILD','ADOPTIVE_CHILD')
+    AND pr.person_id != $1
+    AND pr.end_date IS NULL
+)
+SELECT sibling_id,
+       COUNT(DISTINCT shared_parent_id) AS shared_parent_count,
+       CASE
+         WHEN COUNT(DISTINCT shared_parent_id) = 2 THEN 'FULL_SIBLING'
+         WHEN COUNT(DISTINCT shared_parent_id) = 1 THEN 'HALF_SIBLING'
+       END AS sibling_type
+FROM sibling_candidates
+GROUP BY sibling_id;
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>4. Custody Model</h2>
+
+<div class="box box-amber">
+<h4 style="margin-top:0">Why custody matters for schools</h4>
+<p>Schools need to know: who can pick up this child? Who receives report cards? Who can authorize a field trip? Who should NOT be given access? Custody is not binary — it's a spectrum: full custody, joint custody, weekday/weekend splits, supervised-only, no contact. The <code>custody_arrangement</code> and <code>custody_notes</code> fields capture this nuance.</p>
+</div>
+
+<table>
+<tr><th>Custody Arrangement</th><th>Meaning</th><th>School impact</th></tr>
+<tr><td><code>FULL</code></td><td>This parent has sole legal and physical custody</td><td>Primary contact for everything. Other parent may have restricted or no access.</td></tr>
+<tr><td><code>JOINT</code></td><td>Both parents share legal and physical custody</td><td>Both parents receive communications. Both can authorize. Both can pick up.</td></tr>
+<tr><td><code>WEEKDAYS</code></td><td>This parent has custody on school days</td><td>Primary contact during the school week. Emergency contact Mon-Fri.</td></tr>
+<tr><td><code>WEEKENDS</code></td><td>This parent has custody on weekends/holidays</td><td>Contact for weekend events. May need separate mailing address.</td></tr>
+<tr><td><code>SUMMERS</code></td><td>This parent has custody during summer break</td><td>Summer program contact. Address may change seasonally.</td></tr>
+<tr><td><code>SUPERVISED</code></td><td>This parent has supervised visitation only</td><td>Cannot pick up alone. Cannot authorize without other parent's consent.</td></tr>
+<tr><td><code>NONE</code></td><td>No custody — may have visitation rights</td><td>Not authorized for pickup. Not a decision-maker. May still be listed as biological parent for records.</td></tr>
+</table>
+
+<div class="decision">
+<h4>DECISION — Custody does NOT control CampusOS household access</h4>
+<p>Custody arrangement is informational for schools. It does NOT automatically restrict a parent's access within CampusOS. If a parent is a guardian in a household, they have full access to that household's data. Custody-based access restrictions (e.g., "Father cannot see grades") are enforced at the school level through <code>sis_student_guardians.access_level</code>, not through the family structure. The family structure provides the information; the school decides what to do with it.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>5. UI — Adding Relationships</h2>
+
+<h3>On the child profile (parent's view)</h3>
+<p><span class="tag tag-web">WEB</span> Add a "Family Structure" section to the child profile, accessible from either the Account tab or as a new tab.</p>
+
+<p>Recommended: add to the Account tab below the account info section, since family structure is identity/relationship info, not contact or medical.</p>
+
+<h4>Layout — when empty</h4>
+<pre>
+┌──────────────────────────────────────────────────────────────┐
+│  Family Structure (optional)                                  │
+│  Biological and legal relationships. Helps schools understand │
+│  custody arrangements and family connections.                 │
+│                                                               │
+│  Mother: Not specified              [+ Set mother]            │
+│  Father: Not specified              [+ Set father]            │
+│                                                               │
+│  [+ Add other relationship]                                   │
+└──────────────────────────────────────────────────────────────┘
+</pre>
+
+<h4>Layout — when populated</h4>
+<pre>
+┌──────────────────────────────────────────────────────────────┐
+│  Family Structure                                             │
+│                                                               │
+│  Mother                                                       │
+│  Ashley Tromsness                                [Edit] [✕]  │
+│  Biological · Joint custody                                   │
+│  Primary residence: Yes                                       │
+│                                                               │
+│  Father                                                       │
+│  Adam Tromsness                                  [Edit] [✕]  │
+│  Biological · Joint custody                                   │
+│  "Alternating weeks"                                          │
+│                                                               │
+│  Step-mother                                                  │
+│  Sarah Johnson                                   [Edit] [✕]  │
+│  Since: Mar 2024                                              │
+│                                                               │
+│  Derived relationships (read-only):                           │
+│  ┌────────────────────────────────────────────┐               │
+│  │ Thatcher Tromsness — Full sibling           │               │
+│  │ Sailor Tromsness — Full sibling             │               │
+│  │ Harper Tromsness — Full sibling             │               │
+│  │ Jake Johnson — Step-sibling                 │               │
+│  └────────────────────────────────────────────┘               │
+│                                                               │
+│  [+ Add other relationship]                                   │
+└──────────────────────────────────────────────────────────────┘
+</pre>
+
+<h4>"Set mother/father" flow</h4>
+<p>Clicking [+ Set mother] opens a modal:</p>
+<pre>
+┌─ Set Biological Mother ──────────────────────────┐
+│                                                   │
+│  Search for a CampusOS user:                      │
+│  [🔍 Search by name...                       ]    │
+│                                                   │
+│  Search results:                                  │
+│  ┌──────────────────────────────────────────┐     │
+│  │ Ashley Tromsness · Parent/Guardian        │     │
+│  │ In your family                [Select]    │     │
+│  └──────────────────────────────────────────┘     │
+│                                                   │
+│  — or enter a name (if they're not on CampusOS) — │
+│                                                   │
+│  First name    [______________]                    │
+│  Last name     [______________]                    │
+│                                                   │
+│  Relationship type                                │
+│  ○ Biological mother (birth parent)               │
+│  ○ Adoptive mother                                │
+│  ○ Step-mother                                    │
+│                                                   │
+│  Custody                                          │
+│  Arrangement: [Joint ▾]                           │
+│  Primary residence? [☐ Yes]                       │
+│  Notes: [Alternating weeks________________]       │
+│                                                   │
+│  [Cancel]                        [Save]           │
+└───────────────────────────────────────────────────┘
+</pre>
+
+<p>If the mother is a CampusOS user (selected from search): <code>related_person_id</code> is set. The auto-reciprocal is created. Their profile will also show this relationship.</p>
+<p>If entered manually (not on CampusOS): create a minimal <code>iam_person</code> record as a placeholder (first_name, last_name only, no account). This allows the family tree to show the name even if the person never joins CampusOS. Alternatively, store the name directly on the relationship row — but this breaks if they later join and should be linked.</p>
+
+<div class="decision">
+<h4>DECISION — Non-CampusOS parents</h4>
+<p>For biological parents who are not on CampusOS (e.g., deceased parent, absent parent, parent who will never create an account): store the name directly on the relationship row using optional <code>related_person_name</code> field. Do NOT create a placeholder iam_person for someone who will never use the system. If they later join, the relationship can be updated to link to their <code>iam_person</code>.</p>
+</div>
+
+<h3>Schema addition for non-CampusOS people</h3>
+<pre>
+-- Add to platform_person_relationships:
+  related_person_id     UUID REFERENCES platform.iam_person(id),  -- NOW NULLABLE
+  related_person_name   TEXT,  -- used when related_person_id is NULL
+  -- CHECK: at least one of related_person_id or related_person_name must be set
+  CHECK (related_person_id IS NOT NULL OR related_person_name IS NOT NULL)
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>6. UI — Family Tree Visualization</h2>
+
+<p><span class="tag tag-web">WEB</span> A read-only visualization of the family structure, accessible from:</p>
+<ul>
+<li>Child profile → "View family tree" link</li>
+<li>Family page → "View family tree" button</li>
+<li>School admin → student record → "Family structure" tab</li>
+</ul>
+
+<h3>Simple tree layout</h3>
+<div class="tree">
+                    The Tromsness Family
+
+         Adam Tromsness ─── Ashley Tromsness
+         (Father)           (Mother)
+         Joint custody      Joint custody
+              │
+    ┌─────────┼──────────┬──────────┐
+    │         │          │          │
+  Scout    Thatcher    Sailor    Harper
+  age 14   age 12     No DOB    age 6
+  (full)   (full)     (full)    (full)
+</div>
+
+<h3>Blended family tree (divorce + remarriage)</h3>
+<div class="tree">
+  Carlos Garcia ─── Ashley Tromsness ───(divorced)─── Adam Tromsness ─── Sarah Johnson
+                    (Mother)                           (Father)           (Step-mother)
+                         │                                  │                   │
+                         │                    ┌─────────────┼─────────┐         │
+                         │                    │             │         │         │
+                       Jake G.             Scout        Thatcher   Sailor    Emma J.
+                    (half-sibling,       age 14         age 12    No DOB   (step-sibling)
+                     maternal)          (full)          (full)    (full)
+</div>
+
+<p>The tree visualization should be rendered as an SVG or HTML/CSS layout. For MVP, a simple vertical list with indentation is sufficient. The full graphical tree can be built later.</p>
+
+<h3>MVP: list view (build first)</h3>
+<pre>
+┌─ Family Structure ──────────────────────────────────────────┐
+│                                                              │
+│  PARENTS                                                     │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ 👩 Ashley Tromsness · Biological mother                │  │
+│  │    Joint custody · Primary residence                    │  │
+│  ├────────────────────────────────────────────────────────┤  │
+│  │ 👨 Adam Tromsness · Biological father                  │  │
+│  │    Joint custody · "Alternating weeks"                  │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  SIBLINGS (derived)                                          │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Thatcher Tromsness · Full sibling · age 12             │  │
+│  │ Sailor Tromsness · Full sibling                        │  │
+│  │ Harper Tromsness · Full sibling · age 6                │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  OTHER RELATIONSHIPS                                         │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Debbie Tromsness · Grandparent                         │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>7. School Admin View</h2>
+
+<p>School administrators and counsellors see family structure on the student record. This is critical for:</p>
+<ul>
+<li>Understanding custody situations during conferences</li>
+<li>Knowing who is authorized for pickup</li>
+<li>Sending communications to the right parent</li>
+<li>Understanding sibling relationships for class placement</li>
+<li>Identifying when a child belongs to multiple households</li>
+</ul>
+
+<h3>Student record — Family tab (school admin view)</h3>
+<pre>
+┌─ Family Structure ──────────────────────────────────────────┐
+│                                                              │
+│  HOUSEHOLDS (this student belongs to)                        │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ 🏠 The Tromsness Family (primary)                      │  │
+│  │    317 Chestnut St, Galesburg, KS                       │  │
+│  │    Guardians: Adam (father), Ashley (mother)            │  │
+│  │    Custody: Joint, alternating weeks                    │  │
+│  ├────────────────────────────────────────────────────────┤  │
+│  │ 🏠 The Johnson-Tromsness Family                        │  │
+│  │    445 Oak Ave, Galesburg, KS                           │  │
+│  │    Guardians: Adam (father), Sarah (step-mother)        │  │
+│  │    Custody: Joint, alternating weeks                    │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  BIOLOGICAL PARENTS                                          │
+│  Ashley Tromsness (mother) · ✓ Verified · Joint custody     │
+│  Adam Tromsness (father) · ✓ Verified · Joint custody       │
+│                                                              │
+│  STEP-PARENTS                                                │
+│  Sarah Johnson (step-mother via Adam)                        │
+│                                                              │
+│  SIBLINGS AT THIS SCHOOL                                     │
+│  Thatcher Tromsness · Grade 6 · Full sibling                │
+│  Jake Johnson · Grade 3 · Step-sibling                      │
+│                                                              │
+│  CUSTODY NOTES                                               │
+│  "Alternating weeks. Adam has custody Mon-Sun on odd weeks.  │
+│   Ashley has custody Mon-Sun on even weeks. Both authorized   │
+│   for pickup at any time. Court order on file."              │
+│                                                              │
+│  ⚠️ Verification: Not verified — [Mark as verified]          │
+└──────────────────────────────────────────────────────────────┘
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>8. API Endpoints</h2>
+
+<table>
+<tr><th>Method</th><th>Path</th><th>Purpose</th><th>Auth</th></tr>
+<tr><td>GET</td><td><code>/api/v1/people/:personId/relationships</code></td><td>Get all relationships for a person (direct + derived siblings)</td><td>Parent of child, or self, or school admin</td></tr>
+<tr><td>POST</td><td><code>/api/v1/people/:personId/relationships</code></td><td>Add a relationship (auto-creates reciprocal)</td><td>Parent of child, or self</td></tr>
+<tr><td>PATCH</td><td><code>/api/v1/people/:personId/relationships/:id</code></td><td>Update custody, notes, verification</td><td>Parent or school admin</td></tr>
+<tr><td>DELETE</td><td><code>/api/v1/people/:personId/relationships/:id</code></td><td>Remove relationship + reciprocal</td><td>Parent of child, or self</td></tr>
+<tr><td>GET</td><td><code>/api/v1/people/:personId/family-tree</code></td><td>Full family tree (parents, siblings, grandparents, step-family)</td><td>Parent, self, school admin</td></tr>
+<tr><td>PATCH</td><td><code>/api/v1/people/:personId/relationships/:id/verify</code></td><td>School admin marks relationship as verified</td><td>School admin only</td></tr>
+</table>
+
+<h3>GET /people/:personId/relationships response</h3>
+<pre>
+{
+  "relationships": [
+    {
+      "id": "...",
+      "type": "BIOLOGICAL_MOTHER",
+      "relatedPerson": { "id": "...", "firstName": "Ashley", "lastName": "Tromsness" },
+      "isLegalCustody": true,
+      "custodyArrangement": "JOINT",
+      "custodyNotes": "Alternating weeks",
+      "isPrimaryResidence": true,
+      "verified": true,
+      "startDate": null,
+      "endDate": null
+    },
+    {
+      "id": "...",
+      "type": "BIOLOGICAL_FATHER",
+      "relatedPerson": { "id": "...", "firstName": "Adam", "lastName": "Tromsness" },
+      "isLegalCustody": true,
+      "custodyArrangement": "JOINT",
+      "custodyNotes": "Alternating weeks",
+      "isPrimaryResidence": false,
+      "verified": true
+    }
+  ],
+  "derivedSiblings": [
+    { "person": { "id": "...", "firstName": "Thatcher", "lastName": "Tromsness" }, "siblingType": "FULL_SIBLING" },
+    { "person": { "id": "...", "firstName": "Sailor", "lastName": "Tromsness" }, "siblingType": "FULL_SIBLING" }
+  ]
+}
+</pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>9. Privacy &amp; Access Control</h2>
+
+<div class="box box-red">
+<h4 style="margin-top:0">Sensitive data</h4>
+<p>Family structure data is highly sensitive. Custody arrangements, divorce status, and absent parent information must be carefully access-controlled.</p>
+</div>
+
+<table>
+<tr><th>Viewer</th><th>Can see</th><th>Can edit</th></tr>
+<tr><td>Parent (in same household)</td><td>All relationships for their children</td><td>Add/edit relationships for children they have custody of</td></tr>
+<tr><td>Student (own profile)</td><td>Their own relationships (parents, siblings)</td><td>Cannot edit — parent/guardian or school manages this</td></tr>
+<tr><td>Student (sibling)</td><td>That a sibling exists (name, age). NOT custody details.</td><td>None</td></tr>
+<tr><td>School admin</td><td>Full family structure including custody notes</td><td>Can verify, add school-side notes, but not modify parent-entered data</td></tr>
+<tr><td>Teacher</td><td>Simplified view: parent names, emergency contacts, pickup authorization</td><td>None</td></tr>
+<tr><td>Other families</td><td>Nothing</td><td>Nothing</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>10. Scenarios</h2>
+
+<h3>Scenario A — Simple family (no divorce)</h3>
+<ol>
+<li>Adam registers, adds Ashley as guardian, adds 4 children.</li>
+<li>On Scout's profile, Adam sets: biological mother = Ashley, biological father = Adam.</li>
+<li>System auto-creates reciprocals on Ashley's and Adam's profiles.</li>
+<li>System derives: Thatcher, Sailor, Harper are full siblings of Scout (same parents).</li>
+<li>One household. One family tree. Simple.</li>
+</ol>
+
+<h3>Scenario B — Divorced parents, two households</h3>
+<ol>
+<li>Adam and Ashley divorce. Adam marries Sarah.</li>
+<li>Adam creates a new household: "The Tromsness-Johnson Family" with Sarah.</li>
+<li>Scout belongs to BOTH households (Adam's and Ashley's).</li>
+<li>On Scout's profile: biological mother = Ashley (joint custody, even weeks), biological father = Adam (joint custody, odd weeks), step-mother = Sarah.</li>
+<li>Sarah has a son Jake from a previous relationship. Jake's biological father = Carlos.</li>
+<li>System derives: Scout and Jake are step-siblings (no shared parents, but parent's spouse is Jake's parent).</li>
+<li>School admin sees both households, custody schedule, and the blended family structure.</li>
+</ol>
+
+<h3>Scenario C — Foster child</h3>
+<ol>
+<li>School enrolls a foster child, Marcus.</li>
+<li>Foster parents (the Johnsons) are set as LEGAL_GUARDIAN with custody = FULL.</li>
+<li>Biological parents may be entered by name only (no CampusOS account): "Maria Garcia" (biological mother), father unknown.</li>
+<li>Marcus belongs to the Johnson household.</li>
+<li>If Marcus moves to a new foster family, the old relationship gets end_date = today, new LEGAL_GUARDIAN relationship is created.</li>
+</ol>
+
+<h3>Scenario D — Grandparent as guardian</h3>
+<ol>
+<li>Debbie Tromsness (grandmother) has legal guardianship of her grandchild Emma.</li>
+<li>On Emma's profile: GRANDPARENT = Debbie (is_legal_custody = true, custody = FULL).</li>
+<li>Biological parents may be listed but with custody = NONE.</li>
+<li>Debbie is in the household as a guardian. She manages Emma's account.</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>11. Implementation Order</h2>
+
+<table>
+<tr><th>#</th><th>Component</th><th>Tags</th><th>Est.</th></tr>
+<tr><td>1</td><td>Schema: <code>platform_person_relationships</code> table + migration</td><td><span class="tag tag-db">DB</span></td><td>1 day</td></tr>
+<tr><td>2</td><td>RelationshipService: CRUD + auto-reciprocal + sibling derivation</td><td><span class="tag tag-api">API</span></td><td>2 days</td></tr>
+<tr><td>3</td><td>API endpoints: GET/POST/PATCH/DELETE relationships, GET family-tree</td><td><span class="tag tag-api">API</span></td><td>1 day</td></tr>
+<tr><td>4</td><td>Child profile: Family Structure section on Account tab</td><td><span class="tag tag-web">WEB</span></td><td>2 days</td></tr>
+<tr><td>5</td><td>"Set mother/father" modal with CampusOS user search</td><td><span class="tag tag-web">WEB</span></td><td>1 day</td></tr>
+<tr><td>6</td><td>Derived siblings display (read-only)</td><td><span class="tag tag-web">WEB</span></td><td>1 day</td></tr>
+<tr><td>7</td><td>Family tree list view (MVP — not graphical)</td><td><span class="tag tag-web">WEB</span></td><td>1 day</td></tr>
+<tr><td>8</td><td>Integration tests (relationships, reciprocals, sibling derivation, custody)</td><td><span class="tag tag-api">API</span></td><td>2 days</td></tr>
+<tr><td>9</td><td>Seed data: relationships for test users</td><td><span class="tag tag-db">DB</span></td><td>0.5 days</td></tr>
+</table>
+
+<div class="box box-green">
+<h4 style="margin-top:0">Total estimate: ~11.5 days</h4>
+<p>The graphical family tree SVG visualization and the school admin view are deferred to a follow-up cycle. The MVP delivers the data model, parent-facing UI for setting relationships, derived sibling detection, and a simple list-based family tree view.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>12. Future Enhancements (deferred)</h2>
+
+<ul>
+<li><strong>Graphical family tree SVG</strong> — rendered tree with connecting lines, photos, expandable nodes</li>
+<li><strong>School admin family tab</strong> — full custody-aware view on the student record</li>
+<li><strong>Custody calendar integration</strong> — "Adam has custody this week" shown on the school calendar</li>
+<li><strong>Court order document upload</strong> — attach custody documentation to relationships</li>
+<li><strong>Relationship change audit trail</strong> — track when custody changed, who modified it</li>
+<li><strong>Cross-school sibling detection</strong> — "This student has a sibling at another CampusOS school"</li>
+<li><strong>Bulk relationship import</strong> — CSV import of family structures during school onboarding</li>
+</ul>
+
+</div>
+</body>
+</html>
