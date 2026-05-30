@@ -981,10 +981,17 @@ function ChildrenSection({
 
 /**
  * From a child's perspective the children[] list contains the viewer
- * themself + their siblings. We split the two and render the viewer
- * with an Edit-my-profile link, the siblings as read-only badges-only
- * rows. No status badges on the viewer's row — the LINKED status is
- * implicit and a "Connected" badge under your own name reads oddly.
+ * themself + their siblings. We split the two and render "My profile"
+ * FIRST (the child is a member of the family just like the parents, so
+ * their card sits between Parents & Guardians and Siblings), then the
+ * siblings as read-only rows below.
+ *
+ * No status / access-level badges on either the viewer's own row or
+ * the sibling rows: the LINKED status is implicit ("Connected" under
+ * your own name reads oddly), and a child has no business knowing who
+ * manages a sibling's account — "Managed by you" is plainly wrong from
+ * the child's perspective (the parents manage it, not the viewer), so
+ * siblings show name + age only.
  */
 function ChildViewerSiblingsSection({
   items,
@@ -998,39 +1005,6 @@ function ChildViewerSiblingsSection({
 
   return (
     <>
-      {siblings.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900">Siblings</h2>
-          <ul className="flex flex-col gap-2">
-            {siblings.map((s) => {
-              const age = computeAge(s.dateOfBirth);
-              return (
-                <li
-                  key={s.id}
-                  className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
-                        {s.firstName} {s.lastName}
-                      </p>
-                      <StatusBadgeForChild status={s.status} accessLevel={s.accessLevel} />
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {[
-                        goesByLabel(s.firstName, s.preferredName),
-                        age !== null ? `age ${age}` : 'No DOB',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
       {me && (
         <section className="mt-6">
           <h2 className="mb-2 text-sm font-semibold text-gray-900">My profile</h2>
@@ -1059,6 +1033,36 @@ function ChildViewerSiblingsSection({
               Edit my profile
             </Link>
           </div>
+        </section>
+      )}
+      {siblings.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-900">Siblings</h2>
+          <ul className="flex flex-col gap-2">
+            {siblings.map((s) => {
+              const age = computeAge(s.dateOfBirth);
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-start justify-between gap-3 rounded-card border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">
+                      {s.firstName} {s.lastName}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {[
+                        goesByLabel(s.firstName, s.preferredName),
+                        age !== null ? `age ${age}` : 'No DOB',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
     </>
