@@ -250,7 +250,9 @@ export function SetRelationshipModal({ open, onClose, personId, mode }: Props) {
 
         {/* 3. Relationship type */}
         <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-700">Relationship type</label>
+          <label className="mb-1 block text-xs font-semibold text-gray-700">
+            Relationship type
+          </label>
           <div className="flex flex-col gap-1">
             {typeOptions.map((t) => (
               <label key={t} className="flex items-center gap-2 text-sm text-gray-800">

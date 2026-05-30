@@ -300,7 +300,11 @@ export class RelationshipService {
   ): Promise<RelationshipDto> {
     const row = await this.requireOwnedRow(relationshipId, personId);
     const set = ['verified = $1', 'verified_by = $2::uuid', 'verified_at = $3'];
-    const args: unknown[] = [verified, verified ? verifierPersonId : null, verified ? new Date() : null];
+    const args: unknown[] = [
+      verified,
+      verified ? verifierPersonId : null,
+      verified ? new Date() : null,
+    ];
 
     await this.prisma.$transaction(async (tx) => {
       await this.applyUpdate(tx, relationshipId, [...set], [...args]);
@@ -351,7 +355,9 @@ export class RelationshipService {
     if (parentRows.length === 0) return [];
 
     const bioParents = new Set(
-      parentRows.filter((r) => r.relationship_type.startsWith('BIOLOGICAL')).map((r) => r.parent_id),
+      parentRows
+        .filter((r) => r.relationship_type.startsWith('BIOLOGICAL'))
+        .map((r) => r.parent_id),
     );
     const adoptiveParents = new Set(
       parentRows.filter((r) => r.relationship_type.startsWith('ADOPTIVE')).map((r) => r.parent_id),
@@ -424,7 +430,9 @@ export class RelationshipService {
       })
       .filter((s): s is DerivedSiblingDto => s !== null)
       .sort((a, b) =>
-        (a.person.lastName + a.person.firstName).localeCompare(b.person.lastName + b.person.firstName),
+        (a.person.lastName + a.person.firstName).localeCompare(
+          b.person.lastName + b.person.firstName,
+        ),
       );
   }
 
@@ -436,7 +444,13 @@ export class RelationshipService {
     const { relationships, derivedSiblings } = await this.getRelationships(personId);
 
     const inGroup = (types: string[]) => relationships.filter((r) => types.includes(r.type));
-    const grouped = new Set([...PARENT_TYPES, ...CHILD_TYPES, ...SPOUSE_TYPES, 'GRANDPARENT', 'GRANDCHILD']);
+    const grouped = new Set([
+      ...PARENT_TYPES,
+      ...CHILD_TYPES,
+      ...SPOUSE_TYPES,
+      'GRANDPARENT',
+      'GRANDCHILD',
+    ]);
 
     return {
       person,
@@ -461,7 +475,10 @@ export class RelationshipService {
     return this.toDto(rows[0]!);
   }
 
-  private async requireOwnedRow(relationshipId: string, personId: string): Promise<RelationshipRow> {
+  private async requireOwnedRow(
+    relationshipId: string,
+    personId: string,
+  ): Promise<RelationshipRow> {
     const rows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
       this.selectSql() + ' WHERE r.id = $1::uuid LIMIT 1',
       relationshipId,
@@ -512,7 +529,10 @@ export class RelationshipService {
   }
 
   private async requirePersonExists(personId: string): Promise<void> {
-    const p = await this.prisma.iamPerson.findUnique({ where: { id: personId }, select: { id: true } });
+    const p = await this.prisma.iamPerson.findUnique({
+      where: { id: personId },
+      select: { id: true },
+    });
     if (!p) throw new BadRequestException('Person not found');
   }
 

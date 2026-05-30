@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 // ─── Enums ──────────────────────────────────────────────────────
 
@@ -133,7 +141,8 @@ export class RelationshipDto {
   @ApiPropertyOptional({ type: PersonSummaryDto }) relatedPerson!: PersonSummaryDto | null;
   @ApiPropertyOptional() relatedPersonName!: string | null;
   @ApiProperty() isLegalCustody!: boolean;
-  @ApiPropertyOptional({ enum: CUSTODY_ARRANGEMENTS }) custodyArrangement!: CustodyArrangement | null;
+  @ApiPropertyOptional({ enum: CUSTODY_ARRANGEMENTS })
+  custodyArrangement!: CustodyArrangement | null;
   @ApiPropertyOptional() custodyNotes!: string | null;
   @ApiProperty() isPrimaryResidence!: boolean;
   @ApiProperty() verified!: boolean;

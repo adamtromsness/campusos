@@ -104,7 +104,9 @@ function Content(props: {
 }
 
 function relatedName(rel: Relationship): string {
-  return rel.relatedPerson ? personDisplayName(rel.relatedPerson) : rel.relatedPersonName ?? 'Unknown';
+  return rel.relatedPerson
+    ? personDisplayName(rel.relatedPerson)
+    : (rel.relatedPersonName ?? 'Unknown');
 }
 
 function RelGroup({ title, rels }: { title: string; rels: Relationship[] }) {

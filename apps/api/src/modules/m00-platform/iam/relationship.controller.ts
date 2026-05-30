@@ -111,7 +111,9 @@ export class RelationshipController {
   }
 
   @Patch(':personId/relationships/:id/verify')
-  @ApiOperation({ summary: 'School admin marks a relationship as verified (documentation on file).' })
+  @ApiOperation({
+    summary: 'School admin marks a relationship as verified (documentation on file).',
+  })
   async verify(
     @Req() req: AuthedRequest,
     @Param('personId') personId: string,
@@ -148,7 +150,9 @@ export class RelationshipController {
       const actor = await this.actors.resolveActor(req.user!.sub, caller);
       if (actor.isSchoolAdmin) return;
     }
-    throw new ForbiddenException('You are not authorised to manage this person’s family structure.');
+    throw new ForbiddenException(
+      'You are not authorised to manage this person’s family structure.',
+    );
   }
 
   /**

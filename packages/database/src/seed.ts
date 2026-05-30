@@ -358,7 +358,9 @@ async function main() {
         mayaForRel.id,
         davidForRel.id,
       );
-      console.log("  Family structure: David = Maya's biological father; mother = Linda Chen (name-only)");
+      console.log(
+        "  Family structure: David = Maya's biological father; mother = Linda Chen (name-only)",
+      );
     }
   }
 

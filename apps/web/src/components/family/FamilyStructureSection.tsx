@@ -52,12 +52,13 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
   const parentIds = new Set([mother?.id, father?.id].filter(Boolean));
 
   // Rows shown in the "other relationships" block depend on variant.
-  const editableType = (t: string) =>
-    variant === 'child' ? true : SPOUSE_TYPES.includes(t);
+  const editableType = (t: string) => (variant === 'child' ? true : SPOUSE_TYPES.includes(t));
 
   if (variant === 'self') {
     const spouses = rels.filter((r) => SPOUSE_TYPES.includes(r.type));
-    const parents = rels.filter((r) => [...MOTHER_TYPES, ...FATHER_TYPES, 'LEGAL_GUARDIAN'].includes(r.type));
+    const parents = rels.filter((r) =>
+      [...MOTHER_TYPES, ...FATHER_TYPES, 'LEGAL_GUARDIAN'].includes(r.type),
+    );
     const children = rels.filter((r) => CHILD_TYPES.includes(r.type));
     const others = rels.filter(
       (r) =>
@@ -177,7 +178,12 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
       )}
 
       {addMode && (
-        <SetRelationshipModal open mode={addMode} personId={personId} onClose={() => setAddMode(null)} />
+        <SetRelationshipModal
+          open
+          mode={addMode}
+          personId={personId}
+          onClose={() => setAddMode(null)}
+        />
       )}
       {editing && (
         <EditCustodyModal personId={personId} rel={editing} onClose={() => setEditing(null)} />
@@ -275,7 +281,9 @@ function ParentSlot({
 }
 
 function relatedName(rel: Relationship): string {
-  return rel.relatedPerson ? personDisplayName(rel.relatedPerson) : rel.relatedPersonName ?? 'Unknown';
+  return rel.relatedPerson
+    ? personDisplayName(rel.relatedPerson)
+    : (rel.relatedPersonName ?? 'Unknown');
 }
 
 function RelationshipCard({
@@ -387,7 +395,16 @@ function RelationshipCard({
 function SiblingList({
   siblings,
 }: {
-  siblings: { person: { id: string; firstName: string; lastName: string; preferredName: string | null; age: number | null }; siblingType: keyof typeof SIBLING_LABELS }[];
+  siblings: {
+    person: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      preferredName: string | null;
+      age: number | null;
+    };
+    siblingType: keyof typeof SIBLING_LABELS;
+  }[];
 }) {
   return (
     <Group label="Siblings (derived)">
@@ -430,7 +447,9 @@ function EditCustodyModal({
 }) {
   const { toast } = useToast();
   const update = useUpdateRelationship(personId);
-  const [arrangement, setArrangement] = useState<CustodyArrangement | ''>(rel.custodyArrangement ?? '');
+  const [arrangement, setArrangement] = useState<CustodyArrangement | ''>(
+    rel.custodyArrangement ?? '',
+  );
   const [primary, setPrimary] = useState(rel.isPrimaryResidence);
   const [legal, setLegal] = useState(rel.isLegalCustody);
   const [notes, setNotes] = useState(rel.custodyNotes ?? '');

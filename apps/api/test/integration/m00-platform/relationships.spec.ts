@@ -138,7 +138,10 @@ describe('integration:m00-platform/relationships', () => {
       `DELETE FROM platform.platform_family_members WHERE family_id = $1::uuid`,
       familyId,
     );
-    await prisma.$executeRawUnsafe(`DELETE FROM platform.platform_families WHERE id = $1::uuid`, familyId);
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_families WHERE id = $1::uuid`,
+      familyId,
+    );
     await prisma.$executeRawUnsafe(
       `DELETE FROM platform.platform_users WHERE person_id = ANY($1::uuid[])`,
       ALL_PEOPLE,
@@ -195,9 +198,11 @@ describe('integration:m00-platform/relationships', () => {
       adam,
     );
     const fatherSide = await svc.getRelationships(adam);
-    expect(fatherSide.relationships.some((r) => r.type === 'BIOLOGICAL_CHILD' && r.relatedPerson?.id === scout)).toBe(
-      true,
-    );
+    expect(
+      fatherSide.relationships.some(
+        (r) => r.type === 'BIOLOGICAL_CHILD' && r.relatedPerson?.id === scout,
+      ),
+    ).toBe(true);
   });
 
   it('add name-only parent → no reciprocal created', async () => {
@@ -208,13 +213,17 @@ describe('integration:m00-platform/relationships', () => {
     );
     expect(rel.relatedPerson).toBeNull();
     expect(rel.relatedPersonName).toBe('Linda Chen');
-    // No CampusOS person → nothing to attach a reciprocal to.
-    const total = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+    // No CampusOS person → nothing to attach a reciprocal to. Scope the
+    // count to scout2 (cleaned in beforeEach) so seed/other-test data
+    // can't pollute it: exactly one row touches scout2 — the forward
+    // name-only row — and none has scout2 as related_person_id (which a
+    // reciprocal would).
+    const touching = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
       `SELECT COUNT(*)::bigint AS n FROM platform.platform_person_relationships
-        WHERE related_person_name = 'Linda Chen' OR relationship_type = 'BIOLOGICAL_CHILD'`,
+        WHERE person_id = $1::uuid OR related_person_id = $1::uuid`,
+      scout2,
     );
-    // Only the single forward name-only row exists; no BIOLOGICAL_CHILD reciprocal.
-    expect(Number(total[0]!.n)).toBe(1);
+    expect(Number(touching[0]!.n)).toBe(1);
   });
 
   it('delete relationship → both sides removed', async () => {
@@ -232,7 +241,11 @@ describe('integration:m00-platform/relationships', () => {
   it('update custody → both sides updated', async () => {
     const rel = await svc.addRelationship(
       scout,
-      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER', custodyArrangement: 'FULL' },
+      {
+        relatedPersonId: ashley,
+        relationshipType: 'BIOLOGICAL_MOTHER',
+        custodyArrangement: 'FULL',
+      },
       adam,
     );
     await svc.updateRelationship(scout, rel.id, {
@@ -252,10 +265,26 @@ describe('integration:m00-platform/relationships', () => {
   });
 
   it('get relationships → returns direct relationships + derived siblings', async () => {
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(scout, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
-    await svc.addRelationship(thatcher, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(thatcher, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      thatcher,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      thatcher,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
 
     const result = await svc.getRelationships(scout);
     expect(result.relationships).toHaveLength(2);
@@ -265,12 +294,30 @@ describe('integration:m00-platform/relationships', () => {
   // ─── Sibling derivation ───────────────────────────────────────
 
   it('same mother + father → FULL_SIBLING', async () => {
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(scout, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
-    await svc.addRelationship(thatcher, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(thatcher, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      thatcher,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      thatcher,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
 
-    const sib = (await svc.getRelationships(scout)).derivedSiblings.find((s) => s.person.id === thatcher);
+    const sib = (await svc.getRelationships(scout)).derivedSiblings.find(
+      (s) => s.person.id === thatcher,
+    );
     expect(sib?.siblingType).toBe('FULL_SIBLING');
     // Age is derived from DOB on the summary.
     expect(sib?.person.age).toBeGreaterThan(0);
@@ -278,24 +325,60 @@ describe('integration:m00-platform/relationships', () => {
 
   it('same mother, different father → HALF_SIBLING', async () => {
     // scout: mother ashley, father adam. jake: mother ashley, father carlos.
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(scout, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
-    await svc.addRelationship(jake, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(jake, { relatedPersonId: carlos, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      jake,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      jake,
+      { relatedPersonId: carlos, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
 
-    const sib = (await svc.getRelationships(scout)).derivedSiblings.find((s) => s.person.id === jake);
+    const sib = (await svc.getRelationships(scout)).derivedSiblings.find(
+      (s) => s.person.id === jake,
+    );
     expect(sib?.siblingType).toBe('HALF_SIBLING');
   });
 
   it('parent’s spouse’s child from another relationship → STEP_SIBLING', async () => {
     // scout: adam + ashley. adam married sarah. emma: sarah + emmaDad.
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(scout, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
     await svc.addRelationship(adam, { relatedPersonId: sarah, relationshipType: 'SPOUSE' }, adam);
-    await svc.addRelationship(emma, { relatedPersonId: sarah, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(emma, { relatedPersonId: emmaDad, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      emma,
+      { relatedPersonId: sarah, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      emma,
+      { relatedPersonId: emmaDad, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
 
-    const sib = (await svc.getRelationships(scout)).derivedSiblings.find((s) => s.person.id === emma);
+    const sib = (await svc.getRelationships(scout)).derivedSiblings.find(
+      (s) => s.person.id === emma,
+    );
     expect(sib?.siblingType).toBe('STEP_SIBLING');
   });
 
@@ -317,21 +400,37 @@ describe('integration:m00-platform/relationships', () => {
   // ─── Validation ───────────────────────────────────────────────
 
   it('duplicate relationship (same person, related, type) → 409', async () => {
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
     await expect(
-      svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam),
+      svc.addRelationship(
+        scout,
+        { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+        adam,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('relating a person to themselves → 400', async () => {
     await expect(
-      svc.addRelationship(scout, { relatedPersonId: scout, relationshipType: 'BIOLOGICAL_MOTHER' }, adam),
+      svc.addRelationship(
+        scout,
+        { relatedPersonId: scout, relationshipType: 'BIOLOGICAL_MOTHER' },
+        adam,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('reciprocal-only type via direct create → 400', async () => {
     await expect(
-      svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_CHILD' as never }, adam),
+      svc.addRelationship(
+        scout,
+        { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_CHILD' as never },
+        adam,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -357,8 +456,16 @@ describe('integration:m00-platform/relationships', () => {
   // ─── Family tree ──────────────────────────────────────────────
 
   it('getFamilyTree buckets relationships by category', async () => {
-    await svc.addRelationship(scout, { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' }, adam);
-    await svc.addRelationship(scout, { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' }, adam);
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
     const tree = await svc.getFamilyTree(scout);
     expect(tree.person.id).toBe(scout);
     expect(tree.parents).toHaveLength(2);
@@ -368,7 +475,13 @@ describe('integration:m00-platform/relationships', () => {
   function reqFor(personId: string, accountId: string): any {
     return {
       headers: {},
-      user: { sub: accountId, personId, email: 'x@test', displayName: 'T', sessionId: generateId() },
+      user: {
+        sub: accountId,
+        personId,
+        email: 'x@test',
+        displayName: 'T',
+        sessionId: generateId(),
+      },
     };
   }
 });
