@@ -131,8 +131,12 @@ export class UpdateFamilyChildDto {
   @IsOptional()
   @IsIn(['FAMILY', 'CUSTOM'])
   addressSource?: 'FAMILY' | 'CUSTOM';
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?:
+    | string
+    | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customState?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customPostalCode?: string | null;

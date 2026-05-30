@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { BadRequestException, HttpException, NotFoundException, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
@@ -689,7 +694,13 @@ describe('integration:m00-platform/family-children', () => {
       expect(result.type).toBe('GUARDIAN_INVITE');
       const row = await prisma.platformInvitation.findUnique({
         where: { token: result.code },
-        select: { type: true, status: true, inviterPersonId: true, metadata: true, targetEmail: true },
+        select: {
+          type: true,
+          status: true,
+          inviterPersonId: true,
+          metadata: true,
+          targetEmail: true,
+        },
       });
       expect(row?.type).toBe('GUARDIAN_INVITE');
       expect(row?.status).toBe('PENDING');
@@ -740,9 +751,7 @@ describe('integration:m00-platform/family-children', () => {
       // refuses. The empty-singleton path is covered by the next test.
       await controller.create(reqB(), { firstName: 'B', lastName: 'Child' });
       const code = (await controller.inviteGuardian(reqA(), {})).code;
-      await expect(controller.accept(reqB(), { code })).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(controller.accept(reqB(), { code })).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it("dissolves the caller's empty singleton family and joins the inviter's", async () => {
@@ -795,9 +804,7 @@ describe('integration:m00-platform/family-children', () => {
 
     it('refuses the inviter accepting their own GUARDIAN_INVITE', async () => {
       const code = (await controller.inviteGuardian(reqA(), {})).code;
-      await expect(controller.accept(reqA(), { code })).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(controller.accept(reqA(), { code })).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it("drops a synthetic ACTIVE placeholder-promotion shadow so the real accepter doesn't duplicate", async () => {
@@ -1247,18 +1254,14 @@ describe('integration:m00-platform/family-children', () => {
 
     it('PLACEHOLDER child → all section endpoints reject with 400', async () => {
       const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-      await expect(controller.getMedical(reqA(), c.id)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(controller.getMedical(reqA(), c.id)).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         controller.updateMedical(reqA(), c.id, { medicalNotes: 'Test' }),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(controller.listEmergencyContacts(reqA(), c.id)).rejects.toBeInstanceOf(
         BadRequestException,
       );
-      await expect(controller.getDietary(reqA(), c.id)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(controller.getDietary(reqA(), c.id)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('cross-family caller → 404 on every section endpoint', async () => {

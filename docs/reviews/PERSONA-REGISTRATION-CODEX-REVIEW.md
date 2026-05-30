@@ -17,24 +17,24 @@ This implementation is close structurally, but it is not passable as a foundatio
 
 ## Summary Table
 
-| Step | Component | Result |
-|---|---|---|
-| 1 | Schema verification | DEFECT |
-| 2 | Persona resolution service | SOUND |
-| 3 | `/auth/me` response | DEFECT |
-| 4 | Switch persona | CONCERN |
-| 5 | Family children CRUD | DEFECT |
-| 6 | Child linking | SOUND |
-| 7 | Invitation system | CONCERN |
-| 8-9 | UI persona switcher + app filter | SOUND |
-| 10 | Registration page + endpoint | SOUND |
-| 11 | Getting Started page | SOUND |
-| 12 | Family management pages | CONCERN |
-| 13 | Invitation acceptance page | SOUND |
-| 14 | Auto-alumni worker | SOUND |
-| 15 | `personType` removal | CONCERN |
-| Integration tests | DB-backed persona tests + suite | SOUND |
-| Security checks | Rate/code/cross-family/minor/cross-persona | DEFECT |
+| Step              | Component                                  | Result  |
+| ----------------- | ------------------------------------------ | ------- |
+| 1                 | Schema verification                        | DEFECT  |
+| 2                 | Persona resolution service                 | SOUND   |
+| 3                 | `/auth/me` response                        | DEFECT  |
+| 4                 | Switch persona                             | CONCERN |
+| 5                 | Family children CRUD                       | DEFECT  |
+| 6                 | Child linking                              | SOUND   |
+| 7                 | Invitation system                          | CONCERN |
+| 8-9               | UI persona switcher + app filter           | SOUND   |
+| 10                | Registration page + endpoint               | SOUND   |
+| 11                | Getting Started page                       | SOUND   |
+| 12                | Family management pages                    | CONCERN |
+| 13                | Invitation acceptance page                 | SOUND   |
+| 14                | Auto-alumni worker                         | SOUND   |
+| 15                | `personType` removal                       | CONCERN |
+| Integration tests | DB-backed persona tests + suite            | SOUND   |
+| Security checks   | Rate/code/cross-family/minor/cross-persona | DEFECT  |
 
 ## Step Findings
 
@@ -250,14 +250,14 @@ Result: **PASS** — 285 test files passed; 7,611 tests passed and 2 skipped, 7,
 
 ## Security Checks
 
-| Check | Result | Notes |
-|---|---|---|
-| Link codes use `crypto.randomInt`, not modulo | SOUND | `generateLinkCode()` indexes the alphabet via `randomInt(0, alphabet.length)`. |
-| Rate limiting on `POST /family/link` | SOUND | Redis `incrementCounter`, 5 attempts / 15 minutes. |
-| Invitation tokens do not leak email/phone | SOUND | Public GET omits email/phone, but does expose inviter display name. |
-| Cross-family isolation | SOUND | Service resolves caller family and returns 404 on mismatch. |
-| Cross-persona isolation | DEFECT | Permissions are account+scope-based; persona type is not part of the permission cache lookup. |
-| Minor account management | CONCERN | `is_minor_account` is set correctly, but `managed_by_person_id` has no DB FK. |
+| Check                                         | Result  | Notes                                                                                         |
+| --------------------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| Link codes use `crypto.randomInt`, not modulo | SOUND   | `generateLinkCode()` indexes the alphabet via `randomInt(0, alphabet.length)`.                |
+| Rate limiting on `POST /family/link`          | SOUND   | Redis `incrementCounter`, 5 attempts / 15 minutes.                                            |
+| Invitation tokens do not leak email/phone     | SOUND   | Public GET omits email/phone, but does expose inviter display name.                           |
+| Cross-family isolation                        | SOUND   | Service resolves caller family and returns 404 on mismatch.                                   |
+| Cross-persona isolation                       | DEFECT  | Permissions are account+scope-based; persona type is not part of the permission cache lookup. |
+| Minor account management                      | CONCERN | `is_minor_account` is set correctly, but `managed_by_person_id` has no DB FK.                 |
 
 ## Required Fixes Before PASS
 

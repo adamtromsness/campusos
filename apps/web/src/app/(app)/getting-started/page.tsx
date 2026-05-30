@@ -100,7 +100,9 @@ const ROLE_ACTIONS: Record<RoleKey, ActionDef[]> = {
     { type: 'link', label: 'Find a school to apply to', href: '/find-schools' },
     { type: 'link', label: 'Set up your profile', href: '/profile' },
   ],
-  'job-offer': [{ type: 'invitation', label: 'Enter your invitation code', expectType: 'EMPLOYEE' }],
+  'job-offer': [
+    { type: 'invitation', label: 'Enter your invitation code', expectType: 'EMPLOYEE' },
+  ],
   substitute: [
     { type: 'link', label: 'Create your substitute profile', href: '/substitute/register' },
   ],
@@ -129,9 +131,10 @@ interface PendingInvitation {
 
 export default function GettingStartedPage() {
   const user = useAuthStore((s) => s.user);
-  const greeting = user?.preferredName || user?.firstName
-    ? `Welcome to CampusOS, ${user.preferredName || user.firstName}!`
-    : 'Welcome to CampusOS!';
+  const greeting =
+    user?.preferredName || user?.firstName
+      ? `Welcome to CampusOS, ${user.preferredName || user.firstName}!`
+      : 'Welcome to CampusOS!';
 
   const familyQuery = useFamilyChildren();
   const hasChildren = (familyQuery.data ?? []).length > 0;
@@ -164,7 +167,13 @@ export default function GettingStartedPage() {
     }
     if (seeded.size > 0) setSelectedRoles(seeded);
     seededRef.current = true;
-  }, [familyQuery.isLoading, invitationsQuery.isLoading, hasChildren, pendingInvitations, seededRef]);
+  }, [
+    familyQuery.isLoading,
+    invitationsQuery.isLoading,
+    hasChildren,
+    pendingInvitations,
+    seededRef,
+  ]);
 
   function toggleRole(key: RoleKey) {
     setSelectedRoles((prev) => {
@@ -186,9 +195,7 @@ export default function GettingStartedPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-campus-700 sm:text-4xl">
           {greeting}
         </h1>
-        <p className="mt-3 text-sm text-gray-600 sm:text-base">
-          Let&rsquo;s get you set up.
-        </p>
+        <p className="mt-3 text-sm text-gray-600 sm:text-base">Let&rsquo;s get you set up.</p>
       </div>
 
       {pendingInvitations.length > 0 && (
@@ -245,8 +252,7 @@ function PendingInvitationsBanner({ invitations }: { invitations: PendingInvitat
           >
             <div className="min-w-0">
               <p className="font-medium text-gray-900">
-                {inv.schoolName ?? inv.inviterName} invited you as{' '}
-                {INVITATION_TYPE_LABEL[inv.type]}
+                {inv.schoolName ?? inv.inviterName} invited you as {INVITATION_TYPE_LABEL[inv.type]}
                 {inv.jobTitle ? ` — ${inv.jobTitle}` : ''}
               </p>
               <p className="mt-0.5 text-xs text-gray-500">

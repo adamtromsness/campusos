@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -127,6 +128,8 @@ function visibilityClause(actor: ResolvedActor, start: number): VisibilityClause
 
 @Injectable()
 export class StudentService {
+  private readonly logger = new Logger(StudentService.name);
+
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     // @Optional so test fixtures that only need student CRUD can
@@ -478,8 +481,7 @@ export class StudentService {
         await this.personaResolution.refreshPersonaCache(personId);
       }
     } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.warn(
+      this.logger.warn(
         '[student.activateAlumniPersona] failed for student=' +
           studentId +
           ': ' +

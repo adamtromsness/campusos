@@ -285,7 +285,7 @@ export class FamilyChildrenController {
   @Post('generate-code')
   @ApiOperation({
     summary:
-      'Generate a FAMILY_INVITE code. Any authenticated user who accepts it joins the caller\'s family as a LINKED child. Optional email lands on target_email for the future send-email worker.',
+      "Generate a FAMILY_INVITE code. Any authenticated user who accepts it joins the caller's family as a LINKED child. Optional email lands on target_email for the future send-email worker.",
   })
   async generateCode(
     @Req() req: AuthedRequest,
@@ -297,7 +297,7 @@ export class FamilyChildrenController {
   @Post('generate-child-code')
   @ApiOperation({
     summary:
-      'Generate a CHILD_LINK code (no familyChildId metadata). A parent who accepts the code adds the caller as a LINKED child in the parent\'s family — auto-matched against same-name PLACEHOLDER rows.',
+      "Generate a CHILD_LINK code (no familyChildId metadata). A parent who accepts the code adds the caller as a LINKED child in the parent's family — auto-matched against same-name PLACEHOLDER rows.",
   })
   async generateChildCode(@Req() req: AuthedRequest): Promise<GenerateLinkCodeDto> {
     return this.children.generateChildCode(req.user!.personId);
@@ -306,7 +306,7 @@ export class FamilyChildrenController {
   @Post('invite-guardian')
   @ApiOperation({
     summary:
-      'Generate a GUARDIAN_INVITE code. Whoever accepts is added to the caller\'s family as a co-parent with full read/write on every child.',
+      "Generate a GUARDIAN_INVITE code. Whoever accepts is added to the caller's family as a co-parent with full read/write on every child.",
   })
   async inviteGuardian(
     @Req() req: AuthedRequest,
@@ -388,7 +388,7 @@ export class FamilyChildrenController {
 
   @Get('children/:id/medical')
   @ApiOperation({
-    summary: 'Read a LINKED child\'s medical record. Returns an empty shape if none stored yet.',
+    summary: "Read a LINKED child's medical record. Returns an empty shape if none stored yet.",
   })
   async getMedical(
     @Req() req: AuthedRequest,
@@ -398,7 +398,7 @@ export class FamilyChildrenController {
   }
 
   @Patch('children/:id/medical')
-  @ApiOperation({ summary: 'Upsert a LINKED child\'s medical record (whole-list replace).' })
+  @ApiOperation({ summary: "Upsert a LINKED child's medical record (whole-list replace)." })
   async updateMedical(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,

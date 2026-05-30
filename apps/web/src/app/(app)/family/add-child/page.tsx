@@ -187,16 +187,16 @@ export default function AddChildPage() {
                 Gender (optional)
               </label>
               <select
-              id="gender"
-              name="gender"
-              value={basic.gender}
-              onChange={(e) => setBasic((b) => ({ ...b, gender: e.target.value }))}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-            >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
-            </select>
+                id="gender"
+                name="gender"
+                value={basic.gender}
+                onChange={(e) => setBasic((b) => ({ ...b, gender: e.target.value }))}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+              >
+                <option value="">Not Specified</option>
+                <option value="F">Female</option>
+                <option value="M">Male</option>
+              </select>
             </div>
           </div>
           <div className="mt-5 flex justify-end">
@@ -232,10 +232,7 @@ export default function AddChildPage() {
               router.replace('/family');
             }}
           />
-          <OptionD
-            persistPlaceholder={persistPlaceholder}
-            childName={basic.firstName}
-          />
+          <OptionD persistPlaceholder={persistPlaceholder} childName={basic.firstName} />
           <div className="mt-2 flex justify-start">
             <button
               type="button"

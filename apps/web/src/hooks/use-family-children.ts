@@ -592,8 +592,7 @@ const childSectionInvalidate = (qc: ReturnType<typeof useQueryClient>, childId: 
 export function useChildMedical(childId: string, enabled = true) {
   return useQuery({
     queryKey: ['family', 'child', childId, 'medical'] as const,
-    queryFn: () =>
-      apiFetch<ChildMedicalInfoDto>('/api/v1/family/children/' + childId + '/medical'),
+    queryFn: () => apiFetch<ChildMedicalInfoDto>('/api/v1/family/children/' + childId + '/medical'),
     enabled: enabled && childId.length > 0,
     staleTime: 30_000,
   });
@@ -613,8 +612,7 @@ export function useUpdateChildMedical(childId: string) {
 
 // ─── Child phones — /family/children/:id/phones ──────────────
 
-const CHILD_PHONES_KEY = (childId: string) =>
-  ['family', 'children', childId, 'phones'] as const;
+const CHILD_PHONES_KEY = (childId: string) => ['family', 'children', childId, 'phones'] as const;
 const invalidateChildPhones = (qc: ReturnType<typeof useQueryClient>, childId: string) => {
   void qc.invalidateQueries({ queryKey: CHILD_PHONES_KEY(childId) });
   void qc.invalidateQueries({ queryKey: KEY });
@@ -645,10 +643,10 @@ export function useUpdateChildPhone(childId: string, phoneId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdatePersonPhonePayload) =>
-      apiFetch<PersonPhoneDto>(
-        '/api/v1/family/children/' + childId + '/phones/' + phoneId,
-        { method: 'PATCH', body: JSON.stringify(payload) },
-      ),
+      apiFetch<PersonPhoneDto>('/api/v1/family/children/' + childId + '/phones/' + phoneId, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
     onSuccess: () => invalidateChildPhones(qc, childId),
   });
 }
@@ -666,8 +664,7 @@ export function useDeleteChildPhone(childId: string, phoneId: string) {
 
 // ─── Child emails — /family/children/:id/emails ──────────────
 
-const CHILD_EMAILS_KEY = (childId: string) =>
-  ['family', 'children', childId, 'emails'] as const;
+const CHILD_EMAILS_KEY = (childId: string) => ['family', 'children', childId, 'emails'] as const;
 const invalidateChildEmails = (qc: ReturnType<typeof useQueryClient>, childId: string) => {
   void qc.invalidateQueries({ queryKey: CHILD_EMAILS_KEY(childId) });
   void qc.invalidateQueries({ queryKey: KEY });
@@ -698,10 +695,10 @@ export function useUpdateChildEmail(childId: string, emailId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdatePersonEmailPayload) =>
-      apiFetch<PersonEmailDto>(
-        '/api/v1/family/children/' + childId + '/emails/' + emailId,
-        { method: 'PATCH', body: JSON.stringify(payload) },
-      ),
+      apiFetch<PersonEmailDto>('/api/v1/family/children/' + childId + '/emails/' + emailId, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
     onSuccess: () => invalidateChildEmails(qc, childId),
   });
 }
@@ -767,8 +764,7 @@ export function useDeleteChildEmergencyContact(childId: string, contactId: strin
 export function useChildDietary(childId: string, enabled = true) {
   return useQuery({
     queryKey: ['family', 'child', childId, 'dietary'] as const,
-    queryFn: () =>
-      apiFetch<ChildDietaryInfoDto>('/api/v1/family/children/' + childId + '/dietary'),
+    queryFn: () => apiFetch<ChildDietaryInfoDto>('/api/v1/family/children/' + childId + '/dietary'),
     enabled: enabled && childId.length > 0,
     staleTime: 30_000,
   });
@@ -882,9 +878,7 @@ export function usePeopleSearch(query: string, enabled = true) {
   return useQuery({
     queryKey: ['people', 'search', trimmed] as const,
     queryFn: () =>
-      apiFetch<PeopleSearchResult[]>(
-        '/api/v1/people/search?q=' + encodeURIComponent(trimmed),
-      ),
+      apiFetch<PeopleSearchResult[]>('/api/v1/people/search?q=' + encodeURIComponent(trimmed)),
     enabled: enabled && trimmed.length >= 2,
     staleTime: 30_000,
   });
@@ -917,8 +911,7 @@ export interface UpdateFamilyContactPreferencesPayload {
 export function useFamilyContactPreferences(enabled = true) {
   return useQuery({
     queryKey: ['family', 'contact-preferences'] as const,
-    queryFn: () =>
-      apiFetch<FamilyContactPreferenceDto[]>('/api/v1/family/contact-preferences'),
+    queryFn: () => apiFetch<FamilyContactPreferenceDto[]>('/api/v1/family/contact-preferences'),
     enabled,
     staleTime: 30_000,
   });
@@ -1040,10 +1033,10 @@ export function useReorderFamilyEmergencyContacts() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (orderedIds: string[]) =>
-      apiFetch<FamilyEmergencyContactDto[]>(
-        '/api/v1/family/settings/emergency-contacts/reorder',
-        { method: 'PATCH', body: JSON.stringify({ orderedIds }) },
-      ),
+      apiFetch<FamilyEmergencyContactDto[]>('/api/v1/family/settings/emergency-contacts/reorder', {
+        method: 'PATCH',
+        body: JSON.stringify({ orderedIds }),
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: INVALIDATE });
     },

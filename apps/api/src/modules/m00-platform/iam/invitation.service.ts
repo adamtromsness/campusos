@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { PersonaResolutionService } from './persona-resolution.service';
@@ -27,6 +27,8 @@ import {
  */
 @Injectable()
 export class InvitationService {
+  private readonly logger = new Logger(InvitationService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly tenantPrisma: TenantPrismaService,
@@ -533,8 +535,7 @@ export class InvitationService {
     try {
       await this.personaResolution.refreshPersonaCache(personId);
     } catch (e: any) {
-      // eslint-disable-next-line no-console
-      console.warn('[invitation] persona cache refresh failed: ' + (e?.message || e));
+      this.logger.warn('[invitation] persona cache refresh failed: ' + (e?.message || e));
     }
   }
 }

@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
@@ -161,6 +162,8 @@ const LINK_ATTEMPTS_WINDOW_SECONDS = 15 * 60;
  */
 @Injectable()
 export class FamilyChildrenService {
+  private readonly logger = new Logger(FamilyChildrenService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly personaResolution: PersonaResolutionService,
@@ -607,7 +610,7 @@ export class FamilyChildrenService {
           'UPDATE platform.platform_families SET ' +
             sqlClauses.join(', ') +
             ' WHERE id = $' +
-            (sqlValues.length) +
+            sqlValues.length +
             '::uuid',
           ...sqlValues,
         );
@@ -787,9 +790,7 @@ export class FamilyChildrenService {
    * friendly name. Returns rows for any subset of categories the
    * family has set; the UI fills in "Not set" for absent ones.
    */
-  private async readContactPreferenceRows(
-    familyId: string,
-  ): Promise<FamilyContactPreferenceDto[]> {
+  private async readContactPreferenceRows(familyId: string): Promise<FamilyContactPreferenceDto[]> {
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
         category: string;
@@ -943,7 +944,10 @@ export class FamilyChildrenService {
       id,
     );
     if (created.length === 0) {
-      throw new HttpException('Insert succeeded but row not found', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        'Insert succeeded but row not found',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
     return this.toFamilyEmergencyContactDto(created[0]!);
   }
@@ -1120,8 +1124,7 @@ export class FamilyChildrenService {
    * are NULL and the row's own columns win in the COALESCE.
    */
   private familyEcSelectSql(): string {
-    return (
-      `SELECT
+    return `SELECT
          fec.id::text AS id,
          fec.family_id::text AS family_id,
          fec.linked_person_id::text AS linked_person_id,
@@ -1147,8 +1150,7 @@ export class FamilyChildrenService {
          fec.priority_order
        FROM platform.platform_family_emergency_contacts fec
        LEFT JOIN platform.iam_person ip ON ip.id = fec.linked_person_id
-       LEFT JOIN platform.platform_users pu ON pu.person_id = fec.linked_person_id`
-    );
+       LEFT JOIN platform.platform_users pu ON pu.person_id = fec.linked_person_id`;
   }
 
   private toFamilyEmergencyContactDto(r: EmergencyContactRow): FamilyEmergencyContactDto {
@@ -1528,9 +1530,8 @@ export class FamilyChildrenService {
       );
     });
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[child-link-invite] family_child=${childId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
+    this.logger.log(
+      `[child-link-invite] family_child=${childId} code=${code} expires=${expiresAt.toISOString()}`,
     );
 
     return this.requireById(childId, personId);
@@ -1646,9 +1647,8 @@ export class FamilyChildrenService {
       expiresAt.toISOString(),
     );
     if (dto.email) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[family-invite] family=${familyId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
+      this.logger.log(
+        `[family-invite] family=${familyId} code=${code} expires=${expiresAt.toISOString()}`,
       );
     }
     return { code, expiresAt: expiresAt.toISOString(), type: 'FAMILY_INVITE' };
@@ -1694,9 +1694,8 @@ export class FamilyChildrenService {
       expiresAt.toISOString(),
     );
     if (dto.email) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[guardian-invite] family=${familyId} email=${dto.email} code=${code} expires=${expiresAt.toISOString()}`,
+      this.logger.log(
+        `[guardian-invite] family=${familyId} code=${code} expires=${expiresAt.toISOString()}`,
       );
     }
     return { code, expiresAt: expiresAt.toISOString(), type: 'GUARDIAN_INVITE' };
@@ -1710,10 +1709,7 @@ export class FamilyChildrenService {
    * and the parent-supplied display fields. No iam_person is created —
    * that comes later via create-account or invite-accept.
    */
-  async addPlaceholderMember(
-    personId: string,
-    dto: AddFamilyMemberDto,
-  ): Promise<FamilyMemberDto> {
+  async addPlaceholderMember(personId: string, dto: AddFamilyMemberDto): Promise<FamilyMemberDto> {
     await this.assertNotChildViewer(personId);
     const familyId = await this.ensureFamilyForPerson(personId);
     const id = generateId();
@@ -1773,7 +1769,11 @@ export class FamilyChildrenService {
         return this.requireMemberById(memberId, personId);
       }
       const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
-      const accessLevel = computeAccessLevel('LINKED', row.managed_by_person_id ?? null, familyGuardians);
+      const accessLevel = computeAccessLevel(
+        'LINKED',
+        row.managed_by_person_id ?? null,
+        familyGuardians,
+      );
       if (accessLevel === 'INDEPENDENT') {
         throw new HttpException(
           'This account is managed by the account holder. You can view but not edit their information.',
@@ -1963,9 +1963,8 @@ export class FamilyChildrenService {
       );
     });
     if (targetEmail) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[guardian-invite-member] member=${memberId} email=${targetEmail} code=${code} expires=${expiresAt.toISOString()}`,
+      this.logger.log(
+        `[guardian-invite-member] member=${memberId} code=${code} expires=${expiresAt.toISOString()}`,
       );
     }
     return this.requireMemberById(memberId, personId);
@@ -2050,14 +2049,12 @@ export class FamilyChildrenService {
       metadata: unknown;
     },
   ): Promise<FamilyLinkResultDto> {
-    const metadata = invitation.metadata as
-      | {
-          familyId?: string;
-          familyMemberId?: string;
-          targetFirstName?: string;
-          targetLastName?: string;
-        }
-      | null;
+    const metadata = invitation.metadata as {
+      familyId?: string;
+      familyMemberId?: string;
+      targetFirstName?: string;
+      targetLastName?: string;
+    } | null;
     const familyId = metadata?.familyId;
     const targetMemberId = metadata?.familyMemberId;
     if (!familyId) {
@@ -2108,7 +2105,7 @@ export class FamilyChildrenService {
       const otherMemberCount = Number(otherMemberRows[0]?.cnt ?? 0n);
       if (childCount > 0 || otherMemberCount > 0) {
         throw new BadRequestException(
-          'You already belong to a family with children or other guardians. Joining another family as a guardian isn\'t supported yet.',
+          "You already belong to a family with children or other guardians. Joining another family as a guardian isn't supported yet.",
         );
       }
       // Empty singleton — safe to dissolve in the same tx as the join.
@@ -2132,9 +2129,7 @@ export class FamilyChildrenService {
         await tx.platformFamily.delete({ where: { id: existingFamilyToDissolve } });
       }
       if (targetMemberId) {
-        const targetRows = await tx.$queryRawUnsafe<
-          Array<{ family_id: string; status: string }>
-        >(
+        const targetRows = await tx.$queryRawUnsafe<Array<{ family_id: string; status: string }>>(
           `SELECT family_id::text AS family_id, status
            FROM platform.platform_family_members
            WHERE id = $1::uuid
@@ -2276,7 +2271,10 @@ export class FamilyChildrenService {
     const inviterName = inviter
       ? [inviter.preferredName ?? inviter.firstName, inviter.lastName].filter(Boolean).join(' ')
       : 'a parent';
-    const familyHeader: FamilyHeaderDto = { id: family?.id ?? familyId, name: family?.name ?? null };
+    const familyHeader: FamilyHeaderDto = {
+      id: family?.id ?? familyId,
+      name: family?.name ?? null,
+    };
     return { kind: 'GUARDIAN', family: familyHeader, inviterName };
   }
 
@@ -2622,11 +2620,8 @@ export class FamilyChildrenService {
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, familyGuardians),
-      emergencyContactSource:
-        r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
-      addressSource: (r.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
-        | 'FAMILY'
-        | 'CUSTOM',
+      emergencyContactSource: r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
+      addressSource: (r.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM',
       customAddressLine1: r.custom_address_line1,
       customAddressLine2: r.custom_address_line2,
       customCity: r.custom_city,
@@ -2744,7 +2739,10 @@ export class FamilyChildrenService {
     return row;
   }
 
-  private async requireMemberById(memberId: string, viewerPersonId?: string): Promise<FamilyMemberDto> {
+  private async requireMemberById(
+    memberId: string,
+    viewerPersonId?: string,
+  ): Promise<FamilyMemberDto> {
     const familyGuardians = viewerPersonId
       ? await this.loadFamilyGuardianPersonIds(viewerPersonId)
       : new Set<string>();
@@ -2856,8 +2854,7 @@ export class FamilyChildrenService {
       await this.personaResolution.refreshPersonaCache(personId);
     } catch (e: any) {
       // Cache refresh is best-effort — the next /auth/me read can re-resolve.
-      // eslint-disable-next-line no-console
-      console.warn('[family-children] persona cache refresh failed: ' + (e?.message || e));
+      this.logger.warn('[family-children] persona cache refresh failed: ' + (e?.message || e));
     }
   }
 
@@ -3189,12 +3186,12 @@ export class FamilyChildrenService {
         });
         const fallback = next
           ? next.number
-          : (
+          : ((
               await tx.platformPersonPhone.findFirst({
                 where: { personId },
                 orderBy: { createdAt: 'asc' },
               })
-            )?.number ?? null;
+            )?.number ?? null);
         await tx.iamPerson.update({
           where: { id: personId },
           data: { primaryPhone: fallback },
@@ -3207,11 +3204,7 @@ export class FamilyChildrenService {
     return this.personPhoneRowToDto(refreshed);
   }
 
-  async deleteChildPhone(
-    callerPersonId: string,
-    childId: string,
-    phoneId: string,
-  ): Promise<void> {
+  async deleteChildPhone(callerPersonId: string, childId: string, phoneId: string): Promise<void> {
     const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findUnique({
       where: { id: phoneId },
@@ -3419,11 +3412,7 @@ export class FamilyChildrenService {
     return this.personEmailRowToDto(refreshed);
   }
 
-  async deleteChildEmail(
-    callerPersonId: string,
-    childId: string,
-    emailId: string,
-  ): Promise<void> {
+  async deleteChildEmail(callerPersonId: string, childId: string, emailId: string): Promise<void> {
     const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     const existing = await this.prisma.platformPersonEmail.findUnique({
       where: { id: emailId },

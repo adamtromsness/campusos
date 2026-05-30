@@ -120,9 +120,7 @@ function Hero({ profile }: { profile: ProfileDto }) {
     <header className="mb-6">
       <h1 className="text-3xl font-bold tracking-tight text-gray-900">{heroName}</h1>
       {showFull && <p className="mt-1 text-sm text-gray-500">{fullName}</p>}
-      {profile.loginEmail && (
-        <p className="mt-0.5 text-sm text-gray-500">{profile.loginEmail}</p>
-      )}
+      {profile.loginEmail && <p className="mt-0.5 text-sm text-gray-500">{profile.loginEmail}</p>}
     </header>
   );
 }
@@ -274,111 +272,109 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
 
   return (
     <div className="flex flex-col gap-5">
-    <SectionCard>
-      <form onSubmit={onSubmit} noValidate>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <EditField
-            id="firstName"
-            label="First name"
-            value={form.firstName}
-            onChange={(v) => setField('firstName', v)}
-            error={errors.firstName}
-            required
-            autoComplete="given-name"
-            dirty={dirtyFields.has('firstName')}
-          />
-          <EditField
-            id="middleName"
-            label="Middle name"
-            value={form.middleName}
-            onChange={(v) => setField('middleName', v)}
-            autoComplete="additional-name"
-            dirty={dirtyFields.has('middleName')}
-          />
-          <EditField
-            id="lastName"
-            label="Last name"
-            value={form.lastName}
-            onChange={(v) => setField('lastName', v)}
-            error={errors.lastName}
-            required
-            autoComplete="family-name"
-            dirty={dirtyFields.has('lastName')}
-          />
-        </div>
-
-        <div className="mt-4">
-          <EditField
-            id="preferredName"
-            label="Preferred name"
-            value={form.preferredName}
-            onChange={(v) => setField('preferredName', v)}
-            hint="If left blank, we'll use your first name."
-            autoComplete="nickname"
-            dirty={dirtyFields.has('preferredName')}
-          />
-        </div>
-
-        <div className="mt-4">
-          <ReadOnlyField
-            label="Email"
-            value={profile.loginEmail}
-            hint="Email changes need a separate verification flow."
-          />
-        </div>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <EditField
-            id="dateOfBirth"
-            label="Date of birth"
-            type="date"
-            value={form.dateOfBirth}
-            onChange={(v) => setField('dateOfBirth', v)}
-            dirty={dirtyFields.has('dateOfBirth')}
-          />
-          <div>
-            <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
-              Gender
-              {dirtyFields.has('gender') && (
-                <span
-                  aria-label="Modified"
-                  title="Modified — save to keep this change"
-                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
-                />
-              )}
-            </label>
-            <select
-              id="gender"
-              value={form.gender}
-              onChange={(e) => setField('gender', e.target.value)}
-              className={cn(
-                'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
-                dirtyFields.has('gender')
-                  ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
-                  : 'border border-gray-300',
-              )}
-            >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
-            </select>
+      <SectionCard>
+        <form onSubmit={onSubmit} noValidate>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <EditField
+              id="firstName"
+              label="First name"
+              value={form.firstName}
+              onChange={(v) => setField('firstName', v)}
+              error={errors.firstName}
+              required
+              autoComplete="given-name"
+              dirty={dirtyFields.has('firstName')}
+            />
+            <EditField
+              id="middleName"
+              label="Middle name"
+              value={form.middleName}
+              onChange={(v) => setField('middleName', v)}
+              autoComplete="additional-name"
+              dirty={dirtyFields.has('middleName')}
+            />
+            <EditField
+              id="lastName"
+              label="Last name"
+              value={form.lastName}
+              onChange={(v) => setField('lastName', v)}
+              error={errors.lastName}
+              required
+              autoComplete="family-name"
+              dirty={dirtyFields.has('lastName')}
+            />
           </div>
-        </div>
 
-        <AccountInfo profile={profile} personas={personas} />
+          <div className="mt-4">
+            <EditField
+              id="preferredName"
+              label="Preferred name"
+              value={form.preferredName}
+              onChange={(v) => setField('preferredName', v)}
+              hint="If left blank, we'll use your first name."
+              autoComplete="nickname"
+              dirty={dirtyFields.has('preferredName')}
+            />
+          </div>
 
-        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
-      </form>
-      <StickySaveBar
-        isDirty={isDirty}
-        onSave={() => void doSave()}
-        onDiscard={onDiscard}
-        saving={update.isPending}
-      />
-    </SectionCard>
-      {myPersonId && (
-        <FamilyStructureSection personId={myPersonId} canManage variant="self" />
-      )}
+          <div className="mt-4">
+            <ReadOnlyField
+              label="Email"
+              value={profile.loginEmail}
+              hint="Email changes need a separate verification flow."
+            />
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <EditField
+              id="dateOfBirth"
+              label="Date of birth"
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(v) => setField('dateOfBirth', v)}
+              dirty={dirtyFields.has('dateOfBirth')}
+            />
+            <div>
+              <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
+                Gender
+                {dirtyFields.has('gender') && (
+                  <span
+                    aria-label="Modified"
+                    title="Modified — save to keep this change"
+                    className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500 align-middle"
+                  />
+                )}
+              </label>
+              <select
+                id="gender"
+                value={form.gender}
+                onChange={(e) => setField('gender', e.target.value)}
+                className={cn(
+                  'mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500',
+                  dirtyFields.has('gender')
+                    ? 'border border-l-[3px] border-gray-300 border-l-blue-400'
+                    : 'border border-gray-300',
+                )}
+              >
+                <option value="">Not Specified</option>
+                <option value="F">Female</option>
+                <option value="M">Male</option>
+              </select>
+            </div>
+          </div>
+
+          <AccountInfo profile={profile} personas={personas} />
+
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+        <StickySaveBar
+          isDirty={isDirty}
+          onSave={() => void doSave()}
+          onDiscard={onDiscard}
+          saving={update.isPending}
+        />
+      </SectionCard>
+      {myPersonId && <FamilyStructureSection personId={myPersonId} canManage variant="self" />}
     </div>
   );
 }
@@ -395,19 +391,18 @@ function AccountInfo({
   profile: ProfileDto;
   personas: Array<{ type: string; schoolName?: string | null }>;
 }) {
-  const personaSummary = personas.length === 0
-    ? 'No personas yet'
-    : personas
-        .map((p) =>
-          p.schoolName ? `${humanPersona(p.type)} at ${p.schoolName}` : humanPersona(p.type),
-        )
-        .join(' · ');
+  const personaSummary =
+    personas.length === 0
+      ? 'No personas yet'
+      : personas
+          .map((p) =>
+            p.schoolName ? `${humanPersona(p.type)} at ${p.schoolName}` : humanPersona(p.type),
+          )
+          .join(' · ');
 
   return (
     <div className="mt-5 rounded-md border border-gray-200 bg-gray-50/40 p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        Account info
-      </h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Account info</h3>
       <dl className="mt-2 space-y-1 text-sm">
         {profile.createdAt && (
           <div className="flex flex-wrap gap-x-2">
@@ -636,9 +631,7 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
           <input
             type="checkbox"
             checked={form.mailingAddressDifferent}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
-            }
+            onChange={(e) => setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))}
             className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
           />
           Mailing address is different from home address
@@ -1105,8 +1098,8 @@ function EmailListCard() {
       {loginEmail && (
         <p className="mt-3 text-xs text-gray-500">
           Your login email (<span className="font-medium text-gray-700">{loginEmail}</span>) is
-          managed in Account settings — changing your primary contact email here doesn’t change
-          how you sign in.
+          managed in Account settings — changing your primary contact email here doesn’t change how
+          you sign in.
         </p>
       )}
     </SectionCard>
@@ -1209,11 +1202,7 @@ const EMPLOYMENT_STATUSES: Array<{ value: string; label: string }> = [
 // parent, Student, Not Specified) shows only the Additional
 // information notes — a retired grandparent might note "available
 // for pickup anytime", a student might note their schedule.
-const EMPLOYED_STATUSES = new Set([
-  'EMPLOYED_FULL_TIME',
-  'EMPLOYED_PART_TIME',
-  'SELF_EMPLOYED',
-]);
+const EMPLOYED_STATUSES = new Set(['EMPLOYED_FULL_TIME', 'EMPLOYED_PART_TIME', 'SELF_EMPLOYED']);
 
 const WORK_LOCATION_TYPES: Array<{ value: WorkLocationType; label: string }> = [
   { value: 'OFFICE', label: 'Office / On-site' },
@@ -1283,8 +1272,7 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
   // REMOTE hides it and shows a "no address needed" note. HYBRID
   // adds a "this is your primary office" hint above the grid.
   const showWorkAddress =
-    isEmployed &&
-    (form.workLocationType === 'OFFICE' || form.workLocationType === 'HYBRID');
+    isEmployed && (form.workLocationType === 'OFFICE' || form.workLocationType === 'HYBRID');
 
   async function doSave() {
     if (!isDirty || update.isPending) return;
@@ -1408,14 +1396,13 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
                     name="workLocationType"
                     value={opt.value}
                     checked={form.workLocationType === opt.value}
-                    onChange={() =>
-                      setForm((f) => ({ ...f, workLocationType: opt.value }))
-                    }
+                    onChange={() => setForm((f) => ({ ...f, workLocationType: opt.value }))}
                     className="h-4 w-4 border-gray-300 text-campus-700 focus:ring-campus-500"
                   />
                   <span>{opt.label}</span>
-                  {dirtyFields.has('workLocationType') &&
-                    form.workLocationType === opt.value && <DirtyDot />}
+                  {dirtyFields.has('workLocationType') && form.workLocationType === opt.value && (
+                    <DirtyDot />
+                  )}
                 </label>
               ))}
             </div>
@@ -1481,8 +1468,8 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
           )}
 
           <p className="mt-3 text-xs text-gray-500">
-            Schools use this to understand your availability and may use it as an emergency
-            contact during work hours.
+            Schools use this to understand your availability and may use it as an emergency contact
+            during work hours.
           </p>
         </SectionCard>
       )}
@@ -1496,7 +1483,10 @@ function OccupationTab({ profile }: { profile: ProfileDto }) {
           id="occupationNotes"
           value={form.occupationNotes}
           onChange={(e) =>
-            setForm((f) => ({ ...f, occupationNotes: e.target.value.slice(0, OCCUPATION_NOTES_MAX) }))
+            setForm((f) => ({
+              ...f,
+              occupationNotes: e.target.value.slice(0, OCCUPATION_NOTES_MAX),
+            }))
           }
           rows={4}
           maxLength={OCCUPATION_NOTES_MAX}
@@ -1743,7 +1733,12 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
           </>
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <EditField id="docName" label="Doctor name" value={doctor.name} onChange={(v) => patchDoctor('name', v)} />
+            <EditField
+              id="docName"
+              label="Doctor name"
+              value={doctor.name}
+              onChange={(v) => patchDoctor('name', v)}
+            />
             <div>
               <label htmlFor="docPhone" className="block text-xs font-medium text-gray-700">
                 Doctor phone
@@ -1754,15 +1749,41 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
                 onChange={(raw) => patchDoctor('phone', raw)}
               />
             </div>
-            <EditField id="docClinic" label="Clinic" value={doctor.clinic} onChange={(v) => patchDoctor('clinic', v)} className="sm:col-span-2" />
-            <EditField id="insProv" label="Insurance provider" value={doctor.insuranceProvider} onChange={(v) => patchDoctor('insuranceProvider', v)} />
-            <EditField id="insPolicy" label="Policy number" value={doctor.insurancePolicy} onChange={(v) => patchDoctor('insurancePolicy', v)} />
-            <EditField id="insGroup" label="Group number" value={doctor.insuranceGroup} onChange={(v) => patchDoctor('insuranceGroup', v)} />
+            <EditField
+              id="docClinic"
+              label="Clinic"
+              value={doctor.clinic}
+              onChange={(v) => patchDoctor('clinic', v)}
+              className="sm:col-span-2"
+            />
+            <EditField
+              id="insProv"
+              label="Insurance provider"
+              value={doctor.insuranceProvider}
+              onChange={(v) => patchDoctor('insuranceProvider', v)}
+            />
+            <EditField
+              id="insPolicy"
+              label="Policy number"
+              value={doctor.insurancePolicy}
+              onChange={(v) => patchDoctor('insurancePolicy', v)}
+            />
+            <EditField
+              id="insGroup"
+              label="Group number"
+              value={doctor.insuranceGroup}
+              onChange={(v) => patchDoctor('insuranceGroup', v)}
+            />
           </div>
         )}
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <EditField id="bloodType" label="Blood type" value={doctor.bloodType} onChange={(v) => patchDoctor('bloodType', v)} />
+          <EditField
+            id="bloodType"
+            label="Blood type"
+            value={doctor.bloodType}
+            onChange={(v) => patchDoctor('bloodType', v)}
+          />
         </div>
         <div className="mt-3">
           <label className="block text-xs font-medium text-gray-700">Medical notes</label>
@@ -1789,7 +1810,9 @@ function ReadOnlyInline({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs font-medium text-gray-700">{label}</p>
-      <p className="mt-1 text-sm text-gray-900">{value && value.trim() ? value : <span className="text-gray-400">—</span>}</p>
+      <p className="mt-1 text-sm text-gray-900">
+        {value && value.trim() ? value : <span className="text-gray-400">—</span>}
+      </p>
     </div>
   );
 }
@@ -1803,7 +1826,11 @@ function AdultAllergiesCard({
   onChange: (next: AdultAllergyEntry[]) => void;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<AdultAllergyEntry>({ name: '', severity: 'MILD', type: 'FOOD' });
+  const [draft, setDraft] = useState<AdultAllergyEntry>({
+    name: '',
+    severity: 'MILD',
+    type: 'FOOD',
+  });
   const [showAdd, setShowAdd] = useState(false);
   function add() {
     if (!draft.name.trim()) return;
@@ -1816,7 +1843,11 @@ function AdultAllergiesCard({
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Allergies</h3>
         {!showAdd && (
-          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
             + Add allergy
           </button>
         )}
@@ -1826,7 +1857,10 @@ function AdultAllergiesCard({
       ) : (
         <ul className="mt-2 flex flex-col gap-1.5">
           {items.map((a, i) => (
-            <li key={a.name + i} className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+            <li
+              key={a.name + i}
+              className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm"
+            >
               <span>
                 <span className="font-medium text-gray-900">{a.name}</span>
                 {a.severity && (
@@ -1834,9 +1868,16 @@ function AdultAllergiesCard({
                     {ALLERGY_SEVERITIES.find((s) => s.value === a.severity)?.label}
                   </span>
                 )}
-                {a.type && <span className="ml-2 text-xs text-gray-400">({a.type.toLowerCase()})</span>}
+                {a.type && (
+                  <span className="ml-2 text-xs text-gray-400">({a.type.toLowerCase()})</span>
+                )}
               </span>
-              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                disabled={busy}
+                className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60"
+              >
                 Remove
               </button>
             </li>
@@ -1845,15 +1886,33 @@ function AdultAllergiesCard({
       )}
       {showAdd && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Allergy (e.g. Peanuts)" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
-          <select value={draft.severity ?? 'MILD'} onChange={(e) => setDraft({ ...draft, severity: e.target.value as AdultAllergyEntry['severity'] })} className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500">
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            placeholder="Allergy (e.g. Peanuts)"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2"
+          />
+          <select
+            value={draft.severity ?? 'MILD'}
+            onChange={(e) =>
+              setDraft({ ...draft, severity: e.target.value as AdultAllergyEntry['severity'] })
+            }
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          >
             {ALLERGY_SEVERITIES.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
           </select>
-          <select value={draft.type ?? 'FOOD'} onChange={(e) => setDraft({ ...draft, type: e.target.value as AdultAllergyEntry['type'] })} className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500">
+          <select
+            value={draft.type ?? 'FOOD'}
+            onChange={(e) =>
+              setDraft({ ...draft, type: e.target.value as AdultAllergyEntry['type'] })
+            }
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          >
             {ALLERGY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -1861,10 +1920,19 @@ function AdultAllergiesCard({
             ))}
           </select>
           <div className="flex justify-end gap-2 sm:col-span-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              type="button"
+              onClick={() => setShowAdd(false)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
               Cancel
             </button>
-            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={add}
+              disabled={busy}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
               Add
             </button>
           </div>
@@ -1883,7 +1951,12 @@ function AdultMedicationsCard({
   onChange: (next: AdultMedicationEntry[]) => void;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<AdultMedicationEntry>({ name: '', dosage: '', frequency: '', prescriber: '' });
+  const [draft, setDraft] = useState<AdultMedicationEntry>({
+    name: '',
+    dosage: '',
+    frequency: '',
+    prescriber: '',
+  });
   const [showAdd, setShowAdd] = useState(false);
   function add() {
     if (!draft.name.trim()) return;
@@ -1896,7 +1969,11 @@ function AdultMedicationsCard({
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Medications</h3>
         {!showAdd && (
-          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
             + Add medication
           </button>
         )}
@@ -1906,16 +1983,28 @@ function AdultMedicationsCard({
       ) : (
         <ul className="mt-2 flex flex-col gap-1.5">
           {items.map((m, i) => (
-            <li key={m.name + i} className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+            <li
+              key={m.name + i}
+              className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm"
+            >
               <div>
                 <p>
                   <span className="font-medium text-gray-900">{m.name}</span>
                   {m.dosage && <span className="ml-2 text-xs text-gray-600">— {m.dosage}</span>}
-                  {m.frequency && <span className="ml-2 text-xs text-gray-500">· {m.frequency}</span>}
+                  {m.frequency && (
+                    <span className="ml-2 text-xs text-gray-500">· {m.frequency}</span>
+                  )}
                 </p>
-                {m.prescriber && <p className="text-xs text-gray-500">Prescribed by {m.prescriber}</p>}
+                {m.prescriber && (
+                  <p className="text-xs text-gray-500">Prescribed by {m.prescriber}</p>
+                )}
               </div>
-              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                disabled={busy}
+                className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60"
+              >
                 Remove
               </button>
             </li>
@@ -1924,15 +2013,48 @@ function AdultMedicationsCard({
       )}
       {showAdd && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Medication name" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
-          <input type="text" value={draft.dosage ?? ''} onChange={(e) => setDraft({ ...draft, dosage: e.target.value })} placeholder="Dosage" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
-          <input type="text" value={draft.frequency ?? ''} onChange={(e) => setDraft({ ...draft, frequency: e.target.value })} placeholder="Frequency" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
-          <input type="text" value={draft.prescriber ?? ''} onChange={(e) => setDraft({ ...draft, prescriber: e.target.value })} placeholder="Prescribed by" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            placeholder="Medication name"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2"
+          />
+          <input
+            type="text"
+            value={draft.dosage ?? ''}
+            onChange={(e) => setDraft({ ...draft, dosage: e.target.value })}
+            placeholder="Dosage"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+          <input
+            type="text"
+            value={draft.frequency ?? ''}
+            onChange={(e) => setDraft({ ...draft, frequency: e.target.value })}
+            placeholder="Frequency"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+          <input
+            type="text"
+            value={draft.prescriber ?? ''}
+            onChange={(e) => setDraft({ ...draft, prescriber: e.target.value })}
+            placeholder="Prescribed by"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2"
+          />
           <div className="flex justify-end gap-2 sm:col-span-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              type="button"
+              onClick={() => setShowAdd(false)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
               Cancel
             </button>
-            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={add}
+              disabled={busy}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
               Add
             </button>
           </div>
@@ -1951,7 +2073,11 @@ function AdultConditionsCard({
   onChange: (next: AdultConditionEntry[]) => void;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<AdultConditionEntry>({ name: '', diagnosedDate: '', notes: '' });
+  const [draft, setDraft] = useState<AdultConditionEntry>({
+    name: '',
+    diagnosedDate: '',
+    notes: '',
+  });
   const [showAdd, setShowAdd] = useState(false);
   function add() {
     if (!draft.name.trim()) return;
@@ -1962,9 +2088,15 @@ function AdultConditionsCard({
   return (
     <div className="mt-3 rounded-md border border-gray-200 bg-gray-50/40 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Medical conditions</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Medical conditions
+        </h3>
         {!showAdd && (
-          <button type="button" onClick={() => setShowAdd(true)} className="text-sm font-medium text-campus-700 hover:text-campus-600">
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="text-sm font-medium text-campus-700 hover:text-campus-600"
+          >
             + Add condition
           </button>
         )}
@@ -1974,15 +2106,25 @@ function AdultConditionsCard({
       ) : (
         <ul className="mt-2 flex flex-col gap-1.5">
           {items.map((c, i) => (
-            <li key={c.name + i} className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+            <li
+              key={c.name + i}
+              className="flex items-start justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm"
+            >
               <div>
                 <p>
                   <span className="font-medium text-gray-900">{c.name}</span>
-                  {c.diagnosedDate && <span className="ml-2 text-xs text-gray-500">Diagnosed {c.diagnosedDate}</span>}
+                  {c.diagnosedDate && (
+                    <span className="ml-2 text-xs text-gray-500">Diagnosed {c.diagnosedDate}</span>
+                  )}
                 </p>
                 {c.notes && <p className="text-xs text-gray-500">{c.notes}</p>}
               </div>
-              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} disabled={busy} className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60">
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                disabled={busy}
+                className="text-xs text-red-700 hover:text-red-800 disabled:opacity-60"
+              >
                 Remove
               </button>
             </li>
@@ -1991,14 +2133,41 @@ function AdultConditionsCard({
       )}
       {showAdd && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Condition" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2" />
-          <input type="text" value={draft.diagnosedDate ?? ''} onChange={(e) => setDraft({ ...draft, diagnosedDate: e.target.value })} placeholder="Year diagnosed (optional)" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
-          <input type="text" value={draft.notes ?? ''} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Notes" className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500" />
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            placeholder="Condition"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 sm:col-span-2"
+          />
+          <input
+            type="text"
+            value={draft.diagnosedDate ?? ''}
+            onChange={(e) => setDraft({ ...draft, diagnosedDate: e.target.value })}
+            placeholder="Year diagnosed (optional)"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
+          <input
+            type="text"
+            value={draft.notes ?? ''}
+            onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+            placeholder="Notes"
+            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
+          />
           <div className="flex justify-end gap-2 sm:col-span-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-gray-500 hover:text-gray-700">
+            <button
+              type="button"
+              onClick={() => setShowAdd(false)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
               Cancel
             </button>
-            <button type="button" onClick={add} disabled={busy} className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={add}
+              disabled={busy}
+              className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-campus-600 disabled:opacity-60"
+            >
               Add
             </button>
           </div>
