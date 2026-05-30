@@ -312,6 +312,56 @@ async function main() {
     }
   }
 
+  // ── 6b. Family structure (Maya's biological parents) ───────
+  // Distinct from the household above: this is the biological/legal
+  // family graph (platform_person_relationships). David is Maya's
+  // biological father (with the auto-reciprocal BIOLOGICAL_CHILD on
+  // David's profile); Maya's mother is captured name-only ("Linda
+  // Chen") since she has no CampusOS account. Idempotent — guarded on
+  // the existing BIOLOGICAL_FATHER row.
+  var mayaForRel = await client.iamPerson.findFirst({
+    where: { firstName: 'Maya', lastName: 'Chen' },
+    select: { id: true },
+  });
+  var davidForRel = await client.iamPerson.findFirst({
+    where: { firstName: 'David', lastName: 'Chen' },
+    select: { id: true },
+  });
+  if (mayaForRel && davidForRel) {
+    var existingRel = await client.$queryRawUnsafe<Array<{ n: bigint }>>(
+      `SELECT COUNT(*)::bigint AS n FROM platform.platform_person_relationships
+        WHERE person_id = $1::uuid AND relationship_type = 'BIOLOGICAL_FATHER'`,
+      mayaForRel.id,
+    );
+    if (Number(existingRel[0]!.n) === 0) {
+      await client.$executeRawUnsafe(
+        `INSERT INTO platform.platform_person_relationships
+           (id, person_id, related_person_id, relationship_type, is_legal_custody, custody_arrangement, created_by)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'BIOLOGICAL_FATHER', true, 'JOINT', $3::uuid)`,
+        generateId(),
+        mayaForRel.id,
+        davidForRel.id,
+      );
+      await client.$executeRawUnsafe(
+        `INSERT INTO platform.platform_person_relationships
+           (id, person_id, related_person_id, relationship_type, is_legal_custody, custody_arrangement, created_by)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'BIOLOGICAL_CHILD', true, 'JOINT', $2::uuid)`,
+        generateId(),
+        davidForRel.id,
+        mayaForRel.id,
+      );
+      await client.$executeRawUnsafe(
+        `INSERT INTO platform.platform_person_relationships
+           (id, person_id, related_person_name, relationship_type, created_by)
+         VALUES ($1::uuid, $2::uuid, 'Linda Chen', 'BIOLOGICAL_MOTHER', $3::uuid)`,
+        generateId(),
+        mayaForRel.id,
+        davidForRel.id,
+      );
+      console.log("  Family structure: David = Maya's biological father; mother = Linda Chen (name-only)");
+    }
+  }
+
   // ── 7. Provision tenant schema ─────────────────────────────
   // provisionTenant is idempotent — every CREATE in the tenant
   // migrations uses IF NOT EXISTS, every ALTER uses DROP CONSTRAINT
