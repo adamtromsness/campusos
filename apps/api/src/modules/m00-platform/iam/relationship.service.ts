@@ -141,6 +141,37 @@ export class RelationshipService {
     return rows.length > 0;
   }
 
+  /**
+   * True when `callerPersonId` is an active guardian of `personId` — the
+   * union of two signals (the edit-permission predicate, Family Structure
+   * on Profiles spec Step 1):
+   *
+   *   1. Household link — caller is an ACTIVE family member and `personId`
+   *      is a LINKED child of that family (isGuardianOf above). This is the
+   *      bootstrapping path: it lets a parent record the child's FIRST
+   *      relationship before any graph edge exists.
+   *   2. Relationship graph — a current parent/guardian relationship FROM
+   *      `personId` TO the caller (the caller is recorded as the person's
+   *      LEGAL_GUARDIAN / BIOLOGICAL_* / ADOPTIVE_* / STEP_* parent), with
+   *      end_date IS NULL.
+   */
+  async isActiveGuardianOf(callerPersonId: string, personId: string): Promise<boolean> {
+    if (await this.isGuardianOf(callerPersonId, personId)) return true;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: number }>>(
+      `SELECT 1 AS ok
+         FROM platform.platform_person_relationships
+        WHERE person_id = $1::uuid
+          AND related_person_id = $2::uuid
+          AND relationship_type = ANY($3::text[])
+          AND end_date IS NULL
+        LIMIT 1`,
+      personId,
+      callerPersonId,
+      PARENT_TYPES,
+    );
+    return rows.length > 0;
+  }
+
   // ─── A) addRelationship ───────────────────────────────────────
 
   async addRelationship(
