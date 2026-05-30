@@ -1418,8 +1418,15 @@ export class FamilyChildrenService {
         `Cannot create account for child in status ${row.status}; expected PLACEHOLDER`,
       );
     }
-    const ageYears = row.date_of_birth ? ageInYears(row.date_of_birth) : null;
-    if (dto.email && ageYears !== null && ageYears < 13) {
+    // Account Creation spec, Step 2 — DOB + gender required to provision
+    // the account. Effective values prefer the create-account payload,
+    // then fall back to whatever the PLACEHOLDER row already carries.
+    const { dateOfBirth, gender } = requireAccountIdentity(
+      dto.dateOfBirth ?? row.date_of_birth,
+      dto.gender ?? row.gender,
+    );
+    const ageYears = ageInYears(dateOfBirth);
+    if (dto.email && ageYears < 13) {
       throw new BadRequestException(
         'Under-13 accounts are parent-managed and cannot have their own email (COPPA)',
       );
@@ -1427,16 +1434,24 @@ export class FamilyChildrenService {
     const newPersonId = generateId();
     const newAccountId = generateId();
     const emailForAccount = dto.email ?? this.syntheticChildEmail(newPersonId);
+    // Step 4 — age-based person_type. A child created here is ≤18 in the
+    // common case (STUDENT); the helper keeps the >18 edge consistent.
+    const personType = personTypeForAge(dateOfBirth);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
+        // person_type is a Postgres ENUM ("PersonType"); a bound param
+        // arrives as text and won't auto-coerce, so cast it explicitly.
+        // (The pre-existing code used a string literal, which did coerce.)
         `INSERT INTO platform.iam_person
-           (id, first_name, last_name, date_of_birth, person_type, is_active, created_at)
-         VALUES ($1::uuid, $2, $3, $4::date, 'STUDENT', true, now())`,
+           (id, first_name, last_name, date_of_birth, gender, person_type, is_active, created_at)
+         VALUES ($1::uuid, $2, $3, $4::date, $5, $6::"PersonType", true, now())`,
         newPersonId,
         row.first_name,
         row.last_name,
-        row.date_of_birth,
+        dateOfBirth,
+        gender,
+        personType,
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO platform.platform_users
@@ -1451,14 +1466,22 @@ export class FamilyChildrenService {
         personId,
       );
       await tx.$executeRawUnsafe(
+        // Mirror the effective DOB/gender back onto the family_children
+        // row so the parent's family view stays consistent with the
+        // child's iam_person even when these were supplied (gap-filled)
+        // at account-creation rather than on the original placeholder.
         `UPDATE platform.platform_family_children
            SET person_id = $1::uuid,
                status = 'LINKED',
+               date_of_birth = $3::date,
+               gender = $4,
                linked_at = now(),
                updated_at = now()
          WHERE id = $2::uuid`,
         newPersonId,
         childId,
+        dateOfBirth,
+        gender,
       );
     });
 
@@ -1868,17 +1891,29 @@ export class FamilyChildrenService {
     if (row.status === 'ACTIVE') {
       throw new BadRequestException('Member already has an account.');
     }
+    // Account Creation spec, Step 2 — DOB + gender required. The member
+    // table has no DOB/gender columns, so these come from the DTO only.
+    const { dateOfBirth, gender } = requireAccountIdentity(dto.dateOfBirth, dto.gender);
+    // Step 4 — adults created via the family flow are GUARDIAN (no ADULT
+    // person_type exists; personas remain derived). The >18-also-a-student
+    // case is a UI-variant concern only and does not change person_type.
+    const personType = personTypeForAge(dateOfBirth);
     const newPersonId = generateId();
     const newAccountId = generateId();
     const email = dto.email?.trim() || row.email || this.syntheticGuardianEmail(newPersonId);
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
+        // person_type is a Postgres ENUM ("PersonType"); cast the bound
+        // param so it doesn't arrive as uncoerced text.
         `INSERT INTO platform.iam_person
-           (id, first_name, last_name, person_type, is_active, created_at)
-         VALUES ($1::uuid, $2, $3, 'EXTERNAL', true, now())`,
+           (id, first_name, last_name, date_of_birth, gender, person_type, is_active, created_at)
+         VALUES ($1::uuid, $2, $3, $4::date, $5, $6::"PersonType", true, now())`,
         newPersonId,
         row.first_name ?? '',
         row.last_name ?? '',
+        dateOfBirth,
+        gender,
+        personType,
       );
       await tx.$executeRawUnsafe(
         // managed_by_person_id = the parent who created the account.
@@ -3675,4 +3710,61 @@ function ageInYears(dateOfBirth: string): number {
   const m = now.getUTCMonth() - dob.getUTCMonth();
   if (m < 0 || (m === 0 && now.getUTCDate() < dob.getUTCDate())) age--;
   return age;
+}
+
+/**
+ * Account Creation spec, Step 2 — DOB + gender are required to provision
+ * a real user-facing account (createAccountForChild / createAccountForMember).
+ * Returns the validated, normalised pair or throws a field-scoped 400.
+ *
+ * Enforced ONLY at account creation, not on the PLACEHOLDER create()
+ * primitive (which stays a low-friction roster stub) nor on the other-
+ * domain account paths (auth.register, SIS, HR, config import) which own
+ * their own validators.
+ *
+ * `dob` / `gender` are the effective values (caller resolves dto ?? row).
+ * A future DOB is rejected; gender must be non-empty after trim.
+ */
+function requireAccountIdentity(
+  dob: string | null | undefined,
+  gender: string | null | undefined,
+): { dateOfBirth: string; gender: string } {
+  const trimmedGender = (gender ?? '').trim();
+  if (!dob) {
+    throw new BadRequestException({
+      message: 'Date of birth is required',
+      field: 'dateOfBirth',
+    });
+  }
+  const parsed = new Date(dob);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException({ message: 'Date of birth is invalid', field: 'dateOfBirth' });
+  }
+  // Compare date-only (UTC midnight) so "born today" is allowed but any
+  // future calendar date is rejected.
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  if (parsed.getTime() > todayUtc) {
+    throw new BadRequestException({
+      message: 'Date of birth cannot be in the future',
+      field: 'dateOfBirth',
+    });
+  }
+  if (!trimmedGender) {
+    throw new BadRequestException({ message: 'Gender is required', field: 'gender' });
+  }
+  return { dateOfBirth: dob, gender: trimmedGender };
+}
+
+/**
+ * Age-based person_type for the family add-person flow (Account Creation
+ * spec, Step 4). Personas remain DERIVED, never assigned — this only sets
+ * the identity-level iam_person.person_type:
+ *   - minor (≤18) OR explicitly also-a-student → STUDENT
+ *   - adult (>18) non-student                  → GUARDIAN
+ * The student-variant choice for an adult is a UI/redirect concern with
+ * no durable backend state; it does not change person_type.
+ */
+function personTypeForAge(dateOfBirth: string): 'STUDENT' | 'GUARDIAN' {
+  return ageInYears(dateOfBirth) <= 18 ? 'STUDENT' : 'GUARDIAN';
 }

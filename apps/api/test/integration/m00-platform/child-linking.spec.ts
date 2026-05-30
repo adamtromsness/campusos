@@ -141,24 +141,28 @@ describe('integration:m00-platform/child-linking', () => {
         accountId,
       );
     }
-    for (const personId of [parentPersonId, parentBPersonId, childPersonId]) {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
-        personId,
-      );
-    }
-    for (const personId of createdPersonIds) {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
-        personId,
-      );
-    }
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM platform.platform_personas WHERE person_id IN ($1::uuid, $2::uuid, $3::uuid)`,
+    // platform_personas FKs iam_person, so personas MUST be deleted
+    // first. create-account / accept now refresh the inviting parent's
+    // persona cache, so a PARENT row exists by teardown; deleting
+    // iam_person before it raised an FK violation that cascaded into
+    // sibling tests. Covers fixed IDs AND every dynamically-created
+    // person.
+    const allPersonIds = [
       parentPersonId,
       parentBPersonId,
       childPersonId,
+      ...createdPersonIds,
+    ];
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_personas WHERE person_id = ANY($1::uuid[])`,
+      allPersonIds,
     );
+    for (const personId of allPersonIds) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
+        personId,
+      );
+    }
     await tenantPrisma.onModuleDestroy();
     await redis.onModuleDestroy();
     await prisma.$disconnect();
@@ -225,10 +229,12 @@ describe('integration:m00-platform/child-linking', () => {
       lastName: 'Parent',
       dateOfBirth: '2018-01-01', // under-13 → minor
     });
+    // DOB came from the placeholder; gender is supplied at account
+    // creation (Account Creation spec, Step 2 — both required).
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { gender: 'M' },
     );
     expect(linked.status).toBe('LINKED');
     expect(linked.personId).toBeTruthy();
@@ -252,7 +258,7 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { dateOfBirth: '2015-04-02', gender: 'F' },
     );
     createdPersonIds.add(linked.personId!);
 
@@ -270,6 +276,7 @@ describe('integration:m00-platform/child-linking', () => {
     await expect(
       controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
         email: 'kid@example.invalid',
+        gender: 'M',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -322,7 +329,7 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { dateOfBirth: '2015-04-02', gender: 'F' },
     );
     createdPersonIds.add(linked.personId!);
     await expect(

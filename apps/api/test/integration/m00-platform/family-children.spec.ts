@@ -347,7 +347,10 @@ describe('integration:m00-platform/family-children', () => {
     // INDEPENDENT-rejection contract is locked by a separate spec
     // below.
     const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-    const linked = await controller.createAccount(reqA(), c.id, {});
+    const linked = await controller.createAccount(reqA(), c.id, {
+      dateOfBirth: '2014-03-03',
+      gender: 'F',
+    });
     expect(linked.accessLevel).toBe('MANAGED');
 
     const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie', gender: 'F' });
@@ -961,7 +964,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Junior',
         lastName: 'A',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       expect(linked.accessLevel).toBe('MANAGED');
 
       const code = (await controller.inviteGuardian(reqA(), {})).code;
@@ -983,7 +989,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Junior',
         lastName: 'A',
       });
-      await controller.createAccount(reqA(), placeholder.id, {});
+      await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
 
       const code = (await controller.inviteGuardian(reqA(), {})).code;
       await controller.accept(reqB(), { code });
@@ -1008,7 +1017,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Original',
         lastName: 'Surname',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       const linkedChildId = linked.id;
       const linkedPersonId = linked.personId!;
 
@@ -1172,7 +1184,10 @@ describe('integration:m00-platform/family-children', () => {
         lastName: 'A',
         email: 'jane@example.invalid',
       });
-      const promoted = await controller.createMemberAccount(reqA(), m.id, {});
+      const promoted = await controller.createMemberAccount(reqA(), m.id, {
+        dateOfBirth: '1986-07-07',
+        gender: 'F',
+      });
       expect(promoted.status).toBe('ACTIVE');
       expect(promoted.personId).toBeTruthy();
       // The new iam_person carries the placeholder's name.
@@ -1182,7 +1197,7 @@ describe('integration:m00-platform/family-children', () => {
       });
       expect(person?.firstName).toBe('Jane');
       expect(person?.lastName).toBe('A');
-      expect(person?.personType).toBe('EXTERNAL');
+      expect(person?.personType).toBe('GUARDIAN');
       // platform_users row exists and uses the provided email.
       const accountRows = await prisma.$queryRawUnsafe<Array<{ email: string }>>(
         `SELECT email FROM platform.platform_users WHERE person_id = $1::uuid`,
@@ -1241,7 +1256,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Sectioned',
         lastName: 'Child',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       return linked.id;
     }
 
