@@ -418,3 +418,78 @@ pnpm --filter @campusos/api exec vitest run \
   test/integration/m00-platform/family-children.spec.ts \
   --config vitest.integration.config.ts                               # 54/54 pass
 ```
+
+## Family Structure & Person Relationships — 2026-05-30
+
+Implements `docs/campusos-family-structure-design.html` (Steps 1-8).
+A new relationship graph **distinct from the household model**:
+households = who lives together / manages accounts; family structure =
+who is biologically or legally related. A child of divorced parents
+belongs to two households but has one set of biological parents.
+
+**Schema** — `platform_person_relationships` (platform migration
+`20260530010000_family_structure_relationships` + Prisma model
+`PlatformPersonRelationship`):
+
+- `person_id` → `related_person_id` (nullable) with `relationship_type`
+  (15-value TEXT+CHECK), custody fields (`is_legal_custody`,
+  `custody_arrangement` 7-value CHECK, `custody_notes`,
+  `is_primary_residence`), verification (`verified` / `verified_by` /
+  `verified_at`), `start_date` / `end_date`, `created_by`.
+- `related_person_name` captures non-CampusOS people (no placeholder
+  iam_person); CHECK requires id OR name. Partial UNIQUE indexes dedup
+  linked vs name-only rows. `CHECK (person_id <> related_person_id)`.
+  Platform-internal FKs to `iam_person` (ADR-001 soft-FK rule is
+  tenant→platform only).
+
+**Service** — `RelationshipService` (m00-platform/iam):
+
+- `addRelationship` writes the row + its auto-reciprocal in one tx
+  (BIOLOGICAL_MOTHER/FATHER→BIOLOGICAL_CHILD, GUARDIAN→WARD,
+  GRANDPARENT→GRANDCHILD, symmetric SPOUSE/DOMESTIC_PARTNER). Name-only
+  rows get no reciprocal. Reciprocal-only types (`*_CHILD`, `LEGAL_WARD`,
+  `GRANDCHILD`) cannot be created directly.
+- `update` / `delete` touch both sides (reciprocal found by
+  reversed-pair + candidate-type lookup). `relationship_type` immutable.
+- `getRelationships` = direct rows + **derived siblings** (never stored):
+  FULL (2 shared bio parents), HALF (1), ADOPTIVE (shared adoptive
+  parent), STEP (a parent's spouse is the candidate's parent).
+- `getFamilyTree` buckets into parents/children/grandparents/spouses/
+  other + siblings. `isGuardianOf` reuses the household tables for auth.
+
+**Endpoints** — `RelationshipController` under `/people/:personId`:
+`GET/POST relationships`, `PATCH/DELETE relationships/:id`,
+`GET family-tree`, `PATCH relationships/:id/verify` (school-admin only).
+Auth is row-level (self if adult / parent-guardian / school-admin),
+enforced per-handler — not a static permission code (mirrors
+PeopleSearchController's auth-only pattern).
+
+**Web** — `use-relationships` hooks; `SetRelationshipModal` (CampusOS
+search or name-only, mode-scoped type radios, custody); a Family
+Structure section on the child profile Account tab (LINKED only;
+editable when MANAGED) and the adult profile (self variant — parent/
+child read-only, spouse editable); `/family/tree` list view reached
+from a "View Family Tree" action on `/family`.
+
+**Seed** — David Chen is Maya's biological father (with reciprocal);
+mother captured name-only as "Linda Chen". Idempotent (`seed.ts`).
+
+**Tests** — `relationships.spec.ts`, 15 DB-backed tests (reciprocals,
+name-only, delete/update both sides, full/half/step siblings, verify,
+duplicate→409, self→400, reciprocal-only→400, family-tree bucketing,
+cross-family isolation).
+
+Verification:
+
+```
+pnpm --filter @campusos/database migrate:deploy                       # ✓
+pnpm --filter @campusos/api exec tsc --noEmit                         # ✓ 0 errors
+pnpm --filter @campusos/api build                                     # ✓ 0 errors
+pnpm --filter @campusos/web exec tsc --noEmit                         # ✓ 0 errors
+pnpm --filter @campusos/api exec vitest run \
+  test/integration/m00-platform/relationships.spec.ts \
+  --config vitest.integration.config.ts                               # 15/15 pass
+```
+
+Deferred (per design §12): graphical SVG tree, school-admin student
+family tab, custody calendar, court-order document upload.
