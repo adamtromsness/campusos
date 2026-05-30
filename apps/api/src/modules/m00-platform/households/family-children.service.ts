@@ -1462,6 +1462,14 @@ export class FamilyChildrenService {
       );
     });
 
+    // Guardian bootstrap (Family Structure on Profiles spec, Step 2):
+    // the creating parent can edit this child's family structure
+    // immediately because they are now an ACTIVE guardian-role member
+    // (HEAD_OF_HOUSEHOLD) of the family that holds this LINKED child —
+    // which is exactly what RelationshipService.isActiveGuardianOf's
+    // household path recognises. No explicit relationship row is created
+    // here (the parent sets the precise biological/adoptive/step type via
+    // the Set Relationship modal); the household membership is the link.
     await this.refreshPersonaCacheSafe(personId);
     return this.requireById(childId, personId);
   }

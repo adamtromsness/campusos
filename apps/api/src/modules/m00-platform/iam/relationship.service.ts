@@ -128,11 +128,16 @@ export class RelationshipService {
    * Mirrors the household ownership model used by FamilyChildrenService.
    */
   async isGuardianOf(callerPersonId: string, personId: string): Promise<boolean> {
+    // The caller must be an ACTIVE member in a *guardian* role — not a
+    // mere co-resident. Otherwise a sibling/child member of the same
+    // household could edit another child's family structure. STUDENT /
+    // CHILD / SIBLING / OTHER roles are excluded.
     const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: number }>>(
       `SELECT 1 AS ok
          FROM platform.platform_family_members m
          JOIN platform.platform_family_children c ON c.family_id = m.family_id
         WHERE m.person_id = $1::uuid AND m.status = 'ACTIVE'
+          AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
           AND c.person_id = $2::uuid AND c.status = 'LINKED'
         LIMIT 1`,
       callerPersonId,
