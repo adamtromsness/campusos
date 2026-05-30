@@ -125,12 +125,20 @@ export default function FamilyPage() {
             : 'Your family — read-only view.'
         }
         actions={
-          <Link
-            href="/family/settings"
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            Family Settings
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/family/tree"
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              View Family Tree
+            </Link>
+            <Link
+              href="/family/settings"
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              Family Settings
+            </Link>
+          </div>
         }
       />
 
