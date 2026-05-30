@@ -677,6 +677,52 @@ model PlatformAdultMedicalInfo {
   @@schema("platform")
 }
 
+// Family structure — biological, legal, and step-family relationships
+// between people. Distinct from the household model (platform_families
+// / platform_family_members / platform_family_children): household =
+// who lives together + manages accounts; family structure = who is
+// biologically or legally related to whom. A child of divorced parents
+// belongs to two households but has one set of biological parents.
+//
+// Relationships are stored bidirectionally: creating
+// "child → BIOLOGICAL_MOTHER → parent" auto-creates the reciprocal
+// "parent → BIOLOGICAL_CHILD → child" so the tree is navigable from
+// either side. Siblings are NEVER stored — they're derived from shared
+// parents at read time (see RelationshipService.getRelationships).
+//
+// relatedPersonId is nullable: a non-CampusOS person (deceased / absent
+// / never-joining parent) is captured by relatedPersonName instead. No
+// placeholder iam_person is created for them. No reciprocal row is
+// created for a name-only relationship.
+//
+// The two partial UNIQUE indexes (one for linked, one for name-only)
+// and the CHECK constraints live in the migration — Prisma can't
+// express partial uniques or table CHECKs here.
+model PlatformPersonRelationship {
+  id                 String    @id @db.Uuid
+  personId           String    @map("person_id") @db.Uuid
+  relatedPersonId    String?   @map("related_person_id") @db.Uuid
+  relatedPersonName  String?   @map("related_person_name")
+  relationshipType   String    @map("relationship_type")
+  isLegalCustody     Boolean   @default(false) @map("is_legal_custody")
+  custodyArrangement String?   @map("custody_arrangement")
+  custodyNotes       String?   @map("custody_notes")
+  isPrimaryResidence Boolean   @default(false) @map("is_primary_residence")
+  verified           Boolean   @default(false)
+  verifiedBy         String?   @map("verified_by") @db.Uuid
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz()
+  startDate          DateTime? @map("start_date") @db.Date
+  endDate            DateTime? @map("end_date") @db.Date
+  createdBy          String    @map("created_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime? @map("updated_at") @db.Timestamptz()
+
+  @@index([personId])
+  @@index([relatedPersonId])
+  @@map("platform_person_relationships")
+  @@schema("platform")
+}
+
 model PlatformChildEmergencyContact {
   id               String   @id @db.Uuid
   personId         String   @map("person_id") @db.Uuid
