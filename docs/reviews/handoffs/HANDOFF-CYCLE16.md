@@ -342,3 +342,73 @@ it does not depend on household seeding). All passing:
 - `pnpm --filter @campusos/web exec tsc --noEmit` — 0 errors.
 - `test:integration -- relationships people-search` (existing) — passing.
 - `test:integration -- relationship-self-selection` (new) — passing.
+
+
+---
+
+## Account creation: required DOB/gender, age variant, duplicate detection (2026-05-30)
+
+Account Creation spec (layout, validation, dedupe, age defaults). Implemented
+on branch feat/family-structure-profile-edit-perms.
+
+### Decisions (resolved with the user before coding)
+- Persona: age drives the profile VARIANT + iam_person.person_type only;
+  personas stay DERIVED, never assigned (no fabricated STUDENT persona).
+- Form: generalise /family/add-child into an add-person flow.
+- Gender: inclusive REQUIRED select (Female / Male / Non-binary /
+  Other-self-describe / Prefer-not-to-say).
+- Validation: server-side in the two create-account use-cases + client-side
+  inline. Adult (>18) person_type = GUARDIAN (no ADULT enum exists).
+- Dedupe: detect + direct-link (managed-by-me) now; cross-owner claim-approval
+  deferred.
+
+### Backend (commits 36f52d3, 11cd7fc)
+- `createAccountForChild` / `createAccountForMember` now require DOB + gender
+  (400, field-scoped; future DOB rejected) via `requireAccountIdentity()`.
+  Effective values are dto ?? placeholder-row. The member create-account DTO
+  gained dateOfBirth/gender (platform_family_members has no such columns).
+- `personTypeForAge()`: <=18 STUDENT, >18 GUARDIAN. The member path's old
+  EXTERNAL person_type became GUARDIAN. person_type is a PG ENUM, so the raw
+  INSERT param is cast `::"PersonType"` (a bare text param does not coerce).
+- Child path mirrors the effective DOB/gender back to platform_family_children.
+- New `POST /people/check-duplicate` (DuplicateCheckService +
+  DuplicateCheckController in m00-platform/iam, registered in IamModule).
+  Strong match only (exact email OR normalized first+last AND exact DOB);
+  minimal descriptor {exists, displayName 'Given L.', context coarse-role,
+  alreadyManagedByCurrentUser}; never email/DOB/contact. Redis rate-limit
+  (30 / 15 min -> 429); self-excluded; INNER JOIN platform_users; POST so
+  identity isn't logged in URLs. Linking itself is deferred to the form.
+
+### Web (commit cb3f6a2)
+- /family/add-child generalised to an add-person form: profile-style layout
+  (First|Middle|Last; Preferred; Email; DOB|Gender), inclusive required gender
+  select, required DOB+gender client validation (inline errors, future-DOB
+  guard), >18 "also a student" opt-in, redirect to /family/children/:id after
+  account creation (variant-appropriate detail page). Option C sends DOB+gender.
+- Duplicate prompt fires on email/name/DOB blur; shows the minimal descriptor;
+  "Link existing account" only when managed-by-me, else explains a claim
+  request is needed; "This is someone else" dismisses. A failed/rate-limited
+  check never blocks creation.
+- New useCheckDuplicate hook; DOB/gender added to CreateChildAccountPayload.
+
+### Tests (commits 11cd7fc, 5cbf960)
+- duplicate-check.spec (8): email match, name+DOB match, name-only no-match,
+  wrong-DOB no-match, empty probe, managed-by-me flag, self-exclusion,
+  rate-limit 429. Disclosure test asserts no email/DOB/full-surname in payload.
+- child-linking.spec (+6): missing-DOB 400, missing-gender 400, future-DOB 400,
+  age 12 STUDENT, age 18 STUDENT (boundary), age 19 GUARDIAN. Existing
+  create-account call sites updated to pass DOB/gender; afterAll reordered to
+  delete platform_personas before iam_person.
+- family-children.spec: create-account sites pass DOB/gender; member
+  person_type assertion EXTERNAL -> GUARDIAN.
+
+### Verification
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- child-linking + family-children + duplicate-check — 107 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+  (The web app has no test runner — the `test` script is a stub — so there is
+  no component-test layer; behaviour is covered by the API tests + type/lint.)
+
+### Deferred / follow-up
+- Cross-owner "link/claim request" approval flow (reuse platform_invitations):
+  detection blocks it safely today (no PII shared, no link offered).
