@@ -159,6 +159,11 @@ export class RelationshipService {
    *      `personId` TO the caller (the caller is recorded as the person's
    *      LEGAL_GUARDIAN / BIOLOGICAL_* / ADOPTIVE_* / STEP_* parent), with
    *      end_date IS NULL.
+   *
+   * PARENT_TYPES spans LEGAL_GUARDIAN *and* every parentage type, so an
+   * upgrade-in-place (LEGAL_GUARDIAN → BIOLOGICAL_FATHER, custody on) keeps
+   * satisfying signal (2) — the editor never loses their own edit rights
+   * mid-flow. Membership here is type-based, not custody-flag-based.
    */
   async isActiveGuardianOf(callerPersonId: string, personId: string): Promise<boolean> {
     if (await this.isGuardianOf(callerPersonId, personId)) return true;
@@ -213,6 +218,28 @@ export class RelationshipService {
     const custodyNotes = dto.custodyNotes?.trim() || null;
     const isPrimaryResidence = dto.isPrimaryResidence ?? false;
     const startDate = dto.startDate ?? null;
+
+    // Upgrade-in-place: if the selected CampusOS person already has an
+    // active relationship to this person of a DIFFERENT type — e.g. the
+    // LEGAL_GUARDIAN edge a parent picks up when they create + manage a
+    // child account — don't insert a second row and don't 409. Reconcile
+    // by upgrading the existing row to the chosen parentage type, carrying
+    // the guardian fact forward as a legal-custody flag. Net effect: the
+    // parent shows once (e.g. "Biological father" with custody on), never
+    // twice. Re-adding the SAME type is a genuine duplicate — fall through
+    // to the INSERT, which hits the partial-unique and 409s as before.
+    if (relatedPersonId) {
+      const existing = await this.findActiveForwardRow(personId, relatedPersonId);
+      if (existing && existing.relationship_type !== type) {
+        return this.upgradeRelationship(existing, type, reciprocalType, {
+          isLegalCustody,
+          custodyArrangement,
+          custodyNotes,
+          isPrimaryResidence,
+          startDate,
+        });
+      }
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -546,6 +573,93 @@ export class RelationshipService {
       candidates,
     );
     return rows[0]?.id ?? null;
+  }
+
+  /**
+   * The single active relationship row pointing FROM `personId` TO
+   * `relatedPersonId` (end_date IS NULL), if any. Powers upgrade-in-place
+   * so a parentage save reconciles with an existing guardian edge rather
+   * than duplicating it. Oldest row wins if (improbably) more than one is
+   * active for the pair.
+   */
+  private async findActiveForwardRow(
+    personId: string,
+    relatedPersonId: string,
+  ): Promise<RelationshipRow | null> {
+    const rows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+      this.selectSql() +
+        ` WHERE r.person_id = $1::uuid AND r.related_person_id = $2::uuid
+            AND r.end_date IS NULL
+          ORDER BY r.created_at ASC
+          LIMIT 1`,
+      personId,
+      relatedPersonId,
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Reconcile an existing active relationship into the chosen type
+   * (upgrade-in-place). Updates the forward row + its reciprocal in one
+   * tx, carrying the guardian fact onto a parentage row by forcing legal
+   * custody on (the bootstrap guardian edge becomes e.g. "Biological
+   * father" WITH custody, not a separate guardian entry). created_by is
+   * left untouched — there is no updated_by column on this table.
+   */
+  private async upgradeRelationship(
+    existing: RelationshipRow,
+    newType: RelationshipType,
+    newReciprocalType: RelationshipType,
+    custody: {
+      isLegalCustody: boolean;
+      custodyArrangement: string | null;
+      custodyNotes: string | null;
+      isPrimaryResidence: boolean;
+      startDate: string | null;
+    },
+  ): Promise<RelationshipDto> {
+    // Legal custody is meaningful only for parent/guardian types. Upgrading
+    // TO a parentage type carries the guardian fact forward (forces it on);
+    // a spouse/grandparent upgrade uses the supplied flag (default off).
+    const isParentType = (PARENT_TYPES as readonly string[]).includes(newType);
+    const isLegalCustody = isParentType ? true : custody.isLegalCustody;
+    const cols = (type: RelationshipType) => ({
+      set: [
+        'relationship_type = $1',
+        'is_legal_custody = $2',
+        'custody_arrangement = $3',
+        'custody_notes = $4',
+        'is_primary_residence = $5',
+        'start_date = $6::date',
+      ],
+      args: [
+        type,
+        isLegalCustody,
+        custody.custodyArrangement,
+        custody.custodyNotes,
+        custody.isPrimaryResidence,
+        custody.startDate,
+      ] as unknown[],
+    });
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const fwd = cols(newType);
+        await this.applyUpdate(tx, existing.id, fwd.set, fwd.args);
+        const reciprocalId = await this.findReciprocalId(tx, existing);
+        if (reciprocalId) {
+          const rec = cols(newReciprocalType);
+          await this.applyUpdate(tx, reciprocalId, rec.set, rec.args);
+        }
+      });
+    } catch (err: unknown) {
+      if (this.isUniqueViolation(err)) {
+        throw new ConflictException('That relationship already exists.');
+      }
+      throw err;
+    }
+
+    return this.getRelationshipById(existing.id);
   }
 
   private async applyUpdate(

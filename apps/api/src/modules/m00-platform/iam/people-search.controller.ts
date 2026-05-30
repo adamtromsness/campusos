@@ -24,12 +24,16 @@ export class PeopleSearchController {
   @Get('search')
   @ApiOperation({
     summary:
-      'Name + email lookup over iam_person, JOIN platform_users. Excludes the caller; capped at 10 results.',
+      'Name + email lookup over iam_person, JOIN platform_users. Excludes the caller (unless includeSelf=true); capped at 10 results.',
   })
   async search(
     @Req() req: AuthedRequest,
     @Query('q') q: string,
+    // includeSelf=true keeps the caller in the results — used only by the
+    // family-structure Set Father/Mother modal so a parent can pick
+    // themselves. Every other caller gets the exclude-self default.
+    @Query('includeSelf') includeSelf?: string,
   ): Promise<PeopleSearchResult[]> {
-    return this.people.search(req.user!.personId, q ?? '');
+    return this.people.search(req.user!.personId, q ?? '', includeSelf === 'true');
   }
 }

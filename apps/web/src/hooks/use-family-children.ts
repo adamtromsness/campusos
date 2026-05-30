@@ -876,14 +876,20 @@ export interface PeopleSearchResult {
  * Hits GET /api/v1/people/search?q=…. Returns up to 10 results.
  * Pass `enabled` to short-circuit when the input is below the
  * 2-character minimum; an enabled-false query won't fire.
+ *
+ * `includeSelf` keeps the current user in the results (default: excluded).
+ * The family-structure Set Father/Mother modal opts in so a parent can
+ * find + select themselves as the child's parent.
  */
-export function usePeopleSearch(query: string, enabled = true) {
+export function usePeopleSearch(query: string, enabled = true, includeSelf = false) {
   const trimmed = query.trim();
   return useQuery({
-    queryKey: ['people', 'search', trimmed] as const,
+    queryKey: ['people', 'search', trimmed, includeSelf] as const,
     queryFn: () =>
       apiFetch<PeopleSearchResult[]>(
-        '/api/v1/people/search?q=' + encodeURIComponent(trimmed),
+        '/api/v1/people/search?q=' +
+          encodeURIComponent(trimmed) +
+          (includeSelf ? '&includeSelf=true' : ''),
       ),
     enabled: enabled && trimmed.length >= 2,
     staleTime: 30_000,

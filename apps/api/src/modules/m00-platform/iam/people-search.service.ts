@@ -20,10 +20,14 @@ const MAX_RESULTS = 10;
  *
  * Privacy model: matches are joined INNER against platform_users so
  * only active accounts surface; placeholder iam_person rows (no
- * login) are invisible. Results are capped at 10 and the caller is
- * excluded from their own results. Hits ranked by prefix-match on
- * first_name → preferred_name → last_name → email, with the rest
+ * login) are invisible. Results are capped at 10 and, by default, the
+ * caller is excluded from their own results. Hits ranked by prefix-match
+ * on first_name → preferred_name → last_name → email, with the rest
  * falling through as substring matches.
+ *
+ * The family-structure "Set Father/Mother" modal opts into includeSelf
+ * (a parent setting themselves as the child's parent is its primary use
+ * case); every other caller keeps the exclude-self default.
  *
  * Scope: today the search is global across all iam_person rows that
  * have an associated platform_users account. The user-spec hinted
@@ -37,7 +41,11 @@ const MAX_RESULTS = 10;
 export class PeopleSearchService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async search(callerPersonId: string, query: string): Promise<PeopleSearchResult[]> {
+  async search(
+    callerPersonId: string,
+    query: string,
+    includeSelf = false,
+  ): Promise<PeopleSearchResult[]> {
     const q = query.trim();
     if (q.length < MIN_QUERY_LENGTH) {
       throw new BadRequestException(`Search query must be at least ${MIN_QUERY_LENGTH} characters`);
@@ -66,7 +74,7 @@ export class PeopleSearchService {
               ip.primary_phone
        FROM platform.iam_person ip
        JOIN platform.platform_users pu ON pu.person_id = ip.id
-       WHERE ip.id <> $1::uuid
+       WHERE ($6::boolean OR ip.id <> $1::uuid)
          AND (
            LOWER(ip.first_name) LIKE $2
            OR LOWER(ip.last_name) LIKE $2
@@ -86,6 +94,7 @@ export class PeopleSearchService {
       q.toLowerCase(),
       q.toLowerCase() + '%',
       MAX_RESULTS,
+      includeSelf,
     );
 
     return rows.map((r) => ({

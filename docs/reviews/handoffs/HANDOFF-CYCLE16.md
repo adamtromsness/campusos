@@ -275,3 +275,70 @@ REVIEW-CYCLE16-CHATGPT Round 2 confirmed all 3 BLOCKING fixes are properly close
 **Accepted follow-up (Phase 2 punch list item 22):** the implementation treats `actor.personType === 'STAFF'` as the Enrolment Officer authority because the IAM seed grants `STU-003:read+write` to the generic Staff role. Real schools likely want a distinct EO role rather than generic Staff. Joins the broader Counsellor / Nurse / Librarian / Athletic Director role-split punch list items (9 + 11 + 13 + 14 + 16) before pilot.
 
 **Cycle 16 ships clean.** Wave 3 cycle 3 is closed. Tagged `cycle16-approved` at `850fc6d`.
+
+---
+
+## Set-Relationship modal: self-selection + guardian-link reconciliation (2026-05-30)
+
+**Bug.** On a child's profile the Set Father / Set Mother modal could not
+select the **current user**, so a parent could not set themselves as the
+child's parent — the primary use case. Two causes: (1) people-search
+excluded the caller; (2) the parent is already linked to the child (the
+household guardian who created the child account also holds a
+`LEGAL_GUARDIAN` graph edge), so a parentage save had to reconcile with
+that existing row rather than duplicate or 409.
+
+**Design: upgrade-in-place.** When the selected CampusOS person already
+has an active relationship to the subject, the chosen parentage type
+UPDATEs that row in place — carrying the guardian fact forward as
+`is_legal_custody = true` — instead of inserting a second row. One row
+carries both parentage and custody. (For non-parentage upgrades, e.g.
+spouse, custody is not forced.)
+
+### Changes
+
+- **`apps/api/.../iam/people-search.service.ts`** — `search(callerPersonId,
+  query, includeSelf = false)`. The `WHERE` self-exclusion is now
+  `($6::boolean OR ip.id <> $1::uuid)`; default behaviour (exclude self)
+  is unchanged for every existing caller.
+- **`apps/api/.../iam/people-search.controller.ts`** — `GET /people/search`
+  accepts `&includeSelf=true` (only the relationship modal passes it).
+- **`apps/api/.../iam/relationship.service.ts`** — `addRelationship` now,
+  for CampusOS-user relationships, looks up an existing active forward row
+  (`findActiveForwardRow`) and routes to `upgradeRelationship` when found:
+  updates the forward row + reciprocal to the new type, forces legal
+  custody on for parentage types, leaves `created_by` untouched (there is
+  no `updated_by` column). No duplicate, no 409. Added a note on
+  `isActiveGuardianOf` documenting that `PARENT_TYPES` spans
+  `LEGAL_GUARDIAN` + all parentage types, so the upgrade never strips the
+  editor's own edit rights (Step 4 was already satisfied by the existing
+  graph predicate; no code change needed there).
+- **`apps/web/.../hooks/use-family-children.ts`** — `usePeopleSearch(query,
+  enabled, includeSelf = false)`; appends `&includeSelf=true` and keys the
+  query on `includeSelf`.
+- **`apps/web/.../components/family/SetRelationshipModal.tsx`** — searches
+  with `includeSelf`, and on the parentage modals (mother/father, never on
+  the subject's own profile) renders a "This is me — set myself as
+  {father/mother}" button that preselects the current user (from
+  `useAuthStore`) and skips search.
+
+### Tests
+
+`apps/api/test/integration/m00-platform/relationship-self-selection.spec.ts`
+(new, self-contained — seeds its own `LEGAL_GUARDIAN`/`LEGAL_WARD` edge so
+it does not depend on household seeding). All passing:
+
+- people-search `includeSelf=true` returns the caller; default excludes them.
+- Saving `BIOLOGICAL_FATHER` when an active guardian edge exists UPGRADES
+  it (type + `is_legal_custody`), leaving exactly one forward row and one
+  reciprocal (`BIOLOGICAL_CHILD`); no duplicate, no 409.
+- `canEdit` (and `isActiveGuardianOf`) stay true after the upgrade.
+- Setting the OTHER parent (no prior link) creates a fresh row with
+  `is_legal_custody=false`.
+
+### Verification
+
+- `pnpm --filter @campusos/api exec tsc --noEmit` — 0 errors.
+- `pnpm --filter @campusos/web exec tsc --noEmit` — 0 errors.
+- `test:integration -- relationships people-search` (existing) — passing.
+- `test:integration -- relationship-self-selection` (new) — passing.
