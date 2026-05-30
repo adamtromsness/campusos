@@ -114,8 +114,7 @@ export class ProfileController {
   @Delete('profile/me/phones/:phoneId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary:
-      'Delete a phone. If it was primary, the next-oldest phone is promoted automatically.',
+    summary: 'Delete a phone. If it was primary, the next-oldest phone is promoted automatically.',
   })
   async deleteMyPhone(
     @Req() req: AuthedRequest,

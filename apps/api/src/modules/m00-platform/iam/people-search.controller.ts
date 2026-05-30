@@ -26,10 +26,7 @@ export class PeopleSearchController {
     summary:
       'Name + email lookup over iam_person, JOIN platform_users. Excludes the caller; capped at 10 results.',
   })
-  async search(
-    @Req() req: AuthedRequest,
-    @Query('q') q: string,
-  ): Promise<PeopleSearchResult[]> {
+  async search(@Req() req: AuthedRequest, @Query('q') q: string): Promise<PeopleSearchResult[]> {
     return this.people.search(req.user!.personId, q ?? '');
   }
 }

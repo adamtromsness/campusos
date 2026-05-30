@@ -102,8 +102,7 @@ export function useUpdateMyPhone(phoneId: string) {
 export function useDeleteMyPhone(phoneId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<void>('/api/v1/profile/me/phones/' + phoneId, { method: 'DELETE' }),
+    mutationFn: () => apiFetch<void>('/api/v1/profile/me/phones/' + phoneId, { method: 'DELETE' }),
     onSuccess: () => invalidatePhones(qc),
   });
 }
@@ -156,8 +155,7 @@ export function useUpdateMyEmail(emailId: string) {
 export function useDeleteMyEmail(emailId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<void>('/api/v1/profile/me/emails/' + emailId, { method: 'DELETE' }),
+    mutationFn: () => apiFetch<void>('/api/v1/profile/me/emails/' + emailId, { method: 'DELETE' }),
     onSuccess: () => invalidateEmails(qc),
   });
 }

@@ -121,7 +121,7 @@ export default function FamilyPage() {
         title="My Family"
         description={
           isParent
-            ? "Your family and how everyone is connected to CampusOS."
+            ? 'Your family and how everyone is connected to CampusOS.'
             : 'Your family — read-only view.'
         }
         actions={
@@ -158,10 +158,7 @@ export default function FamilyPage() {
           onInvite={() => setInviteChildOpen(true)}
         />
       ) : (
-        <ChildViewerSiblingsSection
-          items={children}
-          viewerPersonId={data.viewerPersonId}
-        />
+        <ChildViewerSiblingsSection items={children} viewerPersonId={data.viewerPersonId} />
       )}
 
       {isParent && <LinkCodeSection />}
@@ -172,10 +169,7 @@ export default function FamilyPage() {
         onClose={() => setLinkInviteFor(null)}
       />
 
-      <InviteGuardianModal
-        open={inviteGuardianOpen}
-        onClose={() => setInviteGuardianOpen(false)}
-      />
+      <InviteGuardianModal open={inviteGuardianOpen} onClose={() => setInviteGuardianOpen(false)} />
       <AddGuardianModal open={addGuardianOpen} onClose={() => setAddGuardianOpen(false)} />
       <InviteChildModal open={inviteChildOpen} onClose={() => setInviteChildOpen(false)} />
       <SendMemberInviteModal
@@ -194,13 +188,7 @@ export default function FamilyPage() {
  * page-level header bar; per-section buttons keep Invite / Add
  * scoped to whichever group of people they affect.
  */
-function SectionHeader({
-  title,
-  children,
-}: {
-  title: string;
-  children?: React.ReactNode;
-}) {
+function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{title}</h2>
@@ -473,8 +461,7 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
       toast(firstName.trim() + ' added to your family', 'success');
       close();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Could not add the guardian. Try again.';
+      const message = err instanceof Error ? err.message : 'Could not add the guardian. Try again.';
       toast(message, 'error');
     }
   }
@@ -495,8 +482,8 @@ function AddGuardianModal({ open, onClose }: { open: boolean; onClose: () => voi
       }
     >
       <p className="text-sm text-gray-600">
-        Add a co-parent or guardian to your family. You can send them an invitation later, or
-        create an account on their behalf.
+        Add a co-parent or guardian to your family. You can send them an invitation later, or create
+        an account on their behalf.
       </p>
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -891,8 +878,7 @@ function GuardianCard({
             {member.isCurrentUser && <span className="text-xs text-gray-500">(you)</span>}
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {[member.firstName, member.lastName].filter(Boolean).join(' ') +
-              ' · Parent / Guardian'}
+            {[member.firstName, member.lastName].filter(Boolean).join(' ') + ' · Parent / Guardian'}
           </p>
           {member.isPrimaryContact && (
             <p className="mt-0.5 text-xs text-gray-500">Primary contact</p>
@@ -1343,9 +1329,7 @@ function LinkCodeSection() {
   return (
     <section className="mt-10 rounded-lg border border-gray-200 bg-gray-50/40 p-5">
       <h3 className="text-sm font-semibold text-gray-900">Have a link code?</h3>
-      <p className="mt-1 text-xs text-gray-600">
-        Enter a code from a child, parent, or school.
-      </p>
+      <p className="mt-1 text-xs text-gray-600">Enter a code from a child, parent, or school.</p>
       <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
@@ -1458,8 +1442,8 @@ function SendMemberInviteModal({
     >
       <form id="send-member-invite-form" onSubmit={onSubmit} className="flex flex-col gap-3">
         <p className="text-sm text-gray-600">
-          Generate a code {member.firstName} can enter on CampusOS to join your family as a
-          parent or guardian.
+          Generate a code {member.firstName} can enter on CampusOS to join your family as a parent
+          or guardian.
         </p>
         <div>
           <label htmlFor="member-invite-email" className="block text-xs font-medium text-gray-700">

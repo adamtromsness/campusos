@@ -378,12 +378,12 @@ export class ProfileService {
         });
         const fallback = next
           ? next.number
-          : (
+          : ((
               await tx.platformPersonPhone.findFirst({
                 where: { personId },
                 orderBy: { createdAt: 'asc' },
               })
-            )?.number ?? null;
+            )?.number ?? null);
         await tx.iamPerson.update({
           where: { id: personId },
           data: { primaryPhone: fallback },

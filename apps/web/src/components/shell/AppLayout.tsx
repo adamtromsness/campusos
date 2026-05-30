@@ -30,9 +30,7 @@ const ONBOARDING_ALLOWED_PREFIXES = ['/family', '/substitute', '/profile', '/set
 
 function isOnboardingRoute(pathname: string): boolean {
   if (pathname === GETTING_STARTED_PATH) return true;
-  return ONBOARDING_ALLOWED_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + '/'),
-  );
+  return ONBOARDING_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {

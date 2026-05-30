@@ -318,16 +318,16 @@ Three bugs surfaced during manual QA of the persona launchpad. Fixes:
 
    `seed-iam.ts` now writes the production-true source per role:
 
-   | Role             | Source                  |
-   |------------------|-------------------------|
-   | Platform Admin   | MANUAL (bypass key)     |
-   | School Admin     | HR_SYNC                 |
-   | Teacher          | HR_SYNC                 |
-   | Vice Principal   | HR_SYNC                 |
-   | Counsellor       | HR_SYNC                 |
-   | Staff            | HR_SYNC                 |
-   | Parent           | GUARDIAN_RELATIONSHIP   |
-   | Student          | SIS_DERIVED             |
+   | Role           | Source                |
+   | -------------- | --------------------- |
+   | Platform Admin | MANUAL (bypass key)   |
+   | School Admin   | HR_SYNC               |
+   | Teacher        | HR_SYNC               |
+   | Vice Principal | HR_SYNC               |
+   | Counsellor     | HR_SYNC               |
+   | Staff          | HR_SYNC               |
+   | Parent         | GUARDIAN_RELATIONSHIP |
+   | Student        | SIS_DERIVED           |
 
    Platform Admin stays MANUAL — the `/auth/me` bypass keys on the
    presence of `sys-001:admin` in the cache (independent of source),

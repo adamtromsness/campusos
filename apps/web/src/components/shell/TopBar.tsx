@@ -73,11 +73,7 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
                   freshly-registered accounts — can edit their own
                   iam_person row via /profile (the API drops the gate
                   too). My Family + Settings follow the same rule. */}
-              <MenuLink
-                href="/profile"
-                onSelect={() => setOpen(false)}
-                label="My Profile"
-              />
+              <MenuLink href="/profile" onSelect={() => setOpen(false)} label="My Profile" />
               <MenuLink
                 href="/family"
                 onSelect={() => setOpen(false)}

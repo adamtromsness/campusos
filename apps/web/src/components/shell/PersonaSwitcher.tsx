@@ -250,7 +250,9 @@ export function PersonaSwitcher() {
 
   // The whole sequence runs while the dropdown is open so the user
   // sees inline progress / error feedback without a page navigation.
-  async function acceptStaffInvite(code: string): Promise<{ personaId: string } | { error: string }> {
+  async function acceptStaffInvite(
+    code: string,
+  ): Promise<{ personaId: string } | { error: string }> {
     const token = code.trim();
     if (!token) return { error: 'Enter the code from your invitation email.' };
     try {

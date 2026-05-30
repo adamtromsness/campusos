@@ -263,20 +263,36 @@ export class UpdateMyProfileDto {
   @IsOptional()
   @IsIn(['FAMILY', 'CUSTOM'])
   addressSource?: 'FAMILY' | 'CUSTOM';
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?:
+    | string
+    | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customState?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customPostalCode?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCountry?: string | null;
   // Mailing address — wire-positive sense.
   @ApiPropertyOptional() @IsOptional() @IsBoolean() mailingAddressDifferent?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine1?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine2?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingCity?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingState?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customMailingPostalCode?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingCountry?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine1?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine2?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingCity?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingState?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customMailingPostalCode?:
+    | string
+    | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customMailingCountry?:
+    | string
+    | null;
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryLanguage?: string | null;
 

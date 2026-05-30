@@ -93,9 +93,7 @@ function Hero({ settings }: { settings: FamilySettingsDto }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">{heroName}</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Family settings and shared information.
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Family settings and shared information.</p>
         </div>
         {!settings.canEdit && (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
@@ -137,13 +135,7 @@ function isTabKey(s: string | null): s is TabKey {
   return s !== null && TABS.some((t) => t.key === s);
 }
 
-function Tabs({
-  settings,
-  members,
-}: {
-  settings: FamilySettingsDto;
-  members: FamilyMemberDto[];
-}) {
+function Tabs({ settings, members }: { settings: FamilySettingsDto; members: FamilyMemberDto[] }) {
   const searchParams = useSearchParams();
   const initial = searchParams?.get('tab');
   const [active, setActive] = useState<TabKey>(
@@ -202,51 +194,49 @@ function Tabs({
 
 // ─── Family tab ────────────────────────────────────────────
 
-const CATEGORY_META: Record<
-  FamilyContactCategory,
-  { label: string; icon: string; hint: string }
-> = {
-  GENERAL: {
-    label: 'General / Default',
-    icon: '📋',
-    hint: 'All communications unless specified below.',
-  },
-  ELECTRONIC_APPROVALS: {
-    label: 'Electronic Approvals',
-    icon: '✍️',
-    hint: 'Permission slips, consent forms, policy acknowledgements.',
-  },
-  TRANSPORTATION: {
-    label: 'Transportation',
-    icon: '🚌',
-    hint: 'Bus route changes, pickup/drop-off, transport alerts.',
-  },
-  HEALTH_MEDICAL: {
-    label: 'Health & Medical',
-    icon: '🏥',
-    hint: 'Nurse calls, medication administration, health alerts.',
-  },
-  BILLING_FINANCIAL: {
-    label: 'Billing & Financial',
-    icon: '💰',
-    hint: 'Invoices, payment reminders, fee notifications.',
-  },
-  ACADEMIC: {
-    label: 'Academic',
-    icon: '📚',
-    hint: 'Grade reports, teacher conferences, academic alerts.',
-  },
-  BEHAVIOUR_DISCIPLINE: {
-    label: 'Behaviour & Discipline',
-    icon: '🎯',
-    hint: 'Incident reports, BIP updates, restorative conferences.',
-  },
-  EMERGENCY: {
-    label: 'Emergency',
-    icon: '🚨',
-    hint: 'Emergency alerts, lockdowns, reunification.',
-  },
-};
+const CATEGORY_META: Record<FamilyContactCategory, { label: string; icon: string; hint: string }> =
+  {
+    GENERAL: {
+      label: 'General / Default',
+      icon: '📋',
+      hint: 'All communications unless specified below.',
+    },
+    ELECTRONIC_APPROVALS: {
+      label: 'Electronic Approvals',
+      icon: '✍️',
+      hint: 'Permission slips, consent forms, policy acknowledgements.',
+    },
+    TRANSPORTATION: {
+      label: 'Transportation',
+      icon: '🚌',
+      hint: 'Bus route changes, pickup/drop-off, transport alerts.',
+    },
+    HEALTH_MEDICAL: {
+      label: 'Health & Medical',
+      icon: '🏥',
+      hint: 'Nurse calls, medication administration, health alerts.',
+    },
+    BILLING_FINANCIAL: {
+      label: 'Billing & Financial',
+      icon: '💰',
+      hint: 'Invoices, payment reminders, fee notifications.',
+    },
+    ACADEMIC: {
+      label: 'Academic',
+      icon: '📚',
+      hint: 'Grade reports, teacher conferences, academic alerts.',
+    },
+    BEHAVIOUR_DISCIPLINE: {
+      label: 'Behaviour & Discipline',
+      icon: '🎯',
+      hint: 'Incident reports, BIP updates, restorative conferences.',
+    },
+    EMERGENCY: {
+      label: 'Emergency',
+      icon: '🚨',
+      hint: 'Emergency alerts, lockdowns, reunification.',
+    },
+  };
 
 /**
  * Family tab. New layout, top to bottom:
@@ -381,9 +371,7 @@ function FamilyTab({
         ) : (
           <CategoryRoutingTable
             value={form}
-            onChange={(category, personId) =>
-              setForm((f) => ({ ...f, [category]: personId }))
-            }
+            onChange={(category, personId) => setForm((f) => ({ ...f, [category]: personId }))}
             dirtyFields={dirtyFields}
             eligibleContacts={eligibleContacts}
             editable={editable}
@@ -484,10 +472,10 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
     // form validation. Apartment/unit is optional.
     const hasHomeAddress = Boolean(
       settings.addressLine1 &&
-        settings.city &&
-        settings.state &&
-        settings.postalCode &&
-        settings.country,
+      settings.city &&
+      settings.state &&
+      settings.postalCode &&
+      settings.country,
     );
     const activeGuardians = members.filter((m) => m.status === 'ACTIVE');
     const guardiansWithPhone = activeGuardians.filter(
@@ -498,8 +486,7 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
     ).length;
     const totalContactsWithPhone = guardiansWithPhone + manualECsWithPhone;
     const enoughEmergency = totalContactsWithPhone >= 2;
-    const hasDoctor =
-      Boolean(settings.doctorName?.trim()) || settings.hasFamilyDoctor === false;
+    const hasDoctor = Boolean(settings.doctorName?.trim()) || settings.hasFamilyDoctor === false;
     const hasInsurance =
       Boolean(settings.insuranceProvider?.trim()) || settings.hasInsurance === false;
     const hasAnyChild = children.length > 0;
@@ -507,13 +494,10 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
     const allChildrenLinked = hasAnyChild && unlinkedChildren.length === 0;
     const guardiansComplete =
       activeGuardians.length > 0 &&
-      activeGuardians.every(
-        (m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim(),
-      );
+      activeGuardians.every((m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim());
     const generalPersonId = (prefs ?? []).find((p) => p.category === 'GENERAL')?.primaryPersonId;
     const customisedPrefs = (prefs ?? []).some(
-      (p) =>
-        p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
+      (p) => p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
     );
     // Mailing address is satisfied when it's the same as home, or
     // (when separate) every required mailing field is filled — same
@@ -522,10 +506,10 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
       ? true
       : Boolean(
           settings.mailingLine1 &&
-            settings.mailingCity &&
-            settings.mailingState &&
-            settings.mailingPostalCode &&
-            settings.mailingCountry,
+          settings.mailingCity &&
+          settings.mailingState &&
+          settings.mailingPostalCode &&
+          settings.mailingCountry,
         );
 
     return [
@@ -780,10 +764,7 @@ function IncompleteItemsBanner({
       </p>
       <ul className="mt-1 flex flex-col gap-1 text-sm text-amber-900">
         {state.incomplete.map((item) => (
-          <li
-            key={item.key}
-            className="flex flex-wrap items-center gap-2"
-          >
+          <li key={item.key} className="flex flex-wrap items-center gap-2">
             <span aria-hidden className="text-amber-700">
               •
             </span>
@@ -1256,9 +1237,7 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
           <input
             type="checkbox"
             checked={sameAsHome}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
-            }
+            onChange={(e) => setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))}
             disabled={!editable}
             className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
           />
@@ -1329,9 +1308,7 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
               disabled={!editable}
               dirty={dirtyFields.has('mailingPostalCode')}
               required
-              error={
-                errors.has('mailingPostalCode') ? 'ZIP / postal code is required.' : undefined
-              }
+              error={errors.has('mailingPostalCode') ? 'ZIP / postal code is required.' : undefined}
             />
             <CountryField
               id="mailingCountry"
@@ -1878,13 +1855,7 @@ function IconButton({
  * "additional contact" case (grandparent, neighbor, babysitter,
  * etc.). The /people/search endpoint still exists for future use.
  */
-function AddEmergencyContactModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+function AddEmergencyContactModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const add = useAddFamilyEmergencyContact();
   const { toast } = useToast();
 
@@ -2098,8 +2069,7 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
       payload.hasFamilyDoctor = true;
     }
     const willHaveInsuranceFields =
-      (form.insuranceProvider || form.insurancePolicy || form.insuranceGroup) &&
-      !form.noInsurance;
+      (form.insuranceProvider || form.insurancePolicy || form.insuranceGroup) && !form.noInsurance;
     if (willHaveInsuranceFields && settings.hasInsurance !== true) {
       payload.hasInsurance = true;
     }
@@ -2125,8 +2095,8 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
         />
         {form.noDoctor ? (
           <p className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
-            No family doctor on file. Children can still specify their own doctor on their
-            Medical tab.
+            No family doctor on file. Children can still specify their own doctor on their Medical
+            tab.
           </p>
         ) : (
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -2333,7 +2303,11 @@ function Field({
     <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
-        {required && <span className="ml-0.5 text-red-500" aria-hidden>*</span>}
+        {required && (
+          <span className="ml-0.5 text-red-500" aria-hidden>
+            *
+          </span>
+        )}
         {dirty && (
           <span
             aria-label="Modified"
