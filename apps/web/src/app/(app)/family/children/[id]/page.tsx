@@ -48,6 +48,7 @@ import { formatPhone } from '@/lib/phone-format';
 import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import { CountryField, formatAddressOneLine } from '@/components/ui/CountryField';
 import { StickySaveBar } from '@/components/ui/StickySaveBar';
+import { FamilyStructureSection } from '@/components/family/FamilyStructureSection';
 import type {
   PersonEmailDto,
   PersonEmailType,
@@ -280,6 +281,15 @@ function AccountTab({ child, onSendLink }: { child: FamilyChildDto; onSendLink: 
       <AccessLevelInfo child={child} />
       {readOnly ? <AccountReadOnly child={child} /> : <AccountEditForm child={child} />}
       {child.status !== 'LINKED' && <LifecycleActions child={child} onSendLink={onSendLink} />}
+      {/* Family structure needs a canonical iam_person — LINKED only.
+          Managed children can be edited; INDEPENDENT is read-only. */}
+      {child.status === 'LINKED' && child.personId && (
+        <FamilyStructureSection
+          personId={child.personId}
+          canManage={child.accessLevel === 'MANAGED'}
+          variant="child"
+        />
+      )}
       <EnrolmentBlock child={child} />
     </div>
   );

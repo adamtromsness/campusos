@@ -44,6 +44,7 @@ import { PhoneInput } from '@/components/ui/PhoneInput';
 import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import { StickySaveBar } from '@/components/ui/StickySaveBar';
 import { formatPhone } from '@/lib/phone-format';
+import { FamilyStructureSection } from '@/components/family/FamilyStructureSection';
 import type { ProfileDto } from '@/lib/types';
 
 /**
@@ -205,6 +206,7 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
   const { toast } = useToast();
   const update = useUpdateMyProfile();
   const personas = useAuthStore((s) => s.user?.personas ?? []);
+  const myPersonId = useAuthStore((s) => s.user?.personId ?? null);
 
   const initial = useMemo(
     () => ({
@@ -271,6 +273,7 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
   }
 
   return (
+    <div className="flex flex-col gap-5">
     <SectionCard>
       <form onSubmit={onSubmit} noValidate>
         <div className="grid gap-4 sm:grid-cols-3">
@@ -373,6 +376,10 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
         saving={update.isPending}
       />
     </SectionCard>
+      {myPersonId && (
+        <FamilyStructureSection personId={myPersonId} canManage variant="self" />
+      )}
+    </div>
   );
 }
 
