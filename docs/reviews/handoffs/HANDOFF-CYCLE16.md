@@ -404,7 +404,7 @@ on branch feat/family-structure-profile-edit-perms.
 
 ### Verification
 - pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
-- child-linking + family-children + duplicate-check — 107 passing.
+- child-linking + family-children + duplicate-check — 110 passing (child-linking 17, family-children 85, duplicate-check 8).
 - pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
   (The web app has no test runner — the `test` script is a stub — so there is
   no component-test layer; behaviour is covered by the API tests + type/lint.)

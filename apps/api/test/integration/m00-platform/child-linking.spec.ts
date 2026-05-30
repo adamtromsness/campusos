@@ -429,8 +429,11 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.accept(reqFor(childPersonId, childAccountId), {
       code: sent.inviteCode!,
     });
-    expect(linked.status).toBe('LINKED');
-    expect(linked.personId).toBe(childPersonId);
+    // /family/link returns the discriminated FamilyLinkResultDto; a
+    // CHILD_LINK accept resolves to { kind: 'CHILD', child }.
+    if (linked.kind !== 'CHILD') throw new Error('expected CHILD result');
+    expect(linked.child.status).toBe('LINKED');
+    expect(linked.child.personId).toBe(childPersonId);
 
     const inv = await prisma.platformInvitation.findUnique({
       where: { token: sent.inviteCode! },
@@ -484,8 +487,9 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.accept(reqFor(parentBPersonId, parentBAccountId), {
       code: sent.inviteCode!,
     });
-    expect(linked.familyId).toBe(c.familyId);
-    expect(linked.personId).toBe(parentBPersonId);
+    if (linked.kind !== 'CHILD') throw new Error('expected CHILD result');
+    expect(linked.child.familyId).toBe(c.familyId);
+    expect(linked.child.personId).toBe(parentBPersonId);
   });
 
   it('rate limit: 6th attempt within 15 min → 429', async () => {
