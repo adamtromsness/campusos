@@ -92,7 +92,7 @@ describe('integration:m00-platform/relationships', () => {
         isSchoolAdmin: actorOverride.isSchoolAdmin,
       }),
     } as unknown as ActorContextService;
-    controller = new RelationshipController(svc, actorStub, prisma);
+    controller = new RelationshipController(svc, actorStub);
 
     await seedPerson(adam, 'Adam', '1985-04-10');
     await seedPerson(ashley, 'Ashley', '1986-06-15');

@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ActorContextService } from './actor-context.service';
 import { RelationshipService } from './relationship.service';
 import { canEditFamilyStructure } from './relationship.auth';
@@ -53,7 +52,6 @@ export class RelationshipController {
   constructor(
     private readonly relationships: RelationshipService,
     private readonly actors: ActorContextService,
-    private readonly prisma: PrismaClient,
   ) {}
 
   @Get(':personId/relationships')
