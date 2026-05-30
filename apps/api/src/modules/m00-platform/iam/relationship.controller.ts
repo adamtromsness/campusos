@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ActorContextService } from './actor-context.service';
+import { PersonaResolutionService } from './persona-resolution.service';
 import { RelationshipService } from './relationship.service';
 import { canEditFamilyStructure } from './relationship.auth';
 import {
@@ -52,6 +53,7 @@ export class RelationshipController {
   constructor(
     private readonly relationships: RelationshipService,
     private readonly actors: ActorContextService,
+    private readonly personas: PersonaResolutionService,
   ) {}
 
   @Get(':personId/relationships')
@@ -153,11 +155,16 @@ export class RelationshipController {
    * Resolve the caller's edit permission for `personId` via the shared
    * canEditFamilyStructure predicate. Used both to gate mutations and to
    * stamp the `canEdit` flag on GET responses, so the two never drift.
+   * Edit eligibility keys off the caller's derived personas (PARENT), not
+   * iam_person.person_type.
    */
   private async computeCanEdit(req: AuthedRequest, personId: string): Promise<boolean> {
-    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
-    return canEditFamilyStructure(actor, personId, (caller, target) =>
-      this.relationships.isActiveGuardianOf(caller, target),
+    const caller = req.user!.personId;
+    const personas = await this.personas.getActivePersonas(caller);
+    return canEditFamilyStructure(
+      { personId: caller, personaTypes: personas.map((p) => p.type) },
+      personId,
+      (callerId, target) => this.relationships.isActiveGuardianOf(callerId, target),
     );
   }
 }
