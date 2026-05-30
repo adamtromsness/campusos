@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@/lib/api-client';
@@ -90,9 +90,11 @@ export default function AddChildPage() {
 
   const age = ageInYears(basic.dateOfBirth);
   const isAdult = age !== null && age > STUDENT_AGE_MAX;
-  // The variant the created person lands in: student unless they're an
-  // adult who did NOT opt into "also a student".
-  const isStudentVariant = !isAdult || alsoStudent;
+  // The "also a student" opt-in only applies to adults; reset it if the
+  // DOB changes back into the minor range so a stale tick can't linger.
+  useEffect(() => {
+    if (!isAdult && alsoStudent) setAlsoStudent(false);
+  }, [isAdult, alsoStudent]);
 
   function validateBasic() {
     const errs: typeof basicErrors = {};
