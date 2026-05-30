@@ -493,3 +493,43 @@ pnpm --filter @campusos/api exec vitest run \
 
 Deferred (per design §12): graphical SVG tree, school-admin student
 family tab, custody calendar, court-order document upload.
+
+### Family Structure on Profiles — 2026-05-30 (edit-permission tighten)
+
+Follow-up to the family-structure feature. No schema migration.
+
+- **Edit is parent/guardian-only.** New `relationship.auth.ts` exports
+  `canEditFamilyStructure(actor, profilePersonId, isActiveGuardianOf)`:
+  true only when `actor.personType === 'GUARDIAN'` AND (caller is the
+  profile owner OR an active guardian of the person). Students (even
+  adult / editing self), staff, and school admins are never editors.
+  Replaces the prior "parent/guardian or self-if-adult, admin on PATCH"
+  rule — the adult-age path and the admin-PATCH path are gone.
+- **`isActiveGuardianOf`** (RelationshipService) = the existing
+  household link (`isGuardianOf`) ∪ a current parent/guardian
+  relationship in the graph (`PARENT_TYPES`, end_date IS NULL). The
+  household path preserves bootstrapping (recording a child's first
+  relationship before any graph edge exists).
+- **`canEdit` flag.** `GET /relationships` and `GET /family-tree`
+  return a top-level `canEdit` (same predicate), computed by the
+  controller. Rendering hint only — every mutation re-checks server-side.
+- **Web.** `FamilyStructureSection` reads `canEdit` from the API instead
+  of a `canManage` prop; edit affordances render only when true. New
+  read-only `/family/[personId]/structure` page (shared `FamilyTreeView`,
+  also used by `/family/tree`), linked from both profiles via "View
+  family structure".
+- **Tests.** +8 edit-permission cases in `relationships.spec.ts`
+  (guardian edits child/own → ok; adult student self → 403; student
+  edits other → 403; admin mutate → 403; admin verify → 200; canEdit
+  true/false by role on both GETs; cross-family isolation). 23/23 pass.
+
+Verification:
+
+```
+pnpm --filter @campusos/api build                               # ✓ 0 errors
+pnpm --filter @campusos/api exec tsc --noEmit                   # ✓ 0 errors
+pnpm --filter @campusos/web exec tsc --noEmit                   # ✓ 0 errors
+pnpm --filter @campusos/api exec vitest run \
+  test/integration/m00-platform/relationships.spec.ts \
+  --config vitest.integration.config.ts                         # 23/23 pass
+```
