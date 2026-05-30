@@ -291,6 +291,83 @@ describe('integration:m00-platform/child-linking', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // ─── create-account: DOB + gender required (spec Step 2) ────
+
+  it('create-account missing DOB (placeholder + dto both lack it) → 400', async () => {
+    // Placeholder created without a DOB; dto supplies gender only.
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'NoDob',
+      lastName: 'Parent',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, { gender: 'F' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('create-account missing gender → 400', async () => {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'NoGender',
+      lastName: 'Parent',
+      dateOfBirth: '2015-02-02',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('create-account future DOB → 400', async () => {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'Future',
+      lastName: 'Parent',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
+        dateOfBirth: '3000-01-01',
+        gender: 'F',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // ─── age → person_type (spec Step 4) ───────────────────────
+
+  async function personTypeAfterCreate(dateOfBirth: string): Promise<string | null> {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'Aged',
+      lastName: 'Parent',
+      dateOfBirth,
+    });
+    const linked = await controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
+      gender: 'F',
+    });
+    createdPersonIds.add(linked.personId!);
+    const person = await prisma.iamPerson.findUnique({
+      where: { id: linked.personId! },
+      select: { personType: true },
+    });
+    return person?.personType ?? null;
+  }
+
+  it('age 12 → STUDENT person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 12);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('STUDENT');
+  });
+
+  it('age exactly 18 → STUDENT person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 18);
+    // Pull a day earlier so the 18th birthday has definitely passed.
+    dob.setUTCDate(dob.getUTCDate() - 1);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('STUDENT');
+  });
+
+  it('age 19 → GUARDIAN person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 19);
+    dob.setUTCDate(dob.getUTCDate() - 1);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('GUARDIAN');
+  });
+
   // ─── send-link ─────────────────────────────────────────────
 
   it('send-link on PLACEHOLDER → PENDING_LINK + invitation row (72h expiry)', async () => {
