@@ -704,3 +704,38 @@ custody strings per box).
   boxes only, no dangling lines. (apps/web has no unit-test runner — vitest is
   not installed and `test` is a stub — so the layout is verified by the
   simulation + live render rather than a committed web spec.)
+
+## Family-tree clickable person nodes (2026-06-01)
+
+Each person box in the read-only tree is clickable → that person's profile, but
+ONLY when they have a profile the viewer may reach. The SERVER decides
+clickability per node; the client is clickable iff a URL is present.
+
+- API (`relationship.{dto,service,controller}.ts`):
+  - `FamilyTreeParentDto` + `FamilyTreeChildDto` gain `profileUrl: string | null`
+    (both already carried `personId`).
+  - `RelationshipService.resolveProfileUrls(personIds, viewerPersonId,
+    isSchoolAdmin)` resolves a per-person, viewer-specific URL (first match):
+    own node → `/profile`; school admin → `/profile/:personId` (holds
+    usr-001:admin); guardian of a LINKED managed child → `/family/children/
+    :familyChildId` (batch-resolved from platform_family_children + _members —
+    the family-child record id, NOT the iam_person id); else omitted (null).
+  - The controller decorates `getFamilyTree` output after the existing
+    assertCanView gate, using actor.isSchoolAdmin. Name-only parents (personId
+    null) and placeholder slots (no node) are never clickable.
+- Web (`FamilyTreeView.tsx`, `use-relationships.ts`):
+  - `FamilyTreeParent`/`FamilyTreeChild` gain `profileUrl`. A new `NodeGroup`
+    wrapper renders an interactive `<g role="link" tabIndex=0>` (cursor,
+    hover/focus stroke, Enter/Space activation, `aria-label "View {name}'s
+    profile"`, `useRouter().push`) when href is present, and a plain inert `<g>`
+    otherwise. Navigation only — no edit affordances; tree stays read-only.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors; web tsc — 0 errors.
+- relationships.spec — 32 passing (4 new: guardian→child route + self→/profile +
+  unviewable co-parent→null; admin→/profile/:id + name-only→null; non-guardian
+  viewer gets only self+managed-child clickable; student self-viewer →/profile
+  with canEdit:false i.e. navigation ≠ edit).
+- Live (adamtromsness@gmail.com on the Tromsness tree): Adam→/profile, Ashley
+  (co-parent, not viewable)→null, Scout/Thatcher/Sailor/Harper→
+  /family/children/:familyChildId; as Platform Admin every node→/profile/:id.

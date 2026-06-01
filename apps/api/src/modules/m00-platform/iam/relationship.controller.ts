@@ -113,6 +113,24 @@ export class RelationshipController {
   ): Promise<FamilyTreeDto> {
     await this.assertCanView(req, personId);
     const tree = await this.relationships.getFamilyTree(personId);
+
+    // Decorate each node with a viewer-specific, access-gated profileUrl so
+    // the read-only tree's clickable nodes navigate without the client
+    // re-checking permissions or resolving routes. School-admin status drives
+    // the admin profile route; everyone else gets the managed-child route.
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    const ids = [
+      ...tree.parents.map((p) => p.personId),
+      ...tree.children.map((c) => c.personId),
+    ];
+    const urls = await this.relationships.resolveProfileUrls(
+      ids,
+      req.user!.personId,
+      actor.isSchoolAdmin,
+    );
+    for (const p of tree.parents) p.profileUrl = p.personId ? (urls.get(p.personId) ?? null) : null;
+    for (const c of tree.children) c.profileUrl = c.personId ? (urls.get(c.personId) ?? null) : null;
+
     return { ...tree, canEdit: await this.computeCanEdit(req, personId) };
   }
 

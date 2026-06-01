@@ -187,6 +187,14 @@ export class FamilyTreeParentDto {
   // today. The empty *slot* (a child's unset second parent) is modelled
   // by a parentLink with parentPersonId:null, NOT by a parents[] entry.
   @ApiProperty() isPlaceholder!: boolean;
+  // Server-resolved navigation target for the read-only tree's clickable
+  // nodes. Present ONLY when the node has an accessible profile for the
+  // current viewer (real person + the viewer may view it + a route the
+  // viewer can actually reach). null for name-only parents, placeholder
+  // slots, and real people the viewer is not permitted to view — the UI
+  // renders those inert. Route is resolved server-side per person type,
+  // so the client never branches on type or re-checks permissions.
+  @ApiPropertyOptional() profileUrl!: string | null;
 }
 
 export class FamilyTreeParentLinkDto {
@@ -214,6 +222,10 @@ export class FamilyTreeChildDto {
   // 1..n parent links, usually 2 (padded with null-slot links up to two
   // so a missing co-parent always renders a placeholder).
   @ApiProperty({ type: [FamilyTreeParentLinkDto] }) parentLinks!: FamilyTreeParentLinkDto[];
+  // See FamilyTreeParentDto.profileUrl — present only when this child has an
+  // accessible profile route for the current viewer (e.g. a guardian's
+  // managed child → /family/children/:id); null otherwise.
+  @ApiPropertyOptional() profileUrl!: string | null;
 }
 
 export class FamilyTreeDto {

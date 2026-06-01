@@ -572,6 +572,8 @@ export class RelationshipService {
               displayName: summaryDisplayName(this.toDto(p).relatedPerson!),
               isSelf: p.related_person_id === personId,
               isPlaceholder: false,
+              // Decorated by the controller with the viewer's accessible route.
+              profileUrl: null,
             });
           }
           return { parentPersonId: p.related_person_id, parentName: null, ...linkBase };
@@ -586,6 +588,8 @@ export class RelationshipService {
             displayName: name,
             isSelf: false,
             isPlaceholder: false,
+            // Name-only parents have no account → never clickable.
+            profileUrl: null,
           });
         }
         return { parentPersonId: null, parentName: name, ...linkBase };
@@ -609,6 +613,8 @@ export class RelationshipService {
         displayName: summaryDisplayName(cs.summary),
         age: cs.summary.age,
         parentLinks: links,
+        // Decorated by the controller with the viewer's accessible route.
+        profileUrl: null,
       });
     }
 
@@ -617,6 +623,62 @@ export class RelationshipService {
       parents: Array.from(parentUnion.values()),
       children,
     };
+  }
+
+  /**
+   * Resolve a per-person, viewer-specific PROFILE URL for the clickable
+   * family-tree nodes. The server owns route + permission resolution so the
+   * client is clickable iff a URL is present — it never re-implements either.
+   *
+   * Rules (first match wins), keyed off what route the viewer can actually
+   * reach (avoids dead-end 403s):
+   *   - the viewer's own node            → /profile (always accessible)
+   *   - school admin viewer              → /profile/:personId (holds usr-001:admin)
+   *   - guardian of a LINKED family child → /family/children/:familyChildId
+   *   - otherwise                         → null (inert)
+   *
+   * Name-only / placeholder nodes never reach here (null personId). A real
+   * co-parent a non-admin viewer can't view resolves to null because they
+   * are neither self, admin, nor a guardian with a managed-child route.
+   */
+  async resolveProfileUrls(
+    personIds: Array<string | null>,
+    viewerPersonId: string,
+    isSchoolAdmin: boolean,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ids = personIds.filter((id): id is string => !!id);
+    const others = Array.from(new Set(ids.filter((id) => id !== viewerPersonId)));
+
+    // Batch-resolve the family-child route for the viewer's LINKED managed
+    // children (co-guardians share management — any active guardian-role
+    // member of the child's family qualifies).
+    const famChildByPerson = new Map<string, string>();
+    if (!isSchoolAdmin && others.length > 0) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ person_id: string; id: string }>>(
+        `SELECT c.person_id::text AS person_id, c.id::text AS id
+           FROM platform.platform_family_members m
+           JOIN platform.platform_family_children c ON c.family_id = m.family_id
+          WHERE m.person_id = $1::uuid AND m.status = 'ACTIVE'
+            AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
+            AND c.person_id = ANY($2::uuid[]) AND c.status = 'LINKED'`,
+        viewerPersonId,
+        others,
+      );
+      for (const r of rows) if (!famChildByPerson.has(r.person_id)) famChildByPerson.set(r.person_id, r.id);
+    }
+
+    for (const id of new Set(ids)) {
+      if (id === viewerPersonId) {
+        out.set(id, '/profile');
+      } else if (isSchoolAdmin) {
+        out.set(id, `/profile/${id}`);
+      } else {
+        const fc = famChildByPerson.get(id);
+        if (fc) out.set(id, `/family/children/${fc}`);
+      }
+    }
+    return out;
   }
 
   // ─── Internal helpers ─────────────────────────────────────────
