@@ -509,6 +509,17 @@ the criteria corrections (STEPs 1-4) landed in that web hook.
   getFamilyContactPreferences; no redundant creation-time seed added.
 - STEP 5: aggregate %, section counts, and checklist re-derive from the
   trimmed item list automatically (single source).
+- STEP 1 (address, follow-up 2026-06-01): the address criterion was correct,
+  but the false negative was a NULL saved `country` — the Addresses form
+  showed "United States" as a UI-only default that never persisted (the
+  dirty-diff skipped the unchanged default). Fixed two ways: (a) a backfill
+  migration (20260601000000_backfill_family_country) sets country =
+  'United States' WHERE null AND a home address exists — scoped so addressless
+  families don't falsely gain one; verified against demo data (0 addressed
+  families left null, addressless families untouched); (b) the form now always
+  includes the shown country (+ mailingCountry) in the save payload when an
+  address is written, so a normal Save persists it. "Home address on file"
+  now clears on load with no dropdown interaction.
 
 ### STEP 6 — change primary guardian (new)
 - `PATCH /api/v1/families/:familyId/primary-guardian { guardianPersonId }`:
