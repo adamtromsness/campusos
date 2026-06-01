@@ -628,3 +628,37 @@ Three independent fixes.
 - family-children + child-linking + relationships — 110 passing.
 - pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
 - Backfill migrations verified against demo data.
+
+## Bottom-anchored save bar on child profile + family settings (2026-06-01)
+
+The parent `/profile` tabs already committed identity/account fields through
+the viewport-fixed `StickySaveBar` (Discard + Save Changes, shown only while
+dirty). The child profile Account tab and the `/family/settings` tabs still
+used an inline mid-page "Save Changes" button, so the save action was
+inconsistent and could scroll out of view on long forms. Aligned all three to
+the parent pattern — frontend-only, no API/scope change.
+
+- `apps/web/.../family/children/[id]/page.tsx` — `AccountEditForm` now renders
+  `StickySaveBar` instead of the inline submit. Extracted `doSave()` from
+  `onSubmit` (onSubmit is now a thin `preventDefault → void doSave()`), added
+  `onDiscard` (reset form + clear errors), kept a hidden `type="submit"` for
+  Enter-to-save. Tab container gained `pb-24` clearance. Save scope unchanged:
+  it still commits ONLY first/last (+ middle/preferred when LINKED) + DOB +
+  gender via `useUpdateFamilyChild`. The Contact tab already used a sticky bar;
+  Medical/Dietary tabs and the Family Structure section keep their own separate
+  save actions (untouched).
+- `apps/web/.../family/settings/page.tsx` — same refactor applied to all three
+  form tabs: FamilyTab (display name + category routing), AddressesTab (home +
+  mailing), HealthTab (doctor/insurance/notes). Each keeps its own scope and
+  its own `StickySaveBar` (gated on `settings.canEdit`, so read-only child
+  viewers still see no save action); only one tab is editable at a time so only
+  one bar ever shows. `pb-24` added to the tab container. Per-row controls
+  (emergency-contact reorder/pickup toggles, member rows) persist immediately
+  and were not touched.
+
+### Verification
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors.
+- /family/children/[id] and /family/settings both compile + serve 200 in dev.
+- Live round-trip as adamtromsness@gmail.com on Thatcher (MANAGED): PATCH
+  preferredName → response + read-back persisted, then restored — confirms the
+  rewired save still commits identity fields.

@@ -250,7 +250,9 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
         </ul>
       </nav>
 
-      <div className="mt-6">
+      {/* pb-24 reserves clearance so the viewport-fixed StickySaveBar the
+          Account tab renders never covers the tab's last field. */}
+      <div className="mt-6 pb-24">
         {active === 'account' && <AccountTab child={child} onSendLink={onSendLink} />}
         {active === 'contact' && <ContactTab child={child} />}
         {active === 'medical' && <MedicalTab child={child} />}
@@ -398,8 +400,8 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
     if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     const v: typeof errors = {};
     if (!form.firstName.trim()) v.firstName = 'First name is required';
     if (!form.lastName.trim()) v.lastName = 'Last name is required';
@@ -424,6 +426,16 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
+  }
+
+  function onDiscard() {
+    setForm(initial);
+    setErrors({});
   }
 
   return (
@@ -540,17 +552,17 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        {/* Hidden submit keeps Enter-to-save working; the visible save
+            action is the viewport-fixed StickySaveBar below, matching
+            the parent /profile Account tab. */}
+        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void doSave()}
+        onDiscard={onDiscard}
+        saving={update.isPending}
+      />
     </SectionCard>
   );
 }
