@@ -742,6 +742,118 @@ describe('integration:m00-platform/relationships', () => {
     expect(link?.relationshipType).toBe('BIOLOGICAL_MOTHER');
   });
 
+  // ─── Clickable nodes: per-node access-gated profileUrl ─────────
+
+  it('family-tree profileUrl: guardian → managed child gets the child route, self→/profile, unviewable co-parent→null', async () => {
+    // scout is a LINKED child of adam's household (fixture); adam + ashley are
+    // his biological parents. adam is the (guardian) viewer.
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    personaOverride = ['PARENT'];
+    actorOverride.isSchoolAdmin = false;
+
+    const tree = await controller.familyTree(reqFor(adam, adamAccount), scout);
+
+    // The child (a "student") resolves to the child profile route, keyed by
+    // the family-child record id (NOT the iam_person id).
+    const fc = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id FROM platform.platform_family_children
+        WHERE family_id = $1::uuid AND person_id = $2::uuid`,
+      familyId,
+      scout,
+    );
+    const scoutNode = tree.children.find((c) => c.personId === scout)!;
+    expect(scoutNode.profileUrl).toBe(`/family/children/${fc[0]!.id}`);
+
+    // The viewer's own node → their own profile (adult route). (isSelf is
+    // root-relative — it marks the root subject in their own parent row — so
+    // it's the viewer-keyed profileUrl, not isSelf, that drives /profile here.)
+    const adamNode = tree.parents.find((p) => p.personId === adam)!;
+    expect(adamNode.profileUrl).toBe('/profile');
+
+    // Co-parent the (non-admin) viewer is not a guardian of → inert.
+    const ashleyNode = tree.parents.find((p) => p.personId === ashley)!;
+    expect(ashleyNode.profileUrl).toBeNull();
+  });
+
+  it('family-tree profileUrl: school admin → /profile/:id for every real node; name-only stays null', async () => {
+    // scout2 has a name-only mother (Linda Chen) — no account, never clickable.
+    await svc.addRelationship(
+      scout2,
+      { relatedPersonName: 'Linda Chen', relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout2,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    personaOverride = ['STAFF'];
+    actorOverride.isSchoolAdmin = true;
+
+    const tree = await controller.familyTree(reqFor(userB, userBAccount), scout2);
+
+    // Admin holds usr-001:admin → the admin profile route by iam_person id,
+    // for both the child and the real adult parent.
+    const child = tree.children.find((c) => c.personId === scout2)!;
+    expect(child.profileUrl).toBe(`/profile/${scout2}`);
+    const adamNode = tree.parents.find((p) => p.personId === adam)!;
+    expect(adamNode.profileUrl).toBe(`/profile/${adam}`);
+
+    // Name-only parent has no account → null even for an admin.
+    const linda = tree.parents.find((p) => p.personId === null && p.displayName === 'Linda Chen')!;
+    expect(linda).toBeDefined();
+    expect(linda.profileUrl).toBeNull();
+  });
+
+  it('family-tree profileUrl: a non-guardian viewer with no managed-child route gets null (no dead-end)', async () => {
+    // jake is scout's maternal half-sibling: shares ashley, different father
+    // (carlos). ashley is a real adult who is NOT one of adam's managed
+    // children — so even though adam can VIEW the tree, ashley/carlos have no
+    // viewer-reachable route and come back null rather than a 403 link.
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    personaOverride = ['PARENT'];
+    actorOverride.isSchoolAdmin = false;
+    const tree = await controller.familyTree(reqFor(adam, adamAccount), scout);
+    // Only self (adam) and the managed child (scout) are clickable; the
+    // co-parent adult is inert.
+    const clickable = [...tree.parents, ...tree.children].filter((n) => n.profileUrl != null);
+    const clickableIds = clickable.map((n) => n.personId).sort();
+    expect(clickableIds).toEqual([adam, scout].sort());
+  });
+
+  it('family-tree profileUrl: read-only preserved — a student self-viewer gets /profile but canEdit:false', async () => {
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    // scout views their OWN tree as a STUDENT — self link present, no edit.
+    personaOverride = ['STUDENT'];
+    actorOverride.isSchoolAdmin = false;
+    const tree = await controller.familyTree(reqFor(scout, scoutAccount), scout);
+    expect(tree.canEdit).toBe(false); // navigation does not unlock editing
+    const selfNode = tree.children.find((c) => c.personId === scout)!; // childless root → own child
+    expect(selfNode.profileUrl).toBe('/profile');
+  });
+
   function reqFor(personId: string, accountId: string): any {
     return {
       headers: {},
