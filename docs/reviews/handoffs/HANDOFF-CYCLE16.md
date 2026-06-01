@@ -553,3 +553,58 @@ family row in the running app. The criteria were fixed at the code level
 (guardian phone source; criteria trimmed) without standing up the local stack;
 if a specific field is still genuinely blank for that family, that's correct
 incomplete behaviour, not a criterion bug.
+
+
+---
+
+## Gender options, mailing inheritance, family-medical display (2026-06-01)
+
+Three independent fixes.
+
+### FIX 1 — Gender → MALE | FEMALE | NOT_SPECIFIED
+- New shared `@campusos/shared` exports: GENDERS, GENDER_LABELS,
+  normalizeGender (legacy 'F'→FEMALE, 'M'→MALE, anything else→NOT_SPECIFIED)
+  — one source so API + both web forms can't drift.
+- API normalises gender on READ (/profile/me self gender, FamilyChildDto)
+  AND WRITE (create/update child, account-creation identity). The admin
+  per-tenant sis_student_demographics.gender is a separate concern, untouched.
+- Web: add-person Details + profile Account tab render exactly the three
+  options with a DISABLED "Select…" placeholder (so required is meaningful;
+  Not Specified is a valid satisfying choice).
+- Backfill 20260601010000 canonicalises iam_person.gender +
+  platform_family_children.gender; verified 0 non-canonical values remain.
+- NOTE: iam_person.gender is plain TEXT — distinct from the person_type
+  Postgres ENUM (which needs the ::"PersonType" cast).
+
+### FIX 2 — Mailing "Use family / Use custom" toggle
+- New mailing_address_source (FAMILY|CUSTOM, default FAMILY) on
+  platform_family_children + iam_person (migration 20260601020000),
+  mirroring address_source. Three states: FAMILY = inherit family mailing;
+  CUSTOM + same-as-physical = mirror this record's physical; CUSTOM +
+  different = custom fields. The existing same-as-physical boolean is
+  preserved, nested under CUSTOM.
+- Use family inherits the family mailing address, falling back to the family
+  HOME address when the family keeps mailing == home.
+- Web reuses FamilyCustomToggle on the mailing block in BOTH the child
+  Addresses tab and the adult profile Contact tab. Custom mailing fields
+  persist only under CUSTOM + different; nulled otherwise.
+
+### FIX 3 — Child "Use family" shows family no-doctor/no-insurance state
+- loadFamilyDoctorInsurance + toMedicalDto thread the family's explicit
+  hasFamilyDoctor / hasInsurance three-state flags; ChildMedicalInfoDto
+  (api + web) carries them, populated only in FAMILY mode (null in CUSTOM).
+- Child Medical & Health (Use family) renders "No family doctor/insurance on
+  file" when the flag is false (matching the family tab), inherited details
+  when true, and empty when null (unanswered) — instead of blank dashes for
+  all three. Also fixed an adjacent copy-paste (CUSTOM insurancePolicy read
+  the wrong column).
+
+### Tests + verification
+- family-children.spec: +FIX3 (4: none-flagged, has-doctor, neither-set,
+  custom), +FIX1 (create stores canonical, legacy read normalizes), +FIX2
+  (mailing source defaults FAMILY, round-trips CUSTOM, flips back).
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- family-children + child-linking + relationships — 110 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+- Backfill migrations verified against demo data.
