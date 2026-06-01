@@ -640,6 +640,16 @@ export class ReorderFamilyEmergencyContactsDto {
   orderedIds!: string[];
 }
 
+/**
+ * PATCH /families/:familyId/primary-guardian — reassign which active
+ * guardian is the family's primary contact. "Primary" is a contact /
+ * label designation only; it does NOT change guardianship or edit
+ * rights (decoupled from canEditFamilyStructure / isActiveGuardianOf).
+ */
+export class SetPrimaryGuardianDto {
+  @ApiProperty() @IsString() guardianPersonId!: string;
+}
+
 // ─── /family/settings — family-level shared attributes ─────
 
 /**

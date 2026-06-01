@@ -5,6 +5,7 @@ import { generateId } from '@campusos/database';
 
 import { FamilyChildrenService } from '@modules/m00-platform/households/family-children.service';
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
+import { FamiliesController } from '@modules/m00-platform/households/families.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
 import { UpdateFamilyContactPreferencesDto } from '@modules/m00-platform/households/dto/family-child.dto';
 import { RedisService } from '@shared/cache';
@@ -1406,6 +1407,107 @@ describe('integration:m00-platform/family-children', () => {
           { type: 'body', metatype: UpdateFamilyContactPreferencesDto },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  // ─── Change primary guardian (spec STEP 6) ─────────────────
+
+  describe('change primary guardian', () => {
+    const families = () => new FamiliesController(service);
+
+    // A creates the family (→ HEAD_OF_HOUSEHOLD + primary). A invites a
+    // guardian; B accepts → B is an ACTIVE, non-primary guardian. Returns
+    // the family id both share.
+    async function familyWithTwoGuardians(): Promise<string> {
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      const accept = await controller.accept(reqB(), { code });
+      if (accept.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+      const view = await controller.getFamily(reqA());
+      return view!.family.id;
+    }
+
+    function primaryPersonId(view: Awaited<ReturnType<typeof controller.getFamily>>): string | null {
+      const primaries = (view?.members ?? []).filter((m) => m.isPrimaryContact);
+      // Invariant: never more than one primary.
+      expect(primaries.length).toBeLessThanOrEqual(1);
+      return primaries[0]?.personId ?? null;
+    }
+
+    it('setting B primary clears A; exactly one primary remains', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // A starts primary (family creator).
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userAPersonId);
+
+      const result = await families().setPrimaryGuardian(reqA(), familyId, {
+        guardianPersonId: userBPersonId,
+      });
+      // Star moved to B, A demoted, still exactly one.
+      expect(primaryPersonId(result)).toBe(userBPersonId);
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userBPersonId);
+    });
+
+    it('targeting a pending invite (not an active guardian) → 400', async () => {
+      // A invites but nobody accepts → a PENDING_INVITE member with a
+      // person_id that isn't an ACTIVE guardian of the family.
+      const placeholder = await controller.addMember(reqA(), { firstName: 'Pend', lastName: 'A' });
+      await controller.sendMemberInvite(reqA(), placeholder.id, {});
+      const view = await controller.getFamily(reqA());
+      const familyId = view!.family.id;
+      // A pending invite has no linked person_id, so target by a
+      // non-active person id (userB, who never joined this family).
+      await expect(
+        families().setPrimaryGuardian(reqA(), familyId, { guardianPersonId: userBPersonId }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // A is still the only primary — nothing changed.
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userAPersonId);
+    });
+
+    it('cross-family caller → 404 (cannot reassign another family’s primary)', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // userB is a member here, but a brand-new unrelated person is not.
+      const outsiderPerson = generateId();
+      const outsiderAccount = generateId();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)
+         VALUES ($1::uuid, 'Out', 'Sider', 'GUARDIAN', true) ON CONFLICT (id) DO NOTHING`,
+        outsiderPerson,
+      );
+      try {
+        await expect(
+          families().setPrimaryGuardian(reqFor(outsiderPerson, outsiderAccount), familyId, {
+            guardianPersonId: userBPersonId,
+          }),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      } finally {
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
+          outsiderPerson,
+        );
+      }
+    });
+
+    it('reassigning primary does NOT change edit rights / guardianship', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // Both A and B are active guardians of the family before…
+      const before = await controller.getFamily(reqA());
+      const aRoleBefore = before!.members.find((m) => m.personId === userAPersonId)?.memberRole;
+      const bRoleBefore = before!.members.find((m) => m.personId === userBPersonId)?.memberRole;
+
+      await families().setPrimaryGuardian(reqA(), familyId, { guardianPersonId: userBPersonId });
+
+      const after = await controller.getFamily(reqA());
+      // Member roles (the guardianship signal) are unchanged for both —
+      // only is_primary_contact moved.
+      expect(after!.members.find((m) => m.personId === userAPersonId)?.memberRole).toBe(
+        aRoleBefore,
+      );
+      expect(after!.members.find((m) => m.personId === userBPersonId)?.memberRole).toBe(
+        bRoleBefore,
+      );
+      // A is still a guardian (still present, ACTIVE) after losing primary.
+      const aAfter = after!.members.find((m) => m.personId === userAPersonId);
+      expect(aAfter?.status).toBe('ACTIVE');
+      expect(aAfter?.isPrimaryContact).toBe(false);
     });
   });
 });

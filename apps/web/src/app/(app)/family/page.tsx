@@ -18,6 +18,7 @@ import {
   useInviteGuardian,
   useSendChildLink,
   useSendMemberInvite,
+  useSetPrimaryGuardian,
   type FamilyAccessLevel,
   type FamilyChildDto,
   type FamilyChildStatus,
@@ -145,6 +146,7 @@ export default function FamilyPage() {
       <ParentsAndGuardiansSection
         members={data.members}
         viewerRole={data.viewerRole}
+        familyId={data.family.id}
         onInvite={() => setInviteGuardianOpen(true)}
         onAdd={() => setAddGuardianOpen(true)}
         onSendInvite={(m) => setMemberInviteFor(m)}
@@ -762,12 +764,14 @@ function ModalField({
 function ParentsAndGuardiansSection({
   members,
   viewerRole,
+  familyId,
   onInvite,
   onAdd,
   onSendInvite,
 }: {
   members: FamilyMemberDto[];
   viewerRole: FamilyViewerRole;
+  familyId: string;
   onInvite: () => void;
   onAdd: () => void;
   onSendInvite: (m: FamilyMemberDto) => void;
@@ -790,6 +794,8 @@ function ParentsAndGuardiansSection({
             <GuardianCard
               member={m}
               canManage={isParent && !m.isCurrentUser}
+              familyId={familyId}
+              canManagePrimary={isParent}
               onSendInvite={() => onSendInvite(m)}
             />
           </li>
@@ -829,15 +835,49 @@ function StatusBadgeForMember({
 function GuardianCard({
   member,
   canManage,
+  familyId,
+  canManagePrimary,
   onSendInvite,
 }: {
   member: FamilyMemberDto;
   canManage: boolean;
+  familyId: string;
+  canManagePrimary: boolean;
   onSendInvite: () => void;
 }) {
   const { toast } = useToast();
   const createAccount = useCreateMemberAccount(member.id);
   const removeMember = useDeleteFamilyMember(member.id);
+  const setPrimary = useSetPrimaryGuardian(familyId);
+
+  // "Make primary" is offered to any active guardian (the permissive
+  // co-guardian model), on every OTHER active guardian who isn't already
+  // primary. Only ACTIVE guardians can be primary (not pending invites).
+  const canMakePrimary =
+    canManagePrimary && member.status === 'ACTIVE' && !member.isPrimaryContact && !!member.personId;
+
+  async function onMakePrimary() {
+    if (!member.personId) return;
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Make ' +
+          member.firstName +
+          ' the primary contact?\n\n' +
+          'Schools will reach out to them first. This changes the contact label only — ' +
+          "it does not change anyone's guardianship or ability to edit the family.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await setPrimary.mutateAsync(member.personId);
+      toast(member.firstName + ' is now the primary contact', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not change the primary contact.';
+      toast(message, 'error');
+    }
+  }
 
   async function onCreateAccount() {
     if (
@@ -895,7 +935,7 @@ function GuardianCard({
               ' · Parent / Guardian'}
           </p>
           {member.isPrimaryContact && (
-            <p className="mt-0.5 text-xs text-gray-500">Primary contact</p>
+            <p className="mt-0.5 text-xs font-medium text-amber-700">★ Primary contact</p>
           )}
           {member.status === 'PENDING_INVITE' && member.inviteCode && (
             <p className="mt-2 text-xs text-gray-600">
@@ -933,6 +973,14 @@ function GuardianCard({
           <DangerButton onClick={onRemove} disabled={removeMember.isPending}>
             {removeMember.isPending ? 'Removing…' : 'Remove'}
           </DangerButton>
+        </div>
+      )}
+
+      {canMakePrimary && (
+        <div className="mt-4">
+          <SecondaryButton onClick={onMakePrimary} disabled={setPrimary.isPending}>
+            {setPrimary.isPending ? 'Updating…' : 'Make primary'}
+          </SecondaryButton>
         </div>
       )}
     </div>

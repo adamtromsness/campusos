@@ -665,6 +665,70 @@ export class FamilyChildrenService {
     return refreshed;
   }
 
+  /**
+   * Reassign the family's primary contact to a different ACTIVE guardian
+   * (spec STEP 6). "Primary" is a contact/label designation only — this
+   * deliberately touches ONLY platform_family_members.is_primary_contact
+   * and never guardianship or edit rights (canEditFamilyStructure /
+   * isActiveGuardianOf read other signals, so they're unaffected).
+   *
+   * Authorisation: the caller must be a member of `familyId` (any active
+   * guardian may reassign — the permissive co-guardian model). The target
+   * must be an ACTIVE guardian of the SAME family (a pending invite or a
+   * non-member → 400). The demote-old/promote-new pair runs in one tx so
+   * the (family_id) WHERE is_primary_contact = true partial UNIQUE never
+   * sees two primaries and the family is never left with zero.
+   */
+  async setPrimaryGuardian(
+    callerPersonId: string,
+    familyId: string,
+    guardianPersonId: string,
+  ): Promise<FamilyViewDto | null> {
+    // Caller must belong to the target family (cross-family → 404, so we
+    // don't leak the existence of another family).
+    const callerMember = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id FROM platform.platform_family_members
+        WHERE family_id = $1::uuid AND person_id = $2::uuid LIMIT 1`,
+      familyId,
+      callerPersonId,
+    );
+    if (callerMember.length === 0) {
+      throw new NotFoundException('Family not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Target must be an ACTIVE guardian of this family. Pending invites
+      // (status != ACTIVE) and non-members are rejected.
+      const target = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text AS id FROM platform.platform_family_members
+          WHERE family_id = $1::uuid AND person_id = $2::uuid
+            AND status = 'ACTIVE' LIMIT 1`,
+        familyId,
+        guardianPersonId,
+      );
+      if (target.length === 0) {
+        throw new BadRequestException(
+          'The chosen person is not an active guardian of this family.',
+        );
+      }
+      // Demote the current primary first (partial UNIQUE forbids two).
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+            SET is_primary_contact = false, updated_at = now()
+          WHERE family_id = $1::uuid AND is_primary_contact = true`,
+        familyId,
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+            SET is_primary_contact = true, updated_at = now()
+          WHERE id = $1::uuid`,
+        target[0]!.id,
+      );
+    });
+
+    return this.getFamilyView(callerPersonId);
+  }
+
   // ─── Family contact preferences (per-category routing) ────
 
   /**

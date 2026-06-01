@@ -445,6 +445,26 @@ export function useDeleteFamilyMember(id: string) {
   });
 }
 
+/**
+ * PATCH /families/:familyId/primary-guardian — reassign the family's
+ * primary contact to another ACTIVE guardian. "Primary" is a contact
+ * label only and does not change edit rights / guardianship. Invalidates
+ * the whole family space so the star + completion %/checklist re-derive.
+ */
+export function useSetPrimaryGuardian(familyId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (guardianPersonId: string) =>
+      apiFetch<FamilyViewDto>('/api/v1/families/' + familyId + '/primary-guardian', {
+        method: 'PATCH',
+        body: JSON.stringify({ guardianPersonId }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
 export function useCreateMemberAccount(id: string) {
   const qc = useQueryClient();
   return useMutation({
