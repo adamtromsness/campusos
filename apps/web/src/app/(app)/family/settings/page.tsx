@@ -475,7 +475,6 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
   const prefs = prefsData ?? null;
 
   const items = useMemo<CompletionItem[]>(() => {
-    const hasName = Boolean(settings.displayName?.trim());
     const hasGeneralPrimary = (prefs ?? []).some(
       (p) => p.category === 'GENERAL' && p.primaryPersonId,
     );
@@ -510,11 +509,6 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
       activeGuardians.every(
         (m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim(),
       );
-    const generalPersonId = (prefs ?? []).find((p) => p.category === 'GENERAL')?.primaryPersonId;
-    const customisedPrefs = (prefs ?? []).some(
-      (p) =>
-        p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
-    );
     // Mailing address is satisfied when it's the same as home, or
     // (when separate) every required mailing field is filled — same
     // required set as the home address.
@@ -528,27 +522,19 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
             settings.mailingCountry,
         );
 
+    // NOTE: "Family name set" and "Communication preferences customised"
+    // were removed from the completion criteria (spec STEPs 3-4). The
+    // display name is optional (blank is valid), and communication
+    // preferences are seeded to operational defaults on family creation,
+    // so neither blocks completion. The Family-name field stays editable
+    // on the Family tab and prefs stay editable on the categories card —
+    // they're just no longer scored here. "Primary contact assigned
+    // (General)" stays: it's satisfied by the seeded default primary.
     return [
-      {
-        key: 'family-name',
-        label: 'Family name set',
-        complete: hasName,
-        weight: 5,
-        section: 'family',
-        scrollTargetId: 'family-name',
-      },
       {
         key: 'primary-contact',
         label: 'Primary contact assigned (General)',
         complete: hasGeneralPrimary,
-        weight: 5,
-        section: 'family',
-        scrollTargetId: 'family-categories',
-      },
-      {
-        key: 'communication-prefs',
-        label: 'Communication preferences customised',
-        complete: customisedPrefs,
         weight: 5,
         section: 'family',
         scrollTargetId: 'family-categories',
