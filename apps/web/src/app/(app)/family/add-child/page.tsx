@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { GENDERS, GENDER_LABELS } from '@campusos/shared';
 import { ApiError } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
@@ -38,17 +39,6 @@ import { useToast } from '@/components/ui/Toast';
  *            enter their link code, create an account now, or generate a
  *            code for them to enter.
  */
-
-// Inclusive gender options (required select). Values are stored verbatim
-// on iam_person.gender (free-text column); 'F'/'M' stay compatible with
-// data captured by earlier surfaces.
-const GENDER_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'F', label: 'Female' },
-  { value: 'M', label: 'Male' },
-  { value: 'NONBINARY', label: 'Non-binary' },
-  { value: 'OTHER', label: 'Other / self-describe' },
-  { value: 'UNDISCLOSED', label: 'Prefer not to say' },
-];
 
 // The STUDENT-default age threshold from the spec (≤18). Independent of
 // the COPPA/managed-minor (<13) email rule below.
@@ -299,10 +289,12 @@ export default function AddChildPage() {
                   (basicErrors.gender ? 'border-red-300' : 'border-gray-300')
                 }
               >
-                <option value="">Select…</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
+                <option value="" disabled>
+                  Select…
+                </option>
+                {GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {GENDER_LABELS[g]}
                   </option>
                 ))}
               </select>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { GENDERS, GENDER_LABELS } from '@campusos/shared';
 import { ApiError } from '@/lib/api-client';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
@@ -358,9 +359,14 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
                   : 'border border-gray-300',
               )}
             >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
+              <option value="" disabled>
+                Select…
+              </option>
+              {GENDERS.map((g) => (
+                <option key={g} value={g}>
+                  {GENDER_LABELS[g]}
+                </option>
+              ))}
             </select>
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomInt } from 'crypto';
 import { generateId } from '@campusos/database';
+import { normalizeGender } from '@campusos/shared';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
 import {
   AddPersonEmailDto,
@@ -1286,7 +1287,9 @@ export class FamilyChildrenService {
       dto.lastName,
       dto.preferredName ?? null,
       dto.dateOfBirth ?? null,
-      dto.gender ?? null,
+      // Canonicalise on write (FIX 1) so storage matches the option set,
+      // not just the read projection. null stays null (unset).
+      dto.gender != null ? normalizeGender(dto.gender) : null,
     );
     return this.requireById(id, personId);
   }
@@ -1348,7 +1351,8 @@ export class FamilyChildrenService {
     }
     if (dto.gender !== undefined) {
       childSet.push('gender = $' + ci++);
-      childArgs.push(dto.gender);
+      // Canonicalise on write (FIX 1); preserve null (unset).
+      childArgs.push(dto.gender != null ? normalizeGender(dto.gender) : null);
     }
     if (dto.emergencyContactSource !== undefined) {
       childSet.push('emergency_contact_source = $' + ci++);
@@ -1389,7 +1393,9 @@ export class FamilyChildrenService {
       if (dto.middleName !== undefined) personPatch.middleName = dto.middleName;
       if (dto.lastName !== undefined) personPatch.lastName = dto.lastName;
       if (dto.preferredName !== undefined) personPatch.preferredName = dto.preferredName;
-      if (dto.gender !== undefined) personPatch.gender = dto.gender;
+      if (dto.gender !== undefined) {
+        personPatch.gender = dto.gender != null ? normalizeGender(dto.gender) : null;
+      }
       if (dto.primaryPhone !== undefined) personPatch.primaryPhone = dto.primaryPhone;
       if (dto.notes !== undefined) personPatch.notes = dto.notes;
       if (dto.dateOfBirth !== undefined) {
@@ -2751,7 +2757,9 @@ export class FamilyChildrenService {
       lastName: r.last_name,
       preferredName: r.preferred_name,
       dateOfBirth: r.date_of_birth,
-      gender: r.gender,
+      // Normalise to the canonical option set on read (FIX 1) so a legacy
+      // 'F'/'M' or other stored value always renders as a valid option.
+      gender: normalizeGender(r.gender),
       primaryPhone: r.primary_phone,
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
@@ -3867,7 +3875,10 @@ function requireAccountIdentity(
   if (!trimmedGender) {
     throw new BadRequestException({ message: 'Gender is required', field: 'gender' });
   }
-  return { dateOfBirth: dob, gender: trimmedGender };
+  // Store the canonical value (FIX 1). "Not Specified" is a valid
+  // satisfying choice, so only a blank submission fails the required check
+  // above — a chosen NOT_SPECIFIED passes and persists canonically.
+  return { dateOfBirth: dob, gender: normalizeGender(trimmedGender) };
 }
 
 /**

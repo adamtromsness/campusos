@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { normalizeGender } from '@campusos/shared';
 import { TenantPrismaService } from '@shared/tenant';
 import {
   AddPersonEmailDto,
@@ -1394,7 +1395,9 @@ export class ProfileService {
       suffix: person.suffix,
       previousNames: person.previous_names ?? [],
       dateOfBirth: person.date_of_birth,
-      gender: person.gender,
+      // Normalise the self-editable gender to the canonical option set
+      // (FIX 1) so the Account-tab select always matches a real option.
+      gender: normalizeGender(person.gender),
       loginEmail: person.login_email,
       personalEmail: person.personal_email,
       primaryPhone: person.primary_phone,

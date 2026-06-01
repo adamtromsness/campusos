@@ -354,18 +354,46 @@ describe('integration:m00-platform/family-children', () => {
     });
     expect(linked.accessLevel).toBe('MANAGED');
 
+    // Gender is canonicalised on write + read (FIX 1): 'F' → 'FEMALE'.
     const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie', gender: 'F' });
     expect(updated.firstName).toBe('Sophie');
-    expect(updated.gender).toBe('F');
+    expect(updated.gender).toBe('FEMALE');
     // gender must land on iam_person too — that's what the child's own
     // /profile page reads. A family-mirror-only write left the parent
-    // seeing "Female" while the child saw "Not Specified".
+    // seeing "Female" while the child saw "Not Specified". Stored
+    // canonically now, so the direct DB read is also 'FEMALE'.
     const person = await prisma.iamPerson.findUnique({
       where: { id: linked.personId! },
       select: { firstName: true, gender: true },
     });
     expect(person?.firstName).toBe('Sophie');
-    expect(person?.gender).toBe('F');
+    expect(person?.gender).toBe('FEMALE');
+  });
+
+  // ─── FIX 1: gender canonicalisation ──────────────────────────
+
+  it('create stores canonical gender; legacy stored value reads normalized', async () => {
+    // Create with legacy 'M' → stored + read back canonically.
+    const c = await controller.create(reqA(), {
+      firstName: 'Gene',
+      lastName: 'A',
+      gender: 'M',
+    });
+    expect(c.gender).toBe('MALE');
+    const stored = await prisma.$queryRawUnsafe<Array<{ gender: string | null }>>(
+      `SELECT gender FROM platform.platform_family_children WHERE id = $1::uuid`,
+      c.id,
+    );
+    expect(stored[0]!.gender).toBe('MALE');
+
+    // A legacy/other value written directly to the DB renders as
+    // NOT_SPECIFIED on read (normalize-on-read), without a backfill.
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.platform_family_children SET gender = 'NONBINARY' WHERE id = $1::uuid`,
+      c.id,
+    );
+    const refetched = (await controller.list(reqA())).find((x) => x.id === c.id);
+    expect(refetched?.gender).toBe('NOT_SPECIFIED');
   });
 
   it('patch INDEPENDENT LINKED child → 403', async () => {
