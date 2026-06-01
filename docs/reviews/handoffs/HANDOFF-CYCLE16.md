@@ -412,3 +412,59 @@ on branch feat/family-structure-profile-edit-perms.
 ### Deferred / follow-up
 - Cross-owner "link/claim request" approval flow (reuse platform_invitations):
   detection blocks it safely today (no PII shared, no link offered).
+
+
+---
+
+## Blended family-tree diagram (2026-06-01)
+
+Blended Family Tree spec. Replaces the flat bucketed family-tree view with a
+single-generation, blended-family-aware box-and-line SVG diagram. Read-only;
+no schema migration.
+
+### Payload (Step 1) — `relationship.service.ts` + `relationship.dto.ts`
+`GET /people/:id/family-tree` now returns a GRAPH, not bucketed lists:
+`{ rootPersonId, canEdit, parents[], children[] }`.
+- `parents`: deduped union of every distinct parent across all children's
+  links — a shared parent appears ONCE. `{ personId|null, displayName,
+  isSelf, isPlaceholder }`; name-only (non-CampusOS) parents are personId:null
+  boxes keyed by name.
+- `children[].parentLinks`: per-child, 1..n (padded to 2). type + custody
+  live on the LINK (a child can be biological to one parent, step to another).
+  A known-but-unspecified second parent is a link with parentPersonId AND
+  parentName null — the meaningful empty slot, never omitted.
+- Root selection: the root's own children form the child row; a CHILDLESS
+  root appears as its OWN child (subject + their parents) so a student's
+  structure page still renders. Empty only when neither children nor parents.
+- Dropped `FamilyTreeNodeDto` and the bucketed spouses/grandparents/siblings/
+  other fields from THIS payload — out of scope for a single-generation
+  diagram; the full bucketed list still lives at `GET /relationships`.
+
+### Render (Steps 2-4) — `FamilyTreeView.tsx`
+SVG box-and-line (viewBox 0 0 680 H, role=img + title/desc): parent row on
+top, child row below, an edge from each child's top-center to each linked
+parent's bottom-center; dashed boxes/edges for unset slots. Barycenter parent
+ordering (mean child index, stable, tie-break displayName) to minimise — not
+eliminate — crossings; no dagre/elk. Child box shows name·age + relationship
+summary + custody summary; per-edge detail is NOT crammed on the line.
+Computed height (no clipping). Empty state when no children. Reused by both
+`/family/tree` and `/family/[personId]/structure` (the latter derives the
+subject name from the graph, since the payload has no top-level person).
+Deferred (noted in code): per-parent edge colour, edge hover tooltips.
+
+### Tests (Step 5)
+`relationships.spec` (28 passing): childless-root-as-child, shared-parent
+deduped once, per-link biological-vs-step type+custody, null-slot
+present-not-omitted, name-only parent box, controller view-gate + read-only
+canEdit. The web app has no test runner (`test` script is a stub), so the
+spec's component tests are not added; the pure `computeLayout` would be the
+unit-test seam if a harness is stood up later.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- relationships.spec — 28 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+- Full integration suite: the only failures are 4 in tenant-isolation.spec
+  from cross-spec fixture pollution (a leftover pay_family_accounts row,
+  unrelated to this change) — that spec passes 17/17 run in isolation.
