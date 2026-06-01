@@ -7,6 +7,7 @@ import { FamilyChildrenService } from '@modules/m00-platform/households/family-c
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
 import { FamiliesController } from '@modules/m00-platform/households/families.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import { UpdateFamilyContactPreferencesDto } from '@modules/m00-platform/households/dto/family-child.dto';
 import { RedisService } from '@shared/cache';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
@@ -40,7 +41,8 @@ describe('integration:m00-platform/family-children', () => {
     redis = new RedisService();
     await redis.onModuleInit();
     const personaResolution = new PersonaResolutionService(prisma, tenantPrisma);
-    service = new FamilyChildrenService(prisma, personaResolution, redis);
+    const relationships = new RelationshipService(prisma);
+    service = new FamilyChildrenService(prisma, personaResolution, redis, relationships);
     controller = new FamilyChildrenController(service);
 
     for (const { personId, accountId, label } of [
@@ -96,6 +98,13 @@ describe('integration:m00-platform/family-children', () => {
            (SELECT family_id FROM platform.platform_family_members)`,
       );
     }
+    // Guardian edit-access consent FKs iam_person (both columns) — clear
+    // before the iam_person delete below.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = ANY($1::uuid[]) OR subject_person_id = ANY($1::uuid[])`,
+      [userAPersonId, userBPersonId],
+    );
     // Drop persona-cache rows from any link-accept flows that called
     // refreshPersonaCacheSafe. platform_personas FKs iam_person, so
     // these have to go before the iam_person delete below.
@@ -167,6 +176,23 @@ describe('integration:m00-platform/family-children', () => {
     await redis.cacheInvalidate(
       'family:link-attempts:' + userAAccountId,
       'family:link-attempts:' + userBAccountId,
+    );
+    // Guardian edit-access consent + the adult-DOB the 18+ revoke test sets —
+    // reset so each test starts from the carryover default and B is a minor.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = ANY($1::uuid[]) OR subject_person_id = ANY($1::uuid[])`,
+      [userAPersonId, userBPersonId],
+    );
+    // Reset DOB + the canonical name: the edit tests rename the LINKED
+    // iam_person (identity edits mirror onto iam_person), which would otherwise
+    // break the later name-match accept tests.
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.iam_person
+          SET date_of_birth = NULL, last_name = 'Parent', first_name = CASE id WHEN $1::uuid THEN 'A' ELSE 'B' END
+        WHERE id = ANY($2::uuid[])`,
+      userAPersonId,
+      [userAPersonId, userBPersonId],
     );
     // Tear down everything we created on behalf of the two test
     // users, in FK-safe order.
@@ -396,17 +422,53 @@ describe('integration:m00-platform/family-children', () => {
     expect(refetched?.gender).toBe('NOT_SPECIFIED');
   });
 
-  it('patch INDEPENDENT LINKED child → 403', async () => {
-    // user B accepts user A's FAMILY_INVITE → B is LINKED in A's
-    // family with their own (unmanaged) platform_users row, so the
-    // row resolves to INDEPENDENT from A's viewpoint.
+  it('Independent is descriptive only: a guardian CAN edit an INDEPENDENT under-18 child', async () => {
+    // user B accepts user A's FAMILY_INVITE → B is LINKED in A's family with
+    // their own (unmanaged) platform_users row, so the row resolves to
+    // INDEPENDENT from A's viewpoint. Under the age + consent model the flag no
+    // longer gates editing: A is an active guardian and the child is a minor
+    // (no DOB on file → treated as a minor), so the edit is unconditional.
     const code = (await controller.generateCode(reqA())).code;
     const result = await controller.accept(reqB(), { code });
     if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
-    expect(result.child.accessLevel).toBe('INDEPENDENT');
+    expect(result.child.accessLevel).toBe('INDEPENDENT'); // descriptive only
+    const updated = await controller.update(reqA(), result.child.id, { firstName: 'Renamed' });
+    expect(updated.firstName).toBe('Renamed');
+    expect(updated.canEdit).toBe(true);
+    // Read-back via the list also reports canEdit true for the guardian.
+    const fromList = (await controller.list(reqA())).find((x) => x.id === result.child.id);
+    expect(fromList?.canEdit).toBe(true);
+  });
+
+  it('an 18+ INDEPENDENT account that revoked the guardian → guardian edit 403 across sections', async () => {
+    // B accepts A's invite (LINKED, INDEPENDENT). Make B an adult and have B
+    // revoke A's access → A can no longer edit identity OR medical.
+    const code = (await controller.generateCode(reqA())).code;
+    const result = await controller.accept(reqB(), { code });
+    if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.iam_person SET date_of_birth = '1990-01-01' WHERE id = $1::uuid`,
+      userBPersonId,
+    );
+    // Carryover: still editable before any revoke (absent consent ⇒ GRANTED).
+    const stillOk = await controller.update(reqA(), result.child.id, { firstName: 'Carry' });
+    expect(stillOk.firstName).toBe('Carry');
+    // B (the adult) revokes A.
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_guardian_edit_consent
+         (id, guardian_person_id, subject_person_id, state) VALUES ($1::uuid,$2::uuid,$3::uuid,'REVOKED')`,
+      generateId(),
+      userAPersonId,
+      userBPersonId,
+    );
     await expect(
-      controller.update(reqA(), result.child.id, { firstName: 'Hacked' }),
+      controller.update(reqA(), result.child.id, { firstName: 'Blocked' }),
     ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      controller.updateMedical(reqA(), result.child.id, { bloodType: 'O+' }),
+    ).rejects.toMatchObject({ status: 403 });
+    const fromList = (await controller.list(reqA())).find((x) => x.id === result.child.id);
+    expect(fromList?.canEdit).toBe(false);
   });
 
   // ─── DELETE /family/children/:id ───────────────────────────

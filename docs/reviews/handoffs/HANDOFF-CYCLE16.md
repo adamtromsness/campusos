@@ -739,3 +739,56 @@ clickability per node; the client is clickable iff a URL is present.
 - Live (adamtromsness@gmail.com on the Tromsness tree): Adam→/profile, Ashley
   (co-parent, not viewable)→null, Scout/Thatcher/Sailor/Harper→
   /family/children/:familyChildId; as Platform Admin every node→/profile/:id.
+
+## Guardian editing — age + consent model (2026-06-02)
+
+Replaces the "Independent gates editing" rule with an age-driven rule + a
+post-18 consent layer. ONE predicate governs every section.
+
+- New table `platform_guardian_edit_consent` (guardian_person_id,
+  subject_person_id, state GRANTED|REVOKED, UNIQUE pair, CHECK state, no-self;
+  migration 20260602000000 + Prisma model). Carryover = the read default:
+  an ABSENT row reads GRANTED, so no data backfill is needed and no guardian is
+  locked out on deploy. Rows are materialised only for a new-guardian-after-18
+  (REVOKED) or an explicit adult grant/revoke.
+- `RelationshipService` gains `canGuardianEdit(guardian, subject)` (active
+  guardian AND (subject <18 → true; else consent ≠ REVOKED)), `ageOfPerson`,
+  `getGuardianConsentState`, `setGuardianConsent`, `listGuardiansWithConsent`.
+  Exactly-18 is an adult (consent begins at the 18th birthday); unknown DOB is
+  treated as a minor (never lock a guardian out of a managed child).
+  `addRelationship` materialises REVOKED when a new PARENT_TYPE link forms and
+  the subject is already 18+ (ON CONFLICT DO NOTHING — never clobbers an
+  explicit choice).
+- `relationship.auth.ts::canEditFamilyStructure` now delegates its non-self
+  branch to `canGuardianEdit` (keeps the PARENT-persona + self gate); the
+  controller injects `canGuardianEdit` instead of `isActiveGuardianOf`.
+- `FamilyChildrenService` injects `RelationshipService`. The child identity
+  `update()` INDEPENDENT-403 throw is replaced by `canGuardianEdit` for LINKED
+  rows; medical/dietary/emergency/phone/email writes go through a new
+  `assertCanEditLinkedChild` (reads still use `requireLinkedChildOwned`).
+  `FamilyChildDto.canEdit` is decorated (decorateCanEdit) on every read/return
+  path; `accessLevel` is descriptive only now. The `updateMember` INDEPENDENT
+  throw is intentionally KEPT — it guards adult co-guardian *members*, not
+  dependents (out of scope for the age/consent model).
+- Endpoints: `GET /people/:personId/guardian-access` +
+  `PATCH /people/:personId/guardian-access/:guardianId { state }` — subject-only
+  and 18+ (assertSelfAdult; 403 otherwise; cannot target self). DTOs:
+  GuardianAccessResponseDto / GuardianAccessEntryDto / UpdateGuardianAccessDto.
+- Web: `FamilyChild.canEdit` added; the child profile gates readOnly + phone/
+  email + address editing on `canEdit` (not accessLevel). The Independent badge
+  + status labels stay as descriptive self-login indicators; the INDEPENDENT
+  info banner now reflects canEdit. New `GuardianAccessSection` ("People who can
+  edit my account") on the 18+ person's `/profile` Account tab (Revoke/Grant per
+  guardian; hidden for under-18s). Hooks: useGuardianAccess / useSetGuardianAccess.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors; tsc — 0 errors; web tsc — 0 errors.
+- relationships.spec — 40 passing (+8 consent: under-18 unconditional/no row;
+  non-guardian never; 18+ carryover GRANTED; revoke→blocked→re-grant; new-after-18
+  REVOKED; listGuardiansWithConsent; endpoint revoke blocks edits; endpoint
+  subject-only/minor/self-target 403). family-children.spec + child-linking.spec
+  updated for the new ctor + behavior (Independent under-18 now editable; 18+
+  revoke blocks identity AND medical; canEdit on the DTO) — all passing.
+- Live (adamtromsness@gmail.com): editing Alivia (14, INDEPENDENT) identity +
+  medical now succeeds (was 403); canEdit=true. Guardian-access GET: own-adult
+  200, not-self 403, under-18 (Maya, 15) 403.

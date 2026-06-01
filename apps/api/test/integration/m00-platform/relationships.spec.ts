@@ -177,6 +177,11 @@ describe('integration:m00-platform/relationships', () => {
         WHERE person_id = ANY($1::uuid[]) OR related_person_id = ANY($1::uuid[])`,
       ALL_PEOPLE,
     );
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = ANY($1::uuid[]) OR subject_person_id = ANY($1::uuid[])`,
+      ALL_PEOPLE,
+    );
   }
 
   // Each test starts from a clean relationship graph and a plain PARENT
@@ -852,6 +857,111 @@ describe('integration:m00-platform/relationships', () => {
     expect(tree.canEdit).toBe(false); // navigation does not unlock editing
     const selfNode = tree.children.find((c) => c.personId === scout)!; // childless root → own child
     expect(selfNode.profileUrl).toBe('/profile');
+  });
+
+  // ─── Guardian edit access: age + consent model ────────────────
+
+  // Insert a guardian→subject graph edge DIRECTLY (bypassing
+  // addRelationship's new-guardian-after-18 REVOKED materialisation) to
+  // simulate a pre-existing / pre-adulthood link with NO consent row.
+  async function seedGuardianEdge(subject: string, guardian: string): Promise<void> {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_person_relationships
+         (id, person_id, related_person_id, relationship_type, created_by)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'BIOLOGICAL_FATHER', $3::uuid)`,
+      generateId(),
+      subject,
+      guardian,
+    );
+  }
+
+  it('canGuardianEdit: under-18 subject is editable unconditionally; no consent row is created', async () => {
+    // scout (born 2012) is a minor; adam is his father.
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    expect(await svc.canGuardianEdit(adam, scout)).toBe(true);
+    // The consent layer is never consulted (and never materialised) for a minor.
+    expect(await svc.getGuardianConsentState(adam, scout)).toBeNull();
+  });
+
+  it('canGuardianEdit: non-guardian is never allowed, regardless of age', async () => {
+    // No relationship between userB and scout.
+    expect(await svc.canGuardianEdit(userB, scout)).toBe(false);
+  });
+
+  it('canGuardianEdit: 18+ subject with a pre-existing guardian link carries over as GRANTED (no lockout)', async () => {
+    // userB (born 1990) is an adult; carlos is a pre-existing guardian with NO
+    // consent row — the backfill/carryover case. Absent row ⇒ GRANTED.
+    await seedGuardianEdge(userB, carlos);
+    expect(await svc.getGuardianConsentState(carlos, userB)).toBeNull();
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(true);
+  });
+
+  it('canGuardianEdit: adult revoke blocks the guardian; re-grant restores access', async () => {
+    await seedGuardianEdge(userB, carlos);
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(true);
+    await svc.setGuardianConsent(carlos, userB, 'REVOKED');
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(false);
+    await svc.setGuardianConsent(carlos, userB, 'GRANTED');
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(true);
+  });
+
+  it('addRelationship: a new guardian link to an already-18+ subject defaults to REVOKED', async () => {
+    // userB is already an adult when carlos is added as a parent → REVOKED.
+    await svc.addRelationship(
+      userB,
+      { relatedPersonId: carlos, relationshipType: 'BIOLOGICAL_FATHER' },
+      userB,
+    );
+    expect(await svc.getGuardianConsentState(carlos, userB)).toBe('REVOKED');
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(false);
+  });
+
+  it('listGuardiansWithConsent: lists active guardians with carryover/explicit state', async () => {
+    await seedGuardianEdge(userB, carlos); // carryover GRANTED
+    await svc.addRelationship(
+      userB,
+      { relatedPersonId: sarah, relationshipType: 'BIOLOGICAL_MOTHER' },
+      userB,
+    ); // new-after-18 → REVOKED
+    const list = await svc.listGuardiansWithConsent(userB);
+    const byId = new Map(list.map((g) => [g.personId, g.state]));
+    expect(byId.get(carlos)).toBe('GRANTED');
+    expect(byId.get(sarah)).toBe('REVOKED');
+  });
+
+  it('guardian-access endpoint: the 18+ subject can revoke, and the change blocks edits', async () => {
+    await seedGuardianEdge(userB, carlos);
+    // Subject (userB) lists + revokes carlos.
+    const before = await controller.listGuardianAccess(reqFor(userB, userBAccount), userB);
+    expect(before.guardians.find((g) => g.guardianPersonId === carlos)?.state).toBe('GRANTED');
+    const after = await controller.setGuardianAccess(reqFor(userB, userBAccount), userB, carlos, {
+      state: 'REVOKED',
+    });
+    expect(after.guardians.find((g) => g.guardianPersonId === carlos)?.state).toBe('REVOKED');
+    expect(await svc.canGuardianEdit(carlos, userB)).toBe(false);
+  });
+
+  it('guardian-access endpoint: only the 18+ subject may use it (guardian/third-party/minor → 403)', async () => {
+    await seedGuardianEdge(userB, carlos);
+    // A guardian cannot read/modify the adult's access (not the subject).
+    await expect(
+      controller.listGuardianAccess(reqFor(carlos, generateId()), userB),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      controller.setGuardianAccess(reqFor(carlos, generateId()), userB, carlos, { state: 'GRANTED' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    // A minor has no control to manage (under 18) — even on their own record.
+    await expect(
+      controller.listGuardianAccess(reqFor(scout, scoutAccount), scout),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    // The subject cannot target themselves.
+    await expect(
+      controller.setGuardianAccess(reqFor(userB, userBAccount), userB, userB, { state: 'REVOKED' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   function reqFor(personId: string, accountId: string): any {

@@ -6,6 +6,7 @@ import { generateId } from '@campusos/database';
 import { FamilyChildrenService } from '@modules/m00-platform/households/family-children.service';
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import { RedisService } from '@shared/cache';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
@@ -46,7 +47,8 @@ describe('integration:m00-platform/child-linking', () => {
     redis = new RedisService();
     await redis.onModuleInit();
     const personaResolution = new PersonaResolutionService(prisma, tenantPrisma);
-    service = new FamilyChildrenService(prisma, personaResolution, redis);
+    const relationships = new RelationshipService(prisma);
+    service = new FamilyChildrenService(prisma, personaResolution, redis, relationships);
     controller = new FamilyChildrenController(service);
 
     const seedUser = async (personId: string, accountId: string, label: string) => {
