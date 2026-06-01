@@ -1,5 +1,7 @@
 'use client';
 
+import { type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   type FamilyTree,
@@ -29,6 +31,14 @@ import {
  * size rather than shrinking text below legibility. Box content is kept short
  * (name · age + a one-word relationship subtitle) so nothing truncates;
  * per-link custody / type detail lives on the profile, not on the box.
+ *
+ * Person boxes are CLICKABLE when the server emits a `profileUrl` for that
+ * node — navigation only (router push, no reload), to that person's profile.
+ * A node is interactive iff `profileUrl` is non-null; the server emits it only
+ * for real people the current viewer may view and can route to (so placeholder
+ * slots, name-only relationships, and not-permitted people render inert). This
+ * does not change the read-only nature of the tree — there are still no edit
+ * affordances anywhere on it.
  *
  * No edit affordances ever — editing lives in the profile Family Structure
  * section. Shared by /family/tree and /family/[personId]/structure.
@@ -63,6 +73,8 @@ export function FamilyTreeView({ tree }: { tree: FamilyTree }) {
   }
 
   const layout = computeLayout(tree);
+  const router = useRouter();
+  const navigate = (url: string) => router.push(url);
 
   return (
     <div className="overflow-x-auto rounded-card border border-gray-200 bg-white p-2 shadow-sm">
@@ -103,14 +115,20 @@ export function FamilyTreeView({ tree }: { tree: FamilyTree }) {
         {/* Parent row */}
         <g>
           {layout.parents.map((p) => (
-            <ParentBox key={p.key} node={p} width={layout.parentBoxW} />
+            <ParentBox key={p.key} node={p} width={layout.parentBoxW} onNavigate={navigate} />
           ))}
         </g>
 
         {/* Child row */}
         <g>
           {layout.children.map((c) => (
-            <ChildBox key={c.key} node={c} width={layout.childBoxW} y={layout.childY} />
+            <ChildBox
+              key={c.key}
+              node={c}
+              width={layout.childBoxW}
+              y={layout.childY}
+              onNavigate={navigate}
+            />
           ))}
         </g>
       </svg>
@@ -128,6 +146,8 @@ interface PositionedParent {
   isSelf: boolean;
   placeholder: boolean;
   roleLine: string;
+  href: string | null; // navigation target, null = inert
+  name: string; // plain name for the accessible label
 }
 
 interface PositionedChild {
@@ -136,6 +156,8 @@ interface PositionedChild {
   centerX: number;
   title: string;
   subtitle: string;
+  href: string | null; // navigation target, null = inert
+  name: string; // plain name for the accessible label
 }
 
 interface Segment {
@@ -247,6 +269,8 @@ function computeLayout(tree: FamilyTree): Layout {
     return {
       title: c.age != null ? `${firstName} · ${c.age}` : firstName,
       subtitle: childRelationLabel(c),
+      href: c.profileUrl, // server-gated; null = inert
+      name: firstName,
     };
   });
 
@@ -257,8 +281,17 @@ function computeLayout(tree: FamilyTree): Layout {
           roleLine: cell.rec.isSelf ? 'You · parent' : 'Parent',
           isSelf: cell.rec.isSelf,
           placeholder: false,
+          href: cell.rec.profileUrl, // server-gated; null for name-only / not-viewable
+          name: cell.rec.displayName,
         }
-      : { displayName: 'Unknown parent', roleLine: 'Not specified', isSelf: false, placeholder: true },
+      : {
+          displayName: 'Unknown parent',
+          roleLine: 'Not specified',
+          isSelf: false,
+          placeholder: true,
+          href: null,
+          name: 'Unknown parent',
+        },
   );
 
   // Size boxes to the longest label so labels never clip. Approximate text
@@ -298,6 +331,8 @@ function computeLayout(tree: FamilyTree): Layout {
       isSelf: c.isSelf,
       placeholder: c.placeholder,
       roleLine: c.roleLine,
+      href: c.href,
+      name: c.name,
     };
   });
   const realCenterByKey = new Map<string, number>();
@@ -317,6 +352,8 @@ function computeLayout(tree: FamilyTree): Layout {
       centerX: x + childBoxW / 2,
       title: childContent[i]!.title,
       subtitle: childContent[i]!.subtitle,
+      href: childContent[i]!.href,
+      name: childContent[i]!.name,
     };
   });
 
@@ -445,9 +482,57 @@ const SINGLE_CATEGORY_LABEL: Record<string, string> = {
 
 // ─── Box renderers ─────────────────────────────────────────
 
-function ParentBox({ node, width }: { node: PositionedParent; width: number }) {
+/**
+ * Wraps a node's SVG content. When `href` is present the group becomes a
+ * keyboard-focusable link (pointer cursor, hover/focus stroke highlight,
+ * Enter/Space activation, accessible label) that router-navigates on activate.
+ * When `href` is null it renders a plain inert <g> — no cursor, no hover, not
+ * focusable, no link semantics — exactly as before. Navigation only; this
+ * never exposes edit controls.
+ */
+function NodeGroup({
+  href,
+  label,
+  onNavigate,
+  children,
+}: {
+  href: string | null;
+  label: string;
+  onNavigate: (url: string) => void;
+  children: ReactNode;
+}) {
+  if (!href) return <g>{children}</g>;
+  const activate = () => onNavigate(href);
   return (
-    <g>
+    <g
+      role="link"
+      tabIndex={0}
+      aria-label={label}
+      className="cursor-pointer outline-none [&>rect]:transition-colors hover:[&>rect]:stroke-campus-600 focus-visible:[&>rect]:stroke-campus-600 focus-visible:[&>rect]:[stroke-width:2]"
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activate();
+        }
+      }}
+    >
+      {children}
+    </g>
+  );
+}
+
+function ParentBox({
+  node,
+  width,
+  onNavigate,
+}: {
+  node: PositionedParent;
+  width: number;
+  onNavigate: (url: string) => void;
+}) {
+  return (
+    <NodeGroup href={node.href} label={`View ${node.name}'s profile`} onNavigate={onNavigate}>
       <rect
         x={node.x}
         y={TOP}
@@ -477,13 +562,23 @@ function ParentBox({ node, width }: { node: PositionedParent; width: number }) {
       >
         {node.roleLine}
       </text>
-    </g>
+    </NodeGroup>
   );
 }
 
-function ChildBox({ node, width, y }: { node: PositionedChild; width: number; y: number }) {
+function ChildBox({
+  node,
+  width,
+  y,
+  onNavigate,
+}: {
+  node: PositionedChild;
+  width: number;
+  y: number;
+  onNavigate: (url: string) => void;
+}) {
   return (
-    <g>
+    <NodeGroup href={node.href} label={`View ${node.name}'s profile`} onNavigate={onNavigate}>
       <rect
         x={node.x}
         y={y}
@@ -512,6 +607,6 @@ function ChildBox({ node, width, y }: { node: PositionedChild; width: number; y:
       >
         {node.subtitle}
       </text>
-    </g>
+    </NodeGroup>
   );
 }

@@ -81,6 +81,11 @@ export interface FamilyTreeParent {
   displayName: string;
   isSelf: boolean;
   isPlaceholder: boolean;
+  // Server-resolved, access-gated navigation target. Non-null ONLY when this
+  // node is clickable for the current viewer (real person + viewable + a route
+  // the viewer can reach). The node is interactive iff this is present — the
+  // client never re-checks permissions or resolves routes.
+  profileUrl: string | null;
 }
 
 export interface FamilyTreeParentLink {
@@ -97,6 +102,9 @@ export interface FamilyTreeChild {
   displayName: string;
   age: number | null;
   parentLinks: FamilyTreeParentLink[];
+  // See FamilyTreeParent.profileUrl — non-null only when this child has an
+  // accessible profile route for the current viewer; null otherwise.
+  profileUrl: string | null;
 }
 
 export interface FamilyTree {
