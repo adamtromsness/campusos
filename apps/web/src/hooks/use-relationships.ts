@@ -71,15 +71,38 @@ export interface RelationshipsResponse {
   canEdit: boolean;
 }
 
+// ─── Family-tree graph (blended single-generation diagram) ────
+// Mirrors FamilyTreeDto. A graph, not a nested tree: a deduped parent
+// union + per-child parent links (parents differ per child in a blended
+// family). Single generation only.
+
+export interface FamilyTreeParent {
+  personId: string | null; // null = name-only (non-CampusOS) parent
+  displayName: string;
+  isSelf: boolean;
+  isPlaceholder: boolean;
+}
+
+export interface FamilyTreeParentLink {
+  parentPersonId: string | null; // FK into parents[]; null = unset slot
+  parentName: string | null; // name-only parent label; null otherwise
+  relationshipType: RelationshipType | null; // null only for an unset slot
+  legalCustody: boolean;
+  custodyArrangement: CustodyArrangement | null;
+  primaryResidence: boolean;
+}
+
+export interface FamilyTreeChild {
+  personId: string;
+  displayName: string;
+  age: number | null;
+  parentLinks: FamilyTreeParentLink[];
+}
+
 export interface FamilyTree {
-  person: PersonSummary;
-  parents: Relationship[];
-  children: Relationship[];
-  grandparents: Relationship[];
-  grandchildren: Relationship[];
-  spouses: Relationship[];
-  other: Relationship[];
-  siblings: DerivedSibling[];
+  rootPersonId: string;
+  parents: FamilyTreeParent[];
+  children: FamilyTreeChild[];
   canEdit: boolean;
 }
 

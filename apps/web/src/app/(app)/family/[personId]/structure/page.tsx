@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { useFamilyTree, personDisplayName } from '@/hooks/use-relationships';
+import { useFamilyTree } from '@/hooks/use-relationships';
 import { FamilyTreeView } from '@/components/family/FamilyTreeView';
 
 /**
@@ -21,7 +21,14 @@ export default function FamilyStructurePage() {
   const personId = params?.personId ?? null;
   const { data, isLoading, isError } = useFamilyTree(personId);
 
-  const subjectName = data ? personDisplayName(data.person) : null;
+  // The graph payload has no top-level person; derive the root's name
+  // from wherever they appear — as their own child (childless root) or as
+  // the self-parent in the parent row.
+  const subjectName = data
+    ? (data.children.find((c) => c.personId === data.rootPersonId)?.displayName ??
+      data.parents.find((p) => p.isSelf)?.displayName ??
+      null)
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
