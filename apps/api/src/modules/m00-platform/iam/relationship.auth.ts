@@ -1,8 +1,6 @@
 /**
- * Family-structure edit authorisation (Family Structure on Profiles spec,
- * Step 1). A single predicate used by every mutation endpoint and mirrored
- * to the UI as a `canEdit` flag (rendering hint only — the server still
- * enforces it).
+ * Family-structure edit authorisation. One predicate, mirrored to the UI as
+ * a `canEdit` flag (rendering hint only — the server still enforces it).
  *
  * Edit is parent/guardian-only, keyed off the caller's DERIVED personas
  * (the persona model, not iam_person.person_type — a self-registered
@@ -13,12 +11,16 @@
  * COMMUNITY are not. So a Substitute (or Student, or School Admin) on its
  * own never grants edit; an admin's only mutation is the separate verify.
  *
- * AND the caller must be either the profile owner or an active guardian
- * of the profile person (RelationshipService.isActiveGuardianOf —
- * household link ∪ a current parent/guardian relationship in the graph).
+ * AND the caller must be either the profile owner OR pass `canGuardianEdit`
+ * for the subject — the age + consent predicate (RelationshipService):
+ * active guardian AND (subject under 18 → unconditional; subject 18+ → the
+ * adult has not revoked the caller's access). This funnels family-structure
+ * edits through the SAME predicate as the per-section (identity / medical /
+ * dietary / emergency) edits, so there is no per-section divergence. The
+ * "Independent" flag plays no part — it is descriptive only.
  *
- * The guardian lookup is async + DB-backed, so it's injected rather than
- * imported — keeps this predicate pure and unit-testable.
+ * The guardian/consent lookup is async + DB-backed, so it's injected rather
+ * than imported — keeps this predicate pure and unit-testable.
  */
 
 /** Persona types whose holder may edit family structure. */
@@ -38,9 +40,9 @@ export function isEditEligibleAccount(personaTypes: string[]): boolean {
 export async function canEditFamilyStructure(
   caller: EditAuthSubject,
   profilePersonId: string,
-  isActiveGuardianOf: (callerPersonId: string, targetPersonId: string) => Promise<boolean>,
+  canGuardianEdit: (guardianPersonId: string, subjectPersonId: string) => Promise<boolean>,
 ): Promise<boolean> {
   if (!isEditEligibleAccount(caller.personaTypes)) return false;
   if (caller.personId === profilePersonId) return true;
-  return isActiveGuardianOf(caller.personId, profilePersonId);
+  return canGuardianEdit(caller.personId, profilePersonId);
 }

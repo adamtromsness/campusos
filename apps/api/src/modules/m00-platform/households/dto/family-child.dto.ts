@@ -55,7 +55,14 @@ export class FamilyChildDto {
   @ApiPropertyOptional() primaryPhone!: string | null;
   @ApiPropertyOptional() notes!: string | null;
   @ApiProperty({ enum: FAMILY_CHILD_STATUSES }) status!: FamilyChildStatus;
+  // DESCRIPTIVE ONLY (self-login indicator). accessLevel no longer gates
+  // editing — INDEPENDENT just means the child has their own login. Use
+  // canEdit for whether the current caller may edit this account.
   @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
+  // Server-computed, caller-relative edit authority (the age + consent model:
+  // guardian AND (under 18 → unconditional; 18+ → not revoked)). The UI gates
+  // edit affordances on this; the server re-checks on every mutation.
+  @ApiProperty() canEdit!: boolean;
   // Per-child preference: 'FAMILY' (default) inherits emergency
   // contacts from platform_families; 'CUSTOM' uses only per-child
   // contacts. See the per-tab UI for the semantics.

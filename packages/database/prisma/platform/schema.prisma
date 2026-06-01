@@ -731,6 +731,25 @@ model PlatformPersonRelationship {
   @@schema("platform")
 }
 
+// Guardian edit-access consent (age + consent model). Directional state per
+// (guardian, subject) pair. Consulted ONLY when the subject is 18+; under-18
+// guardians edit unconditionally. An ABSENT row reads as GRANTED (carryover —
+// no lockout on deploy); rows are materialised only for a new-guardian-after-18
+// (REVOKED) or an explicit grant/revoke by the adult. The CHECK constraints and
+// the (guardian, subject) unique index live in the migration.
+model PlatformGuardianEditConsent {
+  id               String   @id @db.Uuid
+  guardianPersonId String   @map("guardian_person_id") @db.Uuid
+  subjectPersonId  String   @map("subject_person_id") @db.Uuid
+  state            String
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz()
+
+  @@index([subjectPersonId])
+  @@map("platform_guardian_edit_consent")
+  @@schema("platform")
+}
+
 model PlatformChildEmergencyContact {
   id               String   @id @db.Uuid
   personId         String   @map("person_id") @db.Uuid

@@ -71,6 +71,9 @@ export const SIBLING_TYPES = [
 ] as const;
 export type SiblingType = (typeof SIBLING_TYPES)[number];
 
+export const GUARDIAN_ACCESS_STATES = ['GRANTED', 'REVOKED'] as const;
+export type GuardianAccessState = (typeof GUARDIAN_ACCESS_STATES)[number];
+
 // ─── Request DTOs ───────────────────────────────────────────────
 
 export class CreateRelationshipDto {
@@ -237,4 +240,24 @@ export class FamilyTreeDto {
   // Rendering hint (parent/guardian-only edit); server-enforced on writes.
   // The tree itself is read-only regardless of this flag.
   @ApiProperty() canEdit?: boolean;
+}
+
+// ─── Guardian edit-access consent (18+ self-service control) ────
+
+export class UpdateGuardianAccessDto {
+  @IsIn(GUARDIAN_ACCESS_STATES)
+  state!: GuardianAccessState;
+}
+
+export class GuardianAccessEntryDto {
+  @ApiProperty() guardianPersonId!: string;
+  @ApiProperty() displayName!: string;
+  @ApiProperty({ enum: GUARDIAN_ACCESS_STATES }) state!: GuardianAccessState;
+}
+
+export class GuardianAccessResponseDto {
+  // The subject these guardians may (or may not) edit.
+  @ApiProperty() subjectPersonId!: string;
+  // Every active guardian of the subject with their current consent state.
+  @ApiProperty({ type: [GuardianAccessEntryDto] }) guardians!: GuardianAccessEntryDto[];
 }

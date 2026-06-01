@@ -20,7 +20,9 @@ import {
   CreateRelationshipDto,
   FamilyTreeDto,
   GetRelationshipsResponseDto,
+  GuardianAccessResponseDto,
   RelationshipDto,
+  UpdateGuardianAccessDto,
   UpdateRelationshipDto,
   VerifyRelationshipDto,
 } from './dto/relationship.dto';
@@ -134,6 +136,48 @@ export class RelationshipController {
     return { ...tree, canEdit: await this.computeCanEdit(req, personId) };
   }
 
+  // ─── Guardian edit-access consent (18+ self-service) ──────────
+
+  @Get(':personId/guardian-access')
+  @ApiOperation({
+    summary:
+      "List the people who can edit a (18+) person's account, with each guardian's GRANTED/REVOKED state. Subject-only.",
+  })
+  async listGuardianAccess(
+    @Req() req: AuthedRequest,
+    @Param('personId') personId: string,
+  ): Promise<GuardianAccessResponseDto> {
+    await this.assertSelfAdult(req, personId);
+    const guardians = await this.relationships.listGuardiansWithConsent(personId);
+    return {
+      subjectPersonId: personId,
+      guardians: guardians.map((g) => ({
+        guardianPersonId: g.personId,
+        displayName: g.displayName,
+        state: g.state,
+      })),
+    };
+  }
+
+  @Patch(':personId/guardian-access/:guardianId')
+  @ApiOperation({
+    summary:
+      "The 18+ subject grants or revokes a guardian's edit access to their own account. Subject-only; a guardian can never modify their own access to an adult.",
+  })
+  async setGuardianAccess(
+    @Req() req: AuthedRequest,
+    @Param('personId') personId: string,
+    @Param('guardianId') guardianId: string,
+    @Body() dto: UpdateGuardianAccessDto,
+  ): Promise<GuardianAccessResponseDto> {
+    await this.assertSelfAdult(req, personId);
+    if (guardianId === personId) {
+      throw new ForbiddenException('You cannot set guardian access for yourself.');
+    }
+    await this.relationships.setGuardianConsent(guardianId, personId, dto.state);
+    return this.listGuardianAccess(req, personId);
+  }
+
   @Patch(':personId/relationships/:id/verify')
   @ApiOperation({
     summary: 'School admin marks a relationship as verified (documentation on file).',
@@ -163,6 +207,24 @@ export class RelationshipController {
     throw new ForbiddenException('You are not authorised to view this person’s family structure.');
   }
 
+  /**
+   * Guardian-access control is the SUBJECT's alone, and only once they are an
+   * adult. 403 unless the caller IS :personId and is 18+. This also means a
+   * guardian can never grant/revoke their own access to an adult — they are
+   * not the subject. (Under-18s have nothing to manage: access is automatic.)
+   */
+  private async assertSelfAdult(req: AuthedRequest, personId: string): Promise<void> {
+    if (req.user!.personId !== personId) {
+      throw new ForbiddenException('You can only manage guardian access for your own account.');
+    }
+    const age = await this.relationships.ageOfPerson(personId);
+    if (age === null || age < 18) {
+      throw new ForbiddenException(
+        'Guardian-access controls are available once you turn 18.',
+      );
+    }
+  }
+
   /** Parent/guardian-only edit — the canEditFamilyStructure predicate. */
   private async assertCanEdit(req: AuthedRequest, personId: string): Promise<void> {
     if (!(await this.computeCanEdit(req, personId))) {
@@ -185,7 +247,7 @@ export class RelationshipController {
     return canEditFamilyStructure(
       { personId: caller, personaTypes: personas.map((p) => p.type) },
       personId,
-      (callerId, target) => this.relationships.isActiveGuardianOf(callerId, target),
+      (callerId, target) => this.relationships.canGuardianEdit(callerId, target),
     );
   }
 }

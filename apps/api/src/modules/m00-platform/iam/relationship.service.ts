@@ -185,6 +185,130 @@ export class RelationshipService {
     return rows.length > 0;
   }
 
+  // ─── Guardian edit access: age + consent model ────────────────
+  //
+  // ONE predicate for "may this guardian edit this person's account",
+  // used by every section (identity / medical / emergency / dietary /
+  // family structure). Under 18 a guardian edits unconditionally — the
+  // "Independent" flag is descriptive only and no longer gates anything.
+  // At 18+ the (now-adult) subject controls access: edit is allowed only
+  // while consent is not REVOKED (absent ⇒ GRANTED carryover).
+
+  /** Adulthood begins at the 18th birthday — exactly-18 is an adult. */
+  private static readonly ADULT_AGE = 18;
+
+  /** Subject age in whole years from iam_person.date_of_birth; null if unknown. */
+  async ageOfPerson(personId: string): Promise<number | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ dob: string | null }>>(
+      `SELECT date_of_birth::text AS dob FROM platform.iam_person WHERE id = $1::uuid LIMIT 1`,
+      personId,
+    );
+    const dob = rows[0]?.dob;
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let age = now.getUTCFullYear() - d.getUTCFullYear();
+    const m = now.getUTCMonth() - d.getUTCMonth();
+    if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) age--;
+    return age;
+  }
+
+  /** Stored consent state for a (guardian, subject) pair, or null if none. */
+  async getGuardianConsentState(
+    guardianPersonId: string,
+    subjectPersonId: string,
+  ): Promise<'GRANTED' | 'REVOKED' | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ state: string }>>(
+      `SELECT state FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = $1::uuid AND subject_person_id = $2::uuid
+        LIMIT 1`,
+      guardianPersonId,
+      subjectPersonId,
+    );
+    return (rows[0]?.state as 'GRANTED' | 'REVOKED' | undefined) ?? null;
+  }
+
+  /** Upsert the adult's grant/revoke decision for a guardian. */
+  async setGuardianConsent(
+    guardianPersonId: string,
+    subjectPersonId: string,
+    state: 'GRANTED' | 'REVOKED',
+  ): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_guardian_edit_consent
+         (id, guardian_person_id, subject_person_id, state, created_at, updated_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now(), now())
+       ON CONFLICT (guardian_person_id, subject_person_id)
+       DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
+      generateId(),
+      guardianPersonId,
+      subjectPersonId,
+      state,
+    );
+  }
+
+  /**
+   * The single edit-authorisation predicate. True iff the caller is an
+   * active guardian of the subject AND (subject is under 18 OR the subject
+   * has not revoked the caller's access). Unknown DOB is treated as a minor
+   * (the conservative default — never lock a guardian out of a managed
+   * child whose DOB simply hasn't been captured).
+   */
+  async canGuardianEdit(guardianPersonId: string, subjectPersonId: string): Promise<boolean> {
+    if (!(await this.isActiveGuardianOf(guardianPersonId, subjectPersonId))) return false;
+    const age = await this.ageOfPerson(subjectPersonId);
+    if (age === null || age < RelationshipService.ADULT_AGE) return true;
+    return (await this.getGuardianConsentState(guardianPersonId, subjectPersonId)) !== 'REVOKED';
+  }
+
+  /**
+   * Every active guardian of a subject (household guardian-role members ∪
+   * graph parent/guardian edges), deduped, with the current consent state
+   * (absent ⇒ GRANTED carryover). Powers the adult's "people who can edit
+   * my account" control.
+   */
+  async listGuardiansWithConsent(
+    subjectPersonId: string,
+  ): Promise<Array<{ personId: string; displayName: string; state: 'GRANTED' | 'REVOKED' }>> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{ person_id: string; first_name: string; last_name: string; preferred_name: string | null }>
+    >(
+      `SELECT DISTINCT g.id::text AS person_id, g.first_name, g.last_name, g.preferred_name
+         FROM platform.iam_person g
+        WHERE g.id <> $1::uuid AND (
+          -- household: a guardian-role ACTIVE member of a family where the
+          -- subject is a LINKED child.
+          EXISTS (
+            SELECT 1
+              FROM platform.platform_family_members m
+              JOIN platform.platform_family_children c ON c.family_id = m.family_id
+             WHERE m.person_id = g.id AND m.status = 'ACTIVE'
+               AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
+               AND c.person_id = $1::uuid AND c.status = 'LINKED'
+          )
+          OR
+          -- graph: a current parent/guardian edge subject → guardian.
+          EXISTS (
+            SELECT 1
+              FROM platform.platform_person_relationships r
+             WHERE r.person_id = $1::uuid AND r.related_person_id = g.id
+               AND r.relationship_type = ANY($2::text[]) AND r.end_date IS NULL
+          )
+        )`,
+      subjectPersonId,
+      PARENT_TYPES,
+    );
+    const out: Array<{ personId: string; displayName: string; state: 'GRANTED' | 'REVOKED' }> = [];
+    for (const r of rows) {
+      const state = (await this.getGuardianConsentState(r.person_id, subjectPersonId)) ?? 'GRANTED';
+      const displayName =
+        r.preferred_name?.trim() || `${r.first_name} ${r.last_name}`.trim() || 'Guardian';
+      out.push({ personId: r.person_id, displayName, state });
+    }
+    return out;
+  }
+
   // ─── A) addRelationship ───────────────────────────────────────
 
   async addRelationship(
@@ -292,6 +416,27 @@ export class RelationshipService {
         throw new ConflictException('That relationship already exists.');
       }
       throw err;
+    }
+
+    // New-guardian-after-18: a creatable PARENT_TYPE makes relatedPersonId a
+    // guardian of personId (the subject). If the subject is ALREADY an adult
+    // when this link forms, the guardian's edit access defaults to REVOKED — a
+    // new guardian does not get silent edit access to an adult; the adult can
+    // grant it. (Pre-adulthood links leave no row and carry over as GRANTED.)
+    // DO NOTHING so an explicit prior grant/revoke is never clobbered.
+    if (relatedPersonId && (PARENT_TYPES as readonly string[]).includes(type)) {
+      const age = await this.ageOfPerson(personId);
+      if (age !== null && age >= RelationshipService.ADULT_AGE) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO platform.platform_guardian_edit_consent
+             (id, guardian_person_id, subject_person_id, state, created_at, updated_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'REVOKED', now(), now())
+           ON CONFLICT (guardian_person_id, subject_person_id) DO NOTHING`,
+          generateId(),
+          relatedPersonId,
+          personId,
+        );
+      }
     }
 
     return this.getRelationshipById(forwardId);

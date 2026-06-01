@@ -11,6 +11,7 @@ import { randomBytes, randomInt } from 'crypto';
 import { generateId } from '@campusos/database';
 import { normalizeGender } from '@campusos/shared';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import {
   AddPersonEmailDto,
   AddPersonPhoneDto,
@@ -167,6 +168,7 @@ export class FamilyChildrenService {
     private readonly prisma: PrismaClient,
     private readonly personaResolution: PersonaResolutionService,
     private readonly redis: RedisService,
+    private readonly relationships: RelationshipService,
   ) {}
 
   // ─── /family — composite view ──────────────────────────────
@@ -345,7 +347,10 @@ export class FamilyChildrenService {
       viewerRole: resolved.role,
       viewerPersonId: personId,
       members,
-      children: childRows.map((r) => this.toDto(r, familyGuardians)),
+      children: await this.decorateCanEdit(
+        personId,
+        childRows.map((r) => this.toDto(r, familyGuardians)),
+      ),
     };
   }
 
@@ -1269,7 +1274,10 @@ export class FamilyChildrenService {
       this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       familyId,
     );
-    return rows.map((r) => this.toDto(r, familyGuardians));
+    return this.decorateCanEdit(
+      personId,
+      rows.map((r) => this.toDto(r, familyGuardians)),
+    );
   }
 
   async create(personId: string, dto: CreateFamilyChildDto): Promise<FamilyChildDto> {
@@ -1303,17 +1311,19 @@ export class FamilyChildrenService {
     const row = await this.requireOwnedRow(personId, childId);
     const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
 
-    // INDEPENDENT children own their own identity — only the account
-    // holder (or an admin via a future surface) can edit. The caller
-    // can still see the row via GET because they're a parent in the
-    // family, but PATCH refuses. Co-guardians share MANAGED rights
-    // when the managing person is anywhere in the family.
-    const accessLevel = computeAccessLevel(row.status, row.managed_by_person_id, familyGuardians);
-    if (accessLevel === 'INDEPENDENT') {
-      throw new HttpException(
-        'This account is managed by the account holder. You can view but not edit their information.',
-        HttpStatus.FORBIDDEN,
-      );
+    // Identity edit on a LINKED account is governed by the age + consent
+    // model (canGuardianEdit), NOT the "Independent" flag — which is now
+    // descriptive only (a self-login indicator). Under 18 a guardian edits
+    // unconditionally; at 18+ only while the now-adult has not revoked the
+    // caller's access. PLACEHOLDER / PENDING rows have no account holder yet,
+    // so they stay editable by any family member as before (roster stubs).
+    if (row.status === 'LINKED' && row.person_id) {
+      if (!(await this.relationships.canGuardianEdit(personId, row.person_id))) {
+        throw new HttpException(
+          'You do not have permission to edit this account. The account holder may have revoked your access.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
     }
 
     // For LINKED children, the iam_person row is the canonical source
@@ -1406,7 +1416,8 @@ export class FamilyChildrenService {
     }
 
     if (childSet.length === 0 && Object.keys(personPatch).length === 0) {
-      return this.toDto(row, familyGuardians);
+      const [dto] = await this.decorateCanEdit(personId, [this.toDto(row, familyGuardians)]);
+      return dto!;
     }
 
     const linkedPersonId = row.person_id;
@@ -2689,7 +2700,8 @@ export class FamilyChildrenService {
     const row = await this.findById(childId);
     if (!row) throw new NotFoundException('Family child not found');
     const familyGuardians = await this.loadFamilyGuardianPersonIds(viewerPersonId);
-    return this.toDto(row, familyGuardians);
+    const [dto] = await this.decorateCanEdit(viewerPersonId, [this.toDto(row, familyGuardians)]);
+    return dto!;
   }
 
   private async findById(childId: string): Promise<FamilyChildRow | null> {
@@ -2767,6 +2779,10 @@ export class FamilyChildrenService {
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, familyGuardians),
+      // Default: editable for pre-account roster stubs; LINKED accounts get
+      // the real, caller-relative value from decorateCanEdit (age + consent).
+      // Conservative until decorated — never falsely show edit on a LINKED row.
+      canEdit: r.status !== 'LINKED',
       emergencyContactSource:
         r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
       addressSource: (r.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
@@ -2795,6 +2811,24 @@ export class FamilyChildrenService {
       linkedAt: r.linked_at,
       createdAt: r.created_at,
     };
+  }
+
+  /**
+   * Stamp the caller-relative `canEdit` on FamilyChildDtos via the age +
+   * consent predicate. LINKED accounts run through canGuardianEdit; pre-account
+   * stubs (PLACEHOLDER / PENDING) keep the toDto default (editable roster
+   * stub). Mutates in place and returns the same array.
+   */
+  private async decorateCanEdit(
+    callerPersonId: string,
+    dtos: FamilyChildDto[],
+  ): Promise<FamilyChildDto[]> {
+    for (const d of dtos) {
+      if (d.status === 'LINKED' && d.personId) {
+        d.canEdit = await this.relationships.canGuardianEdit(callerPersonId, d.personId);
+      }
+    }
+    return dtos;
   }
 
   /**
@@ -3040,6 +3074,29 @@ export class FamilyChildrenService {
     return { familyId: row.family_id, personId: row.person_id };
   }
 
+  /**
+   * Write gate for a LINKED child's per-section data (identity / medical /
+   * dietary / emergency / contacts). Layers the age + consent model on top of
+   * cross-family isolation + the LINKED check: the caller must pass
+   * `canGuardianEdit` for the child — an active guardian AND (child under 18 →
+   * unconditional, regardless of the descriptive "Independent" flag; child 18+
+   * → the now-adult has not revoked the caller's access). Reads stay on
+   * `requireLinkedChildOwned` (a guardian can always view).
+   */
+  private async assertCanEditLinkedChild(
+    callerPersonId: string,
+    childId: string,
+  ): Promise<{ familyId: string; personId: string }> {
+    const owned = await this.requireLinkedChildOwned(callerPersonId, childId);
+    if (!(await this.relationships.canGuardianEdit(callerPersonId, owned.personId))) {
+      throw new HttpException(
+        'You do not have permission to edit this account. The account holder may have revoked your access.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return owned;
+  }
+
   async getChildMedical(callerPersonId: string, childId: string): Promise<ChildMedicalInfoDto> {
     const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     const row = await this.prisma.platformChildMedicalInfo.findUnique({
@@ -3054,7 +3111,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: UpdateChildMedicalInfoDto,
   ): Promise<ChildMedicalInfoDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const upsertId = generateId();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_child_medical_info
@@ -3280,7 +3337,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddPersonPhoneDto,
   ): Promise<PersonPhoneDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findMany({
       where: { personId },
       select: { id: true, isPrimary: true },
@@ -3323,7 +3380,7 @@ export class FamilyChildrenService {
     phoneId: string,
     dto: UpdatePersonPhoneDto,
   ): Promise<PersonPhoneDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findUnique({
       where: { id: phoneId },
     });
@@ -3383,7 +3440,7 @@ export class FamilyChildrenService {
     childId: string,
     phoneId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findUnique({
       where: { id: phoneId },
     });
@@ -3498,7 +3555,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddPersonEmailDto,
   ): Promise<PersonEmailDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const normalised = dto.email.trim();
     if (!normalised) throw new BadRequestException('Email is required.');
     const existing = await this.prisma.platformPersonEmail.findMany({
@@ -3547,7 +3604,7 @@ export class FamilyChildrenService {
     emailId: string,
     dto: UpdatePersonEmailDto,
   ): Promise<PersonEmailDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonEmail.findUnique({
       where: { id: emailId },
     });
@@ -3595,7 +3652,7 @@ export class FamilyChildrenService {
     childId: string,
     emailId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonEmail.findUnique({
       where: { id: emailId },
     });
@@ -3662,7 +3719,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddChildEmergencyContactDto,
   ): Promise<ChildEmergencyContactDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const id = generateId();
     try {
       await this.prisma.platformChildEmergencyContact.create({
@@ -3698,7 +3755,7 @@ export class FamilyChildrenService {
     contactId: string,
     dto: UpdateChildEmergencyContactDto,
   ): Promise<ChildEmergencyContactDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformChildEmergencyContact.findUnique({
       where: { id: contactId },
     });
@@ -3728,7 +3785,7 @@ export class FamilyChildrenService {
     childId: string,
     contactId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformChildEmergencyContact.findUnique({
       where: { id: contactId },
     });
@@ -3773,7 +3830,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: UpdateChildDietaryInfoDto,
   ): Promise<ChildDietaryInfoDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const upsertId = generateId();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_child_dietary_info
