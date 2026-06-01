@@ -10,7 +10,10 @@ import {
   CreateRelationshipDto,
   CREATABLE_RELATIONSHIP_TYPES,
   DerivedSiblingDto,
+  FamilyTreeChildDto,
   FamilyTreeDto,
+  FamilyTreeParentDto,
+  FamilyTreeParentLinkDto,
   GetRelationshipsResponseDto,
   PersonSummaryDto,
   RelationshipDto,
@@ -501,29 +504,118 @@ export class RelationshipService {
 
   // ─── E) getFamilyTree ─────────────────────────────────────────
 
+  /**
+   * Blended-family graph for the single-generation tree diagram: a parent
+   * row + a child row + per-child parent links. NOT a nested tree —
+   * parents differ per child in a blended family, so each child carries
+   * its own links and `parents` is the deduped union across them.
+   *
+   * Root selection: if the root has children of their own, those are the
+   * child row. If not, the root appears as its OWN child (a single-
+   * generation view of the subject + their parents) — so a student's
+   * structure page still renders rather than showing empty.
+   */
   async getFamilyTree(personId: string): Promise<FamilyTreeDto> {
-    const person = await this.loadPersonSummary(personId);
-    if (!person) throw new NotFoundException('Person not found');
-    const { relationships, derivedSiblings } = await this.getRelationships(personId);
+    const rootSummary = await this.loadPersonSummary(personId);
+    if (!rootSummary) throw new NotFoundException('Person not found');
 
-    const inGroup = (types: string[]) => relationships.filter((r) => types.includes(r.type));
-    const grouped = new Set([
-      ...PARENT_TYPES,
-      ...CHILD_TYPES,
-      ...SPOUSE_TYPES,
-      'GRANDPARENT',
-      'GRANDCHILD',
-    ]);
+    // Root's children: the related people on root's CHILD_TYPES rows.
+    // Oldest first (age desc → DOB asc); unknown DOB sorts last.
+    const childRows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+      this.selectSql() +
+        ` WHERE r.person_id = $1::uuid AND r.relationship_type = ANY($2::text[])
+            AND r.related_person_id IS NOT NULL AND r.end_date IS NULL
+          ORDER BY rp.date_of_birth ASC NULLS LAST, r.created_at ASC`,
+      personId,
+      CHILD_TYPES,
+    );
+
+    // De-dupe children (a child reached via two relationship types — e.g.
+    // adoptive + legal — appears once). Falls back to root-as-child.
+    const childSubjects: Array<{ id: string; summary: PersonSummaryDto }> = [];
+    const seenChild = new Set<string>();
+    for (const r of childRows) {
+      const id = r.related_person_id!;
+      if (seenChild.has(id)) continue;
+      seenChild.add(id);
+      childSubjects.push({ id, summary: this.toDto(r).relatedPerson! });
+    }
+    if (childSubjects.length === 0) {
+      childSubjects.push({ id: personId, summary: rootSummary });
+    }
+
+    const parentUnion = new Map<string, FamilyTreeParentDto>();
+    const children: FamilyTreeChildDto[] = [];
+
+    for (const cs of childSubjects) {
+      const parentRows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+        this.selectSql() +
+          ` WHERE r.person_id = $1::uuid AND r.relationship_type = ANY($2::text[])
+              AND r.end_date IS NULL
+            ORDER BY r.created_at ASC`,
+        cs.id,
+        PARENT_TYPES,
+      );
+
+      const links: FamilyTreeParentLinkDto[] = parentRows.map((p) => {
+        const linkBase = {
+          relationshipType: p.relationship_type as RelationshipType,
+          legalCustody: p.is_legal_custody,
+          custodyArrangement:
+            (p.custody_arrangement as FamilyTreeParentLinkDto['custodyArrangement']) ?? null,
+          primaryResidence: p.is_primary_residence,
+        };
+        if (p.related_person_id) {
+          if (!parentUnion.has(p.related_person_id)) {
+            parentUnion.set(p.related_person_id, {
+              personId: p.related_person_id,
+              displayName: summaryDisplayName(this.toDto(p).relatedPerson!),
+              isSelf: p.related_person_id === personId,
+              isPlaceholder: false,
+            });
+          }
+          return { parentPersonId: p.related_person_id, parentName: null, ...linkBase };
+        }
+        // Name-only (non-CampusOS) parent: still a distinct parent box,
+        // keyed by name so multiple children sharing it collapse to one.
+        const name = p.related_person_name ?? 'Unknown';
+        const key = `name:${name}`;
+        if (!parentUnion.has(key)) {
+          parentUnion.set(key, {
+            personId: null,
+            displayName: name,
+            isSelf: false,
+            isPlaceholder: false,
+          });
+        }
+        return { parentPersonId: null, parentName: name, ...linkBase };
+      });
+
+      // Pad to two slots so a missing co-parent always renders a dashed
+      // "Other parent" placeholder (parentPersonId AND parentName null).
+      while (links.length < 2) {
+        links.push({
+          parentPersonId: null,
+          parentName: null,
+          relationshipType: null,
+          legalCustody: false,
+          custodyArrangement: null,
+          primaryResidence: false,
+        });
+      }
+
+      children.push({
+        personId: cs.id,
+        displayName: summaryDisplayName(cs.summary),
+        age: cs.summary.age,
+        parentLinks: links,
+      });
+    }
 
     return {
-      person,
-      parents: inGroup(PARENT_TYPES),
-      children: inGroup(CHILD_TYPES),
-      grandparents: inGroup(['GRANDPARENT']),
-      grandchildren: inGroup(['GRANDCHILD']),
-      spouses: inGroup(SPOUSE_TYPES),
-      other: relationships.filter((r) => !grouped.has(r.type)),
-      siblings: derivedSiblings,
+      rootPersonId: personId,
+      parents: Array.from(parentUnion.values()),
+      children,
     };
   }
 
@@ -777,6 +869,11 @@ export class RelationshipService {
     const sqlState = (err as { meta?: { code?: string } }).meta?.code;
     return code === 'P2002' || sqlState === '23505';
   }
+}
+
+/** Preferred name when set, else "First Last" — matches the web's personDisplayName. */
+function summaryDisplayName(p: PersonSummaryDto): string {
+  return p.preferredName?.trim() || `${p.firstName} ${p.lastName}`.trim();
 }
 
 /** Whole years between a YYYY-MM-DD date and today; null when unknown. */

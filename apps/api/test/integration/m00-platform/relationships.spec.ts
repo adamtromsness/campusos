@@ -553,6 +553,27 @@ describe('integration:m00-platform/relationships', () => {
     expect(verified.verified).toBe(true);
   });
 
+  it('family-tree: view-gated + read-only (carries canEdit even when editable)', async () => {
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    // Guardian (adam) can edit, but the tree is still a read-only graph
+    // that merely reports canEdit for rendering.
+    personaOverride = ['PARENT'];
+    const tree = await controller.familyTree(reqFor(adam, adamAccount), scout);
+    expect(tree.canEdit).toBe(true);
+    expect(tree.rootPersonId).toBe(scout);
+    expect(tree.children[0]!.personId).toBe(scout);
+    // An unrelated, non-admin caller cannot view.
+    personaOverride = ['PARENT'];
+    actorOverride.isSchoolAdmin = false;
+    await expect(
+      controller.familyTree(reqFor(userB, userBAccount), scout),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('newly created child by a parent → creator is active guardian, canEdit:true', async () => {
     // The household fixture mirrors child creation: adam (HEAD_OF_HOUSEHOLD,
     // a guardian role) over the LINKED child scout — exactly the link the
@@ -614,7 +635,9 @@ describe('integration:m00-platform/relationships', () => {
 
   // ─── Family tree ──────────────────────────────────────────────
 
-  it('getFamilyTree buckets relationships by category', async () => {
+  it('getFamilyTree: childless root renders as its own child with its parents', async () => {
+    // scout has parents but no children → scout is the single child row,
+    // adam + ashley are the parent row.
     await svc.addRelationship(
       scout,
       { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
@@ -626,9 +649,97 @@ describe('integration:m00-platform/relationships', () => {
       adam,
     );
     const tree = await svc.getFamilyTree(scout);
-    expect(tree.person.id).toBe(scout);
+    expect(tree.rootPersonId).toBe(scout);
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0]!.personId).toBe(scout);
+    expect(tree.parents.map((p) => p.personId).sort()).toEqual([adam, ashley].sort());
+    // Two real parents → both links resolved, none padded to null.
+    const links = tree.children[0]!.parentLinks;
+    expect(links).toHaveLength(2);
+    expect(links.every((l) => l.parentPersonId !== null)).toBe(true);
+  });
+
+  it('getFamilyTree: shared parent across two children appears ONCE in parents', async () => {
+    // adam is father of both scout and thatcher; ashley mother of both.
+    for (const kid of [scout, thatcher]) {
+      await svc.addRelationship(
+        kid,
+        { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+        adam,
+      );
+      await svc.addRelationship(
+        kid,
+        { relatedPersonId: ashley, relationshipType: 'BIOLOGICAL_MOTHER' },
+        adam,
+      );
+    }
+    const tree = await svc.getFamilyTree(adam);
+    // adam is the root → his two children are the child row.
+    expect(tree.children.map((c) => c.personId).sort()).toEqual([scout, thatcher].sort());
+    // adam + ashley shared by both kids → exactly two parent boxes.
     expect(tree.parents).toHaveLength(2);
-    expect(tree.children).toHaveLength(0);
+    expect(tree.parents.find((p) => p.personId === adam)?.isSelf).toBe(true);
+  });
+
+  it('getFamilyTree: per-child links carry their own type + custody (biological vs step)', async () => {
+    // scout: adam biological father (joint custody, primary residence).
+    // jake: adam STEP father. Same parent, different link semantics.
+    await svc.addRelationship(
+      scout,
+      {
+        relatedPersonId: adam,
+        relationshipType: 'BIOLOGICAL_FATHER',
+        custodyArrangement: 'JOINT',
+        isLegalCustody: true,
+        isPrimaryResidence: true,
+      },
+      adam,
+    );
+    await svc.addRelationship(
+      jake,
+      { relatedPersonId: adam, relationshipType: 'STEP_FATHER' },
+      adam,
+    );
+    const tree = await svc.getFamilyTree(adam);
+    const scoutNode = tree.children.find((c) => c.personId === scout)!;
+    const jakeNode = tree.children.find((c) => c.personId === jake)!;
+    const scoutLink = scoutNode.parentLinks.find((l) => l.parentPersonId === adam)!;
+    const jakeLink = jakeNode.parentLinks.find((l) => l.parentPersonId === adam)!;
+    expect(scoutLink.relationshipType).toBe('BIOLOGICAL_FATHER');
+    expect(scoutLink.legalCustody).toBe(true);
+    expect(scoutLink.custodyArrangement).toBe('JOINT');
+    expect(scoutLink.primaryResidence).toBe(true);
+    expect(jakeLink.relationshipType).toBe('STEP_FATHER');
+    expect(jakeLink.legalCustody).toBe(false);
+    expect(jakeLink.custodyArrangement).toBeNull();
+  });
+
+  it('getFamilyTree: unspecified second parent → null-slot link present, not omitted', async () => {
+    await svc.addRelationship(
+      scout,
+      { relatedPersonId: adam, relationshipType: 'BIOLOGICAL_FATHER' },
+      adam,
+    );
+    const tree = await svc.getFamilyTree(scout);
+    const node = tree.children[0]!;
+    expect(node.parentLinks).toHaveLength(2);
+    const empty = node.parentLinks.filter((l) => l.parentPersonId === null && l.parentName === null);
+    expect(empty).toHaveLength(1);
+    expect(empty[0]!.relationshipType).toBeNull();
+  });
+
+  it('getFamilyTree: name-only parent appears as a parent box (personId null, name set)', async () => {
+    await svc.addRelationship(
+      scout2,
+      { relatedPersonName: 'Linda Chen', relationshipType: 'BIOLOGICAL_MOTHER' },
+      adam,
+    );
+    const tree = await svc.getFamilyTree(scout2);
+    const named = tree.parents.find((p) => p.personId === null && p.displayName === 'Linda Chen');
+    expect(named).toBeDefined();
+    const link = tree.children[0]!.parentLinks.find((l) => l.parentName === 'Linda Chen');
+    expect(link?.parentPersonId).toBeNull();
+    expect(link?.relationshipType).toBe('BIOLOGICAL_MOTHER');
   });
 
   function reqFor(personId: string, accountId: string): any {

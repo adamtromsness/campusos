@@ -103,7 +103,10 @@ export class RelationshipController {
   }
 
   @Get(':personId/family-tree')
-  @ApiOperation({ summary: 'Structured family tree (parents, children, grandparents, siblings).' })
+  @ApiOperation({
+    summary:
+      'Blended single-generation family graph (deduped parent union + per-child parent links) for the read-only tree diagram. Carries canEdit for rendering only; the tree itself is read-only.',
+  })
   async familyTree(
     @Req() req: AuthedRequest,
     @Param('personId') personId: string,
