@@ -674,6 +674,19 @@ export class FamilyChildrenService {
    * to that primary in a single tx. Otherwise the response is empty
    * and the UI falls back to "Not set" placeholders.
    *
+   * This IS the default-communication-preferences seed (spec STEP 4):
+   * the family creator is inserted as HEAD_OF_HOUSEHOLD with
+   * is_primary_contact = true at family creation, so the first read of
+   * this endpoint routes all 8 operational categories to that primary —
+   * preferences are never "unset" in practice. All 8 categories are
+   * operational/transactional (GENERAL, ELECTRONIC_APPROVALS,
+   * TRANSPORTATION, HEALTH_MEDICAL, BILLING_FINANCIAL, ACADEMIC,
+   * BEHAVIOUR_DISCIPLINE, EMERGENCY) — none is a marketing / explicit-
+   * consent channel, so seeding a default routing opts the user into
+   * nothing that requires consent. The completion criteria no longer
+   * require the user to actively customise these (the "customised"
+   * check was dropped); they remain freely editable via PATCH.
+   *
    * CHILD viewers can read the preferences too (they're not secret —
    * the child can see who's routed for what). Only PARENT can
    * mutate, gated by assertNotChildViewer on the PATCH path.
