@@ -1120,6 +1120,16 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
     for (const k of homeKeys) {
       if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
     }
+    // Country defaults to "United States" in the form but, being unchanged
+    // from that default, the dirty-diff above would skip it — leaving the
+    // saved value NULL and the "Home address on file" completion item
+    // stuck incomplete unless the user pointlessly toggles the dropdown.
+    // Whenever any home-address field is being written, persist the shown
+    // country too so the stored value always matches what's displayed.
+    const writingHomeAddress = homeKeys.some((k) => k in payload);
+    if (writingHomeAddress && form.country && payload.country === undefined) {
+      payload.country = form.country;
+    }
     if (form.mailingAddressDifferent !== initial.mailingAddressDifferent) {
       payload.mailingAddressDifferent = form.mailingAddressDifferent;
     }
@@ -1152,6 +1162,11 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
       ];
       for (const k of mailingKeys) {
         if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
+      }
+      // Same country-default reasoning as the home address above.
+      const writingMailingAddress = mailingKeys.some((k) => k in payload);
+      if (writingMailingAddress && form.mailingCountry && payload.mailingCountry === undefined) {
+        payload.mailingCountry = form.mailingCountry;
       }
     }
 
