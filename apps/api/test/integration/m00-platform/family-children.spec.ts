@@ -1527,6 +1527,41 @@ describe('integration:m00-platform/family-children', () => {
     });
   });
 
+  // ─── FIX 2: mailing address source persistence ─────────────
+
+  describe('child mailing address source', () => {
+    it('defaults to FAMILY and round-trips a CUSTOM mailing source', async () => {
+      const c = await controller.create(reqA(), { firstName: 'Mailer', lastName: 'A' });
+      // New child defaults to inheriting the family mailing address.
+      expect(c.mailingAddressSource).toBe('FAMILY');
+
+      // Switch to a custom mailing address different from physical.
+      const updated = await controller.update(reqA(), c.id, {
+        mailingAddressSource: 'CUSTOM',
+        mailingAddressDifferent: true,
+        mailingLine1: '99 PO Box Rd',
+        mailingCity: 'Galesburg',
+        mailingState: 'KS',
+        mailingPostalCode: '66740',
+        mailingCountry: 'United States',
+      });
+      expect(updated.mailingAddressSource).toBe('CUSTOM');
+      expect(updated.mailingAddressDifferent).toBe(true);
+      expect(updated.mailingLine1).toBe('99 PO Box Rd');
+
+      // Persists across reload.
+      const reread = (await controller.list(reqA())).find((x) => x.id === c.id);
+      expect(reread?.mailingAddressSource).toBe('CUSTOM');
+      expect(reread?.mailingLine1).toBe('99 PO Box Rd');
+
+      // Switch back to FAMILY → source flips and the custom fields clear.
+      const backToFamily = await controller.update(reqA(), c.id, {
+        mailingAddressSource: 'FAMILY',
+      });
+      expect(backToFamily.mailingAddressSource).toBe('FAMILY');
+    });
+  });
+
   // ─── Change primary guardian (spec STEP 6) ─────────────────
 
   describe('change primary guardian', () => {

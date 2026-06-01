@@ -61,6 +61,7 @@ export interface FamilyChildDto {
   customState: string | null;
   customPostalCode: string | null;
   customCountry: string | null;
+  mailingAddressSource: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent: boolean;
   mailingLine1: string | null;
   mailingLine2: string | null;
@@ -104,6 +105,7 @@ export interface UpdateFamilyChildPayload {
   customState?: string | null;
   customPostalCode?: string | null;
   customCountry?: string | null;
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent?: boolean;
   mailingLine1?: string | null;
   mailingLine2?: string | null;

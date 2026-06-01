@@ -98,6 +98,7 @@ interface FamilyChildRow {
   custom_state: string | null;
   custom_postal_code: string | null;
   custom_country: string | null;
+  mailing_address_source: string;
   mailing_address_different: boolean;
   mailing_line1: string | null;
   mailing_line2: string | null;
@@ -1363,6 +1364,7 @@ export class FamilyChildrenService {
     // empty input to clear a previously-saved value.
     const addressCols: Array<[keyof typeof dto, string]> = [
       ['addressSource', 'address_source'],
+      ['mailingAddressSource', 'mailing_address_source'],
       ['customAddressLine1', 'custom_address_line1'],
       ['customAddressLine2', 'custom_address_line2'],
       ['customCity', 'custom_city'],
@@ -2732,6 +2734,7 @@ export class FamilyChildrenService {
       '  pfc.address_source, ' +
       '  pfc.custom_address_line1, pfc.custom_address_line2, ' +
       '  pfc.custom_city, pfc.custom_state, pfc.custom_postal_code, pfc.custom_country, ' +
+      '  pfc.mailing_address_source, ' +
       '  pfc.mailing_address_different, ' +
       '  pfc.mailing_line1, pfc.mailing_line2, pfc.mailing_city, ' +
       '  pfc.mailing_state, pfc.mailing_postal_code, pfc.mailing_country, ' +
@@ -2775,6 +2778,9 @@ export class FamilyChildrenService {
       customState: r.custom_state,
       customPostalCode: r.custom_postal_code,
       customCountry: r.custom_country,
+      mailingAddressSource: (r.mailing_address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
       mailingAddressDifferent: r.mailing_address_different,
       mailingLine1: r.mailing_line1,
       mailingLine2: r.mailing_line2,

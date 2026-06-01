@@ -1272,6 +1272,7 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       customState: child.customState ?? '',
       customPostalCode: child.customPostalCode ?? '',
       customCountry: child.customCountry ?? 'United States',
+      mailingAddressSource: child.mailingAddressSource,
       mailingAddressDifferent: child.mailingAddressDifferent,
       mailingLine1: child.mailingLine1 ?? '',
       mailingLine2: child.mailingLine2 ?? '',
@@ -1292,13 +1293,15 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
   }, [initial]);
 
   const isCustomHome = form.addressSource === 'CUSTOM';
-  // "Same as physical address" is the positive sense of the stored
-  // mailing_address_different flag.
+  // Mailing now has the same Use family / Use custom toggle as home.
+  const isCustomMailing = form.mailingAddressSource === 'CUSTOM';
+  // "Same as physical address" lives UNDER Use custom; it's the positive
+  // sense of the stored mailing_address_different flag.
   const sameAsPhysical = !form.mailingAddressDifferent;
 
   const fs = familySettings.data;
   // The resolved physical address — family-inherited or the child's
-  // own custom address — used for the read-only mailing display.
+  // own custom address — used for the read-only "same as physical" display.
   const physical =
     form.addressSource === 'FAMILY'
       ? {
@@ -1316,6 +1319,28 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
           state: form.customState,
           postalCode: form.customPostalCode,
           country: form.customCountry,
+        };
+
+  // The family mailing address inherited under "Use family": the family's
+  // own mailing address, falling back to the family home address when the
+  // family keeps mailing == home (mailingAddressDifferent === false).
+  const familyMailing =
+    fs && fs.mailingAddressDifferent
+      ? {
+          line1: fs.mailingLine1 ?? '',
+          line2: fs.mailingLine2 ?? '',
+          city: fs.mailingCity ?? '',
+          state: fs.mailingState ?? '',
+          postalCode: fs.mailingPostalCode ?? '',
+          country: fs.mailingCountry ?? '',
+        }
+      : {
+          line1: fs?.addressLine1 ?? '',
+          line2: fs?.addressLine2 ?? '',
+          city: fs?.city ?? '',
+          state: fs?.state ?? '',
+          postalCode: fs?.postalCode ?? '',
+          country: fs?.country ?? '',
         };
 
   function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -1344,7 +1369,10 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
         if (!String(form[k]).trim()) missing.add(k);
       }
     }
-    if (!sameAsPhysical) {
+    // Custom mailing fields are required only under Use custom + NOT
+    // same-as-physical. Use family inherits (validated on the family tab);
+    // same-as-physical mirrors the physical address.
+    if (isCustomMailing && !sameAsPhysical) {
       for (const k of [
         'mailingLine1',
         'mailingCity',
@@ -1367,6 +1395,9 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       return;
     }
     setErrors(new Set());
+    // Custom mailing fields are meaningful only under Use custom + a
+    // mailing address that differs from physical.
+    const keepMailing = isCustomMailing && form.mailingAddressDifferent;
     try {
       await update.mutateAsync({
         addressSource: form.addressSource,
@@ -1376,15 +1407,18 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
         customState: form.customState.trim() || null,
         customPostalCode: form.customPostalCode.trim() || null,
         customCountry: form.customCountry.trim() || null,
+        mailingAddressSource: form.mailingAddressSource,
         mailingAddressDifferent: form.mailingAddressDifferent,
-        mailingLine1: form.mailingAddressDifferent ? form.mailingLine1.trim() || null : null,
-        mailingLine2: form.mailingAddressDifferent ? form.mailingLine2.trim() || null : null,
-        mailingCity: form.mailingAddressDifferent ? form.mailingCity.trim() || null : null,
-        mailingState: form.mailingAddressDifferent ? form.mailingState.trim() || null : null,
-        mailingPostalCode: form.mailingAddressDifferent
-          ? form.mailingPostalCode.trim() || null
-          : null,
-        mailingCountry: form.mailingAddressDifferent ? form.mailingCountry.trim() || null : null,
+        // Custom mailing fields persist only when actually used (Use
+        // custom + different from physical); otherwise null them so a
+        // prior override doesn't linger after switching to Use family or
+        // same-as-physical.
+        mailingLine1: keepMailing ? form.mailingLine1.trim() || null : null,
+        mailingLine2: keepMailing ? form.mailingLine2.trim() || null : null,
+        mailingCity: keepMailing ? form.mailingCity.trim() || null : null,
+        mailingState: keepMailing ? form.mailingState.trim() || null : null,
+        mailingPostalCode: keepMailing ? form.mailingPostalCode.trim() || null : null,
+        mailingCountry: keepMailing ? form.mailingCountry.trim() || null : null,
       });
       toast('Address saved', 'success');
     } catch (err) {
@@ -1503,36 +1537,69 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       </SectionCard>
 
       <SectionCard title="Mailing address">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={sameAsPhysical}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
-            }
-            disabled={!editable}
-            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
-          />
-          Same as physical address
-          {dirtyFields.has('mailingAddressDifferent') && (
-            <span
-              aria-label="Modified"
-              title="Modified — save to keep this change"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {isCustomMailing
+              ? 'Custom mailing address for this child.'
+              : "Using your family's mailing address."}
+          </p>
+          {editable && (
+            <FamilyCustomToggle
+              value={form.mailingAddressSource}
+              onChange={(next) => setForm((f) => ({ ...f, mailingAddressSource: next }))}
             />
           )}
-        </label>
+        </div>
 
-        {sameAsPhysical ? (
-          // Read-only one-line display of the resolved physical
-          // address (family-inherited or custom), matching the home
-          // display style.
-          <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {formatAddressOneLine(physical) || (
-              <span className="text-gray-500">No physical address on file yet.</span>
+        {!isCustomMailing ? (
+          // Use family: read-only display of the inherited family mailing
+          // address (family mailing, or the family home when they keep
+          // mailing == home), matching the home-address display style.
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {formatAddressOneLine(familyMailing) || (
+              <span className="text-gray-500">No family mailing address on file yet.</span>
             )}
+            <div className="mt-2">
+              <Link
+                href="/family/settings?tab=addresses"
+                className="text-xs font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family address →
+              </Link>
+            </div>
           </div>
         ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sameAsPhysical}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
+                }
+                disabled={!editable}
+                className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+              />
+              Same as physical address
+              {dirtyFields.has('mailingAddressDifferent') && (
+                <span
+                  aria-label="Modified"
+                  title="Modified — save to keep this change"
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
+                />
+              )}
+            </label>
+
+            {sameAsPhysical ? (
+              // Read-only one-line display of the resolved physical
+              // address (family-inherited or custom), matching the home
+              // display style.
+              <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                {formatAddressOneLine(physical) || (
+                  <span className="text-gray-500">No physical address on file yet.</span>
+                )}
+              </div>
+            ) : (
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <ChildAddressField
               id="mailingLine1"
@@ -1595,9 +1662,10 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               required
               error={errors.has('mailingCountry') ? 'Country is required.' : undefined}
             />
-          </div>
+              </div>
+            )}
+          </>
         )}
-
       </SectionCard>
 
       {/* Hidden submit keeps Enter-to-save working inside the form;

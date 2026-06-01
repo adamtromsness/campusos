@@ -65,6 +65,7 @@ interface IamPersonRow {
   custom_state: string | null;
   custom_postal_code: string | null;
   custom_country: string | null;
+  mailing_address_source: string;
   mailing_same_as_home: boolean;
   custom_mailing_line1: string | null;
   custom_mailing_line2: string | null;
@@ -937,6 +938,7 @@ export class ProfileService {
       'customState',
       'customPostalCode',
       'customCountry',
+      'mailingAddressSource',
       'customMailingLine1',
       'customMailingLine2',
       'customMailingCity',
@@ -994,7 +996,7 @@ export class ProfileService {
         'p.created_at::text AS created_at, ' +
         'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
         'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
-        'p.mailing_same_as_home, ' +
+        'p.mailing_address_source, p.mailing_same_as_home, ' +
         'p.custom_mailing_line1, p.custom_mailing_line2, p.custom_mailing_city, ' +
         'p.custom_mailing_state, p.custom_mailing_postal_code, p.custom_mailing_country, ' +
         'p.employer, p.job_title, ' +
@@ -1417,6 +1419,9 @@ export class ProfileService {
       customState: person.custom_state,
       customPostalCode: person.custom_postal_code,
       customCountry: person.custom_country,
+      mailingAddressSource: (person.mailing_address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
       // DB column is the positive sense; wire format flips it.
       mailingAddressDifferent: !person.mailing_same_as_home,
       customMailingLine1: person.custom_mailing_line1,

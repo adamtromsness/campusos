@@ -1861,6 +1861,7 @@ export interface ProfileDto {
   customState: string | null;
   customPostalCode: string | null;
   customCountry: string | null;
+  mailingAddressSource: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent: boolean;
   customMailingLine1: string | null;
   customMailingLine2: string | null;
@@ -1945,6 +1946,7 @@ export interface UpdateProfilePayload {
   customState?: string | null;
   customPostalCode?: string | null;
   customCountry?: string | null;
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent?: boolean;
   customMailingLine1?: string | null;
   customMailingLine2?: string | null;

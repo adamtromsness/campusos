@@ -469,6 +469,7 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
       customState: profile.customState ?? '',
       customPostalCode: profile.customPostalCode ?? '',
       customCountry: profile.customCountry ?? '',
+      mailingAddressSource: profile.mailingAddressSource,
       mailingAddressDifferent: profile.mailingAddressDifferent,
       customMailingLine1: profile.customMailingLine1 ?? '',
       customMailingLine2: profile.customMailingLine2 ?? '',
@@ -486,6 +487,9 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
 
   async function doSave() {
     if (!isDirty || update.isPending) return;
+    // Custom mailing fields are meaningful only under Use custom + a
+    // mailing address different from home.
+    const keepMailing = form.mailingAddressSource === 'CUSTOM' && form.mailingAddressDifferent;
     try {
       await update.mutateAsync({
         addressSource: form.addressSource,
@@ -495,29 +499,18 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         customState: form.customState.trim() || null,
         customPostalCode: form.customPostalCode.trim() || null,
         customCountry: form.customCountry.trim() || null,
+        mailingAddressSource: form.mailingAddressSource,
         mailingAddressDifferent: form.mailingAddressDifferent,
-        // Blank mailing fields when the toggle is off so a previously-
-        // saved override doesn't silently linger after the user opts back
-        // to same-as-home. Matches the work-address clear-on-collapse
-        // pattern from the Occupation tab.
-        customMailingLine1: form.mailingAddressDifferent
-          ? form.customMailingLine1.trim() || null
-          : null,
-        customMailingLine2: form.mailingAddressDifferent
-          ? form.customMailingLine2.trim() || null
-          : null,
-        customMailingCity: form.mailingAddressDifferent
-          ? form.customMailingCity.trim() || null
-          : null,
-        customMailingState: form.mailingAddressDifferent
-          ? form.customMailingState.trim() || null
-          : null,
-        customMailingPostalCode: form.mailingAddressDifferent
-          ? form.customMailingPostalCode.trim() || null
-          : null,
-        customMailingCountry: form.mailingAddressDifferent
-          ? form.customMailingCountry.trim() || null
-          : null,
+        // Custom mailing fields persist only under Use custom + a mailing
+        // address that differs from home; otherwise null them so a prior
+        // override doesn't linger after switching to Use family or
+        // same-as-home.
+        customMailingLine1: keepMailing ? form.customMailingLine1.trim() || null : null,
+        customMailingLine2: keepMailing ? form.customMailingLine2.trim() || null : null,
+        customMailingCity: keepMailing ? form.customMailingCity.trim() || null : null,
+        customMailingState: keepMailing ? form.customMailingState.trim() || null : null,
+        customMailingPostalCode: keepMailing ? form.customMailingPostalCode.trim() || null : null,
+        customMailingCountry: keepMailing ? form.customMailingCountry.trim() || null : null,
       });
       await refreshUser();
       toast('Contact info saved', 'success');
@@ -538,6 +531,26 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
         [fs.city, fs.state, fs.postalCode].filter(Boolean).join(', '),
         fs.country,
       ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+  // Inherited family mailing address (Use family): the family's own
+  // mailing address, falling back to the family home when they keep
+  // mailing == home.
+  const isCustomMailing = form.mailingAddressSource === 'CUSTOM';
+  const familyMailingString = fs
+    ? (fs.mailingAddressDifferent
+        ? [
+            [fs.mailingLine1, fs.mailingLine2].filter(Boolean).join(', '),
+            [fs.mailingCity, fs.mailingState, fs.mailingPostalCode].filter(Boolean).join(', '),
+            fs.mailingCountry,
+          ]
+        : [
+            [fs.addressLine1, fs.addressLine2].filter(Boolean).join(', '),
+            [fs.city, fs.state, fs.postalCode].filter(Boolean).join(', '),
+            fs.country,
+          ]
+      )
         .filter(Boolean)
         .join(' · ')
     : '';
@@ -636,19 +649,52 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
       </SectionCard>
 
       <SectionCard title="Mailing address">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={form.mailingAddressDifferent}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
-            }
-            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {isCustomMailing
+              ? 'Using a custom mailing address for your profile.'
+              : 'Using your family mailing address.'}
+          </p>
+          <FamilyCustomToggle
+            value={form.mailingAddressSource}
+            onChange={(next) => setForm((f) => ({ ...f, mailingAddressSource: next }))}
+            disabled={update.isPending}
           />
-          Mailing address is different from home address
-        </label>
-        {form.mailingAddressDifferent ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        </div>
+
+        {!isCustomMailing ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50/40 p-3 text-sm">
+            {familySettings.isLoading ? (
+              <p className="text-gray-500">Loading…</p>
+            ) : !fs || !familyMailingString ? (
+              <p className="text-gray-500">No family mailing address on file yet.</p>
+            ) : (
+              <p className="text-gray-800">{familyMailingString}</p>
+            )}
+            <div className="mt-2">
+              <Link
+                href="/family/settings?tab=addresses"
+                className="text-sm font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family address →
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.mailingAddressDifferent}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mailingAddressDifferent: e.target.checked }))
+                }
+                className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+              />
+              Mailing address is different from home address
+            </label>
+            {form.mailingAddressDifferent ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <EditField
               id="customMailingLine1"
               label="Street address"
@@ -693,11 +739,13 @@ function ContactTab({ profile }: { profile: ProfileDto }) {
               onChange={(v) => setForm((f) => ({ ...f, customMailingCountry: v }))}
               dirty={dirtyFields.has('customMailingCountry')}
             />
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-gray-500">
-            Mailing address is the same as your home address.
-          </p>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-gray-500">
+                Mailing address is the same as your home address.
+              </p>
+            )}
+          </>
         )}
       </SectionCard>
 

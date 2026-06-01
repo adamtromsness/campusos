@@ -73,6 +73,10 @@ export class FamilyChildDto {
   @ApiPropertyOptional() customState!: string | null;
   @ApiPropertyOptional() customPostalCode!: string | null;
   @ApiPropertyOptional() customCountry!: string | null;
+  // Mailing source mirrors addressSource: 'FAMILY' inherits the family
+  // mailing address; 'CUSTOM' uses mailingAddressDifferent (false =
+  // same-as-physical, true = the mailing* fields).
+  @ApiProperty({ enum: ['FAMILY', 'CUSTOM'] }) mailingAddressSource!: 'FAMILY' | 'CUSTOM';
   @ApiProperty() mailingAddressDifferent!: boolean;
   @ApiPropertyOptional() mailingLine1!: string | null;
   @ApiPropertyOptional() mailingLine2!: string | null;
@@ -131,6 +135,10 @@ export class UpdateFamilyChildDto {
   @IsOptional()
   @IsIn(['FAMILY', 'CUSTOM'])
   addressSource?: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional({ enum: ['FAMILY', 'CUSTOM'] })
+  @IsOptional()
+  @IsIn(['FAMILY', 'CUSTOM'])
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
