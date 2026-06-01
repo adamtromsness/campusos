@@ -1774,15 +1774,32 @@ function MedicalTab({ profile: _profile }: { profile: ProfileDto }) {
 
         {source === 'FAMILY' ? (
           <>
+            {/* Three-state inheritance (FIX 3): the family's explicit
+                "we have none" flag (false) renders as a definitive
+                statement instead of blank dashes, matching the family
+                Health tab wording; true/null falls through to the
+                inherited fields (empty = genuinely unfilled). */}
             <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
-              <ReadOnlyInline label="Doctor name" value={doctor.name} />
-              <ReadOnlyInline label="Doctor phone" value={formatPhone(doctor.phone)} />
-              <div className="sm:col-span-2">
-                <ReadOnlyInline label="Clinic" value={doctor.clinic} />
-              </div>
-              <ReadOnlyInline label="Insurance provider" value={doctor.insuranceProvider} />
-              <ReadOnlyInline label="Policy number" value={doctor.insurancePolicy} />
-              <ReadOnlyInline label="Group number" value={doctor.insuranceGroup} />
+              {data.hasFamilyDoctor === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family doctor on file</p>
+              ) : (
+                <>
+                  <ReadOnlyInline label="Doctor name" value={doctor.name} />
+                  <ReadOnlyInline label="Doctor phone" value={formatPhone(doctor.phone)} />
+                  <div className="sm:col-span-2">
+                    <ReadOnlyInline label="Clinic" value={doctor.clinic} />
+                  </div>
+                </>
+              )}
+              {data.hasInsurance === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family insurance on file</p>
+              ) : (
+                <>
+                  <ReadOnlyInline label="Insurance provider" value={doctor.insuranceProvider} />
+                  <ReadOnlyInline label="Policy number" value={doctor.insurancePolicy} />
+                  <ReadOnlyInline label="Group number" value={doctor.insuranceGroup} />
+                </>
+              )}
             </div>
             <div className="mt-3">
               <Link

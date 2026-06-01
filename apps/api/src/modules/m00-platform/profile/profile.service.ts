@@ -752,6 +752,8 @@ export class ProfileService {
     insuranceProvider: string | null;
     insurancePolicy: string | null;
     insuranceGroup: string | null;
+    hasFamilyDoctor: boolean | null;
+    hasInsurance: boolean | null;
   } | null> {
     const rows = await this.platform.$queryRawUnsafe<
       Array<{
@@ -761,10 +763,17 @@ export class ProfileService {
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        has_family_doctor: boolean | null;
+        has_insurance: boolean | null;
       }>
     >(
+      // has_family_doctor / has_insurance are the family's explicit
+      // three-state flags (true / false="we have none" / null=unanswered),
+      // carried through so a "Use family" view can show "No family doctor
+      // on file" instead of empty dashes for the false case.
       `SELECT pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
-              pf.insurance_provider, pf.insurance_policy, pf.insurance_group
+              pf.insurance_provider, pf.insurance_policy, pf.insurance_group,
+              pf.has_family_doctor, pf.has_insurance
        FROM platform.platform_families pf
        JOIN platform.platform_family_members pfm ON pfm.family_id = pf.id
        WHERE pfm.person_id = $1::uuid
@@ -780,6 +789,8 @@ export class ProfileService {
       insuranceProvider: r.insurance_provider,
       insurancePolicy: r.insurance_policy,
       insuranceGroup: r.insurance_group,
+      hasFamilyDoctor: r.has_family_doctor,
+      hasInsurance: r.has_insurance,
     };
   }
 
@@ -806,6 +817,8 @@ export class ProfileService {
       insuranceProvider: string | null;
       insurancePolicy: string | null;
       insuranceGroup: string | null;
+      hasFamilyDoctor: boolean | null;
+      hasInsurance: boolean | null;
     } | null,
   ): AdultMedicalInfoDto {
     if (!row) {
@@ -823,6 +836,11 @@ export class ProfileService {
         insuranceGroup: family?.insuranceGroup ?? null,
         bloodType: null,
         medicalNotes: null,
+        // FAMILY mode (default with no own row): surface the family's
+        // explicit none/unanswered flags so the UI shows "No family
+        // doctor on file" rather than blank when false.
+        hasFamilyDoctor: family?.hasFamilyDoctor ?? null,
+        hasInsurance: family?.hasInsurance ?? null,
       };
     }
     const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
@@ -843,6 +861,10 @@ export class ProfileService {
       insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
+      // Flags apply only while inheriting (FAMILY); in CUSTOM the person's
+      // own record governs → null.
+      hasFamilyDoctor: useFamily ? family!.hasFamilyDoctor : null,
+      hasInsurance: useFamily ? family!.hasInsurance : null,
     };
   }
 

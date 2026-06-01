@@ -2048,6 +2048,11 @@ export interface AdultMedicalInfoDto {
   insuranceGroup: string | null;
   bloodType: string | null;
   medicalNotes: string | null;
+  // Family's explicit none/unanswered flags (FAMILY mode only): false =
+  // family has none, null = unanswered. Drives "No family doctor/insurance
+  // on file" vs blank dashes in the Use-family view.
+  hasFamilyDoctor: boolean | null;
+  hasInsurance: boolean | null;
 }
 
 export interface UpdateAdultMedicalInfoPayload {

@@ -407,6 +407,11 @@ export class AdultMedicalInfoDto {
   @ApiPropertyOptional() insuranceGroup?: string | null;
   @ApiPropertyOptional() bloodType?: string | null;
   @ApiPropertyOptional() medicalNotes?: string | null;
+  // Family's explicit three-state doctor/insurance flags, surfaced only
+  // in FAMILY mode so the "Use family" view distinguishes "the family has
+  // none" (false → "No family doctor on file") from "unfilled" (null).
+  @ApiPropertyOptional() hasFamilyDoctor?: boolean | null;
+  @ApiPropertyOptional() hasInsurance?: boolean | null;
 }
 
 export class UpdateAdultMedicalInfoDto {
