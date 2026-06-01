@@ -266,10 +266,12 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
 // ─── Account tab ────────────────────────────────────────────
 
 /**
- * Identity fields + DOB + gender + an account-type info box. The form
- * is editable for MANAGED + PLACEHOLDER children and read-only for
- * INDEPENDENT (those rows' iam_person belongs to the child themselves;
- * the server returns 403 on PATCH so we don't render the controls).
+ * Identity fields + DOB + gender + an account-type info box. Editability is
+ * driven by the server's `canEdit` (the age + consent model) — NOT the
+ * "Independent" flag, which is now descriptive only. A guardian edits an
+ * under-18 child unconditionally (even Independent ones); at 18+ they edit
+ * only while the now-adult has not revoked access (then the server returns 403
+ * and canEdit is false, so we render read-only).
  *
  * PLACEHOLDER/PENDING_LINK children also surface the lifecycle action
  * buttons (Create Account / Send Link / Cancel / Remove) at the bottom
@@ -278,7 +280,7 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
  * into the profile.
  */
 function AccountTab({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => void }) {
-  const readOnly = child.accessLevel === 'INDEPENDENT' && child.status === 'LINKED';
+  const readOnly = child.status === 'LINKED' && !child.canEdit;
   return (
     <div className="flex flex-col gap-5">
       <AccessLevelInfo child={child} />
@@ -310,12 +312,17 @@ function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
   }
   if (child.accessLevel === 'INDEPENDENT') {
     const heroName = child.preferredName?.trim() ? child.preferredName : child.firstName;
+    // "Independent" is descriptive only — it means the child has their own
+    // login. Whether YOU can edit is driven by canEdit (age + consent): a
+    // guardian edits an under-18 unconditionally; at 18+ only until the adult
+    // revokes access.
     return (
       <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-900">
-        <p className="font-semibold">This account is managed by {heroName}.</p>
+        <p className="font-semibold">{heroName} has their own login.</p>
         <p className="mt-0.5">
-          {heroName} owns their own login and identity. You can still view their profile and
-          maintain the medical / emergency / dietary sections.
+          {child.canEdit
+            ? `${heroName} signs in themselves, and you can still edit their profile and the medical / emergency / dietary sections.`
+            : `${heroName} signs in themselves and has turned off your edit access. You can view their profile but not change it; ask them to restore your access from their account settings.`}
         </p>
       </div>
     );
@@ -740,13 +747,13 @@ function EnrolmentBlock({ child }: { child: FamilyChildDto }) {
  * have yet) plus a short note explaining what's coming when the
  * account is created.
  *
- * INDEPENDENT children: parent sees read-only phones + emails (the
- * child manages their own profile). Address still editable by the
- * parent — addresses live on platform_family_children, not iam_person.
+ * Phone/email editability follows the server's `canEdit` (age + consent),
+ * not the "Independent" flag — a guardian may edit an under-18 child's
+ * contacts even on an Independent account; a revoked 18+ account is read-only.
  */
 function ContactTab({ child }: { child: FamilyChildDto }) {
   const isLinked = child.status === 'LINKED';
-  const isManaged = child.accessLevel === 'MANAGED';
+  const isManaged = child.canEdit;
 
   return (
     // pb-24 reserves clearance so the viewport-fixed StickySaveBar
@@ -1282,7 +1289,7 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
   const { toast } = useToast();
   const update = useUpdateFamilyChild(child.id);
   const familySettings = useFamilySettings();
-  const editable = child.accessLevel === 'MANAGED' || child.accessLevel === 'PLACEHOLDER';
+  const editable = child.canEdit;
 
   const initial = useMemo(
     () => ({

@@ -249,3 +249,47 @@ export function useVerifyRelationship(personId: string) {
     onSuccess: () => invalidateAll(qc),
   });
 }
+
+// ─── Guardian edit-access (18+ self-service control) ─────────────
+
+export type GuardianAccessState = 'GRANTED' | 'REVOKED';
+
+export interface GuardianAccessEntry {
+  guardianPersonId: string;
+  displayName: string;
+  state: GuardianAccessState;
+}
+
+export interface GuardianAccessResponse {
+  subjectPersonId: string;
+  guardians: GuardianAccessEntry[];
+}
+
+/**
+ * The 18+ subject's "people who can edit my account" list. The endpoint 403s
+ * for under-18s and for anyone who isn't the subject, so callers gate on age
+ * (enabled) and treat an error as "nothing to manage".
+ */
+export function useGuardianAccess(personId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['guardian-access', personId] as const,
+    queryFn: () => apiFetch<GuardianAccessResponse>(`${base(personId!)}/guardian-access`),
+    enabled: enabled && !!personId,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useSetGuardianAccess(personId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guardianId, state }: { guardianId: string; state: GuardianAccessState }) =>
+      apiFetch<GuardianAccessResponse>(`${base(personId)}/guardian-access/${guardianId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ state }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['guardian-access', personId] });
+    },
+  });
+}

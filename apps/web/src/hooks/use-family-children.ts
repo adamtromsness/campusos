@@ -14,16 +14,14 @@ import type {
 export type FamilyChildStatus = 'PLACEHOLDER' | 'PENDING_LINK' | 'LINKED';
 
 /**
- * accessLevel is the caller-relative authority on a family row.
- * Server derives it from platform_users.managed_by_person_id:
+ * accessLevel is now DESCRIPTIVE ONLY — a self-login indicator, not an edit
+ * gate. Use `FamilyChildDto.canEdit` (the server's age + consent decision) for
+ * whether the caller may edit. accessLevel meanings:
  *
- *   PLACEHOLDER — pre-link state, no iam_person yet. Edits go to
- *                 the family row directly.
- *   MANAGED     — the linked account's managed_by_person_id is the
- *                 caller. The caller is the custodian and PATCH
- *                 endpoints accept full identity edits.
- *   INDEPENDENT — the linked account is unmanaged or managed by
- *                 someone else. PATCH endpoints return 403.
+ *   PLACEHOLDER — pre-link state, no iam_person yet.
+ *   MANAGED     — the linked account is managed by a family guardian.
+ *   INDEPENDENT — the linked account has its own login (the child logs in
+ *                 themselves). This NO LONGER blocks guardian editing.
  */
 export type FamilyAccessLevel = 'PLACEHOLDER' | 'MANAGED' | 'INDEPENDENT';
 
@@ -46,6 +44,9 @@ export interface FamilyChildDto {
   notes: string | null;
   status: FamilyChildStatus;
   accessLevel: FamilyAccessLevel;
+  // Server-computed, caller-relative edit authority (age + consent model).
+  // The UI gates ALL edit affordances on this — never on accessLevel.
+  canEdit: boolean;
   // FAMILY (default) → inherit emergency contacts from
   // /family/settings/emergency-contacts, with per-child rows acting
   // as additive "additional contacts for this child only".

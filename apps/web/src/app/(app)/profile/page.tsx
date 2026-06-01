@@ -46,6 +46,7 @@ import { FamilyCustomToggle } from '@/components/ui/FamilyCustomToggle';
 import { StickySaveBar } from '@/components/ui/StickySaveBar';
 import { formatPhone } from '@/lib/phone-format';
 import { FamilyStructureSection } from '@/components/family/FamilyStructureSection';
+import { GuardianAccessSection } from '@/components/family/GuardianAccessSection';
 import type { ProfileDto } from '@/lib/types';
 
 /**
@@ -383,6 +384,9 @@ function AccountTab({ profile }: { profile: ProfileDto }) {
       />
     </SectionCard>
       {myPersonId && <FamilyStructureSection personId={myPersonId} variant="self" />}
+      {myPersonId && (
+        <GuardianAccessSection personId={myPersonId} dateOfBirth={profile.dateOfBirth} />
+      )}
     </div>
   );
 }
