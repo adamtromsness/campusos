@@ -1410,6 +1410,39 @@ describe('integration:m00-platform/family-children', () => {
     });
   });
 
+  // ─── Family settings: home address + country persistence ──
+
+  describe('family settings address', () => {
+    it('PATCH /family/settings persists country (home-address completeness)', async () => {
+      // The Addresses form shows "United States" by default; the
+      // completion check reads the SAVED country, so a normal save must
+      // persist it. This is the server half of that round-trip.
+      const saved = await controller.patchSettings(reqA(), {
+        addressLine1: '317 Chestnut St',
+        city: 'Galesburg',
+        state: 'KS',
+        postalCode: '66740',
+        country: 'United States',
+      });
+      expect(saved.addressLine1).toBe('317 Chestnut St');
+      expect(saved.country).toBe('United States');
+      // Re-read confirms it round-trips (not just echoed).
+      const reread = await controller.getSettings(reqA());
+      expect(reread?.country).toBe('United States');
+      // Every required home-address field is now present — the criterion
+      // (street + city + state + ZIP + country) is satisfiable on load.
+      expect(
+        Boolean(
+          reread?.addressLine1 &&
+            reread?.city &&
+            reread?.state &&
+            reread?.postalCode &&
+            reread?.country,
+        ),
+      ).toBe(true);
+    });
+  });
+
   // ─── Change primary guardian (spec STEP 6) ─────────────────
 
   describe('change primary guardian', () => {
