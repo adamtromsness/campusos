@@ -662,3 +662,45 @@ the parent pattern — frontend-only, no API/scope change.
 - Live round-trip as adamtromsness@gmail.com on Thatcher (MANAGED): PATCH
   preferredName → response + read-back persisted, then restored — confirms the
   rewired save still commits identity fields.
+
+## Family-tree union-junction layout rebuild (2026-06-01)
+
+Payload unchanged (parents-union + per-child parentLinks, childless-root). This
+rebuilds only how `apps/web/.../components/family/FamilyTreeView.tsx` DRAWS the
+diagram, fixing three defects: crossing lines (per-edge fan), right-edge
+clipping (fixed 680px canvas), and truncated box text (full relationship +
+custody strings per box).
+
+- STEP 1 — group children by the unordered SET of real parents; render one
+  UNION JUNCTION per group: parents joined by a short horizontal line, a single
+  drop to a horizontal sibling bar, one short drop per child. The common intact
+  family (all kids share two parents) → ONE group → ZERO crossings.
+- STEP 2 — canvas sized to the wider of the parent/child rows (viewBox =
+  max(parentRowW, childRowW)); never clips. ≤4 children scale responsively
+  (maxWidth:100%, height auto); >4 switch to a horizontally scrollable container
+  at natural box size so text stays legible instead of shrinking.
+- STEP 3 — parent-row ordering: groups sorted by child barycenter, each group's
+  parents clustered, a shared parent emitted ONCE (first group). Cross-group
+  crossings only possible at a shared parent — minimised, remainder accepted.
+- STEP 4 — child box = `FirstName · age` (first token of displayName) + a
+  one-word relationship subtitle ("Biological child"; non-default categories
+  combine, e.g. "Biological / step child"); equal heights; box widths sized to
+  the longest label (char-count approximation) so nothing truncates. Per-link
+  custody / full type no longer printed (lives on the profile). Parent box =
+  name + role line ("You · parent" for self). Single-parent group drops from
+  the real parent — no phantom line to the dashed empty slot.
+
+### Verification
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors.
+- pnpm --filter @campusos/api build — 0 errors (no API files touched; payload
+  unchanged, so the integration suite is unaffected by this render-only change).
+- /family/[personId]/structure and /family/tree compile + serve 200 in dev.
+- Geometry verified against the real Tromsness payload (rooted on Adam: union
+  {Adam, Ashley} + Scout/Thatcher/Sailor/Harper) and a faithful standalone
+  simulation of computeLayout: 4-kid case → 1 union, 612px (fits, no scroll),
+  0 crossings; 2/4/6-child sizing all 0 crossings (scroll engages at 6); blended
+  ({Adam,Ashley}×2 + {Adam,Maria}×1) → 2 unions, Adam once, 0 in-group
+  crossings; single-parent → drop from the real parent only; childless root →
+  boxes only, no dangling lines. (apps/web has no unit-test runner — vitest is
+  not installed and `test` is a stub — so the layout is verified by the
+  simulation + live render rather than a committed web spec.)
