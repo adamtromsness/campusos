@@ -551,6 +551,12 @@ export interface ChildMedicalInfoDto {
   insuranceGroup: string | null;
   bloodType: string | null;
   medicalNotes: string | null;
+  // Family's explicit three-state flags, set only in FAMILY (inherited)
+  // mode: true = family has one, false = family explicitly has none,
+  // null = unanswered. Lets the Use-family view show "No family doctor on
+  // file" for false instead of empty dashes. null in CUSTOM mode.
+  hasFamilyDoctor: boolean | null;
+  hasInsurance: boolean | null;
 }
 export interface UpdateChildMedicalInfoPayload {
   allergies?: ChildAllergyEntry[];

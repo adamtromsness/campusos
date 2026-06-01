@@ -424,6 +424,13 @@ export class ChildMedicalInfoDto {
   @ApiPropertyOptional() insuranceGroup?: string | null;
   @ApiPropertyOptional() bloodType?: string | null;
   @ApiPropertyOptional() medicalNotes?: string | null;
+  // Family's explicit three-state doctor/insurance flags, surfaced ONLY
+  // in FAMILY (inherited) mode so the child view can distinguish a
+  // definitive "the family has no doctor/insurer" (flag === false) from
+  // "nobody filled it in yet" (flag === null) — otherwise both render as
+  // empty dashes. null in CUSTOM mode (the child's own record governs).
+  @ApiPropertyOptional() hasFamilyDoctor?: boolean | null;
+  @ApiPropertyOptional() hasInsurance?: boolean | null;
 }
 
 export class UpdateChildMedicalInfoDto {

@@ -1355,6 +1355,62 @@ describe('integration:m00-platform/family-children', () => {
       expect(updatedDietary.dietaryType).toBe('VEGETARIAN');
       expect(updatedDietary.additionalRestrictions).toBe('No mushrooms.');
     });
+
+    // ─── FIX 3: family no-doctor/no-insurance flags inherit ──
+
+    it('Use-family child inherits the family explicit no-doctor/no-insurance flags', async () => {
+      const childId = await linkedChild();
+      // Family explicitly marks "we have none" for both.
+      await controller.patchSettings(reqA(), {
+        hasFamilyDoctor: false,
+        hasInsurance: false,
+      });
+      // Child is on FAMILY (default) → the flags come through so the UI
+      // can render "No family doctor/insurance on file" vs blank.
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('FAMILY');
+      expect(med.hasFamilyDoctor).toBe(false);
+      expect(med.hasInsurance).toBe(false);
+    });
+
+    it('Use-family child inherits family doctor details when the family HAS one', async () => {
+      const childId = await linkedChild();
+      await controller.patchSettings(reqA(), {
+        hasFamilyDoctor: true,
+        doctorName: 'Dr. Family Practice',
+        hasInsurance: true,
+        insuranceProvider: 'Acme Health',
+      });
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('FAMILY');
+      expect(med.hasFamilyDoctor).toBe(true);
+      expect(med.doctorName).toBe('Dr. Family Practice');
+      expect(med.insuranceProvider).toBe('Acme Health');
+    });
+
+    it('family neither set nor flagged → flags null (unanswered, not "none")', async () => {
+      const childId = await linkedChild();
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.hasFamilyDoctor).toBeNull();
+      expect(med.hasInsurance).toBeNull();
+      expect(med.doctorName).toBeNull();
+    });
+
+    it('Use-custom child does not carry the family flags (they do not apply)', async () => {
+      const childId = await linkedChild();
+      await controller.patchSettings(reqA(), { hasFamilyDoctor: false, hasInsurance: false });
+      // Flip to CUSTOM with the child's own doctor.
+      await controller.updateMedical(reqA(), childId, {
+        medicalSource: 'CUSTOM',
+        doctorName: 'Dr. Child Own',
+      });
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('CUSTOM');
+      expect(med.doctorName).toBe('Dr. Child Own');
+      // The family's "none" flags must NOT leak into the custom view.
+      expect(med.hasFamilyDoctor).toBeNull();
+      expect(med.hasInsurance).toBeNull();
+    });
   });
 
   // ─── DTO validation — ValidationPipe round-trip ───────────

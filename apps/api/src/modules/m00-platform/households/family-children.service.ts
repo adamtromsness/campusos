@@ -3099,6 +3099,8 @@ export class FamilyChildrenService {
     insuranceProvider: string | null;
     insurancePolicy: string | null;
     insuranceGroup: string | null;
+    hasFamilyDoctor: boolean | null;
+    hasInsurance: boolean | null;
   } | null> {
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
@@ -3108,10 +3110,17 @@ export class FamilyChildrenService {
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        has_family_doctor: boolean | null;
+        has_insurance: boolean | null;
       }>
     >(
+      // has_family_doctor / has_insurance are the family's explicit
+      // three-state flags (true / false="we have none" / null=unanswered).
+      // Carried through so the child's inherited view can show "No family
+      // doctor on file" instead of empty dashes for the false case.
       `SELECT doctor_name, doctor_phone, doctor_clinic,
-              insurance_provider, insurance_policy, insurance_group
+              insurance_provider, insurance_policy, insurance_group,
+              has_family_doctor, has_insurance
        FROM platform.platform_families WHERE id = $1::uuid LIMIT 1`,
       familyId,
     );
@@ -3124,6 +3133,8 @@ export class FamilyChildrenService {
       insuranceProvider: r.insurance_provider,
       insurancePolicy: r.insurance_policy,
       insuranceGroup: r.insurance_group,
+      hasFamilyDoctor: r.has_family_doctor,
+      hasInsurance: r.has_insurance,
     };
   }
 
@@ -3150,6 +3161,8 @@ export class FamilyChildrenService {
       insuranceProvider: string | null;
       insurancePolicy: string | null;
       insuranceGroup: string | null;
+      hasFamilyDoctor: boolean | null;
+      hasInsurance: boolean | null;
     } | null,
   ): ChildMedicalInfoDto {
     if (!row) {
@@ -3170,6 +3183,11 @@ export class FamilyChildrenService {
         insuranceGroup: family?.insuranceGroup ?? null,
         bloodType: null,
         medicalNotes: null,
+        // FAMILY mode (default for a child with no own row): pass the
+        // family's explicit none/unanswered flags through so the UI shows
+        // "No family doctor on file" rather than blank when false.
+        hasFamilyDoctor: family?.hasFamilyDoctor ?? null,
+        hasInsurance: family?.hasInsurance ?? null,
       };
     }
     const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
@@ -3190,6 +3208,11 @@ export class FamilyChildrenService {
       insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
+      // The family's none/unanswered flags are meaningful only while the
+      // child inherits (FAMILY). In CUSTOM the child's own record governs,
+      // so the flags don't apply → null.
+      hasFamilyDoctor: useFamily ? family!.hasFamilyDoctor : null,
+      hasInsurance: useFamily ? family!.hasInsurance : null,
     };
   }
 

@@ -1919,15 +1919,33 @@ function MedicalSection({ childId }: { childId: string }) {
 
         {source === 'FAMILY' ? (
           <>
+            {/* Three-state inheritance: when the family explicitly marked
+                "no doctor / no insurance" (flag === false), show that as a
+                definitive statement instead of blank dashes, matching the
+                family Health tab wording. flag === true / null falls
+                through to the inherited fields (which may be empty =
+                "nobody filled it in yet"). */}
             <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
-              <ReadOnlyField label="Doctor name" value={doctor.name} />
-              <ReadOnlyField label="Doctor phone" value={formatPhone(doctor.phone)} />
-              <div className="sm:col-span-2">
-                <ReadOnlyField label="Clinic" value={doctor.clinic} />
-              </div>
-              <ReadOnlyField label="Insurance provider" value={doctor.insuranceProvider} />
-              <ReadOnlyField label="Policy number" value={doctor.insurancePolicy} />
-              <ReadOnlyField label="Group number" value={doctor.insuranceGroup} />
+              {data.hasFamilyDoctor === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family doctor on file</p>
+              ) : (
+                <>
+                  <ReadOnlyField label="Doctor name" value={doctor.name} />
+                  <ReadOnlyField label="Doctor phone" value={formatPhone(doctor.phone)} />
+                  <div className="sm:col-span-2">
+                    <ReadOnlyField label="Clinic" value={doctor.clinic} />
+                  </div>
+                </>
+              )}
+              {data.hasInsurance === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family insurance on file</p>
+              ) : (
+                <>
+                  <ReadOnlyField label="Insurance provider" value={doctor.insuranceProvider} />
+                  <ReadOnlyField label="Policy number" value={doctor.insurancePolicy} />
+                  <ReadOnlyField label="Group number" value={doctor.insuranceGroup} />
+                </>
+              )}
             </div>
             <div className="mt-3">
               <Link
