@@ -468,3 +468,77 @@ unit-test seam if a harness is stood up later.
 - Full integration suite: the only failures are 4 in tenant-isolation.spec
   from cross-spec fixture pollution (a leftover pay_family_accounts row,
   unrelated to this change) — that spec passes 17/17 run in isolation.
+
+
+---
+
+## Your Family completion fixes + change primary guardian (2026-06-01)
+
+Five Your-Family issues: four completion-logic corrections + one new action.
+
+### Single source of truth
+The %, per-section "N items remaining", and yellow checklist all derive from
+ONE client-side `useMemo` — `useCompletionState` in
+`apps/web/src/app/(app)/family/settings/page.tsx`. There is NO backend
+completeness service (the spec's `fix(api)` framing didn't match reality), so
+the criteria corrections (STEPs 1-4) landed in that web hook.
+
+### STEP 0 diagnosis (from code)
+- Address criterion already required street+city+state+ZIP+country (matches
+  spec) and the Addresses save already invalidates `['family']`, so
+  `useCompletionState` re-derives on save. The country field defaults to
+  "United States" in the form. A persistent false negative would mean a
+  genuinely blank required field (correct behaviour) — no criterion bug found.
+- Guardian criterion already filtered `status === 'ACTIVE'` (pending invites
+  never counted). The real false negative was the phone SOURCE.
+
+### Fixes
+- STEP 2 (api): `FamilyMemberDto.primaryPhone` now COALESCEs
+  `platform_person_phones` (the multi-row list the Contact tab writes to)
+  before the `iam_person.primary_phone` cache — symmetric with how email
+  already resolves. An ACTIVE guardian whose number lived only in the list no
+  longer reads as phone-less.
+- STEP 3 (web): dropped "Family name set" from criteria/checklist/%/counts;
+  the display name stays an optional field.
+- STEP 4 (web + api doc): dropped "Communication preferences customised";
+  prefs are seeded to operational defaults (creator is HEAD_OF_HOUSEHOLD +
+  is_primary_contact at family creation → first read of
+  /family/contact-preferences routes all 8 categories to them). All 8 are
+  operational/transactional — no marketing/consent channel — so the default
+  routing opts into nothing requiring consent. Documented on
+  getFamilyContactPreferences; no redundant creation-time seed added.
+- STEP 5: aggregate %, section counts, and checklist re-derive from the
+  trimmed item list automatically (single source).
+
+### STEP 6 — change primary guardian (new)
+- `PATCH /api/v1/families/:familyId/primary-guardian { guardianPersonId }`:
+  new `FamiliesController` (`/families/:familyId/...`, plural) →
+  `FamilyChildrenService.setPrimaryGuardian`. Validates caller is a member of
+  :familyId (cross-family → 404) and target is an ACTIVE guardian of that
+  family (pending invite / non-member → 400), then demotes old + promotes new
+  in one tx. The `(family_id) WHERE is_primary_contact = true` partial UNIQUE
+  keeps exactly one primary (never two, never zero).
+- Decoupled from edit rights: touches only `is_primary_contact`;
+  canEditFamilyStructure / isActiveGuardianOf read other signals, so
+  guardianship + member roles are unchanged by a reassignment.
+- Web: "Make primary" on each non-primary ACTIVE guardian row (any active
+  guardian may reassign — permissive co-guardian model); "Primary contact"
+  line is now a ★ badge. `useSetPrimaryGuardian` hook added.
+
+### Tests (STEP 7)
+family-children.spec (58 passing, +4): set-B-primary clears A (exactly one
+primary), pending-invite target → 400, cross-family caller → 404, reassign
+leaves member roles + guardianship + ACTIVE status unchanged.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- relationships + family-children — 86 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+
+### Note / not reproduced against live data
+STEP 0 asked to diagnose the two false negatives against the actual Tromsness
+family row in the running app. The criteria were fixed at the code level
+(guardian phone source; criteria trimmed) without standing up the local stack;
+if a specific field is still genuinely blank for that family, that's correct
+incomplete behaviour, not a criterion bug.
