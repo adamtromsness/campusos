@@ -575,6 +575,19 @@ Three independent fixes.
   platform_family_children.gender; verified 0 non-canonical values remain.
 - NOTE: iam_person.gender is plain TEXT — distinct from the person_type
   Postgres ENUM (which needs the ::"PersonType" cast).
+- FOLLOW-UP (2026-06-01): the child *detail* page (/family/children/[id]
+  Account tab) was a third gender select missed by the first pass — it still
+  offered legacy value="F"/"M"/"" options, so a stored canonical MALE/FEMALE
+  matched nothing, rendered blank, and a save wrote a legacy/empty value that
+  normalize-on-read then folded to NOT_SPECIFIED ("saves, reads Not
+  Specified"). Now uses GENDERS/GENDER_LABELS/normalizeGender + disabled
+  "Select…", and normalises the loaded value so the right option preselects.
+  Also canonicalised gender on the adult profile WRITE path
+  (profile.service buildIamPersonPatch) — it was normalised on read but
+  passed through raw on write; now symmetric with the child path. Verified
+  live: PATCH a MANAGED child gender MALE → response MALE, GET MALE, both
+  platform_family_children.gender AND iam_person.gender = MALE; NOT_SPECIFIED
+  round-trips as a real choice (INDEPENDENT children correctly 403, unrelated).
 
 ### FIX 2 — Mailing "Use family / Use custom" toggle
 - New mailing_address_source (FAMILY|CUSTOM, default FAMILY) on
