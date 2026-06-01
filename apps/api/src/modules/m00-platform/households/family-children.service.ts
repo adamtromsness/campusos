@@ -249,7 +249,21 @@ export class FamilyChildrenService {
                   LIMIT 1),
                 pfm.email
               ) AS email,
-              p.primary_phone AS primary_phone,
+              -- Primary phone mirrors the email resolution above: prefer
+              -- the multi-row platform_person_phones list (where the
+              -- Contact tab actually writes numbers), then fall back to
+              -- the denormalised iam_person.primary_phone cache. Reading
+              -- only the cache was a guardian-completeness false negative
+              -- — a guardian whose number lived solely in the phone list
+              -- read as phone-less (spec STEP 2).
+              COALESCE(
+                (SELECT pp.number
+                   FROM platform.platform_person_phones pp
+                  WHERE pp.person_id = pfm.person_id
+                  ORDER BY pp.is_primary DESC, pp.created_at ASC
+                  LIMIT 1),
+                p.primary_phone
+              ) AS primary_phone,
               -- Primary phone + email TYPE for the read-only Guardian
               -- Contacts panel on the child Contact tab. Null when
               -- the row hasn't been seeded yet (e.g. PLACEHOLDER).
