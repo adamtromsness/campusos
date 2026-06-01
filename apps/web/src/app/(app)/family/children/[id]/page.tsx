@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { GENDERS, GENDER_LABELS, normalizeGender } from '@campusos/shared';
 import {
   useAddChildEmergencyContact,
   useCancelChildLink,
@@ -368,7 +369,10 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
       lastName: child.lastName ?? '',
       preferredName: child.preferredName ?? '',
       dateOfBirth: child.dateOfBirth ?? '',
-      gender: child.gender ?? '',
+      // Normalise to the canonical option value so the select preselects
+      // the right option (the API already normalises on read, but this is
+      // defensive against any non-canonical value reaching the form).
+      gender: child.gender ? normalizeGender(child.gender) : '',
     }),
     [
       child.firstName,
@@ -514,9 +518,14 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
                   : 'border border-gray-300',
               )}
             >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
+              <option value="" disabled>
+                Select…
+              </option>
+              {GENDERS.map((g) => (
+                <option key={g} value={g}>
+                  {GENDER_LABELS[g]}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -3051,19 +3060,12 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function genderLabel(value: string | null): string | null {
-  if (!value) return 'Not Specified';
-  // Legacy 'X' (Non-binary) and 'O' (Other) values still appear on
-  // older rows even though the picker no longer offers them — render
-  // a human label rather than the raw single-letter code. New writes
-  // can only produce '', 'F', or 'M'.
-  const map: Record<string, string> = {
-    F: 'Female',
-    M: 'Male',
-    X: 'Non-binary',
-    O: 'Other',
-  };
-  return map[value] ?? value;
+function genderLabel(value: string | null): string {
+  // Canonical set is MALE | FEMALE | NOT_SPECIFIED (FIX 1). normalizeGender
+  // folds any legacy/unknown value (blank, 'F'/'M', historical NONBINARY/
+  // OTHER, etc.) into that set so the read-only label always matches an
+  // option the picker offers.
+  return GENDER_LABELS[normalizeGender(value)];
 }
 
 // ─── Send-link modal ────────────────────────────────────────

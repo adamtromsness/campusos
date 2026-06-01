@@ -992,6 +992,13 @@ export class ProfileService {
       if (dto[k] !== undefined) out[k as string] = dto[k];
     }
 
+    // Canonicalise gender on WRITE (FIX 1) so storage matches the option
+    // set, symmetric with the read normalisation + the child path. null
+    // (explicit clear) stays null.
+    if (dto.gender !== undefined) {
+      out.gender = dto.gender != null ? normalizeGender(dto.gender) : null;
+    }
+
     if (dto.dateOfBirth !== undefined) {
       out.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
     }
