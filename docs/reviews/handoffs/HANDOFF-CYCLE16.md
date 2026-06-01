@@ -598,6 +598,13 @@ Three independent fixes.
   when true, and empty when null (unanswered) — instead of blank dashes for
   all three. Also fixed an adjacent copy-paste (CUSTOM insurancePolicy read
   the wrong column).
+- FOLLOW-UP (2026-06-01): the first pass only covered the child section. The
+  adult/parent profile Medical tab is a separate component + API path
+  (getMyMedical → loadFamilyDoctorInsuranceForPerson → toAdultMedicalDto →
+  AdultMedicalInfoDto) and still showed dashes under "Use family". Applied the
+  identical fix there. Verified against demo data: the family with both flags
+  false reads the explicit "none" text on parent AND child; the Chen demo
+  family (flags null) correctly stays empty.
 
 ### Tests + verification
 - family-children.spec: +FIX3 (4: none-flagged, has-doctor, neither-set,
