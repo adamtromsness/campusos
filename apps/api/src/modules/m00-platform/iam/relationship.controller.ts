@@ -12,14 +12,17 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ActorContextService } from './actor-context.service';
+import { PersonaResolutionService } from './persona-resolution.service';
 import { RelationshipService } from './relationship.service';
+import { canEditFamilyStructure } from './relationship.auth';
 import {
   CreateRelationshipDto,
   FamilyTreeDto,
   GetRelationshipsResponseDto,
+  GuardianAccessResponseDto,
   RelationshipDto,
+  UpdateGuardianAccessDto,
   UpdateRelationshipDto,
   VerifyRelationshipDto,
 } from './dto/relationship.dto';
@@ -28,22 +31,22 @@ interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
 }
 
-// Age (whole years) at or above which a person may edit their OWN
-// relationships. Below this, only a parent/guardian or school admin can.
-const SELF_EDIT_MIN_AGE = 18;
-
 /**
- * Family-structure relationships (Step 3). Auth-only at the guard level;
- * the per-row authorisation (self / parent-guardian / school-admin)
- * is enforced in each handler because the rules depend on the
- * caller's relationship to :personId, not a static permission code.
+ * Family-structure relationships. Auth-only at the guard level; the
+ * per-row authorisation is enforced in each handler because the rules
+ * depend on the caller's relationship to :personId, not a static
+ * permission code.
  *
- * Access model (design §9):
- *   - GET     : self, parent/guardian, or school admin
- *   - POST    : parent/guardian, or self if an adult
- *   - PATCH   : parent/guardian, self (if adult), or school admin
- *   - DELETE  : parent/guardian, or self if an adult
+ * Access model (Family Structure on Profiles spec §1):
+ *   - GET     : self, parent/guardian, or school admin (canViewFamilyStructure)
+ *   - POST    : parent/guardian only (canEditFamilyStructure)
+ *   - PATCH   : parent/guardian only (canEditFamilyStructure)
+ *   - DELETE  : parent/guardian only (canEditFamilyStructure)
  *   - verify  : school admin only
+ *
+ * GET responses carry a `canEdit` flag (same predicate) so the UI never
+ * re-implements the rule. The flag is a rendering hint; every mutation
+ * re-checks server-side.
  */
 @ApiTags('Family Structure')
 @ApiBearerAuth()
@@ -52,7 +55,7 @@ export class RelationshipController {
   constructor(
     private readonly relationships: RelationshipService,
     private readonly actors: ActorContextService,
-    private readonly prisma: PrismaClient,
+    private readonly personas: PersonaResolutionService,
   ) {}
 
   @Get(':personId/relationships')
@@ -62,7 +65,8 @@ export class RelationshipController {
     @Param('personId') personId: string,
   ): Promise<GetRelationshipsResponseDto> {
     await this.assertCanView(req, personId);
-    return this.relationships.getRelationships(personId);
+    const resp = await this.relationships.getRelationships(personId);
+    return { ...resp, canEdit: await this.computeCanEdit(req, personId) };
   }
 
   @Post(':personId/relationships')
@@ -72,7 +76,7 @@ export class RelationshipController {
     @Param('personId') personId: string,
     @Body() dto: CreateRelationshipDto,
   ): Promise<RelationshipDto> {
-    await this.assertCanManage(req, personId);
+    await this.assertCanEdit(req, personId);
     return this.relationships.addRelationship(personId, dto, req.user!.personId);
   }
 
@@ -84,7 +88,7 @@ export class RelationshipController {
     @Param('id') id: string,
     @Body() dto: UpdateRelationshipDto,
   ): Promise<RelationshipDto> {
-    await this.assertCanManage(req, personId, { allowSchoolAdmin: true });
+    await this.assertCanEdit(req, personId);
     return this.relationships.updateRelationship(personId, id, dto);
   }
 
@@ -96,18 +100,82 @@ export class RelationshipController {
     @Param('personId') personId: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.assertCanManage(req, personId);
+    await this.assertCanEdit(req, personId);
     await this.relationships.deleteRelationship(personId, id);
   }
 
   @Get(':personId/family-tree')
-  @ApiOperation({ summary: 'Structured family tree (parents, children, grandparents, siblings).' })
+  @ApiOperation({
+    summary:
+      'Blended single-generation family graph (deduped parent union + per-child parent links) for the read-only tree diagram. Carries canEdit for rendering only; the tree itself is read-only.',
+  })
   async familyTree(
     @Req() req: AuthedRequest,
     @Param('personId') personId: string,
   ): Promise<FamilyTreeDto> {
     await this.assertCanView(req, personId);
-    return this.relationships.getFamilyTree(personId);
+    const tree = await this.relationships.getFamilyTree(personId);
+
+    // Decorate each node with a viewer-specific, access-gated profileUrl so
+    // the read-only tree's clickable nodes navigate without the client
+    // re-checking permissions or resolving routes. School-admin status drives
+    // the admin profile route; everyone else gets the managed-child route.
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    const ids = [
+      ...tree.parents.map((p) => p.personId),
+      ...tree.children.map((c) => c.personId),
+    ];
+    const urls = await this.relationships.resolveProfileUrls(
+      ids,
+      req.user!.personId,
+      actor.isSchoolAdmin,
+    );
+    for (const p of tree.parents) p.profileUrl = p.personId ? (urls.get(p.personId) ?? null) : null;
+    for (const c of tree.children) c.profileUrl = c.personId ? (urls.get(c.personId) ?? null) : null;
+
+    return { ...tree, canEdit: await this.computeCanEdit(req, personId) };
+  }
+
+  // ─── Guardian edit-access consent (18+ self-service) ──────────
+
+  @Get(':personId/guardian-access')
+  @ApiOperation({
+    summary:
+      "List the people who can edit a (18+) person's account, with each guardian's GRANTED/REVOKED state. Subject-only.",
+  })
+  async listGuardianAccess(
+    @Req() req: AuthedRequest,
+    @Param('personId') personId: string,
+  ): Promise<GuardianAccessResponseDto> {
+    await this.assertSelfAdult(req, personId);
+    const guardians = await this.relationships.listGuardiansWithConsent(personId);
+    return {
+      subjectPersonId: personId,
+      guardians: guardians.map((g) => ({
+        guardianPersonId: g.personId,
+        displayName: g.displayName,
+        state: g.state,
+      })),
+    };
+  }
+
+  @Patch(':personId/guardian-access/:guardianId')
+  @ApiOperation({
+    summary:
+      "The 18+ subject grants or revokes a guardian's edit access to their own account. Subject-only; a guardian can never modify their own access to an adult.",
+  })
+  async setGuardianAccess(
+    @Req() req: AuthedRequest,
+    @Param('personId') personId: string,
+    @Param('guardianId') guardianId: string,
+    @Body() dto: UpdateGuardianAccessDto,
+  ): Promise<GuardianAccessResponseDto> {
+    await this.assertSelfAdult(req, personId);
+    if (guardianId === personId) {
+      throw new ForbiddenException('You cannot set guardian access for yourself.');
+    }
+    await this.relationships.setGuardianConsent(guardianId, personId, dto.state);
+    return this.listGuardianAccess(req, personId);
   }
 
   @Patch(':personId/relationships/:id/verify')
@@ -129,48 +197,57 @@ export class RelationshipController {
 
   // ─── Authorisation helpers ────────────────────────────────────
 
+  /** Self, an active guardian of the person, or a school admin. */
   private async assertCanView(req: AuthedRequest, personId: string): Promise<void> {
     const caller = req.user!.personId;
     if (caller === personId) return;
-    if (await this.relationships.isGuardianOf(caller, personId)) return;
+    if (await this.relationships.isActiveGuardianOf(caller, personId)) return;
     const actor = await this.actors.resolveActor(req.user!.sub, caller);
     if (actor.isSchoolAdmin) return;
     throw new ForbiddenException('You are not authorised to view this person’s family structure.');
   }
 
-  private async assertCanManage(
-    req: AuthedRequest,
-    personId: string,
-    opts: { allowSchoolAdmin?: boolean } = {},
-  ): Promise<void> {
-    const caller = req.user!.personId;
-    if (await this.relationships.isGuardianOf(caller, personId)) return;
-    if (caller === personId && (await this.isAdult(personId))) return;
-    if (opts.allowSchoolAdmin) {
-      const actor = await this.actors.resolveActor(req.user!.sub, caller);
-      if (actor.isSchoolAdmin) return;
+  /**
+   * Guardian-access control is the SUBJECT's alone, and only once they are an
+   * adult. 403 unless the caller IS :personId and is 18+. This also means a
+   * guardian can never grant/revoke their own access to an adult — they are
+   * not the subject. (Under-18s have nothing to manage: access is automatic.)
+   */
+  private async assertSelfAdult(req: AuthedRequest, personId: string): Promise<void> {
+    if (req.user!.personId !== personId) {
+      throw new ForbiddenException('You can only manage guardian access for your own account.');
     }
-    throw new ForbiddenException(
-      'You are not authorised to manage this person’s family structure.',
-    );
+    const age = await this.relationships.ageOfPerson(personId);
+    if (age === null || age < 18) {
+      throw new ForbiddenException(
+        'Guardian-access controls are available once you turn 18.',
+      );
+    }
+  }
+
+  /** Parent/guardian-only edit — the canEditFamilyStructure predicate. */
+  private async assertCanEdit(req: AuthedRequest, personId: string): Promise<void> {
+    if (!(await this.computeCanEdit(req, personId))) {
+      throw new ForbiddenException(
+        'Only a parent or guardian can edit this person’s family structure.',
+      );
+    }
   }
 
   /**
-   * A caller may edit their OWN relationships only if they're an adult.
-   * Unknown DOB is treated as adult — adults (guardians/staff) frequently
-   * have no DOB on file, whereas enrolled students are seeded with one.
+   * Resolve the caller's edit permission for `personId` via the shared
+   * canEditFamilyStructure predicate. Used both to gate mutations and to
+   * stamp the `canEdit` flag on GET responses, so the two never drift.
+   * Edit eligibility keys off the caller's derived personas (PARENT), not
+   * iam_person.person_type.
    */
-  private async isAdult(personId: string): Promise<boolean> {
-    const person = await this.prisma.iamPerson.findUnique({
-      where: { id: personId },
-      select: { dateOfBirth: true },
-    });
-    const dob = person?.dateOfBirth;
-    if (!dob) return true;
-    const now = new Date();
-    let age = now.getUTCFullYear() - dob.getUTCFullYear();
-    const m = now.getUTCMonth() - dob.getUTCMonth();
-    if (m < 0 || (m === 0 && now.getUTCDate() < dob.getUTCDate())) age--;
-    return age >= SELF_EDIT_MIN_AGE;
+  private async computeCanEdit(req: AuthedRequest, personId: string): Promise<boolean> {
+    const caller = req.user!.personId;
+    const personas = await this.personas.getActivePersonas(caller);
+    return canEditFamilyStructure(
+      { personId: caller, personaTypes: personas.map((p) => p.type) },
+      personId,
+      (callerId, target) => this.relationships.canGuardianEdit(callerId, target),
+    );
   }
 }

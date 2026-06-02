@@ -8,6 +8,7 @@ import { HouseholdsService } from './households.service';
 import { HouseholdsController } from './households.controller';
 import { FamilyChildrenService } from './family-children.service';
 import { FamilyChildrenController } from './family-children.controller';
+import { FamiliesController } from './families.controller';
 
 /**
  * Households Module — Profile and Household Mini-Cycle Step 6 plus
@@ -38,7 +39,7 @@ import { FamilyChildrenController } from './family-children.controller';
     HouseholdsService,
     FamilyChildrenService,
   ],
-  controllers: [HouseholdsController, FamilyChildrenController],
+  controllers: [HouseholdsController, FamilyChildrenController, FamiliesController],
   exports: [HouseholdsService, FamilyChildrenService],
 })
 export class HouseholdsModule {}

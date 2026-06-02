@@ -5,7 +5,9 @@ import { generateId } from '@campusos/database';
 
 import { FamilyChildrenService } from '@modules/m00-platform/households/family-children.service';
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
+import { FamiliesController } from '@modules/m00-platform/households/families.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import { UpdateFamilyContactPreferencesDto } from '@modules/m00-platform/households/dto/family-child.dto';
 import { RedisService } from '@shared/cache';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
@@ -39,7 +41,8 @@ describe('integration:m00-platform/family-children', () => {
     redis = new RedisService();
     await redis.onModuleInit();
     const personaResolution = new PersonaResolutionService(prisma, tenantPrisma);
-    service = new FamilyChildrenService(prisma, personaResolution, redis);
+    const relationships = new RelationshipService(prisma);
+    service = new FamilyChildrenService(prisma, personaResolution, redis, relationships);
     controller = new FamilyChildrenController(service);
 
     for (const { personId, accountId, label } of [
@@ -95,6 +98,13 @@ describe('integration:m00-platform/family-children', () => {
            (SELECT family_id FROM platform.platform_family_members)`,
       );
     }
+    // Guardian edit-access consent FKs iam_person (both columns) — clear
+    // before the iam_person delete below.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = ANY($1::uuid[]) OR subject_person_id = ANY($1::uuid[])`,
+      [userAPersonId, userBPersonId],
+    );
     // Drop persona-cache rows from any link-accept flows that called
     // refreshPersonaCacheSafe. platform_personas FKs iam_person, so
     // these have to go before the iam_person delete below.
@@ -166,6 +176,23 @@ describe('integration:m00-platform/family-children', () => {
     await redis.cacheInvalidate(
       'family:link-attempts:' + userAAccountId,
       'family:link-attempts:' + userBAccountId,
+    );
+    // Guardian edit-access consent + the adult-DOB the 18+ revoke test sets —
+    // reset so each test starts from the carryover default and B is a minor.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = ANY($1::uuid[]) OR subject_person_id = ANY($1::uuid[])`,
+      [userAPersonId, userBPersonId],
+    );
+    // Reset DOB + the canonical name: the edit tests rename the LINKED
+    // iam_person (identity edits mirror onto iam_person), which would otherwise
+    // break the later name-match accept tests.
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.iam_person
+          SET date_of_birth = NULL, last_name = 'Parent', first_name = CASE id WHEN $1::uuid THEN 'A' ELSE 'B' END
+        WHERE id = ANY($2::uuid[])`,
+      userAPersonId,
+      [userAPersonId, userBPersonId],
     );
     // Tear down everything we created on behalf of the two test
     // users, in FK-safe order.
@@ -347,34 +374,101 @@ describe('integration:m00-platform/family-children', () => {
     // INDEPENDENT-rejection contract is locked by a separate spec
     // below.
     const c = await controller.create(reqA(), { firstName: 'Sofia', lastName: 'A' });
-    const linked = await controller.createAccount(reqA(), c.id, {});
+    const linked = await controller.createAccount(reqA(), c.id, {
+      dateOfBirth: '2014-03-03',
+      gender: 'F',
+    });
     expect(linked.accessLevel).toBe('MANAGED');
 
+    // Gender is canonicalised on write + read (FIX 1): 'F' → 'FEMALE'.
     const updated = await controller.update(reqA(), c.id, { firstName: 'Sophie', gender: 'F' });
     expect(updated.firstName).toBe('Sophie');
-    expect(updated.gender).toBe('F');
+    expect(updated.gender).toBe('FEMALE');
     // gender must land on iam_person too — that's what the child's own
     // /profile page reads. A family-mirror-only write left the parent
-    // seeing "Female" while the child saw "Not Specified".
+    // seeing "Female" while the child saw "Not Specified". Stored
+    // canonically now, so the direct DB read is also 'FEMALE'.
     const person = await prisma.iamPerson.findUnique({
       where: { id: linked.personId! },
       select: { firstName: true, gender: true },
     });
     expect(person?.firstName).toBe('Sophie');
-    expect(person?.gender).toBe('F');
+    expect(person?.gender).toBe('FEMALE');
   });
 
-  it('patch INDEPENDENT LINKED child → 403', async () => {
-    // user B accepts user A's FAMILY_INVITE → B is LINKED in A's
-    // family with their own (unmanaged) platform_users row, so the
-    // row resolves to INDEPENDENT from A's viewpoint.
+  // ─── FIX 1: gender canonicalisation ──────────────────────────
+
+  it('create stores canonical gender; legacy stored value reads normalized', async () => {
+    // Create with legacy 'M' → stored + read back canonically.
+    const c = await controller.create(reqA(), {
+      firstName: 'Gene',
+      lastName: 'A',
+      gender: 'M',
+    });
+    expect(c.gender).toBe('MALE');
+    const stored = await prisma.$queryRawUnsafe<Array<{ gender: string | null }>>(
+      `SELECT gender FROM platform.platform_family_children WHERE id = $1::uuid`,
+      c.id,
+    );
+    expect(stored[0]!.gender).toBe('MALE');
+
+    // A legacy/other value written directly to the DB renders as
+    // NOT_SPECIFIED on read (normalize-on-read), without a backfill.
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.platform_family_children SET gender = 'NONBINARY' WHERE id = $1::uuid`,
+      c.id,
+    );
+    const refetched = (await controller.list(reqA())).find((x) => x.id === c.id);
+    expect(refetched?.gender).toBe('NOT_SPECIFIED');
+  });
+
+  it('Independent is descriptive only: a guardian CAN edit an INDEPENDENT under-18 child', async () => {
+    // user B accepts user A's FAMILY_INVITE → B is LINKED in A's family with
+    // their own (unmanaged) platform_users row, so the row resolves to
+    // INDEPENDENT from A's viewpoint. Under the age + consent model the flag no
+    // longer gates editing: A is an active guardian and the child is a minor
+    // (no DOB on file → treated as a minor), so the edit is unconditional.
     const code = (await controller.generateCode(reqA())).code;
     const result = await controller.accept(reqB(), { code });
     if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
-    expect(result.child.accessLevel).toBe('INDEPENDENT');
+    expect(result.child.accessLevel).toBe('INDEPENDENT'); // descriptive only
+    const updated = await controller.update(reqA(), result.child.id, { firstName: 'Renamed' });
+    expect(updated.firstName).toBe('Renamed');
+    expect(updated.canEdit).toBe(true);
+    // Read-back via the list also reports canEdit true for the guardian.
+    const fromList = (await controller.list(reqA())).find((x) => x.id === result.child.id);
+    expect(fromList?.canEdit).toBe(true);
+  });
+
+  it('an 18+ INDEPENDENT account that revoked the guardian → guardian edit 403 across sections', async () => {
+    // B accepts A's invite (LINKED, INDEPENDENT). Make B an adult and have B
+    // revoke A's access → A can no longer edit identity OR medical.
+    const code = (await controller.generateCode(reqA())).code;
+    const result = await controller.accept(reqB(), { code });
+    if (result.kind !== 'CHILD') throw new Error('expected CHILD result');
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform.iam_person SET date_of_birth = '1990-01-01' WHERE id = $1::uuid`,
+      userBPersonId,
+    );
+    // Carryover: still editable before any revoke (absent consent ⇒ GRANTED).
+    const stillOk = await controller.update(reqA(), result.child.id, { firstName: 'Carry' });
+    expect(stillOk.firstName).toBe('Carry');
+    // B (the adult) revokes A.
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_guardian_edit_consent
+         (id, guardian_person_id, subject_person_id, state) VALUES ($1::uuid,$2::uuid,$3::uuid,'REVOKED')`,
+      generateId(),
+      userAPersonId,
+      userBPersonId,
+    );
     await expect(
-      controller.update(reqA(), result.child.id, { firstName: 'Hacked' }),
+      controller.update(reqA(), result.child.id, { firstName: 'Blocked' }),
     ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      controller.updateMedical(reqA(), result.child.id, { bloodType: 'O+' }),
+    ).rejects.toMatchObject({ status: 403 });
+    const fromList = (await controller.list(reqA())).find((x) => x.id === result.child.id);
+    expect(fromList?.canEdit).toBe(false);
   });
 
   // ─── DELETE /family/children/:id ───────────────────────────
@@ -961,7 +1055,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Junior',
         lastName: 'A',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       expect(linked.accessLevel).toBe('MANAGED');
 
       const code = (await controller.inviteGuardian(reqA(), {})).code;
@@ -983,7 +1080,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Junior',
         lastName: 'A',
       });
-      await controller.createAccount(reqA(), placeholder.id, {});
+      await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
 
       const code = (await controller.inviteGuardian(reqA(), {})).code;
       await controller.accept(reqB(), { code });
@@ -1008,7 +1108,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Original',
         lastName: 'Surname',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       const linkedChildId = linked.id;
       const linkedPersonId = linked.personId!;
 
@@ -1172,7 +1275,10 @@ describe('integration:m00-platform/family-children', () => {
         lastName: 'A',
         email: 'jane@example.invalid',
       });
-      const promoted = await controller.createMemberAccount(reqA(), m.id, {});
+      const promoted = await controller.createMemberAccount(reqA(), m.id, {
+        dateOfBirth: '1986-07-07',
+        gender: 'F',
+      });
       expect(promoted.status).toBe('ACTIVE');
       expect(promoted.personId).toBeTruthy();
       // The new iam_person carries the placeholder's name.
@@ -1182,7 +1288,7 @@ describe('integration:m00-platform/family-children', () => {
       });
       expect(person?.firstName).toBe('Jane');
       expect(person?.lastName).toBe('A');
-      expect(person?.personType).toBe('EXTERNAL');
+      expect(person?.personType).toBe('GUARDIAN');
       // platform_users row exists and uses the provided email.
       const accountRows = await prisma.$queryRawUnsafe<Array<{ email: string }>>(
         `SELECT email FROM platform.platform_users WHERE person_id = $1::uuid`,
@@ -1241,7 +1347,10 @@ describe('integration:m00-platform/family-children', () => {
         firstName: 'Sectioned',
         lastName: 'Child',
       });
-      const linked = await controller.createAccount(reqA(), placeholder.id, {});
+      const linked = await controller.createAccount(reqA(), placeholder.id, {
+        dateOfBirth: '2014-03-03',
+        gender: 'F',
+      });
       return linked.id;
     }
 
@@ -1336,6 +1445,62 @@ describe('integration:m00-platform/family-children', () => {
       expect(updatedDietary.dietaryType).toBe('VEGETARIAN');
       expect(updatedDietary.additionalRestrictions).toBe('No mushrooms.');
     });
+
+    // ─── FIX 3: family no-doctor/no-insurance flags inherit ──
+
+    it('Use-family child inherits the family explicit no-doctor/no-insurance flags', async () => {
+      const childId = await linkedChild();
+      // Family explicitly marks "we have none" for both.
+      await controller.patchSettings(reqA(), {
+        hasFamilyDoctor: false,
+        hasInsurance: false,
+      });
+      // Child is on FAMILY (default) → the flags come through so the UI
+      // can render "No family doctor/insurance on file" vs blank.
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('FAMILY');
+      expect(med.hasFamilyDoctor).toBe(false);
+      expect(med.hasInsurance).toBe(false);
+    });
+
+    it('Use-family child inherits family doctor details when the family HAS one', async () => {
+      const childId = await linkedChild();
+      await controller.patchSettings(reqA(), {
+        hasFamilyDoctor: true,
+        doctorName: 'Dr. Family Practice',
+        hasInsurance: true,
+        insuranceProvider: 'Acme Health',
+      });
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('FAMILY');
+      expect(med.hasFamilyDoctor).toBe(true);
+      expect(med.doctorName).toBe('Dr. Family Practice');
+      expect(med.insuranceProvider).toBe('Acme Health');
+    });
+
+    it('family neither set nor flagged → flags null (unanswered, not "none")', async () => {
+      const childId = await linkedChild();
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.hasFamilyDoctor).toBeNull();
+      expect(med.hasInsurance).toBeNull();
+      expect(med.doctorName).toBeNull();
+    });
+
+    it('Use-custom child does not carry the family flags (they do not apply)', async () => {
+      const childId = await linkedChild();
+      await controller.patchSettings(reqA(), { hasFamilyDoctor: false, hasInsurance: false });
+      // Flip to CUSTOM with the child's own doctor.
+      await controller.updateMedical(reqA(), childId, {
+        medicalSource: 'CUSTOM',
+        doctorName: 'Dr. Child Own',
+      });
+      const med = await controller.getMedical(reqA(), childId);
+      expect(med.medicalSource).toBe('CUSTOM');
+      expect(med.doctorName).toBe('Dr. Child Own');
+      // The family's "none" flags must NOT leak into the custom view.
+      expect(med.hasFamilyDoctor).toBeNull();
+      expect(med.hasInsurance).toBeNull();
+    });
   });
 
   // ─── DTO validation — ValidationPipe round-trip ───────────
@@ -1388,6 +1553,175 @@ describe('integration:m00-platform/family-children', () => {
           { type: 'body', metatype: UpdateFamilyContactPreferencesDto },
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  // ─── Family settings: home address + country persistence ──
+
+  describe('family settings address', () => {
+    it('PATCH /family/settings persists country (home-address completeness)', async () => {
+      // The Addresses form shows "United States" by default; the
+      // completion check reads the SAVED country, so a normal save must
+      // persist it. This is the server half of that round-trip.
+      const saved = await controller.patchSettings(reqA(), {
+        addressLine1: '317 Chestnut St',
+        city: 'Galesburg',
+        state: 'KS',
+        postalCode: '66740',
+        country: 'United States',
+      });
+      expect(saved.addressLine1).toBe('317 Chestnut St');
+      expect(saved.country).toBe('United States');
+      // Re-read confirms it round-trips (not just echoed).
+      const reread = await controller.getSettings(reqA());
+      expect(reread?.country).toBe('United States');
+      // Every required home-address field is now present — the criterion
+      // (street + city + state + ZIP + country) is satisfiable on load.
+      expect(
+        Boolean(
+          reread?.addressLine1 &&
+            reread?.city &&
+            reread?.state &&
+            reread?.postalCode &&
+            reread?.country,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  // ─── FIX 2: mailing address source persistence ─────────────
+
+  describe('child mailing address source', () => {
+    it('defaults to FAMILY and round-trips a CUSTOM mailing source', async () => {
+      const c = await controller.create(reqA(), { firstName: 'Mailer', lastName: 'A' });
+      // New child defaults to inheriting the family mailing address.
+      expect(c.mailingAddressSource).toBe('FAMILY');
+
+      // Switch to a custom mailing address different from physical.
+      const updated = await controller.update(reqA(), c.id, {
+        mailingAddressSource: 'CUSTOM',
+        mailingAddressDifferent: true,
+        mailingLine1: '99 PO Box Rd',
+        mailingCity: 'Galesburg',
+        mailingState: 'KS',
+        mailingPostalCode: '66740',
+        mailingCountry: 'United States',
+      });
+      expect(updated.mailingAddressSource).toBe('CUSTOM');
+      expect(updated.mailingAddressDifferent).toBe(true);
+      expect(updated.mailingLine1).toBe('99 PO Box Rd');
+
+      // Persists across reload.
+      const reread = (await controller.list(reqA())).find((x) => x.id === c.id);
+      expect(reread?.mailingAddressSource).toBe('CUSTOM');
+      expect(reread?.mailingLine1).toBe('99 PO Box Rd');
+
+      // Switch back to FAMILY → source flips and the custom fields clear.
+      const backToFamily = await controller.update(reqA(), c.id, {
+        mailingAddressSource: 'FAMILY',
+      });
+      expect(backToFamily.mailingAddressSource).toBe('FAMILY');
+    });
+  });
+
+  // ─── Change primary guardian (spec STEP 6) ─────────────────
+
+  describe('change primary guardian', () => {
+    const families = () => new FamiliesController(service);
+
+    // A creates the family (→ HEAD_OF_HOUSEHOLD + primary). A invites a
+    // guardian; B accepts → B is an ACTIVE, non-primary guardian. Returns
+    // the family id both share.
+    async function familyWithTwoGuardians(): Promise<string> {
+      const code = (await controller.inviteGuardian(reqA(), {})).code;
+      const accept = await controller.accept(reqB(), { code });
+      if (accept.kind !== 'GUARDIAN') throw new Error('expected GUARDIAN result');
+      const view = await controller.getFamily(reqA());
+      return view!.family.id;
+    }
+
+    function primaryPersonId(view: Awaited<ReturnType<typeof controller.getFamily>>): string | null {
+      const primaries = (view?.members ?? []).filter((m) => m.isPrimaryContact);
+      // Invariant: never more than one primary.
+      expect(primaries.length).toBeLessThanOrEqual(1);
+      return primaries[0]?.personId ?? null;
+    }
+
+    it('setting B primary clears A; exactly one primary remains', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // A starts primary (family creator).
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userAPersonId);
+
+      const result = await families().setPrimaryGuardian(reqA(), familyId, {
+        guardianPersonId: userBPersonId,
+      });
+      // Star moved to B, A demoted, still exactly one.
+      expect(primaryPersonId(result)).toBe(userBPersonId);
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userBPersonId);
+    });
+
+    it('targeting a pending invite (not an active guardian) → 400', async () => {
+      // A invites but nobody accepts → a PENDING_INVITE member with a
+      // person_id that isn't an ACTIVE guardian of the family.
+      const placeholder = await controller.addMember(reqA(), { firstName: 'Pend', lastName: 'A' });
+      await controller.sendMemberInvite(reqA(), placeholder.id, {});
+      const view = await controller.getFamily(reqA());
+      const familyId = view!.family.id;
+      // A pending invite has no linked person_id, so target by a
+      // non-active person id (userB, who never joined this family).
+      await expect(
+        families().setPrimaryGuardian(reqA(), familyId, { guardianPersonId: userBPersonId }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // A is still the only primary — nothing changed.
+      expect(primaryPersonId(await controller.getFamily(reqA()))).toBe(userAPersonId);
+    });
+
+    it('cross-family caller → 404 (cannot reassign another family’s primary)', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // userB is a member here, but a brand-new unrelated person is not.
+      const outsiderPerson = generateId();
+      const outsiderAccount = generateId();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)
+         VALUES ($1::uuid, 'Out', 'Sider', 'GUARDIAN', true) ON CONFLICT (id) DO NOTHING`,
+        outsiderPerson,
+      );
+      try {
+        await expect(
+          families().setPrimaryGuardian(reqFor(outsiderPerson, outsiderAccount), familyId, {
+            guardianPersonId: userBPersonId,
+          }),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      } finally {
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
+          outsiderPerson,
+        );
+      }
+    });
+
+    it('reassigning primary does NOT change edit rights / guardianship', async () => {
+      const familyId = await familyWithTwoGuardians();
+      // Both A and B are active guardians of the family before…
+      const before = await controller.getFamily(reqA());
+      const aRoleBefore = before!.members.find((m) => m.personId === userAPersonId)?.memberRole;
+      const bRoleBefore = before!.members.find((m) => m.personId === userBPersonId)?.memberRole;
+
+      await families().setPrimaryGuardian(reqA(), familyId, { guardianPersonId: userBPersonId });
+
+      const after = await controller.getFamily(reqA());
+      // Member roles (the guardianship signal) are unchanged for both —
+      // only is_primary_contact moved.
+      expect(after!.members.find((m) => m.personId === userAPersonId)?.memberRole).toBe(
+        aRoleBefore,
+      );
+      expect(after!.members.find((m) => m.personId === userBPersonId)?.memberRole).toBe(
+        bRoleBefore,
+      );
+      // A is still a guardian (still present, ACTIVE) after losing primary.
+      const aAfter = after!.members.find((m) => m.personId === userAPersonId);
+      expect(aAfter?.status).toBe('ACTIVE');
+      expect(aAfter?.isPrimaryContact).toBe(false);
     });
   });
 });

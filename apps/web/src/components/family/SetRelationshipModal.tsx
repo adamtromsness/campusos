@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
+import { useAuthStore } from '@/lib/auth-store';
 import { usePeopleSearch, type PeopleSearchResult } from '@/hooks/use-family-children';
 import {
   CUSTODY_LABELS,
@@ -70,6 +71,14 @@ const CUSTODY_VALUES: CustodyArrangement[] = [
 // a spouse/partner link between two adults.
 const NON_CUSTODY_TYPES = new Set<string>(['SPOUSE', 'DOMESTIC_PARTNER']);
 
+// The slot word for the "This is me" shortcut, by mode. Offered on the
+// parentage modals only (Set Mother / Set Father) — the primary "I am
+// this child's parent" flow.
+const SELF_SLOT_WORD: Partial<Record<RelationshipModalMode, string>> = {
+  mother: 'mother',
+  father: 'father',
+};
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -81,6 +90,7 @@ interface Props {
 export function SetRelationshipModal({ open, onClose, personId, mode }: Props) {
   const { toast } = useToast();
   const create = useCreateRelationship(personId);
+  const currentUser = useAuthStore((s) => s.user);
 
   const typeOptions = TYPE_OPTIONS[mode];
   const [type, setType] = useState<CreatableRelationshipType>(typeOptions[0]!);
@@ -93,8 +103,27 @@ export function SetRelationshipModal({ open, onClose, personId, mode }: Props) {
   const [notes, setNotes] = useState('');
   const [startDate, setStartDate] = useState('');
 
-  const search = usePeopleSearch(query, open && !selected);
+  // includeSelf so a parent can find + pick themselves in the search too.
+  const search = usePeopleSearch(query, open && !selected, true);
   const showCustody = !NON_CUSTODY_TYPES.has(type);
+
+  // "This is me" is offered on the parentage modals only, and never on
+  // the subject's own profile (you can't be your own parent).
+  const selfSlotWord = SELF_SLOT_WORD[mode];
+  const canSelectSelf =
+    !!currentUser && !!selfSlotWord && currentUser.personId !== personId && !selected;
+
+  function selectSelf() {
+    if (!currentUser) return;
+    setSelected({
+      id: currentUser.personId,
+      firstName: currentUser.firstName ?? currentUser.displayName ?? 'You',
+      lastName: currentUser.lastName ?? '',
+      preferredName: currentUser.preferredName ?? null,
+      email: currentUser.email ?? null,
+      primaryPhone: null,
+    });
+  }
 
   // Reset the form each time the modal (re)opens or the mode changes.
   useEffect(() => {
@@ -184,6 +213,15 @@ export function SetRelationshipModal({ open, onClose, personId, mode }: Props) {
             </div>
           ) : (
             <>
+              {canSelectSelf && (
+                <button
+                  type="button"
+                  onClick={selectSelf}
+                  className="mb-2 flex w-full items-center justify-center rounded-md bg-campus-700 px-3 py-2 text-sm font-medium text-white hover:bg-campus-800"
+                >
+                  This is me — set myself as {selfSlotWord}
+                </button>
+              )}
               <input
                 type="text"
                 value={query}

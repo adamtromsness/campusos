@@ -208,6 +208,10 @@ model IamPerson {
   // mailingAddressDifferent for natural UI copy. Same pattern as
   // platform_families.mailingAddressSame.
   mailingSameAsHome      Boolean @default(true) @map("mailing_same_as_home")
+  // Mailing source mirrors addressSource (FIX 2): 'FAMILY' inherits the
+  // family mailing address; 'CUSTOM' uses mailingSameAsHome to pick
+  // same-as-physical (true) vs custom mailing fields (false).
+  mailingAddressSource   String  @default("FAMILY") @map("mailing_address_source")
   customMailingLine1     String? @map("custom_mailing_line1")
   customMailingLine2     String? @map("custom_mailing_line2")
   customMailingCity      String? @map("custom_mailing_city")
@@ -388,6 +392,10 @@ model PlatformFamilyChild {
   customState              String?   @map("custom_state")
   customPostalCode         String?   @map("custom_postal_code")
   customCountry            String?   @map("custom_country")
+  // Mailing source mirrors addressSource (FIX 2): 'FAMILY' inherits the
+  // family mailing address; 'CUSTOM' uses mailingAddressDifferent to pick
+  // same-as-physical (false) vs custom mailing fields (true).
+  mailingAddressSource     String    @default("FAMILY") @map("mailing_address_source")
   mailingAddressDifferent  Boolean   @default(false) @map("mailing_address_different")
   mailingLine1             String?   @map("mailing_line1")
   mailingLine2             String?   @map("mailing_line2")
@@ -720,6 +728,25 @@ model PlatformPersonRelationship {
   @@index([personId])
   @@index([relatedPersonId])
   @@map("platform_person_relationships")
+  @@schema("platform")
+}
+
+// Guardian edit-access consent (age + consent model). Directional state per
+// (guardian, subject) pair. Consulted ONLY when the subject is 18+; under-18
+// guardians edit unconditionally. An ABSENT row reads as GRANTED (carryover —
+// no lockout on deploy); rows are materialised only for a new-guardian-after-18
+// (REVOKED) or an explicit grant/revoke by the adult. The CHECK constraints and
+// the (guardian, subject) unique index live in the migration.
+model PlatformGuardianEditConsent {
+  id               String   @id @db.Uuid
+  guardianPersonId String   @map("guardian_person_id") @db.Uuid
+  subjectPersonId  String   @map("subject_person_id") @db.Uuid
+  state            String
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz()
+
+  @@index([subjectPersonId])
+  @@map("platform_guardian_edit_consent")
   @@schema("platform")
 }
 

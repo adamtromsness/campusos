@@ -9,7 +9,9 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomInt } from 'crypto';
 import { generateId } from '@campusos/database';
+import { normalizeGender } from '@campusos/shared';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import {
   AddPersonEmailDto,
   AddPersonPhoneDto,
@@ -97,6 +99,7 @@ interface FamilyChildRow {
   custom_state: string | null;
   custom_postal_code: string | null;
   custom_country: string | null;
+  mailing_address_source: string;
   mailing_address_different: boolean;
   mailing_line1: string | null;
   mailing_line2: string | null;
@@ -165,6 +168,7 @@ export class FamilyChildrenService {
     private readonly prisma: PrismaClient,
     private readonly personaResolution: PersonaResolutionService,
     private readonly redis: RedisService,
+    private readonly relationships: RelationshipService,
   ) {}
 
   // ─── /family — composite view ──────────────────────────────
@@ -249,7 +253,21 @@ export class FamilyChildrenService {
                   LIMIT 1),
                 pfm.email
               ) AS email,
-              p.primary_phone AS primary_phone,
+              -- Primary phone mirrors the email resolution above: prefer
+              -- the multi-row platform_person_phones list (where the
+              -- Contact tab actually writes numbers), then fall back to
+              -- the denormalised iam_person.primary_phone cache. Reading
+              -- only the cache was a guardian-completeness false negative
+              -- — a guardian whose number lived solely in the phone list
+              -- read as phone-less (spec STEP 2).
+              COALESCE(
+                (SELECT pp.number
+                   FROM platform.platform_person_phones pp
+                  WHERE pp.person_id = pfm.person_id
+                  ORDER BY pp.is_primary DESC, pp.created_at ASC
+                  LIMIT 1),
+                p.primary_phone
+              ) AS primary_phone,
               -- Primary phone + email TYPE for the read-only Guardian
               -- Contacts panel on the child Contact tab. Null when
               -- the row hasn't been seeded yet (e.g. PLACEHOLDER).
@@ -329,7 +347,10 @@ export class FamilyChildrenService {
       viewerRole: resolved.role,
       viewerPersonId: personId,
       members,
-      children: childRows.map((r) => this.toDto(r, familyGuardians)),
+      children: await this.decorateCanEdit(
+        personId,
+        childRows.map((r) => this.toDto(r, familyGuardians)),
+      ),
     };
   }
 
@@ -651,6 +672,70 @@ export class FamilyChildrenService {
     return refreshed;
   }
 
+  /**
+   * Reassign the family's primary contact to a different ACTIVE guardian
+   * (spec STEP 6). "Primary" is a contact/label designation only — this
+   * deliberately touches ONLY platform_family_members.is_primary_contact
+   * and never guardianship or edit rights (canEditFamilyStructure /
+   * isActiveGuardianOf read other signals, so they're unaffected).
+   *
+   * Authorisation: the caller must be a member of `familyId` (any active
+   * guardian may reassign — the permissive co-guardian model). The target
+   * must be an ACTIVE guardian of the SAME family (a pending invite or a
+   * non-member → 400). The demote-old/promote-new pair runs in one tx so
+   * the (family_id) WHERE is_primary_contact = true partial UNIQUE never
+   * sees two primaries and the family is never left with zero.
+   */
+  async setPrimaryGuardian(
+    callerPersonId: string,
+    familyId: string,
+    guardianPersonId: string,
+  ): Promise<FamilyViewDto | null> {
+    // Caller must belong to the target family (cross-family → 404, so we
+    // don't leak the existence of another family).
+    const callerMember = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id FROM platform.platform_family_members
+        WHERE family_id = $1::uuid AND person_id = $2::uuid LIMIT 1`,
+      familyId,
+      callerPersonId,
+    );
+    if (callerMember.length === 0) {
+      throw new NotFoundException('Family not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Target must be an ACTIVE guardian of this family. Pending invites
+      // (status != ACTIVE) and non-members are rejected.
+      const target = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text AS id FROM platform.platform_family_members
+          WHERE family_id = $1::uuid AND person_id = $2::uuid
+            AND status = 'ACTIVE' LIMIT 1`,
+        familyId,
+        guardianPersonId,
+      );
+      if (target.length === 0) {
+        throw new BadRequestException(
+          'The chosen person is not an active guardian of this family.',
+        );
+      }
+      // Demote the current primary first (partial UNIQUE forbids two).
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+            SET is_primary_contact = false, updated_at = now()
+          WHERE family_id = $1::uuid AND is_primary_contact = true`,
+        familyId,
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_family_members
+            SET is_primary_contact = true, updated_at = now()
+          WHERE id = $1::uuid`,
+        target[0]!.id,
+      );
+    });
+
+    return this.getFamilyView(callerPersonId);
+  }
+
   // ─── Family contact preferences (per-category routing) ────
 
   /**
@@ -659,6 +744,19 @@ export class FamilyChildrenService {
    * member) and no preference rows exist, we seed all 8 categories
    * to that primary in a single tx. Otherwise the response is empty
    * and the UI falls back to "Not set" placeholders.
+   *
+   * This IS the default-communication-preferences seed (spec STEP 4):
+   * the family creator is inserted as HEAD_OF_HOUSEHOLD with
+   * is_primary_contact = true at family creation, so the first read of
+   * this endpoint routes all 8 operational categories to that primary —
+   * preferences are never "unset" in practice. All 8 categories are
+   * operational/transactional (GENERAL, ELECTRONIC_APPROVALS,
+   * TRANSPORTATION, HEALTH_MEDICAL, BILLING_FINANCIAL, ACADEMIC,
+   * BEHAVIOUR_DISCIPLINE, EMERGENCY) — none is a marketing / explicit-
+   * consent channel, so seeding a default routing opts the user into
+   * nothing that requires consent. The completion criteria no longer
+   * require the user to actively customise these (the "customised"
+   * check was dropped); they remain freely editable via PATCH.
    *
    * CHILD viewers can read the preferences too (they're not secret —
    * the child can see who's routed for what). Only PARENT can
@@ -1176,7 +1274,10 @@ export class FamilyChildrenService {
       this.selectSql() + 'WHERE pfc.family_id = $1::uuid ORDER BY pfc.created_at ASC',
       familyId,
     );
-    return rows.map((r) => this.toDto(r, familyGuardians));
+    return this.decorateCanEdit(
+      personId,
+      rows.map((r) => this.toDto(r, familyGuardians)),
+    );
   }
 
   async create(personId: string, dto: CreateFamilyChildDto): Promise<FamilyChildDto> {
@@ -1195,7 +1296,9 @@ export class FamilyChildrenService {
       dto.lastName,
       dto.preferredName ?? null,
       dto.dateOfBirth ?? null,
-      dto.gender ?? null,
+      // Canonicalise on write (FIX 1) so storage matches the option set,
+      // not just the read projection. null stays null (unset).
+      dto.gender != null ? normalizeGender(dto.gender) : null,
     );
     return this.requireById(id, personId);
   }
@@ -1208,17 +1311,19 @@ export class FamilyChildrenService {
     const row = await this.requireOwnedRow(personId, childId);
     const familyGuardians = await this.loadFamilyGuardianPersonIds(personId);
 
-    // INDEPENDENT children own their own identity — only the account
-    // holder (or an admin via a future surface) can edit. The caller
-    // can still see the row via GET because they're a parent in the
-    // family, but PATCH refuses. Co-guardians share MANAGED rights
-    // when the managing person is anywhere in the family.
-    const accessLevel = computeAccessLevel(row.status, row.managed_by_person_id, familyGuardians);
-    if (accessLevel === 'INDEPENDENT') {
-      throw new HttpException(
-        'This account is managed by the account holder. You can view but not edit their information.',
-        HttpStatus.FORBIDDEN,
-      );
+    // Identity edit on a LINKED account is governed by the age + consent
+    // model (canGuardianEdit), NOT the "Independent" flag — which is now
+    // descriptive only (a self-login indicator). Under 18 a guardian edits
+    // unconditionally; at 18+ only while the now-adult has not revoked the
+    // caller's access. PLACEHOLDER / PENDING rows have no account holder yet,
+    // so they stay editable by any family member as before (roster stubs).
+    if (row.status === 'LINKED' && row.person_id) {
+      if (!(await this.relationships.canGuardianEdit(personId, row.person_id))) {
+        throw new HttpException(
+          'You do not have permission to edit this account. The account holder may have revoked your access.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
     }
 
     // For LINKED children, the iam_person row is the canonical source
@@ -1257,7 +1362,8 @@ export class FamilyChildrenService {
     }
     if (dto.gender !== undefined) {
       childSet.push('gender = $' + ci++);
-      childArgs.push(dto.gender);
+      // Canonicalise on write (FIX 1); preserve null (unset).
+      childArgs.push(dto.gender != null ? normalizeGender(dto.gender) : null);
     }
     if (dto.emergencyContactSource !== undefined) {
       childSet.push('emergency_contact_source = $' + ci++);
@@ -1268,6 +1374,7 @@ export class FamilyChildrenService {
     // empty input to clear a previously-saved value.
     const addressCols: Array<[keyof typeof dto, string]> = [
       ['addressSource', 'address_source'],
+      ['mailingAddressSource', 'mailing_address_source'],
       ['customAddressLine1', 'custom_address_line1'],
       ['customAddressLine2', 'custom_address_line2'],
       ['customCity', 'custom_city'],
@@ -1298,7 +1405,9 @@ export class FamilyChildrenService {
       if (dto.middleName !== undefined) personPatch.middleName = dto.middleName;
       if (dto.lastName !== undefined) personPatch.lastName = dto.lastName;
       if (dto.preferredName !== undefined) personPatch.preferredName = dto.preferredName;
-      if (dto.gender !== undefined) personPatch.gender = dto.gender;
+      if (dto.gender !== undefined) {
+        personPatch.gender = dto.gender != null ? normalizeGender(dto.gender) : null;
+      }
       if (dto.primaryPhone !== undefined) personPatch.primaryPhone = dto.primaryPhone;
       if (dto.notes !== undefined) personPatch.notes = dto.notes;
       if (dto.dateOfBirth !== undefined) {
@@ -1307,7 +1416,8 @@ export class FamilyChildrenService {
     }
 
     if (childSet.length === 0 && Object.keys(personPatch).length === 0) {
-      return this.toDto(row, familyGuardians);
+      const [dto] = await this.decorateCanEdit(personId, [this.toDto(row, familyGuardians)]);
+      return dto!;
     }
 
     const linkedPersonId = row.person_id;
@@ -1418,8 +1528,15 @@ export class FamilyChildrenService {
         `Cannot create account for child in status ${row.status}; expected PLACEHOLDER`,
       );
     }
-    const ageYears = row.date_of_birth ? ageInYears(row.date_of_birth) : null;
-    if (dto.email && ageYears !== null && ageYears < 13) {
+    // Account Creation spec, Step 2 — DOB + gender required to provision
+    // the account. Effective values prefer the create-account payload,
+    // then fall back to whatever the PLACEHOLDER row already carries.
+    const { dateOfBirth, gender } = requireAccountIdentity(
+      dto.dateOfBirth ?? row.date_of_birth,
+      dto.gender ?? row.gender,
+    );
+    const ageYears = ageInYears(dateOfBirth);
+    if (dto.email && ageYears < 13) {
       throw new BadRequestException(
         'Under-13 accounts are parent-managed and cannot have their own email (COPPA)',
       );
@@ -1427,16 +1544,24 @@ export class FamilyChildrenService {
     const newPersonId = generateId();
     const newAccountId = generateId();
     const emailForAccount = dto.email ?? this.syntheticChildEmail(newPersonId);
+    // Step 4 — age-based person_type. A child created here is ≤18 in the
+    // common case (STUDENT); the helper keeps the >18 edge consistent.
+    const personType = personTypeForAge(dateOfBirth);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
+        // person_type is a Postgres ENUM ("PersonType"); a bound param
+        // arrives as text and won't auto-coerce, so cast it explicitly.
+        // (The pre-existing code used a string literal, which did coerce.)
         `INSERT INTO platform.iam_person
-           (id, first_name, last_name, date_of_birth, person_type, is_active, created_at)
-         VALUES ($1::uuid, $2, $3, $4::date, 'STUDENT', true, now())`,
+           (id, first_name, last_name, date_of_birth, gender, person_type, is_active, created_at)
+         VALUES ($1::uuid, $2, $3, $4::date, $5, $6::"PersonType", true, now())`,
         newPersonId,
         row.first_name,
         row.last_name,
-        row.date_of_birth,
+        dateOfBirth,
+        gender,
+        personType,
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO platform.platform_users
@@ -1451,17 +1576,33 @@ export class FamilyChildrenService {
         personId,
       );
       await tx.$executeRawUnsafe(
+        // Mirror the effective DOB/gender back onto the family_children
+        // row so the parent's family view stays consistent with the
+        // child's iam_person even when these were supplied (gap-filled)
+        // at account-creation rather than on the original placeholder.
         `UPDATE platform.platform_family_children
            SET person_id = $1::uuid,
                status = 'LINKED',
+               date_of_birth = $3::date,
+               gender = $4,
                linked_at = now(),
                updated_at = now()
          WHERE id = $2::uuid`,
         newPersonId,
         childId,
+        dateOfBirth,
+        gender,
       );
     });
 
+    // Guardian bootstrap (Family Structure on Profiles spec, Step 2):
+    // the creating parent can edit this child's family structure
+    // immediately because they are now an ACTIVE guardian-role member
+    // (HEAD_OF_HOUSEHOLD) of the family that holds this LINKED child —
+    // which is exactly what RelationshipService.isActiveGuardianOf's
+    // household path recognises. No explicit relationship row is created
+    // here (the parent sets the precise biological/adoptive/step type via
+    // the Set Relationship modal); the household membership is the link.
     await this.refreshPersonaCacheSafe(personId);
     return this.requireById(childId, personId);
   }
@@ -1860,17 +2001,29 @@ export class FamilyChildrenService {
     if (row.status === 'ACTIVE') {
       throw new BadRequestException('Member already has an account.');
     }
+    // Account Creation spec, Step 2 — DOB + gender required. The member
+    // table has no DOB/gender columns, so these come from the DTO only.
+    const { dateOfBirth, gender } = requireAccountIdentity(dto.dateOfBirth, dto.gender);
+    // Step 4 — adults created via the family flow are GUARDIAN (no ADULT
+    // person_type exists; personas remain derived). The >18-also-a-student
+    // case is a UI-variant concern only and does not change person_type.
+    const personType = personTypeForAge(dateOfBirth);
     const newPersonId = generateId();
     const newAccountId = generateId();
     const email = dto.email?.trim() || row.email || this.syntheticGuardianEmail(newPersonId);
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
+        // person_type is a Postgres ENUM ("PersonType"); cast the bound
+        // param so it doesn't arrive as uncoerced text.
         `INSERT INTO platform.iam_person
-           (id, first_name, last_name, person_type, is_active, created_at)
-         VALUES ($1::uuid, $2, $3, 'EXTERNAL', true, now())`,
+           (id, first_name, last_name, date_of_birth, gender, person_type, is_active, created_at)
+         VALUES ($1::uuid, $2, $3, $4::date, $5, $6::"PersonType", true, now())`,
         newPersonId,
         row.first_name ?? '',
         row.last_name ?? '',
+        dateOfBirth,
+        gender,
+        personType,
       );
       await tx.$executeRawUnsafe(
         // managed_by_person_id = the parent who created the account.
@@ -2547,7 +2700,8 @@ export class FamilyChildrenService {
     const row = await this.findById(childId);
     if (!row) throw new NotFoundException('Family child not found');
     const familyGuardians = await this.loadFamilyGuardianPersonIds(viewerPersonId);
-    return this.toDto(row, familyGuardians);
+    const [dto] = await this.decorateCanEdit(viewerPersonId, [this.toDto(row, familyGuardians)]);
+    return dto!;
   }
 
   private async findById(childId: string): Promise<FamilyChildRow | null> {
@@ -2592,6 +2746,7 @@ export class FamilyChildrenService {
       '  pfc.address_source, ' +
       '  pfc.custom_address_line1, pfc.custom_address_line2, ' +
       '  pfc.custom_city, pfc.custom_state, pfc.custom_postal_code, pfc.custom_country, ' +
+      '  pfc.mailing_address_source, ' +
       '  pfc.mailing_address_different, ' +
       '  pfc.mailing_line1, pfc.mailing_line2, pfc.mailing_city, ' +
       '  pfc.mailing_state, pfc.mailing_postal_code, pfc.mailing_country, ' +
@@ -2617,11 +2772,17 @@ export class FamilyChildrenService {
       lastName: r.last_name,
       preferredName: r.preferred_name,
       dateOfBirth: r.date_of_birth,
-      gender: r.gender,
+      // Normalise to the canonical option set on read (FIX 1) so a legacy
+      // 'F'/'M' or other stored value always renders as a valid option.
+      gender: normalizeGender(r.gender),
       primaryPhone: r.primary_phone,
       notes: r.notes,
       status: r.status as FamilyChildDto['status'],
       accessLevel: computeAccessLevel(r.status, r.managed_by_person_id, familyGuardians),
+      // Default: editable for pre-account roster stubs; LINKED accounts get
+      // the real, caller-relative value from decorateCanEdit (age + consent).
+      // Conservative until decorated — never falsely show edit on a LINKED row.
+      canEdit: r.status !== 'LINKED',
       emergencyContactSource:
         r.emergency_contact_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY',
       addressSource: (r.address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
@@ -2633,6 +2794,9 @@ export class FamilyChildrenService {
       customState: r.custom_state,
       customPostalCode: r.custom_postal_code,
       customCountry: r.custom_country,
+      mailingAddressSource: (r.mailing_address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
       mailingAddressDifferent: r.mailing_address_different,
       mailingLine1: r.mailing_line1,
       mailingLine2: r.mailing_line2,
@@ -2647,6 +2811,24 @@ export class FamilyChildrenService {
       linkedAt: r.linked_at,
       createdAt: r.created_at,
     };
+  }
+
+  /**
+   * Stamp the caller-relative `canEdit` on FamilyChildDtos via the age +
+   * consent predicate. LINKED accounts run through canGuardianEdit; pre-account
+   * stubs (PLACEHOLDER / PENDING) keep the toDto default (editable roster
+   * stub). Mutates in place and returns the same array.
+   */
+  private async decorateCanEdit(
+    callerPersonId: string,
+    dtos: FamilyChildDto[],
+  ): Promise<FamilyChildDto[]> {
+    for (const d of dtos) {
+      if (d.status === 'LINKED' && d.personId) {
+        d.canEdit = await this.relationships.canGuardianEdit(callerPersonId, d.personId);
+      }
+    }
+    return dtos;
   }
 
   /**
@@ -2892,6 +3074,29 @@ export class FamilyChildrenService {
     return { familyId: row.family_id, personId: row.person_id };
   }
 
+  /**
+   * Write gate for a LINKED child's per-section data (identity / medical /
+   * dietary / emergency / contacts). Layers the age + consent model on top of
+   * cross-family isolation + the LINKED check: the caller must pass
+   * `canGuardianEdit` for the child — an active guardian AND (child under 18 →
+   * unconditional, regardless of the descriptive "Independent" flag; child 18+
+   * → the now-adult has not revoked the caller's access). Reads stay on
+   * `requireLinkedChildOwned` (a guardian can always view).
+   */
+  private async assertCanEditLinkedChild(
+    callerPersonId: string,
+    childId: string,
+  ): Promise<{ familyId: string; personId: string }> {
+    const owned = await this.requireLinkedChildOwned(callerPersonId, childId);
+    if (!(await this.relationships.canGuardianEdit(callerPersonId, owned.personId))) {
+      throw new HttpException(
+        'You do not have permission to edit this account. The account holder may have revoked your access.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return owned;
+  }
+
   async getChildMedical(callerPersonId: string, childId: string): Promise<ChildMedicalInfoDto> {
     const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
     const row = await this.prisma.platformChildMedicalInfo.findUnique({
@@ -2906,7 +3111,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: UpdateChildMedicalInfoDto,
   ): Promise<ChildMedicalInfoDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const upsertId = generateId();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_child_medical_info
@@ -2965,6 +3170,8 @@ export class FamilyChildrenService {
     insuranceProvider: string | null;
     insurancePolicy: string | null;
     insuranceGroup: string | null;
+    hasFamilyDoctor: boolean | null;
+    hasInsurance: boolean | null;
   } | null> {
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
@@ -2974,10 +3181,17 @@ export class FamilyChildrenService {
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        has_family_doctor: boolean | null;
+        has_insurance: boolean | null;
       }>
     >(
+      // has_family_doctor / has_insurance are the family's explicit
+      // three-state flags (true / false="we have none" / null=unanswered).
+      // Carried through so the child's inherited view can show "No family
+      // doctor on file" instead of empty dashes for the false case.
       `SELECT doctor_name, doctor_phone, doctor_clinic,
-              insurance_provider, insurance_policy, insurance_group
+              insurance_provider, insurance_policy, insurance_group,
+              has_family_doctor, has_insurance
        FROM platform.platform_families WHERE id = $1::uuid LIMIT 1`,
       familyId,
     );
@@ -2990,6 +3204,8 @@ export class FamilyChildrenService {
       insuranceProvider: r.insurance_provider,
       insurancePolicy: r.insurance_policy,
       insuranceGroup: r.insurance_group,
+      hasFamilyDoctor: r.has_family_doctor,
+      hasInsurance: r.has_insurance,
     };
   }
 
@@ -3016,6 +3232,8 @@ export class FamilyChildrenService {
       insuranceProvider: string | null;
       insurancePolicy: string | null;
       insuranceGroup: string | null;
+      hasFamilyDoctor: boolean | null;
+      hasInsurance: boolean | null;
     } | null,
   ): ChildMedicalInfoDto {
     if (!row) {
@@ -3036,6 +3254,11 @@ export class FamilyChildrenService {
         insuranceGroup: family?.insuranceGroup ?? null,
         bloodType: null,
         medicalNotes: null,
+        // FAMILY mode (default for a child with no own row): pass the
+        // family's explicit none/unanswered flags through so the UI shows
+        // "No family doctor on file" rather than blank when false.
+        hasFamilyDoctor: family?.hasFamilyDoctor ?? null,
+        hasInsurance: family?.hasInsurance ?? null,
       };
     }
     const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
@@ -3056,6 +3279,11 @@ export class FamilyChildrenService {
       insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
+      // The family's none/unanswered flags are meaningful only while the
+      // child inherits (FAMILY). In CUSTOM the child's own record governs,
+      // so the flags don't apply → null.
+      hasFamilyDoctor: useFamily ? family!.hasFamilyDoctor : null,
+      hasInsurance: useFamily ? family!.hasInsurance : null,
     };
   }
 
@@ -3109,7 +3337,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddPersonPhoneDto,
   ): Promise<PersonPhoneDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findMany({
       where: { personId },
       select: { id: true, isPrimary: true },
@@ -3152,7 +3380,7 @@ export class FamilyChildrenService {
     phoneId: string,
     dto: UpdatePersonPhoneDto,
   ): Promise<PersonPhoneDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findUnique({
       where: { id: phoneId },
     });
@@ -3212,7 +3440,7 @@ export class FamilyChildrenService {
     childId: string,
     phoneId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonPhone.findUnique({
       where: { id: phoneId },
     });
@@ -3327,7 +3555,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddPersonEmailDto,
   ): Promise<PersonEmailDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const normalised = dto.email.trim();
     if (!normalised) throw new BadRequestException('Email is required.');
     const existing = await this.prisma.platformPersonEmail.findMany({
@@ -3376,7 +3604,7 @@ export class FamilyChildrenService {
     emailId: string,
     dto: UpdatePersonEmailDto,
   ): Promise<PersonEmailDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonEmail.findUnique({
       where: { id: emailId },
     });
@@ -3424,7 +3652,7 @@ export class FamilyChildrenService {
     childId: string,
     emailId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformPersonEmail.findUnique({
       where: { id: emailId },
     });
@@ -3491,7 +3719,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: AddChildEmergencyContactDto,
   ): Promise<ChildEmergencyContactDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const id = generateId();
     try {
       await this.prisma.platformChildEmergencyContact.create({
@@ -3527,7 +3755,7 @@ export class FamilyChildrenService {
     contactId: string,
     dto: UpdateChildEmergencyContactDto,
   ): Promise<ChildEmergencyContactDto> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformChildEmergencyContact.findUnique({
       where: { id: contactId },
     });
@@ -3557,7 +3785,7 @@ export class FamilyChildrenService {
     childId: string,
     contactId: string,
   ): Promise<void> {
-    const { personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const existing = await this.prisma.platformChildEmergencyContact.findUnique({
       where: { id: contactId },
     });
@@ -3602,7 +3830,7 @@ export class FamilyChildrenService {
     childId: string,
     dto: UpdateChildDietaryInfoDto,
   ): Promise<ChildDietaryInfoDto> {
-    const { familyId, personId } = await this.requireLinkedChildOwned(callerPersonId, childId);
+    const { familyId, personId } = await this.assertCanEditLinkedChild(callerPersonId, childId);
     const upsertId = generateId();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO platform.platform_child_dietary_info
@@ -3667,4 +3895,64 @@ function ageInYears(dateOfBirth: string): number {
   const m = now.getUTCMonth() - dob.getUTCMonth();
   if (m < 0 || (m === 0 && now.getUTCDate() < dob.getUTCDate())) age--;
   return age;
+}
+
+/**
+ * Account Creation spec, Step 2 — DOB + gender are required to provision
+ * a real user-facing account (createAccountForChild / createAccountForMember).
+ * Returns the validated, normalised pair or throws a field-scoped 400.
+ *
+ * Enforced ONLY at account creation, not on the PLACEHOLDER create()
+ * primitive (which stays a low-friction roster stub) nor on the other-
+ * domain account paths (auth.register, SIS, HR, config import) which own
+ * their own validators.
+ *
+ * `dob` / `gender` are the effective values (caller resolves dto ?? row).
+ * A future DOB is rejected; gender must be non-empty after trim.
+ */
+function requireAccountIdentity(
+  dob: string | null | undefined,
+  gender: string | null | undefined,
+): { dateOfBirth: string; gender: string } {
+  const trimmedGender = (gender ?? '').trim();
+  if (!dob) {
+    throw new BadRequestException({
+      message: 'Date of birth is required',
+      field: 'dateOfBirth',
+    });
+  }
+  const parsed = new Date(dob);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException({ message: 'Date of birth is invalid', field: 'dateOfBirth' });
+  }
+  // Compare date-only (UTC midnight) so "born today" is allowed but any
+  // future calendar date is rejected.
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  if (parsed.getTime() > todayUtc) {
+    throw new BadRequestException({
+      message: 'Date of birth cannot be in the future',
+      field: 'dateOfBirth',
+    });
+  }
+  if (!trimmedGender) {
+    throw new BadRequestException({ message: 'Gender is required', field: 'gender' });
+  }
+  // Store the canonical value (FIX 1). "Not Specified" is a valid
+  // satisfying choice, so only a blank submission fails the required check
+  // above — a chosen NOT_SPECIFIED passes and persists canonically.
+  return { dateOfBirth: dob, gender: normalizeGender(trimmedGender) };
+}
+
+/**
+ * Age-based person_type for the family add-person flow (Account Creation
+ * spec, Step 4). Personas remain DERIVED, never assigned — this only sets
+ * the identity-level iam_person.person_type:
+ *   - minor (≤18) OR explicitly also-a-student → STUDENT
+ *   - adult (>18) non-student                  → GUARDIAN
+ * The student-variant choice for an adult is a UI/redirect concern with
+ * no durable backend state; it does not change person_type.
+ */
+function personTypeForAge(dateOfBirth: string): 'STUDENT' | 'GUARDIAN' {
+  return ageInYears(dateOfBirth) <= 18 ? 'STUDENT' : 'GUARDIAN';
 }

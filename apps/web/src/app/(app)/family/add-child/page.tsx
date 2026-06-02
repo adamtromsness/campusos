@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { GENDERS, GENDER_LABELS } from '@campusos/shared';
 import { ApiError } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   useAcceptFamilyLink,
+  useCheckDuplicate,
   useCreateFamilyChild,
   useGenerateFamilyCode,
+  type CheckDuplicateResult,
   type GenerateLinkCodeDto,
 } from '@/hooks/use-family-children';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -17,31 +20,30 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 
 /**
- * Add child wizard — Section 3 of the persona-registration design.
+ * Add a person — Account Creation spec (layout, required DOB+gender,
+ * duplicate detection, age-based variant). Generalises the original
+ * add-child wizard: the Step-1 form now mirrors the profile Account tab
+ * and the account it creates is a managed minor (≤18) or a managed adult
+ * (>18, person_type GUARDIAN) with an optional "also a student" variant.
  *
  * Two steps:
  *
- *   Step 1 — Basic info (first / last / DOB / gender)
+ *   Step 1 — Identity. First / middle / last / preferred / email /
+ *            DOB* / gender* (both required to create an account). For
+ *            adults, an explicit "also a student" opt-in. As the form is
+ *            filled we run a privacy-safe duplicate check (email-blur or
+ *            once name+DOB are present) and, on a strong match, offer to
+ *            link the existing account instead of creating a duplicate.
  *
- *   Step 2 — Account decision. Three options:
- *
- *     A) "They don't have an account yet"
- *        Persist PLACEHOLDER, redirect to /family. Parent can create
- *        the account or send a link later.
- *
- *     B) "I have their link code"
- *        Persist PLACEHOLDER, then immediately call POST /family/link
- *        with the supplied 8-char code. On 404, surface inline ("Code
- *        not found"); the placeholder row stays so the parent can
- *        retry without re-entering the basic info.
- *
- *     C) "Create an account for them"
- *        Persist PLACEHOLDER, then call POST
- *        /family/children/:id/create-account. The COPPA gate refuses
- *        an email on under-13 accounts at the API; we mirror that
- *        client-side by disabling the email field when DOB resolves
- *        to <13.
+ *   Step 2 — Account decision (unchanged options A–D): placeholder only,
+ *            enter their link code, create an account now, or generate a
+ *            code for them to enter.
  */
+
+// The STUDENT-default age threshold from the spec (≤18). Independent of
+// the COPPA/managed-minor (<13) email rule below.
+const STUDENT_AGE_MAX = 18;
+
 export default function AddChildPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -49,19 +51,16 @@ export default function AddChildPage() {
   const user = useAuthStore((s) => s.user);
   const createChild = useCreateFamilyChild();
   const acceptLink = useAcceptFamilyLink();
-  // We pre-bind the per-child account mutation lazily — see step-2
-  // submit handlers below.
+  const checkDuplicate = useCheckDuplicate();
+
   const [step, setStep] = useState<1 | 2>(1);
-  // Default the child's last name to the parent's surname — most
-  // kids share it, and the parent can edit if not. First name stays
-  // blank because there's no sensible default. Reads from the
-  // Zustand auth store (preferredName/firstName aren't used as a
-  // surname; we only seed lastName).
+  // Default the last name to the parent's surname — most kids share it.
   const [basic, setBasic] = useState({
     firstName: '',
     middleName: '',
     lastName: user?.lastName ?? '',
     preferredName: '',
+    email: '',
     dateOfBirth: '',
     gender: '',
   });
@@ -69,17 +68,38 @@ export default function AddChildPage() {
     firstName?: string;
     lastName?: string;
     dateOfBirth?: string;
+    gender?: string;
   }>({});
+
+  // Step 4 — adult "also a student" opt-in (pre-unchecked, shown only >18).
+  const [alsoStudent, setAlsoStudent] = useState(false);
+  // Step 3 — duplicate prompt state. `dismissed` records "this is someone
+  // else" so we stop re-prompting for the same identity.
+  const [dupe, setDupe] = useState<CheckDuplicateResult | null>(null);
+  const [dupeDismissed, setDupeDismissed] = useState(false);
+
+  const age = ageInYears(basic.dateOfBirth);
+  const isAdult = age !== null && age > STUDENT_AGE_MAX;
+  // The "also a student" opt-in only applies to adults; reset it if the
+  // DOB changes back into the minor range so a stale tick can't linger.
+  useEffect(() => {
+    if (!isAdult && alsoStudent) setAlsoStudent(false);
+  }, [isAdult, alsoStudent]);
 
   function validateBasic() {
     const errs: typeof basicErrors = {};
     if (!basic.firstName.trim()) errs.firstName = 'First name is required';
     if (!basic.lastName.trim()) errs.lastName = 'Last name is required';
-    if (basic.dateOfBirth) {
+    // DOB + gender are required to create an account (spec Step 2). The
+    // server enforces the same; this is the UX mirror.
+    if (!basic.dateOfBirth) {
+      errs.dateOfBirth = 'Date of birth is required';
+    } else {
       const d = new Date(basic.dateOfBirth);
       if (Number.isNaN(d.getTime())) errs.dateOfBirth = 'Invalid date';
       else if (d > new Date()) errs.dateOfBirth = 'Date of birth cannot be in the future';
     }
+    if (!basic.gender) errs.gender = 'Gender is required';
     setBasicErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -89,10 +109,47 @@ export default function AddChildPage() {
     if (validateBasic()) setStep(2);
   }
 
-  const age = ageInYears(basic.dateOfBirth);
+  // ─── Duplicate detection ────────────────────────────────────
 
-  // Used by all three Step-2 choices. Returns the newly-created
-  // child id so the chained mutations can target it.
+  // Reset the prompt whenever the identity inputs change — a stale match
+  // for a previous name/email must not linger.
+  useEffect(() => {
+    setDupe(null);
+    setDupeDismissed(false);
+  }, [basic.email, basic.firstName, basic.lastName, basic.dateOfBirth]);
+
+  async function runDuplicateCheck() {
+    if (dupeDismissed) return;
+    const email = basic.email.trim();
+    const hasTriple =
+      !!basic.firstName.trim() && !!basic.lastName.trim() && !!basic.dateOfBirth;
+    // Strong-match inputs only — email, or the full name+DOB triple.
+    if (!email && !hasTriple) return;
+    try {
+      const result = await checkDuplicate.mutateAsync({
+        email: email || undefined,
+        firstName: basic.firstName.trim() || undefined,
+        lastName: basic.lastName.trim() || undefined,
+        dateOfBirth: basic.dateOfBirth || undefined,
+      });
+      setDupe(result.exists ? result : null);
+    } catch {
+      // A failed/rate-limited check must never block creation — just skip
+      // the hint. (429s are expected under rapid editing.)
+      setDupe(null);
+    }
+  }
+
+  async function onLinkExisting() {
+    // Direct link is only offered for accounts the caller already manages
+    // (see the prompt's conditional). The cross-owner claim-request flow
+    // is a separate, later surface; here we route the parent to /family
+    // where their managed people live.
+    toast('This person is already in your family.', 'success');
+    router.replace('/family');
+  }
+
+  // Used by all Step-2 choices. Returns the new child id.
   async function persistPlaceholder(): Promise<string> {
     const child = await createChild.mutateAsync({
       firstName: basic.firstName.trim(),
@@ -105,24 +162,30 @@ export default function AddChildPage() {
     return child.id;
   }
 
+  // Variant-appropriate landing after a real account is created. The
+  // child detail page renders the student-variant tabs for a LINKED
+  // person; both variants live there, picked by age/person_type.
+  function landingFor(childId: string): string {
+    return `/family/children/${childId}`;
+  }
+
   async function chooseNoAccount() {
     try {
       await persistPlaceholder();
       toast(`${basic.firstName} added to your family`, 'success');
       router.replace('/family');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not save.';
-      toast(message, 'error');
+      toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
   }
 
   return (
     <div className="mx-auto w-full max-w-2xl">
       <PageHeader
-        title="Add a child"
+        title="Add a person"
         description={
           step === 1
-            ? "Start with the basics — you'll choose how to connect their account next."
+            ? "Start with their details — you'll choose how to connect their account next."
             : 'Now choose how to connect them to CampusOS.'
         }
         actions={
@@ -133,7 +196,7 @@ export default function AddChildPage() {
       />
 
       <ol className="mb-6 flex items-center gap-2 text-xs font-medium text-gray-500">
-        <li className={step >= 1 ? 'text-campus-700' : ''}>1. Basic info</li>
+        <li className={step >= 1 ? 'text-campus-700' : ''}>1. Details</li>
         <li aria-hidden>·</li>
         <li className={step >= 2 ? 'text-campus-700' : ''}>2. Account</li>
       </ol>
@@ -144,7 +207,8 @@ export default function AddChildPage() {
           noValidate
           className="rounded-card border border-gray-200 bg-white p-5 shadow-sm"
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Row 1: First | Middle | Last */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <Field
               id="firstName"
               label="First name"
@@ -164,9 +228,14 @@ export default function AddChildPage() {
               label="Last name"
               value={basic.lastName}
               onChange={(v) => setBasic((b) => ({ ...b, lastName: v }))}
+              onBlur={runDuplicateCheck}
               error={basicErrors.lastName}
               required
             />
+          </div>
+
+          {/* Preferred name */}
+          <div className="mt-3">
             <Field
               id="preferredName"
               label="Preferred name"
@@ -174,31 +243,118 @@ export default function AddChildPage() {
               onChange={(v) => setBasic((b) => ({ ...b, preferredName: v }))}
               hint="If left blank, we'll use their first name."
             />
+          </div>
+
+          {/* Email */}
+          <div className="mt-3">
+            <Field
+              id="email"
+              label="Email"
+              type="email"
+              value={basic.email}
+              onChange={(v) => setBasic((b) => ({ ...b, email: v }))}
+              onBlur={runDuplicateCheck}
+              hint="Optional here — required only when you create their sign-in account."
+            />
+          </div>
+
+          {/* Row: DOB* | Gender* */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field
               id="dateOfBirth"
               label="Date of birth"
               type="date"
               value={basic.dateOfBirth}
               onChange={(v) => setBasic((b) => ({ ...b, dateOfBirth: v }))}
+              onBlur={runDuplicateCheck}
               error={basicErrors.dateOfBirth}
+              required
             />
             <div>
               <label htmlFor="gender" className="block text-xs font-medium text-gray-700">
-                Gender (optional)
+                Gender <span className="text-red-500">*</span>
               </label>
               <select
-              id="gender"
-              name="gender"
-              value={basic.gender}
-              onChange={(e) => setBasic((b) => ({ ...b, gender: e.target.value }))}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500"
-            >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
-            </select>
+                id="gender"
+                name="gender"
+                value={basic.gender}
+                onChange={(e) => {
+                  const gender = e.target.value;
+                  setBasic((b) => ({ ...b, gender }));
+                  if (basicErrors.gender) setBasicErrors((x) => ({ ...x, gender: undefined }));
+                }}
+                aria-invalid={!!basicErrors.gender}
+                className={
+                  'mt-1 block w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-campus-500 focus:outline-none focus:ring-2 focus:ring-campus-500 ' +
+                  (basicErrors.gender ? 'border-red-300' : 'border-gray-300')
+                }
+              >
+                <option value="" disabled>
+                  Select…
+                </option>
+                {GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {GENDER_LABELS[g]}
+                  </option>
+                ))}
+              </select>
+              {basicErrors.gender && (
+                <p className="mt-1 text-xs text-red-600">{basicErrors.gender}</p>
+              )}
             </div>
           </div>
+
+          {/* Step 4 — adult "also a student" opt-in. */}
+          {isAdult && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-800">
+              <input
+                type="checkbox"
+                checked={alsoStudent}
+                onChange={(e) => setAlsoStudent(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500"
+              />
+              This person is also a student
+            </label>
+          )}
+
+          {/* Step 3 — duplicate prompt. */}
+          {dupe?.exists && !dupeDismissed && (
+            <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p className="text-amber-900">
+                A CampusOS account may already exist for this person
+                {dupe.displayName ? (
+                  <>
+                    {' '}
+                    (<span className="font-medium">{dupe.displayName}</span>
+                    {dupe.context ? <span> · {dupe.context}</span> : null})
+                  </>
+                ) : null}
+                . To avoid duplicates,{' '}
+                {dupe.alreadyManagedByCurrentUser
+                  ? 'link the existing account instead of creating a new one.'
+                  : 'this account is managed by someone else — they’ll need to approve a link request before it can be connected.'}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {dupe.alreadyManagedByCurrentUser && (
+                  <button
+                    type="button"
+                    onClick={() => void onLinkExisting()}
+                    className="inline-flex items-center rounded-md bg-campus-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-campus-600"
+                  >
+                    Link existing account
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDupeDismissed(true)}
+                  className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  This is someone else
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mt-5 flex justify-end">
             <button
               type="submit"
@@ -215,9 +371,6 @@ export default function AddChildPage() {
             persistPlaceholder={persistPlaceholder}
             acceptLink={acceptLink.mutateAsync}
             onSuccess={async () => {
-              // The accept-link tx flipped a family_child row to
-              // LINKED; pull /auth/me into Zustand so the PARENT
-              // persona activates before we leave the page.
               await refreshUser();
               toast(`${basic.firstName} is now linked`, 'success');
               router.replace('/family');
@@ -226,23 +379,23 @@ export default function AddChildPage() {
           <OptionC
             persistPlaceholder={persistPlaceholder}
             childAge={age}
-            onSuccess={async () => {
+            dateOfBirth={basic.dateOfBirth}
+            gender={basic.gender}
+            emailDefault={basic.email}
+            onSuccess={async (childId) => {
               await refreshUser();
               toast(`${basic.firstName} now has a CampusOS account`, 'success');
-              router.replace('/family');
+              router.replace(landingFor(childId));
             }}
           />
-          <OptionD
-            persistPlaceholder={persistPlaceholder}
-            childName={basic.firstName}
-          />
+          <OptionD persistPlaceholder={persistPlaceholder} childName={basic.firstName} />
           <div className="mt-2 flex justify-start">
             <button
               type="button"
               onClick={() => setStep(1)}
               className="text-sm font-medium text-gray-500 hover:text-gray-700"
             >
-              ← Back to basic info
+              ← Back to details
             </button>
           </div>
         </div>
@@ -257,7 +410,7 @@ function OptionA({ onChoose, busy }: { onChoose: () => Promise<void>; busy: bool
   return (
     <Card
       title="They don't have an account yet"
-      description="Save the basics now. You can create their account or send a link invitation later."
+      description="Save the details now. You can create their account or send a link invitation later."
       accent="amber"
       footer={
         <PrimaryButton onClick={() => void onChoose()} disabled={busy}>
@@ -293,13 +446,6 @@ function OptionB({
     setError(null);
     setBusy(true);
     try {
-      // The link code is the child's; the placeholder we create is
-      // the parent's slot. The accept call links the child's
-      // canonical iam_person via the invitation's metadata
-      // (familyChildId points at the inviter's family_child row, not
-      // ours). The accepter persona is the caller, so the linked
-      // child surfaces in the INVITER's family — not always what the
-      // user wants but it matches the API behaviour.
       await persistPlaceholder();
       await acceptLink({ code: cleaned });
       onSuccess();
@@ -319,7 +465,7 @@ function OptionB({
   return (
     <Card
       title="I have their link code"
-      description="Enter the 8-character code from your child's existing CampusOS account."
+      description="Enter the 8-character code from their existing CampusOS account."
       accent="green"
       footer={
         <form onSubmit={onSubmit} className="flex w-full flex-col gap-2 sm:flex-row sm:items-start">
@@ -356,14 +502,20 @@ function OptionB({
 function OptionC({
   persistPlaceholder,
   childAge,
+  dateOfBirth,
+  gender,
+  emailDefault,
   onSuccess,
 }: {
   persistPlaceholder: () => Promise<string>;
   childAge: number | null;
-  onSuccess: () => void;
+  dateOfBirth: string;
+  gender: string;
+  emailDefault: string;
+  onSuccess: (childId: string) => void;
 }) {
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(emailDefault);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isUnder13 = childAge !== null && childAge < 13;
@@ -383,15 +535,18 @@ function OptionC({
     setBusy(true);
     try {
       const childId = await persistPlaceholder();
-      // Chained POST — we can't pre-bind the mutation hook because
-      // the child id only exists after the first call. Use apiFetch
-      // directly so the chain stays in the same handler.
+      // Chained POST — the child id only exists after the first call.
+      // DOB + gender are required server-side, so always send them.
       const { apiFetch } = await import('@/lib/api-client');
       await apiFetch(`/api/v1/family/children/${childId}/create-account`, {
         method: 'POST',
-        body: JSON.stringify(trimmed ? { email: trimmed } : {}),
+        body: JSON.stringify({
+          ...(trimmed ? { email: trimmed } : {}),
+          dateOfBirth: dateOfBirth || undefined,
+          gender: gender || undefined,
+        }),
       });
-      onSuccess();
+      onSuccess(childId);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not create the account.';
       toast(message, 'error');
@@ -419,7 +574,7 @@ function OptionC({
                   setEmail(e.target.value);
                   if (error) setError(null);
                 }}
-                placeholder="kid@example.com (optional)"
+                placeholder="person@example.com (optional)"
                 autoComplete="off"
                 aria-invalid={!!error}
                 className={
@@ -430,11 +585,7 @@ function OptionC({
               {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
             </div>
           ) : null}
-          <PrimaryButton
-            type="submit"
-            disabled={busy}
-            className={isUnder13 ? 'w-full sm:w-auto' : ''}
-          >
+          <PrimaryButton type="submit" disabled={busy} className={isUnder13 ? 'w-full sm:w-auto' : ''}>
             {busy && <LoadingSpinner size="sm" />}
             <span>{busy ? 'Creating…' : 'Create & finish'}</span>
           </PrimaryButton>
@@ -445,11 +596,8 @@ function OptionC({
 }
 
 /**
- * Option D — parent generates a FAMILY_INVITE code, the child accepts
- * it on their own CampusOS account. Persists the placeholder first
- * so the FAMILY_INVITE acceptance can auto-match against the named
- * row instead of inserting a duplicate. The code is shown inline
- * with a Copy button; no navigation away from the wizard.
+ * Option D — parent generates a FAMILY_INVITE code, the person accepts
+ * it on their own CampusOS account.
  */
 function OptionD({
   persistPlaceholder,
@@ -514,7 +662,7 @@ function OptionD({
               </button>
             </div>
             <p className="text-xs text-gray-500">
-              Share with {childName || 'your child'}. Expires{' '}
+              Share with {childName || 'them'}. Expires{' '}
               {new Date(code.expiresAt).toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
@@ -585,6 +733,7 @@ function Field({
   label,
   value,
   onChange,
+  onBlur,
   error,
   type = 'text',
   required,
@@ -595,6 +744,7 @@ function Field({
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
   error?: string;
   type?: string;
   required?: boolean;
@@ -605,6 +755,7 @@ function Field({
     <div className={className}>
       <label htmlFor={id} className="block text-xs font-medium text-gray-700">
         {label}
+        {required && <span className="text-red-500"> *</span>}
       </label>
       <input
         id={id}
@@ -612,6 +763,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         required={required}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}

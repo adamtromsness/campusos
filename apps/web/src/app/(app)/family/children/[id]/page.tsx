@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { GENDERS, GENDER_LABELS, normalizeGender } from '@campusos/shared';
 import {
   useAddChildEmergencyContact,
   useCancelChildLink,
@@ -249,7 +250,9 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
         </ul>
       </nav>
 
-      <div className="mt-6">
+      {/* pb-24 reserves clearance so the viewport-fixed StickySaveBar the
+          Account tab renders never covers the tab's last field. */}
+      <div className="mt-6 pb-24">
         {active === 'account' && <AccountTab child={child} onSendLink={onSendLink} />}
         {active === 'contact' && <ContactTab child={child} />}
         {active === 'medical' && <MedicalTab child={child} />}
@@ -263,10 +266,12 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
 // ─── Account tab ────────────────────────────────────────────
 
 /**
- * Identity fields + DOB + gender + an account-type info box. The form
- * is editable for MANAGED + PLACEHOLDER children and read-only for
- * INDEPENDENT (those rows' iam_person belongs to the child themselves;
- * the server returns 403 on PATCH so we don't render the controls).
+ * Identity fields + DOB + gender + an account-type info box. Editability is
+ * driven by the server's `canEdit` (the age + consent model) — NOT the
+ * "Independent" flag, which is now descriptive only. A guardian edits an
+ * under-18 child unconditionally (even Independent ones); at 18+ they edit
+ * only while the now-adult has not revoked access (then the server returns 403
+ * and canEdit is false, so we render read-only).
  *
  * PLACEHOLDER/PENDING_LINK children also surface the lifecycle action
  * buttons (Create Account / Send Link / Cancel / Remove) at the bottom
@@ -275,20 +280,17 @@ function Tabs({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => 
  * into the profile.
  */
 function AccountTab({ child, onSendLink }: { child: FamilyChildDto; onSendLink: () => void }) {
-  const readOnly = child.accessLevel === 'INDEPENDENT' && child.status === 'LINKED';
+  const readOnly = child.status === 'LINKED' && !child.canEdit;
   return (
     <div className="flex flex-col gap-5">
       <AccessLevelInfo child={child} />
       {readOnly ? <AccountReadOnly child={child} /> : <AccountEditForm child={child} />}
       {child.status !== 'LINKED' && <LifecycleActions child={child} onSendLink={onSendLink} />}
       {/* Family structure needs a canonical iam_person — LINKED only.
-          Managed children can be edited; INDEPENDENT is read-only. */}
+          Edit permission (parent/guardian-only) is decided server-side
+          and returned as canEdit on the relationships response. */}
       {child.status === 'LINKED' && child.personId && (
-        <FamilyStructureSection
-          personId={child.personId}
-          canManage={child.accessLevel === 'MANAGED'}
-          variant="child"
-        />
+        <FamilyStructureSection personId={child.personId} variant="child" />
       )}
       <EnrolmentBlock child={child} />
     </div>
@@ -302,7 +304,7 @@ function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
       <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">
         <p className="font-semibold">You manage this account.</p>
         <p className="mt-0.5">
-          You can edit {child.firstName}&rsquo;s identity, medical, emergency, and dietary info.
+          You can edit {child.firstName}&rsquo;s identity, medical, emergency, and dietary info.{' '}
           {child.firstName} doesn&rsquo;t log in separately — their CampusOS access is through you.
         </p>
       </div>
@@ -310,12 +312,17 @@ function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
   }
   if (child.accessLevel === 'INDEPENDENT') {
     const heroName = child.preferredName?.trim() ? child.preferredName : child.firstName;
+    // "Independent" is descriptive only — it means the child has their own
+    // login. Whether YOU can edit is driven by canEdit (age + consent): a
+    // guardian edits an under-18 unconditionally; at 18+ only until the adult
+    // revokes access.
     return (
       <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-900">
-        <p className="font-semibold">This account is managed by {heroName}.</p>
+        <p className="font-semibold">{heroName} has their own login.</p>
         <p className="mt-0.5">
-          {heroName} owns their own login and identity. You can still view their profile and
-          maintain the medical / emergency / dietary sections.
+          {child.canEdit
+            ? `${heroName} signs in themselves, and you can still edit their profile and the medical / emergency / dietary sections.`
+            : `${heroName} signs in themselves and has turned off your edit access. You can view their profile but not change it; ask them to restore your access from their account settings.`}
         </p>
       </div>
     );
@@ -371,7 +378,10 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
       lastName: child.lastName ?? '',
       preferredName: child.preferredName ?? '',
       dateOfBirth: child.dateOfBirth ?? '',
-      gender: child.gender ?? '',
+      // Normalise to the canonical option value so the select preselects
+      // the right option (the API already normalises on read, but this is
+      // defensive against any non-canonical value reaching the form).
+      gender: child.gender ? normalizeGender(child.gender) : '',
     }),
     [
       child.firstName,
@@ -397,8 +407,8 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
     if (errors[key as keyof typeof errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function doSave() {
+    if (!isDirty || update.isPending) return;
     const v: typeof errors = {};
     if (!form.firstName.trim()) v.firstName = 'First name is required';
     if (!form.lastName.trim()) v.lastName = 'Last name is required';
@@ -423,6 +433,16 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save. Try again.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
+  }
+
+  function onDiscard() {
+    setForm(initial);
+    setErrors({});
   }
 
   return (
@@ -517,9 +537,14 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
                   : 'border border-gray-300',
               )}
             >
-              <option value="">Not Specified</option>
-              <option value="F">Female</option>
-              <option value="M">Male</option>
+              <option value="" disabled>
+                Select…
+              </option>
+              {GENDERS.map((g) => (
+                <option key={g} value={g}>
+                  {GENDER_LABELS[g]}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -534,17 +559,17 @@ function AccountEditForm({ child }: { child: FamilyChildDto }) {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        {/* Hidden submit keeps Enter-to-save working; the visible save
+            action is the viewport-fixed StickySaveBar below, matching
+            the parent /profile Account tab. */}
+        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>
+      <StickySaveBar
+        isDirty={isDirty}
+        onSave={() => void doSave()}
+        onDiscard={onDiscard}
+        saving={update.isPending}
+      />
     </SectionCard>
   );
 }
@@ -722,13 +747,13 @@ function EnrolmentBlock({ child }: { child: FamilyChildDto }) {
  * have yet) plus a short note explaining what's coming when the
  * account is created.
  *
- * INDEPENDENT children: parent sees read-only phones + emails (the
- * child manages their own profile). Address still editable by the
- * parent — addresses live on platform_family_children, not iam_person.
+ * Phone/email editability follows the server's `canEdit` (age + consent),
+ * not the "Independent" flag — a guardian may edit an under-18 child's
+ * contacts even on an Independent account; a revoked 18+ account is read-only.
  */
 function ContactTab({ child }: { child: FamilyChildDto }) {
   const isLinked = child.status === 'LINKED';
-  const isManaged = child.accessLevel === 'MANAGED';
+  const isManaged = child.canEdit;
 
   return (
     // pb-24 reserves clearance so the viewport-fixed StickySaveBar
@@ -1264,7 +1289,7 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
   const { toast } = useToast();
   const update = useUpdateFamilyChild(child.id);
   const familySettings = useFamilySettings();
-  const editable = child.accessLevel === 'MANAGED' || child.accessLevel === 'PLACEHOLDER';
+  const editable = child.canEdit;
 
   const initial = useMemo(
     () => ({
@@ -1275,6 +1300,7 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       customState: child.customState ?? '',
       customPostalCode: child.customPostalCode ?? '',
       customCountry: child.customCountry ?? 'United States',
+      mailingAddressSource: child.mailingAddressSource,
       mailingAddressDifferent: child.mailingAddressDifferent,
       mailingLine1: child.mailingLine1 ?? '',
       mailingLine2: child.mailingLine2 ?? '',
@@ -1295,13 +1321,15 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
   }, [initial]);
 
   const isCustomHome = form.addressSource === 'CUSTOM';
-  // "Same as physical address" is the positive sense of the stored
-  // mailing_address_different flag.
+  // Mailing now has the same Use family / Use custom toggle as home.
+  const isCustomMailing = form.mailingAddressSource === 'CUSTOM';
+  // "Same as physical address" lives UNDER Use custom; it's the positive
+  // sense of the stored mailing_address_different flag.
   const sameAsPhysical = !form.mailingAddressDifferent;
 
   const fs = familySettings.data;
   // The resolved physical address — family-inherited or the child's
-  // own custom address — used for the read-only mailing display.
+  // own custom address — used for the read-only "same as physical" display.
   const physical =
     form.addressSource === 'FAMILY'
       ? {
@@ -1319,6 +1347,28 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
           state: form.customState,
           postalCode: form.customPostalCode,
           country: form.customCountry,
+        };
+
+  // The family mailing address inherited under "Use family": the family's
+  // own mailing address, falling back to the family home address when the
+  // family keeps mailing == home (mailingAddressDifferent === false).
+  const familyMailing =
+    fs && fs.mailingAddressDifferent
+      ? {
+          line1: fs.mailingLine1 ?? '',
+          line2: fs.mailingLine2 ?? '',
+          city: fs.mailingCity ?? '',
+          state: fs.mailingState ?? '',
+          postalCode: fs.mailingPostalCode ?? '',
+          country: fs.mailingCountry ?? '',
+        }
+      : {
+          line1: fs?.addressLine1 ?? '',
+          line2: fs?.addressLine2 ?? '',
+          city: fs?.city ?? '',
+          state: fs?.state ?? '',
+          postalCode: fs?.postalCode ?? '',
+          country: fs?.country ?? '',
         };
 
   function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -1347,7 +1397,10 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
         if (!String(form[k]).trim()) missing.add(k);
       }
     }
-    if (!sameAsPhysical) {
+    // Custom mailing fields are required only under Use custom + NOT
+    // same-as-physical. Use family inherits (validated on the family tab);
+    // same-as-physical mirrors the physical address.
+    if (isCustomMailing && !sameAsPhysical) {
       for (const k of [
         'mailingLine1',
         'mailingCity',
@@ -1370,6 +1423,9 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       return;
     }
     setErrors(new Set());
+    // Custom mailing fields are meaningful only under Use custom + a
+    // mailing address that differs from physical.
+    const keepMailing = isCustomMailing && form.mailingAddressDifferent;
     try {
       await update.mutateAsync({
         addressSource: form.addressSource,
@@ -1379,15 +1435,18 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
         customState: form.customState.trim() || null,
         customPostalCode: form.customPostalCode.trim() || null,
         customCountry: form.customCountry.trim() || null,
+        mailingAddressSource: form.mailingAddressSource,
         mailingAddressDifferent: form.mailingAddressDifferent,
-        mailingLine1: form.mailingAddressDifferent ? form.mailingLine1.trim() || null : null,
-        mailingLine2: form.mailingAddressDifferent ? form.mailingLine2.trim() || null : null,
-        mailingCity: form.mailingAddressDifferent ? form.mailingCity.trim() || null : null,
-        mailingState: form.mailingAddressDifferent ? form.mailingState.trim() || null : null,
-        mailingPostalCode: form.mailingAddressDifferent
-          ? form.mailingPostalCode.trim() || null
-          : null,
-        mailingCountry: form.mailingAddressDifferent ? form.mailingCountry.trim() || null : null,
+        // Custom mailing fields persist only when actually used (Use
+        // custom + different from physical); otherwise null them so a
+        // prior override doesn't linger after switching to Use family or
+        // same-as-physical.
+        mailingLine1: keepMailing ? form.mailingLine1.trim() || null : null,
+        mailingLine2: keepMailing ? form.mailingLine2.trim() || null : null,
+        mailingCity: keepMailing ? form.mailingCity.trim() || null : null,
+        mailingState: keepMailing ? form.mailingState.trim() || null : null,
+        mailingPostalCode: keepMailing ? form.mailingPostalCode.trim() || null : null,
+        mailingCountry: keepMailing ? form.mailingCountry.trim() || null : null,
       });
       toast('Address saved', 'success');
     } catch (err) {
@@ -1506,36 +1565,69 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
       </SectionCard>
 
       <SectionCard title="Mailing address">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={sameAsPhysical}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
-            }
-            disabled={!editable}
-            className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
-          />
-          Same as physical address
-          {dirtyFields.has('mailingAddressDifferent') && (
-            <span
-              aria-label="Modified"
-              title="Modified — save to keep this change"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {isCustomMailing
+              ? 'Custom mailing address for this child.'
+              : "Using your family's mailing address."}
+          </p>
+          {editable && (
+            <FamilyCustomToggle
+              value={form.mailingAddressSource}
+              onChange={(next) => setForm((f) => ({ ...f, mailingAddressSource: next }))}
             />
           )}
-        </label>
+        </div>
 
-        {sameAsPhysical ? (
-          // Read-only one-line display of the resolved physical
-          // address (family-inherited or custom), matching the home
-          // display style.
-          <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {formatAddressOneLine(physical) || (
-              <span className="text-gray-500">No physical address on file yet.</span>
+        {!isCustomMailing ? (
+          // Use family: read-only display of the inherited family mailing
+          // address (family mailing, or the family home when they keep
+          // mailing == home), matching the home-address display style.
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {formatAddressOneLine(familyMailing) || (
+              <span className="text-gray-500">No family mailing address on file yet.</span>
             )}
+            <div className="mt-2">
+              <Link
+                href="/family/settings?tab=addresses"
+                className="text-xs font-medium text-campus-700 hover:text-campus-600"
+              >
+                Edit family address →
+              </Link>
+            </div>
           </div>
         ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sameAsPhysical}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mailingAddressDifferent: !e.target.checked }))
+                }
+                disabled={!editable}
+                className="h-4 w-4 rounded border-gray-300 text-campus-700 focus:ring-campus-500 disabled:opacity-60"
+              />
+              Same as physical address
+              {dirtyFields.has('mailingAddressDifferent') && (
+                <span
+                  aria-label="Modified"
+                  title="Modified — save to keep this change"
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"
+                />
+              )}
+            </label>
+
+            {sameAsPhysical ? (
+              // Read-only one-line display of the resolved physical
+              // address (family-inherited or custom), matching the home
+              // display style.
+              <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                {formatAddressOneLine(physical) || (
+                  <span className="text-gray-500">No physical address on file yet.</span>
+                )}
+              </div>
+            ) : (
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <ChildAddressField
               id="mailingLine1"
@@ -1598,9 +1690,10 @@ function ChildAddressCards({ child }: { child: FamilyChildDto }) {
               required
               error={errors.has('mailingCountry') ? 'Country is required.' : undefined}
             />
-          </div>
+              </div>
+            )}
+          </>
         )}
-
       </SectionCard>
 
       {/* Hidden submit keeps Enter-to-save working inside the form;
@@ -1922,15 +2015,33 @@ function MedicalSection({ childId }: { childId: string }) {
 
         {source === 'FAMILY' ? (
           <>
+            {/* Three-state inheritance: when the family explicitly marked
+                "no doctor / no insurance" (flag === false), show that as a
+                definitive statement instead of blank dashes, matching the
+                family Health tab wording. flag === true / null falls
+                through to the inherited fields (which may be empty =
+                "nobody filled it in yet"). */}
             <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
-              <ReadOnlyField label="Doctor name" value={doctor.name} />
-              <ReadOnlyField label="Doctor phone" value={formatPhone(doctor.phone)} />
-              <div className="sm:col-span-2">
-                <ReadOnlyField label="Clinic" value={doctor.clinic} />
-              </div>
-              <ReadOnlyField label="Insurance provider" value={doctor.insuranceProvider} />
-              <ReadOnlyField label="Policy number" value={doctor.insurancePolicy} />
-              <ReadOnlyField label="Group number" value={doctor.insuranceGroup} />
+              {data.hasFamilyDoctor === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family doctor on file</p>
+              ) : (
+                <>
+                  <ReadOnlyField label="Doctor name" value={doctor.name} />
+                  <ReadOnlyField label="Doctor phone" value={formatPhone(doctor.phone)} />
+                  <div className="sm:col-span-2">
+                    <ReadOnlyField label="Clinic" value={doctor.clinic} />
+                  </div>
+                </>
+              )}
+              {data.hasInsurance === false ? (
+                <p className="sm:col-span-2 text-gray-600">No family insurance on file</p>
+              ) : (
+                <>
+                  <ReadOnlyField label="Insurance provider" value={doctor.insuranceProvider} />
+                  <ReadOnlyField label="Policy number" value={doctor.insurancePolicy} />
+                  <ReadOnlyField label="Group number" value={doctor.insuranceGroup} />
+                </>
+              )}
             </div>
             <div className="mt-3">
               <Link
@@ -2968,19 +3079,12 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function genderLabel(value: string | null): string | null {
-  if (!value) return 'Not Specified';
-  // Legacy 'X' (Non-binary) and 'O' (Other) values still appear on
-  // older rows even though the picker no longer offers them — render
-  // a human label rather than the raw single-letter code. New writes
-  // can only produce '', 'F', or 'M'.
-  const map: Record<string, string> = {
-    F: 'Female',
-    M: 'Male',
-    X: 'Non-binary',
-    O: 'Other',
-  };
-  return map[value] ?? value;
+function genderLabel(value: string | null): string {
+  // Canonical set is MALE | FEMALE | NOT_SPECIFIED (FIX 1). normalizeGender
+  // folds any legacy/unknown value (blank, 'F'/'M', historical NONBINARY/
+  // OTHER, etc.) into that set so the read-only label always matches an
+  // option the picker offers.
+  return GENDER_LABELS[normalizeGender(value)];
 }
 
 // ─── Send-link modal ────────────────────────────────────────

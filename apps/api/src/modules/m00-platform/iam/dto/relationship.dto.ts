@@ -71,6 +71,9 @@ export const SIBLING_TYPES = [
 ] as const;
 export type SiblingType = (typeof SIBLING_TYPES)[number];
 
+export const GUARDIAN_ACCESS_STATES = ['GRANTED', 'REVOKED'] as const;
+export type GuardianAccessState = (typeof GUARDIAN_ACCESS_STATES)[number];
+
 // ─── Request DTOs ───────────────────────────────────────────────
 
 export class CreateRelationshipDto {
@@ -160,19 +163,101 @@ export class DerivedSiblingDto {
 export class GetRelationshipsResponseDto {
   @ApiProperty({ type: [RelationshipDto] }) relationships!: RelationshipDto[];
   @ApiProperty({ type: [DerivedSiblingDto] }) derivedSiblings!: DerivedSiblingDto[];
+  // Rendering hint for the UI (parent/guardian-only edit). The server
+  // still enforces the same rule on every mutation — this is not the
+  // security boundary. Computed + set by the controller, not the service.
+  @ApiProperty() canEdit?: boolean;
 }
 
-export class FamilyTreeNodeDto {
-  @ApiProperty({ type: RelationshipDto }) relationship!: RelationshipDto;
+// ─── Family-tree graph (blended single-generation diagram) ──────
+//
+// The family-tree view is a box-and-line diagram: a parent row on top, a
+// child row below, an edge from each child to each of its own parents.
+// Blended families mean parents differ per child, so the payload is a
+// GRAPH (deduped parent union + per-child parent links), not a nested
+// tree. Single generation only — grandparents / upward ancestry are out
+// of scope and no longer in this payload (the full bucketed relationship
+// list still lives at GET /people/:id/relationships).
+
+export class FamilyTreeParentDto {
+  // null when the parent is a name-only (non-CampusOS) person. The UI
+  // still renders a box, using parentName.
+  @ApiPropertyOptional() personId!: string | null;
+  @ApiProperty() displayName!: string;
+  // True for the row person when they appear in their own parent row.
+  @ApiProperty() isSelf!: boolean;
+  // Reserved for a future PLACEHOLDER family-child parent; always false
+  // today. The empty *slot* (a child's unset second parent) is modelled
+  // by a parentLink with parentPersonId:null, NOT by a parents[] entry.
+  @ApiProperty() isPlaceholder!: boolean;
+  // Server-resolved navigation target for the read-only tree's clickable
+  // nodes. Present ONLY when the node has an accessible profile for the
+  // current viewer (real person + the viewer may view it + a route the
+  // viewer can actually reach). null for name-only parents, placeholder
+  // slots, and real people the viewer is not permitted to view — the UI
+  // renders those inert. Route is resolved server-side per person type,
+  // so the client never branches on type or re-checks permissions.
+  @ApiPropertyOptional() profileUrl!: string | null;
+}
+
+export class FamilyTreeParentLinkDto {
+  // FK into parents[] by personId. null = a known-but-unspecified parent
+  // slot (render a dashed placeholder + an edge to it). The slot is
+  // meaningful — never omit it.
+  @ApiPropertyOptional() parentPersonId!: string | null;
+  // Name-only parent label, mirrored onto the link so the UI can match
+  // it to the corresponding name-only parents[] box. null for linked or
+  // unspecified slots.
+  @ApiPropertyOptional() parentName!: string | null;
+  // BIOLOGICAL_/ADOPTIVE_/STEP_ father|mother | LEGAL_GUARDIAN; null only
+  // for an unspecified slot.
+  @ApiPropertyOptional({ enum: RELATIONSHIP_TYPES }) relationshipType!: RelationshipType | null;
+  @ApiProperty() legalCustody!: boolean;
+  @ApiPropertyOptional({ enum: CUSTODY_ARRANGEMENTS })
+  custodyArrangement!: CustodyArrangement | null;
+  @ApiProperty() primaryResidence!: boolean;
+}
+
+export class FamilyTreeChildDto {
+  @ApiProperty() personId!: string;
+  @ApiProperty() displayName!: string;
+  @ApiPropertyOptional() age!: number | null;
+  // 1..n parent links, usually 2 (padded with null-slot links up to two
+  // so a missing co-parent always renders a placeholder).
+  @ApiProperty({ type: [FamilyTreeParentLinkDto] }) parentLinks!: FamilyTreeParentLinkDto[];
+  // See FamilyTreeParentDto.profileUrl — present only when this child has an
+  // accessible profile route for the current viewer (e.g. a guardian's
+  // managed child → /family/children/:id); null otherwise.
+  @ApiPropertyOptional() profileUrl!: string | null;
 }
 
 export class FamilyTreeDto {
-  @ApiProperty({ type: PersonSummaryDto }) person!: PersonSummaryDto;
-  @ApiProperty({ type: [RelationshipDto] }) parents!: RelationshipDto[];
-  @ApiProperty({ type: [RelationshipDto] }) children!: RelationshipDto[];
-  @ApiProperty({ type: [RelationshipDto] }) grandparents!: RelationshipDto[];
-  @ApiProperty({ type: [RelationshipDto] }) grandchildren!: RelationshipDto[];
-  @ApiProperty({ type: [RelationshipDto] }) spouses!: RelationshipDto[];
-  @ApiProperty({ type: [RelationshipDto] }) other!: RelationshipDto[];
-  @ApiProperty({ type: [DerivedSiblingDto] }) siblings!: DerivedSiblingDto[];
+  @ApiProperty() rootPersonId!: string;
+  // Deduped union of every distinct parent across children[].parentLinks.
+  // A parent shared by multiple children appears ONCE.
+  @ApiProperty({ type: [FamilyTreeParentDto] }) parents!: FamilyTreeParentDto[];
+  @ApiProperty({ type: [FamilyTreeChildDto] }) children!: FamilyTreeChildDto[];
+  // Rendering hint (parent/guardian-only edit); server-enforced on writes.
+  // The tree itself is read-only regardless of this flag.
+  @ApiProperty() canEdit?: boolean;
+}
+
+// ─── Guardian edit-access consent (18+ self-service control) ────
+
+export class UpdateGuardianAccessDto {
+  @IsIn(GUARDIAN_ACCESS_STATES)
+  state!: GuardianAccessState;
+}
+
+export class GuardianAccessEntryDto {
+  @ApiProperty() guardianPersonId!: string;
+  @ApiProperty() displayName!: string;
+  @ApiProperty({ enum: GUARDIAN_ACCESS_STATES }) state!: GuardianAccessState;
+}
+
+export class GuardianAccessResponseDto {
+  // The subject these guardians may (or may not) edit.
+  @ApiProperty() subjectPersonId!: string;
+  // Every active guardian of the subject with their current consent state.
+  @ApiProperty({ type: [GuardianAccessEntryDto] }) guardians!: GuardianAccessEntryDto[];
 }

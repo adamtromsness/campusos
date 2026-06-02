@@ -66,17 +66,52 @@ export interface DerivedSibling {
 export interface RelationshipsResponse {
   relationships: Relationship[];
   derivedSiblings: DerivedSibling[];
+  // Server-computed rendering hint: true when the current user may
+  // add/edit/remove this person's relationships (parent/guardian only).
+  canEdit: boolean;
+}
+
+// ─── Family-tree graph (blended single-generation diagram) ────
+// Mirrors FamilyTreeDto. A graph, not a nested tree: a deduped parent
+// union + per-child parent links (parents differ per child in a blended
+// family). Single generation only.
+
+export interface FamilyTreeParent {
+  personId: string | null; // null = name-only (non-CampusOS) parent
+  displayName: string;
+  isSelf: boolean;
+  isPlaceholder: boolean;
+  // Server-resolved, access-gated navigation target. Non-null ONLY when this
+  // node is clickable for the current viewer (real person + viewable + a route
+  // the viewer can reach). The node is interactive iff this is present — the
+  // client never re-checks permissions or resolves routes.
+  profileUrl: string | null;
+}
+
+export interface FamilyTreeParentLink {
+  parentPersonId: string | null; // FK into parents[]; null = unset slot
+  parentName: string | null; // name-only parent label; null otherwise
+  relationshipType: RelationshipType | null; // null only for an unset slot
+  legalCustody: boolean;
+  custodyArrangement: CustodyArrangement | null;
+  primaryResidence: boolean;
+}
+
+export interface FamilyTreeChild {
+  personId: string;
+  displayName: string;
+  age: number | null;
+  parentLinks: FamilyTreeParentLink[];
+  // See FamilyTreeParent.profileUrl — non-null only when this child has an
+  // accessible profile route for the current viewer; null otherwise.
+  profileUrl: string | null;
 }
 
 export interface FamilyTree {
-  person: PersonSummary;
-  parents: Relationship[];
-  children: Relationship[];
-  grandparents: Relationship[];
-  grandchildren: Relationship[];
-  spouses: Relationship[];
-  other: Relationship[];
-  siblings: DerivedSibling[];
+  rootPersonId: string;
+  parents: FamilyTreeParent[];
+  children: FamilyTreeChild[];
+  canEdit: boolean;
 }
 
 export interface CreateRelationshipPayload {
@@ -212,5 +247,49 @@ export function useVerifyRelationship(personId: string) {
         body: JSON.stringify({ verified }),
       }),
     onSuccess: () => invalidateAll(qc),
+  });
+}
+
+// ─── Guardian edit-access (18+ self-service control) ─────────────
+
+export type GuardianAccessState = 'GRANTED' | 'REVOKED';
+
+export interface GuardianAccessEntry {
+  guardianPersonId: string;
+  displayName: string;
+  state: GuardianAccessState;
+}
+
+export interface GuardianAccessResponse {
+  subjectPersonId: string;
+  guardians: GuardianAccessEntry[];
+}
+
+/**
+ * The 18+ subject's "people who can edit my account" list. The endpoint 403s
+ * for under-18s and for anyone who isn't the subject, so callers gate on age
+ * (enabled) and treat an error as "nothing to manage".
+ */
+export function useGuardianAccess(personId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['guardian-access', personId] as const,
+    queryFn: () => apiFetch<GuardianAccessResponse>(`${base(personId!)}/guardian-access`),
+    enabled: enabled && !!personId,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useSetGuardianAccess(personId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guardianId, state }: { guardianId: string; state: GuardianAccessState }) =>
+      apiFetch<GuardianAccessResponse>(`${base(personId)}/guardian-access/${guardianId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ state }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['guardian-access', personId] });
+    },
   });
 }

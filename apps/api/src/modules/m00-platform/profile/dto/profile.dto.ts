@@ -92,9 +92,10 @@ export class ProfileResponseDto {
   @ApiPropertyOptional() customState?: string | null;
   @ApiPropertyOptional() customPostalCode?: string | null;
   @ApiPropertyOptional() customCountry?: string | null;
-  // Mailing address (per-person). mailingAddressDifferent === true
-  // means the customMailing* columns are authoritative; false means
-  // the mailing address is the same as the home address.
+  // Mailing source (FIX 2): 'FAMILY' inherits the family mailing
+  // address; 'CUSTOM' uses mailingAddressDifferent (false = same as this
+  // person's physical, true = the customMailing* columns).
+  @ApiProperty({ enum: ['FAMILY', 'CUSTOM'] }) mailingAddressSource!: 'FAMILY' | 'CUSTOM';
   @ApiProperty() mailingAddressDifferent!: boolean;
   @ApiPropertyOptional() customMailingLine1?: string | null;
   @ApiPropertyOptional() customMailingLine2?: string | null;
@@ -269,7 +270,11 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customState?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) customPostalCode?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCountry?: string | null;
-  // Mailing address — wire-positive sense.
+  // Mailing inheritance toggle (FIX 2) + wire-positive same-as-physical.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['FAMILY', 'CUSTOM'])
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   @ApiPropertyOptional() @IsOptional() @IsBoolean() mailingAddressDifferent?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine1?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customMailingLine2?: string | null;
@@ -402,6 +407,11 @@ export class AdultMedicalInfoDto {
   @ApiPropertyOptional() insuranceGroup?: string | null;
   @ApiPropertyOptional() bloodType?: string | null;
   @ApiPropertyOptional() medicalNotes?: string | null;
+  // Family's explicit three-state doctor/insurance flags, surfaced only
+  // in FAMILY mode so the "Use family" view distinguishes "the family has
+  // none" (false → "No family doctor on file") from "unfilled" (null).
+  @ApiPropertyOptional() hasFamilyDoctor?: boolean | null;
+  @ApiPropertyOptional() hasInsurance?: boolean | null;
 }
 
 export class UpdateAdultMedicalInfoDto {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -24,15 +25,13 @@ const CHILD_TYPES = ['BIOLOGICAL_CHILD', 'ADOPTIVE_CHILD', 'STEP_CHILD', 'LEGAL_
 interface Props {
   // iam_person id of the subject.
   personId: string;
-  // Whether the viewer can add / edit / remove relationships.
-  canManage: boolean;
-  // 'child' — full management from the child's profile (Step 4).
+  // 'child' — full management from the child's profile.
   // 'self' — adult's own profile; parent/child rows are read-only, only
-  // spouse/partner is editable (Step 6).
+  // spouse/partner is editable.
   variant: 'child' | 'self';
 }
 
-export function FamilyStructureSection({ personId, canManage, variant }: Props) {
+export function FamilyStructureSection({ personId, variant }: Props) {
   const { data, isLoading } = useRelationships(personId);
   const [addMode, setAddMode] = useState<RelationshipModalMode | null>(null);
   const [editing, setEditing] = useState<Relationship | null>(null);
@@ -45,6 +44,10 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
     );
   }
 
+  // Edit permission is the server's call (parent/guardian-only) — the API
+  // returns canEdit on the relationships response. The UI only renders
+  // affordances; the server re-checks every mutation.
+  const canManage = data?.canEdit ?? false;
   const rels = data?.relationships ?? [];
   const siblings = data?.derivedSiblings ?? [];
   const mother = rels.find((r) => MOTHER_TYPES.includes(r.type));
@@ -70,6 +73,7 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
       <Section
         title="Family Structure"
         description="Your biological, legal, and step-family relationships. Children's relationships are managed from each child's profile."
+        viewHref={`/family/${personId}/structure`}
       >
         <Group label="Spouse / Partner">
           {spouses.length === 0 ? (
@@ -137,6 +141,7 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
     <Section
       title="Family Structure (optional)"
       description="Biological and legal relationships. Helps schools understand custody arrangements and family connections."
+      viewHref={`/family/${personId}/structure`}
     >
       <ParentSlot
         label="Mother"
@@ -197,17 +202,31 @@ export function FamilyStructureSection({ personId, canManage, variant }: Props) 
 function Section({
   title,
   description,
+  viewHref,
   children,
 }: {
   title: string;
   description?: string;
+  // When set, renders a "View family structure →" link to the read-only
+  // page in the header.
+  viewHref?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-card border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-        {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+        </div>
+        {viewHref && (
+          <Link
+            href={viewHref}
+            className="shrink-0 whitespace-nowrap text-xs font-medium text-campus-700 hover:underline"
+          >
+            View family structure →
+          </Link>
+        )}
       </div>
       <div className="flex flex-col gap-4">{children}</div>
     </section>

@@ -275,3 +275,520 @@ REVIEW-CYCLE16-CHATGPT Round 2 confirmed all 3 BLOCKING fixes are properly close
 **Accepted follow-up (Phase 2 punch list item 22):** the implementation treats `actor.personType === 'STAFF'` as the Enrolment Officer authority because the IAM seed grants `STU-003:read+write` to the generic Staff role. Real schools likely want a distinct EO role rather than generic Staff. Joins the broader Counsellor / Nurse / Librarian / Athletic Director role-split punch list items (9 + 11 + 13 + 14 + 16) before pilot.
 
 **Cycle 16 ships clean.** Wave 3 cycle 3 is closed. Tagged `cycle16-approved` at `850fc6d`.
+
+---
+
+## Set-Relationship modal: self-selection + guardian-link reconciliation (2026-05-30)
+
+**Bug.** On a child's profile the Set Father / Set Mother modal could not
+select the **current user**, so a parent could not set themselves as the
+child's parent — the primary use case. Two causes: (1) people-search
+excluded the caller; (2) the parent is already linked to the child (the
+household guardian who created the child account also holds a
+`LEGAL_GUARDIAN` graph edge), so a parentage save had to reconcile with
+that existing row rather than duplicate or 409.
+
+**Design: upgrade-in-place.** When the selected CampusOS person already
+has an active relationship to the subject, the chosen parentage type
+UPDATEs that row in place — carrying the guardian fact forward as
+`is_legal_custody = true` — instead of inserting a second row. One row
+carries both parentage and custody. (For non-parentage upgrades, e.g.
+spouse, custody is not forced.)
+
+### Changes
+
+- **`apps/api/.../iam/people-search.service.ts`** — `search(callerPersonId,
+  query, includeSelf = false)`. The `WHERE` self-exclusion is now
+  `($6::boolean OR ip.id <> $1::uuid)`; default behaviour (exclude self)
+  is unchanged for every existing caller.
+- **`apps/api/.../iam/people-search.controller.ts`** — `GET /people/search`
+  accepts `&includeSelf=true` (only the relationship modal passes it).
+- **`apps/api/.../iam/relationship.service.ts`** — `addRelationship` now,
+  for CampusOS-user relationships, looks up an existing active forward row
+  (`findActiveForwardRow`) and routes to `upgradeRelationship` when found:
+  updates the forward row + reciprocal to the new type, forces legal
+  custody on for parentage types, leaves `created_by` untouched (there is
+  no `updated_by` column). No duplicate, no 409. Added a note on
+  `isActiveGuardianOf` documenting that `PARENT_TYPES` spans
+  `LEGAL_GUARDIAN` + all parentage types, so the upgrade never strips the
+  editor's own edit rights (Step 4 was already satisfied by the existing
+  graph predicate; no code change needed there).
+- **`apps/web/.../hooks/use-family-children.ts`** — `usePeopleSearch(query,
+  enabled, includeSelf = false)`; appends `&includeSelf=true` and keys the
+  query on `includeSelf`.
+- **`apps/web/.../components/family/SetRelationshipModal.tsx`** — searches
+  with `includeSelf`, and on the parentage modals (mother/father, never on
+  the subject's own profile) renders a "This is me — set myself as
+  {father/mother}" button that preselects the current user (from
+  `useAuthStore`) and skips search.
+
+### Tests
+
+`apps/api/test/integration/m00-platform/relationship-self-selection.spec.ts`
+(new, self-contained — seeds its own `LEGAL_GUARDIAN`/`LEGAL_WARD` edge so
+it does not depend on household seeding). All passing:
+
+- people-search `includeSelf=true` returns the caller; default excludes them.
+- Saving `BIOLOGICAL_FATHER` when an active guardian edge exists UPGRADES
+  it (type + `is_legal_custody`), leaving exactly one forward row and one
+  reciprocal (`BIOLOGICAL_CHILD`); no duplicate, no 409.
+- `canEdit` (and `isActiveGuardianOf`) stay true after the upgrade.
+- Setting the OTHER parent (no prior link) creates a fresh row with
+  `is_legal_custody=false`.
+
+### Verification
+
+- `pnpm --filter @campusos/api exec tsc --noEmit` — 0 errors.
+- `pnpm --filter @campusos/web exec tsc --noEmit` — 0 errors.
+- `test:integration -- relationships people-search` (existing) — passing.
+- `test:integration -- relationship-self-selection` (new) — passing.
+
+
+---
+
+## Account creation: required DOB/gender, age variant, duplicate detection (2026-05-30)
+
+Account Creation spec (layout, validation, dedupe, age defaults). Implemented
+on branch feat/family-structure-profile-edit-perms.
+
+### Decisions (resolved with the user before coding)
+- Persona: age drives the profile VARIANT + iam_person.person_type only;
+  personas stay DERIVED, never assigned (no fabricated STUDENT persona).
+- Form: generalise /family/add-child into an add-person flow.
+- Gender: inclusive REQUIRED select (Female / Male / Non-binary /
+  Other-self-describe / Prefer-not-to-say).
+- Validation: server-side in the two create-account use-cases + client-side
+  inline. Adult (>18) person_type = GUARDIAN (no ADULT enum exists).
+- Dedupe: detect + direct-link (managed-by-me) now; cross-owner claim-approval
+  deferred.
+
+### Backend (commits 36f52d3, 11cd7fc)
+- `createAccountForChild` / `createAccountForMember` now require DOB + gender
+  (400, field-scoped; future DOB rejected) via `requireAccountIdentity()`.
+  Effective values are dto ?? placeholder-row. The member create-account DTO
+  gained dateOfBirth/gender (platform_family_members has no such columns).
+- `personTypeForAge()`: <=18 STUDENT, >18 GUARDIAN. The member path's old
+  EXTERNAL person_type became GUARDIAN. person_type is a PG ENUM, so the raw
+  INSERT param is cast `::"PersonType"` (a bare text param does not coerce).
+- Child path mirrors the effective DOB/gender back to platform_family_children.
+- New `POST /people/check-duplicate` (DuplicateCheckService +
+  DuplicateCheckController in m00-platform/iam, registered in IamModule).
+  Strong match only (exact email OR normalized first+last AND exact DOB);
+  minimal descriptor {exists, displayName 'Given L.', context coarse-role,
+  alreadyManagedByCurrentUser}; never email/DOB/contact. Redis rate-limit
+  (30 / 15 min -> 429); self-excluded; INNER JOIN platform_users; POST so
+  identity isn't logged in URLs. Linking itself is deferred to the form.
+
+### Web (commit cb3f6a2)
+- /family/add-child generalised to an add-person form: profile-style layout
+  (First|Middle|Last; Preferred; Email; DOB|Gender), inclusive required gender
+  select, required DOB+gender client validation (inline errors, future-DOB
+  guard), >18 "also a student" opt-in, redirect to /family/children/:id after
+  account creation (variant-appropriate detail page). Option C sends DOB+gender.
+- Duplicate prompt fires on email/name/DOB blur; shows the minimal descriptor;
+  "Link existing account" only when managed-by-me, else explains a claim
+  request is needed; "This is someone else" dismisses. A failed/rate-limited
+  check never blocks creation.
+- New useCheckDuplicate hook; DOB/gender added to CreateChildAccountPayload.
+
+### Tests (commits 11cd7fc, 5cbf960)
+- duplicate-check.spec (8): email match, name+DOB match, name-only no-match,
+  wrong-DOB no-match, empty probe, managed-by-me flag, self-exclusion,
+  rate-limit 429. Disclosure test asserts no email/DOB/full-surname in payload.
+- child-linking.spec (+6): missing-DOB 400, missing-gender 400, future-DOB 400,
+  age 12 STUDENT, age 18 STUDENT (boundary), age 19 GUARDIAN. Existing
+  create-account call sites updated to pass DOB/gender; afterAll reordered to
+  delete platform_personas before iam_person.
+- family-children.spec: create-account sites pass DOB/gender; member
+  person_type assertion EXTERNAL -> GUARDIAN.
+
+### Verification
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- child-linking + family-children + duplicate-check — 79 passing (child-linking 17, family-children 54, duplicate-check 8).
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+  (The web app has no test runner — the `test` script is a stub — so there is
+  no component-test layer; behaviour is covered by the API tests + type/lint.)
+
+### Deferred / follow-up
+- Cross-owner "link/claim request" approval flow (reuse platform_invitations):
+  detection blocks it safely today (no PII shared, no link offered).
+
+
+---
+
+## Blended family-tree diagram (2026-06-01)
+
+Blended Family Tree spec. Replaces the flat bucketed family-tree view with a
+single-generation, blended-family-aware box-and-line SVG diagram. Read-only;
+no schema migration.
+
+### Payload (Step 1) — `relationship.service.ts` + `relationship.dto.ts`
+`GET /people/:id/family-tree` now returns a GRAPH, not bucketed lists:
+`{ rootPersonId, canEdit, parents[], children[] }`.
+- `parents`: deduped union of every distinct parent across all children's
+  links — a shared parent appears ONCE. `{ personId|null, displayName,
+  isSelf, isPlaceholder }`; name-only (non-CampusOS) parents are personId:null
+  boxes keyed by name.
+- `children[].parentLinks`: per-child, 1..n (padded to 2). type + custody
+  live on the LINK (a child can be biological to one parent, step to another).
+  A known-but-unspecified second parent is a link with parentPersonId AND
+  parentName null — the meaningful empty slot, never omitted.
+- Root selection: the root's own children form the child row; a CHILDLESS
+  root appears as its OWN child (subject + their parents) so a student's
+  structure page still renders. Empty only when neither children nor parents.
+- Dropped `FamilyTreeNodeDto` and the bucketed spouses/grandparents/siblings/
+  other fields from THIS payload — out of scope for a single-generation
+  diagram; the full bucketed list still lives at `GET /relationships`.
+
+### Render (Steps 2-4) — `FamilyTreeView.tsx`
+SVG box-and-line (viewBox 0 0 680 H, role=img + title/desc): parent row on
+top, child row below, an edge from each child's top-center to each linked
+parent's bottom-center; dashed boxes/edges for unset slots. Barycenter parent
+ordering (mean child index, stable, tie-break displayName) to minimise — not
+eliminate — crossings; no dagre/elk. Child box shows name·age + relationship
+summary + custody summary; per-edge detail is NOT crammed on the line.
+Computed height (no clipping). Empty state when no children. Reused by both
+`/family/tree` and `/family/[personId]/structure` (the latter derives the
+subject name from the graph, since the payload has no top-level person).
+Deferred (noted in code): per-parent edge colour, edge hover tooltips.
+
+### Tests (Step 5)
+`relationships.spec` (28 passing): childless-root-as-child, shared-parent
+deduped once, per-link biological-vs-step type+custody, null-slot
+present-not-omitted, name-only parent box, controller view-gate + read-only
+canEdit. The web app has no test runner (`test` script is a stub), so the
+spec's component tests are not added; the pure `computeLayout` would be the
+unit-test seam if a harness is stood up later.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- relationships.spec — 28 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+- Full integration suite: the only failures are 4 in tenant-isolation.spec
+  from cross-spec fixture pollution (a leftover pay_family_accounts row,
+  unrelated to this change) — that spec passes 17/17 run in isolation.
+
+
+---
+
+## Your Family completion fixes + change primary guardian (2026-06-01)
+
+Five Your-Family issues: four completion-logic corrections + one new action.
+
+### Single source of truth
+The %, per-section "N items remaining", and yellow checklist all derive from
+ONE client-side `useMemo` — `useCompletionState` in
+`apps/web/src/app/(app)/family/settings/page.tsx`. There is NO backend
+completeness service (the spec's `fix(api)` framing didn't match reality), so
+the criteria corrections (STEPs 1-4) landed in that web hook.
+
+### STEP 0 diagnosis (from code)
+- Address criterion already required street+city+state+ZIP+country (matches
+  spec) and the Addresses save already invalidates `['family']`, so
+  `useCompletionState` re-derives on save. The country field defaults to
+  "United States" in the form. A persistent false negative would mean a
+  genuinely blank required field (correct behaviour) — no criterion bug found.
+- Guardian criterion already filtered `status === 'ACTIVE'` (pending invites
+  never counted). The real false negative was the phone SOURCE.
+
+### Fixes
+- STEP 2 (api): `FamilyMemberDto.primaryPhone` now COALESCEs
+  `platform_person_phones` (the multi-row list the Contact tab writes to)
+  before the `iam_person.primary_phone` cache — symmetric with how email
+  already resolves. An ACTIVE guardian whose number lived only in the list no
+  longer reads as phone-less.
+- STEP 3 (web): dropped "Family name set" from criteria/checklist/%/counts;
+  the display name stays an optional field.
+- STEP 4 (web + api doc): dropped "Communication preferences customised";
+  prefs are seeded to operational defaults (creator is HEAD_OF_HOUSEHOLD +
+  is_primary_contact at family creation → first read of
+  /family/contact-preferences routes all 8 categories to them). All 8 are
+  operational/transactional — no marketing/consent channel — so the default
+  routing opts into nothing requiring consent. Documented on
+  getFamilyContactPreferences; no redundant creation-time seed added.
+- STEP 5: aggregate %, section counts, and checklist re-derive from the
+  trimmed item list automatically (single source).
+- STEP 1 (address, follow-up 2026-06-01): the address criterion was correct,
+  but the false negative was a NULL saved `country` — the Addresses form
+  showed "United States" as a UI-only default that never persisted (the
+  dirty-diff skipped the unchanged default). Fixed two ways: (a) a backfill
+  migration (20260601000000_backfill_family_country) sets country =
+  'United States' WHERE null AND a home address exists — scoped so addressless
+  families don't falsely gain one; verified against demo data (0 addressed
+  families left null, addressless families untouched); (b) the form now always
+  includes the shown country (+ mailingCountry) in the save payload when an
+  address is written, so a normal Save persists it. "Home address on file"
+  now clears on load with no dropdown interaction.
+
+### STEP 6 — change primary guardian (new)
+- `PATCH /api/v1/families/:familyId/primary-guardian { guardianPersonId }`:
+  new `FamiliesController` (`/families/:familyId/...`, plural) →
+  `FamilyChildrenService.setPrimaryGuardian`. Validates caller is a member of
+  :familyId (cross-family → 404) and target is an ACTIVE guardian of that
+  family (pending invite / non-member → 400), then demotes old + promotes new
+  in one tx. The `(family_id) WHERE is_primary_contact = true` partial UNIQUE
+  keeps exactly one primary (never two, never zero).
+- Decoupled from edit rights: touches only `is_primary_contact`;
+  canEditFamilyStructure / isActiveGuardianOf read other signals, so
+  guardianship + member roles are unchanged by a reassignment.
+- Web: "Make primary" on each non-primary ACTIVE guardian row (any active
+  guardian may reassign — permissive co-guardian model); "Primary contact"
+  line is now a ★ badge. `useSetPrimaryGuardian` hook added.
+
+### Tests (STEP 7)
+family-children.spec (58 passing, +4): set-B-primary clears A (exactly one
+primary), pending-invite target → 400, cross-family caller → 404, reassign
+leaves member roles + guardianship + ACTIVE status unchanged.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- relationships + family-children — 86 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+
+### Note / not reproduced against live data
+STEP 0 asked to diagnose the two false negatives against the actual Tromsness
+family row in the running app. The criteria were fixed at the code level
+(guardian phone source; criteria trimmed) without standing up the local stack;
+if a specific field is still genuinely blank for that family, that's correct
+incomplete behaviour, not a criterion bug.
+
+
+---
+
+## Gender options, mailing inheritance, family-medical display (2026-06-01)
+
+Three independent fixes.
+
+### FIX 1 — Gender → MALE | FEMALE | NOT_SPECIFIED
+- New shared `@campusos/shared` exports: GENDERS, GENDER_LABELS,
+  normalizeGender (legacy 'F'→FEMALE, 'M'→MALE, anything else→NOT_SPECIFIED)
+  — one source so API + both web forms can't drift.
+- API normalises gender on READ (/profile/me self gender, FamilyChildDto)
+  AND WRITE (create/update child, account-creation identity). The admin
+  per-tenant sis_student_demographics.gender is a separate concern, untouched.
+- Web: add-person Details + profile Account tab render exactly the three
+  options with a DISABLED "Select…" placeholder (so required is meaningful;
+  Not Specified is a valid satisfying choice).
+- Backfill 20260601010000 canonicalises iam_person.gender +
+  platform_family_children.gender; verified 0 non-canonical values remain.
+- NOTE: iam_person.gender is plain TEXT — distinct from the person_type
+  Postgres ENUM (which needs the ::"PersonType" cast).
+- FOLLOW-UP (2026-06-01): the child *detail* page (/family/children/[id]
+  Account tab) was a third gender select missed by the first pass — it still
+  offered legacy value="F"/"M"/"" options, so a stored canonical MALE/FEMALE
+  matched nothing, rendered blank, and a save wrote a legacy/empty value that
+  normalize-on-read then folded to NOT_SPECIFIED ("saves, reads Not
+  Specified"). Now uses GENDERS/GENDER_LABELS/normalizeGender + disabled
+  "Select…", and normalises the loaded value so the right option preselects.
+  Also canonicalised gender on the adult profile WRITE path
+  (profile.service buildIamPersonPatch) — it was normalised on read but
+  passed through raw on write; now symmetric with the child path. Verified
+  live: PATCH a MANAGED child gender MALE → response MALE, GET MALE, both
+  platform_family_children.gender AND iam_person.gender = MALE; NOT_SPECIFIED
+  round-trips as a real choice (INDEPENDENT children correctly 403, unrelated).
+
+### FIX 2 — Mailing "Use family / Use custom" toggle
+- New mailing_address_source (FAMILY|CUSTOM, default FAMILY) on
+  platform_family_children + iam_person (migration 20260601020000),
+  mirroring address_source. Three states: FAMILY = inherit family mailing;
+  CUSTOM + same-as-physical = mirror this record's physical; CUSTOM +
+  different = custom fields. The existing same-as-physical boolean is
+  preserved, nested under CUSTOM.
+- Use family inherits the family mailing address, falling back to the family
+  HOME address when the family keeps mailing == home.
+- Web reuses FamilyCustomToggle on the mailing block in BOTH the child
+  Addresses tab and the adult profile Contact tab. Custom mailing fields
+  persist only under CUSTOM + different; nulled otherwise.
+
+### FIX 3 — Child "Use family" shows family no-doctor/no-insurance state
+- loadFamilyDoctorInsurance + toMedicalDto thread the family's explicit
+  hasFamilyDoctor / hasInsurance three-state flags; ChildMedicalInfoDto
+  (api + web) carries them, populated only in FAMILY mode (null in CUSTOM).
+- Child Medical & Health (Use family) renders "No family doctor/insurance on
+  file" when the flag is false (matching the family tab), inherited details
+  when true, and empty when null (unanswered) — instead of blank dashes for
+  all three. Also fixed an adjacent copy-paste (CUSTOM insurancePolicy read
+  the wrong column).
+- FOLLOW-UP (2026-06-01): the first pass only covered the child section. The
+  adult/parent profile Medical tab is a separate component + API path
+  (getMyMedical → loadFamilyDoctorInsuranceForPerson → toAdultMedicalDto →
+  AdultMedicalInfoDto) and still showed dashes under "Use family". Applied the
+  identical fix there. Verified against demo data: the family with both flags
+  false reads the explicit "none" text on parent AND child; the Chen demo
+  family (flags null) correctly stays empty.
+
+### Tests + verification
+- family-children.spec: +FIX3 (4: none-flagged, has-doctor, neither-set,
+  custom), +FIX1 (create stores canonical, legacy read normalizes), +FIX2
+  (mailing source defaults FAMILY, round-trips CUSTOM, flips back).
+- pnpm --filter @campusos/api build — 0 errors.
+- pnpm --filter @campusos/api exec tsc --noEmit — 0 errors.
+- family-children + child-linking + relationships — 110 passing.
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors; next lint clean.
+- Backfill migrations verified against demo data.
+
+## Bottom-anchored save bar on child profile + family settings (2026-06-01)
+
+The parent `/profile` tabs already committed identity/account fields through
+the viewport-fixed `StickySaveBar` (Discard + Save Changes, shown only while
+dirty). The child profile Account tab and the `/family/settings` tabs still
+used an inline mid-page "Save Changes" button, so the save action was
+inconsistent and could scroll out of view on long forms. Aligned all three to
+the parent pattern — frontend-only, no API/scope change.
+
+- `apps/web/.../family/children/[id]/page.tsx` — `AccountEditForm` now renders
+  `StickySaveBar` instead of the inline submit. Extracted `doSave()` from
+  `onSubmit` (onSubmit is now a thin `preventDefault → void doSave()`), added
+  `onDiscard` (reset form + clear errors), kept a hidden `type="submit"` for
+  Enter-to-save. Tab container gained `pb-24` clearance. Save scope unchanged:
+  it still commits ONLY first/last (+ middle/preferred when LINKED) + DOB +
+  gender via `useUpdateFamilyChild`. The Contact tab already used a sticky bar;
+  Medical/Dietary tabs and the Family Structure section keep their own separate
+  save actions (untouched).
+- `apps/web/.../family/settings/page.tsx` — same refactor applied to all three
+  form tabs: FamilyTab (display name + category routing), AddressesTab (home +
+  mailing), HealthTab (doctor/insurance/notes). Each keeps its own scope and
+  its own `StickySaveBar` (gated on `settings.canEdit`, so read-only child
+  viewers still see no save action); only one tab is editable at a time so only
+  one bar ever shows. `pb-24` added to the tab container. Per-row controls
+  (emergency-contact reorder/pickup toggles, member rows) persist immediately
+  and were not touched.
+
+### Verification
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors.
+- /family/children/[id] and /family/settings both compile + serve 200 in dev.
+- Live round-trip as adamtromsness@gmail.com on Thatcher (MANAGED): PATCH
+  preferredName → response + read-back persisted, then restored — confirms the
+  rewired save still commits identity fields.
+
+## Family-tree union-junction layout rebuild (2026-06-01)
+
+Payload unchanged (parents-union + per-child parentLinks, childless-root). This
+rebuilds only how `apps/web/.../components/family/FamilyTreeView.tsx` DRAWS the
+diagram, fixing three defects: crossing lines (per-edge fan), right-edge
+clipping (fixed 680px canvas), and truncated box text (full relationship +
+custody strings per box).
+
+- STEP 1 — group children by the unordered SET of real parents; render one
+  UNION JUNCTION per group: parents joined by a short horizontal line, a single
+  drop to a horizontal sibling bar, one short drop per child. The common intact
+  family (all kids share two parents) → ONE group → ZERO crossings.
+- STEP 2 — canvas sized to the wider of the parent/child rows (viewBox =
+  max(parentRowW, childRowW)); never clips. ≤4 children scale responsively
+  (maxWidth:100%, height auto); >4 switch to a horizontally scrollable container
+  at natural box size so text stays legible instead of shrinking.
+- STEP 3 — parent-row ordering: groups sorted by child barycenter, each group's
+  parents clustered, a shared parent emitted ONCE (first group). Cross-group
+  crossings only possible at a shared parent — minimised, remainder accepted.
+- STEP 4 — child box = `FirstName · age` (first token of displayName) + a
+  one-word relationship subtitle ("Biological child"; non-default categories
+  combine, e.g. "Biological / step child"); equal heights; box widths sized to
+  the longest label (char-count approximation) so nothing truncates. Per-link
+  custody / full type no longer printed (lives on the profile). Parent box =
+  name + role line ("You · parent" for self). Single-parent group drops from
+  the real parent — no phantom line to the dashed empty slot.
+
+### Verification
+- pnpm --filter @campusos/web exec tsc --noEmit — 0 errors.
+- pnpm --filter @campusos/api build — 0 errors (no API files touched; payload
+  unchanged, so the integration suite is unaffected by this render-only change).
+- /family/[personId]/structure and /family/tree compile + serve 200 in dev.
+- Geometry verified against the real Tromsness payload (rooted on Adam: union
+  {Adam, Ashley} + Scout/Thatcher/Sailor/Harper) and a faithful standalone
+  simulation of computeLayout: 4-kid case → 1 union, 612px (fits, no scroll),
+  0 crossings; 2/4/6-child sizing all 0 crossings (scroll engages at 6); blended
+  ({Adam,Ashley}×2 + {Adam,Maria}×1) → 2 unions, Adam once, 0 in-group
+  crossings; single-parent → drop from the real parent only; childless root →
+  boxes only, no dangling lines. (apps/web has no unit-test runner — vitest is
+  not installed and `test` is a stub — so the layout is verified by the
+  simulation + live render rather than a committed web spec.)
+
+## Family-tree clickable person nodes (2026-06-01)
+
+Each person box in the read-only tree is clickable → that person's profile, but
+ONLY when they have a profile the viewer may reach. The SERVER decides
+clickability per node; the client is clickable iff a URL is present.
+
+- API (`relationship.{dto,service,controller}.ts`):
+  - `FamilyTreeParentDto` + `FamilyTreeChildDto` gain `profileUrl: string | null`
+    (both already carried `personId`).
+  - `RelationshipService.resolveProfileUrls(personIds, viewerPersonId,
+    isSchoolAdmin)` resolves a per-person, viewer-specific URL (first match):
+    own node → `/profile`; school admin → `/profile/:personId` (holds
+    usr-001:admin); guardian of a LINKED managed child → `/family/children/
+    :familyChildId` (batch-resolved from platform_family_children + _members —
+    the family-child record id, NOT the iam_person id); else omitted (null).
+  - The controller decorates `getFamilyTree` output after the existing
+    assertCanView gate, using actor.isSchoolAdmin. Name-only parents (personId
+    null) and placeholder slots (no node) are never clickable.
+- Web (`FamilyTreeView.tsx`, `use-relationships.ts`):
+  - `FamilyTreeParent`/`FamilyTreeChild` gain `profileUrl`. A new `NodeGroup`
+    wrapper renders an interactive `<g role="link" tabIndex=0>` (cursor,
+    hover/focus stroke, Enter/Space activation, `aria-label "View {name}'s
+    profile"`, `useRouter().push`) when href is present, and a plain inert `<g>`
+    otherwise. Navigation only — no edit affordances; tree stays read-only.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors; web tsc — 0 errors.
+- relationships.spec — 32 passing (4 new: guardian→child route + self→/profile +
+  unviewable co-parent→null; admin→/profile/:id + name-only→null; non-guardian
+  viewer gets only self+managed-child clickable; student self-viewer →/profile
+  with canEdit:false i.e. navigation ≠ edit).
+- Live (adamtromsness@gmail.com on the Tromsness tree): Adam→/profile, Ashley
+  (co-parent, not viewable)→null, Scout/Thatcher/Sailor/Harper→
+  /family/children/:familyChildId; as Platform Admin every node→/profile/:id.
+
+## Guardian editing — age + consent model (2026-06-02)
+
+Replaces the "Independent gates editing" rule with an age-driven rule + a
+post-18 consent layer. ONE predicate governs every section.
+
+- New table `platform_guardian_edit_consent` (guardian_person_id,
+  subject_person_id, state GRANTED|REVOKED, UNIQUE pair, CHECK state, no-self;
+  migration 20260602000000 + Prisma model). Carryover = the read default:
+  an ABSENT row reads GRANTED, so no data backfill is needed and no guardian is
+  locked out on deploy. Rows are materialised only for a new-guardian-after-18
+  (REVOKED) or an explicit adult grant/revoke.
+- `RelationshipService` gains `canGuardianEdit(guardian, subject)` (active
+  guardian AND (subject <18 → true; else consent ≠ REVOKED)), `ageOfPerson`,
+  `getGuardianConsentState`, `setGuardianConsent`, `listGuardiansWithConsent`.
+  Exactly-18 is an adult (consent begins at the 18th birthday); unknown DOB is
+  treated as a minor (never lock a guardian out of a managed child).
+  `addRelationship` materialises REVOKED when a new PARENT_TYPE link forms and
+  the subject is already 18+ (ON CONFLICT DO NOTHING — never clobbers an
+  explicit choice).
+- `relationship.auth.ts::canEditFamilyStructure` now delegates its non-self
+  branch to `canGuardianEdit` (keeps the PARENT-persona + self gate); the
+  controller injects `canGuardianEdit` instead of `isActiveGuardianOf`.
+- `FamilyChildrenService` injects `RelationshipService`. The child identity
+  `update()` INDEPENDENT-403 throw is replaced by `canGuardianEdit` for LINKED
+  rows; medical/dietary/emergency/phone/email writes go through a new
+  `assertCanEditLinkedChild` (reads still use `requireLinkedChildOwned`).
+  `FamilyChildDto.canEdit` is decorated (decorateCanEdit) on every read/return
+  path; `accessLevel` is descriptive only now. The `updateMember` INDEPENDENT
+  throw is intentionally KEPT — it guards adult co-guardian *members*, not
+  dependents (out of scope for the age/consent model).
+- Endpoints: `GET /people/:personId/guardian-access` +
+  `PATCH /people/:personId/guardian-access/:guardianId { state }` — subject-only
+  and 18+ (assertSelfAdult; 403 otherwise; cannot target self). DTOs:
+  GuardianAccessResponseDto / GuardianAccessEntryDto / UpdateGuardianAccessDto.
+- Web: `FamilyChild.canEdit` added; the child profile gates readOnly + phone/
+  email + address editing on `canEdit` (not accessLevel). The Independent badge
+  + status labels stay as descriptive self-login indicators; the INDEPENDENT
+  info banner now reflects canEdit. New `GuardianAccessSection` ("People who can
+  edit my account") on the 18+ person's `/profile` Account tab (Revoke/Grant per
+  guardian; hidden for under-18s). Hooks: useGuardianAccess / useSetGuardianAccess.
+
+### Verification
+- pnpm --filter @campusos/api build — 0 errors; tsc — 0 errors; web tsc — 0 errors.
+- relationships.spec — 40 passing (+8 consent: under-18 unconditional/no row;
+  non-guardian never; 18+ carryover GRANTED; revoke→blocked→re-grant; new-after-18
+  REVOKED; listGuardiansWithConsent; endpoint revoke blocks edits; endpoint
+  subject-only/minor/self-target 403). family-children.spec + child-linking.spec
+  updated for the new ctor + behavior (Independent under-18 now editable; 18+
+  revoke blocks identity AND medical; canEdit on the DTO) — all passing.
+- Live (adamtromsness@gmail.com): editing Alivia (14, INDEPENDENT) identity +
+  medical now succeeds (was 403); canEdit=true. Guardian-access GET: own-adult
+  200, not-self 403, under-18 (Maya, 15) 403.

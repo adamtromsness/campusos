@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { normalizeGender } from '@campusos/shared';
 import { TenantPrismaService } from '@shared/tenant';
 import {
   AddPersonEmailDto,
@@ -64,6 +65,7 @@ interface IamPersonRow {
   custom_state: string | null;
   custom_postal_code: string | null;
   custom_country: string | null;
+  mailing_address_source: string;
   mailing_same_as_home: boolean;
   custom_mailing_line1: string | null;
   custom_mailing_line2: string | null;
@@ -750,6 +752,8 @@ export class ProfileService {
     insuranceProvider: string | null;
     insurancePolicy: string | null;
     insuranceGroup: string | null;
+    hasFamilyDoctor: boolean | null;
+    hasInsurance: boolean | null;
   } | null> {
     const rows = await this.platform.$queryRawUnsafe<
       Array<{
@@ -759,10 +763,17 @@ export class ProfileService {
         insurance_provider: string | null;
         insurance_policy: string | null;
         insurance_group: string | null;
+        has_family_doctor: boolean | null;
+        has_insurance: boolean | null;
       }>
     >(
+      // has_family_doctor / has_insurance are the family's explicit
+      // three-state flags (true / false="we have none" / null=unanswered),
+      // carried through so a "Use family" view can show "No family doctor
+      // on file" instead of empty dashes for the false case.
       `SELECT pf.doctor_name, pf.doctor_phone, pf.doctor_clinic,
-              pf.insurance_provider, pf.insurance_policy, pf.insurance_group
+              pf.insurance_provider, pf.insurance_policy, pf.insurance_group,
+              pf.has_family_doctor, pf.has_insurance
        FROM platform.platform_families pf
        JOIN platform.platform_family_members pfm ON pfm.family_id = pf.id
        WHERE pfm.person_id = $1::uuid
@@ -778,6 +789,8 @@ export class ProfileService {
       insuranceProvider: r.insurance_provider,
       insurancePolicy: r.insurance_policy,
       insuranceGroup: r.insurance_group,
+      hasFamilyDoctor: r.has_family_doctor,
+      hasInsurance: r.has_insurance,
     };
   }
 
@@ -804,6 +817,8 @@ export class ProfileService {
       insuranceProvider: string | null;
       insurancePolicy: string | null;
       insuranceGroup: string | null;
+      hasFamilyDoctor: boolean | null;
+      hasInsurance: boolean | null;
     } | null,
   ): AdultMedicalInfoDto {
     if (!row) {
@@ -821,6 +836,11 @@ export class ProfileService {
         insuranceGroup: family?.insuranceGroup ?? null,
         bloodType: null,
         medicalNotes: null,
+        // FAMILY mode (default with no own row): surface the family's
+        // explicit none/unanswered flags so the UI shows "No family
+        // doctor on file" rather than blank when false.
+        hasFamilyDoctor: family?.hasFamilyDoctor ?? null,
+        hasInsurance: family?.hasInsurance ?? null,
       };
     }
     const source = (row.medicalSource === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as 'FAMILY' | 'CUSTOM';
@@ -841,6 +861,10 @@ export class ProfileService {
       insuranceGroup: useFamily ? family!.insuranceGroup : row.insuranceGroup,
       bloodType: row.bloodType,
       medicalNotes: row.medicalNotes,
+      // Flags apply only while inheriting (FAMILY); in CUSTOM the person's
+      // own record governs → null.
+      hasFamilyDoctor: useFamily ? family!.hasFamilyDoctor : null,
+      hasInsurance: useFamily ? family!.hasInsurance : null,
     };
   }
 
@@ -936,6 +960,7 @@ export class ProfileService {
       'customState',
       'customPostalCode',
       'customCountry',
+      'mailingAddressSource',
       'customMailingLine1',
       'customMailingLine2',
       'customMailingCity',
@@ -967,6 +992,13 @@ export class ProfileService {
       if (dto[k] !== undefined) out[k as string] = dto[k];
     }
 
+    // Canonicalise gender on WRITE (FIX 1) so storage matches the option
+    // set, symmetric with the read normalisation + the child path. null
+    // (explicit clear) stays null.
+    if (dto.gender !== undefined) {
+      out.gender = dto.gender != null ? normalizeGender(dto.gender) : null;
+    }
+
     if (dto.dateOfBirth !== undefined) {
       out.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
     }
@@ -993,7 +1025,7 @@ export class ProfileService {
         'p.created_at::text AS created_at, ' +
         'p.address_source, p.custom_address_line1, p.custom_address_line2, ' +
         'p.custom_city, p.custom_state, p.custom_postal_code, p.custom_country, ' +
-        'p.mailing_same_as_home, ' +
+        'p.mailing_address_source, p.mailing_same_as_home, ' +
         'p.custom_mailing_line1, p.custom_mailing_line2, p.custom_mailing_city, ' +
         'p.custom_mailing_state, p.custom_mailing_postal_code, p.custom_mailing_country, ' +
         'p.employer, p.job_title, ' +
@@ -1394,7 +1426,9 @@ export class ProfileService {
       suffix: person.suffix,
       previousNames: person.previous_names ?? [],
       dateOfBirth: person.date_of_birth,
-      gender: person.gender,
+      // Normalise the self-editable gender to the canonical option set
+      // (FIX 1) so the Account-tab select always matches a real option.
+      gender: normalizeGender(person.gender),
       loginEmail: person.login_email,
       personalEmail: person.personal_email,
       primaryPhone: person.primary_phone,
@@ -1414,6 +1448,9 @@ export class ProfileService {
       customState: person.custom_state,
       customPostalCode: person.custom_postal_code,
       customCountry: person.custom_country,
+      mailingAddressSource: (person.mailing_address_source === 'CUSTOM' ? 'CUSTOM' : 'FAMILY') as
+        | 'FAMILY'
+        | 'CUSTOM',
       // DB column is the positive sense; wire format flips it.
       mailingAddressDifferent: !person.mailing_same_as_home,
       customMailingLine1: person.custom_mailing_line1,

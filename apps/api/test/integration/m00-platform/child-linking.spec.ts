@@ -6,6 +6,7 @@ import { generateId } from '@campusos/database';
 import { FamilyChildrenService } from '@modules/m00-platform/households/family-children.service';
 import { FamilyChildrenController } from '@modules/m00-platform/households/family-children.controller';
 import { PersonaResolutionService } from '@modules/m00-platform/iam/persona-resolution.service';
+import { RelationshipService } from '@modules/m00-platform/iam/relationship.service';
 import { RedisService } from '@shared/cache';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
@@ -46,7 +47,8 @@ describe('integration:m00-platform/child-linking', () => {
     redis = new RedisService();
     await redis.onModuleInit();
     const personaResolution = new PersonaResolutionService(prisma, tenantPrisma);
-    service = new FamilyChildrenService(prisma, personaResolution, redis);
+    const relationships = new RelationshipService(prisma);
+    service = new FamilyChildrenService(prisma, personaResolution, redis, relationships);
     controller = new FamilyChildrenController(service);
 
     const seedUser = async (personId: string, accountId: string, label: string) => {
@@ -141,24 +143,28 @@ describe('integration:m00-platform/child-linking', () => {
         accountId,
       );
     }
-    for (const personId of [parentPersonId, parentBPersonId, childPersonId]) {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
-        personId,
-      );
-    }
-    for (const personId of createdPersonIds) {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
-        personId,
-      );
-    }
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM platform.platform_personas WHERE person_id IN ($1::uuid, $2::uuid, $3::uuid)`,
+    // platform_personas FKs iam_person, so personas MUST be deleted
+    // first. create-account / accept now refresh the inviting parent's
+    // persona cache, so a PARENT row exists by teardown; deleting
+    // iam_person before it raised an FK violation that cascaded into
+    // sibling tests. Covers fixed IDs AND every dynamically-created
+    // person.
+    const allPersonIds = [
       parentPersonId,
       parentBPersonId,
       childPersonId,
+      ...createdPersonIds,
+    ];
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM platform.platform_personas WHERE person_id = ANY($1::uuid[])`,
+      allPersonIds,
     );
+    for (const personId of allPersonIds) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
+        personId,
+      );
+    }
     await tenantPrisma.onModuleDestroy();
     await redis.onModuleDestroy();
     await prisma.$disconnect();
@@ -225,10 +231,12 @@ describe('integration:m00-platform/child-linking', () => {
       lastName: 'Parent',
       dateOfBirth: '2018-01-01', // under-13 → minor
     });
+    // DOB came from the placeholder; gender is supplied at account
+    // creation (Account Creation spec, Step 2 — both required).
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { gender: 'M' },
     );
     expect(linked.status).toBe('LINKED');
     expect(linked.personId).toBeTruthy();
@@ -252,7 +260,7 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { dateOfBirth: '2015-04-02', gender: 'F' },
     );
     createdPersonIds.add(linked.personId!);
 
@@ -270,6 +278,7 @@ describe('integration:m00-platform/child-linking', () => {
     await expect(
       controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
         email: 'kid@example.invalid',
+        gender: 'M',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -282,6 +291,83 @@ describe('integration:m00-platform/child-linking', () => {
     await expect(
       controller.createAccount(reqFor(parentBPersonId, parentBAccountId), c.id, {}),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  // ─── create-account: DOB + gender required (spec Step 2) ────
+
+  it('create-account missing DOB (placeholder + dto both lack it) → 400', async () => {
+    // Placeholder created without a DOB; dto supplies gender only.
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'NoDob',
+      lastName: 'Parent',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, { gender: 'F' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('create-account missing gender → 400', async () => {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'NoGender',
+      lastName: 'Parent',
+      dateOfBirth: '2015-02-02',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('create-account future DOB → 400', async () => {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'Future',
+      lastName: 'Parent',
+    });
+    await expect(
+      controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
+        dateOfBirth: '3000-01-01',
+        gender: 'F',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // ─── age → person_type (spec Step 4) ───────────────────────
+
+  async function personTypeAfterCreate(dateOfBirth: string): Promise<string | null> {
+    const c = await controller.create(reqFor(parentPersonId, parentAccountId), {
+      firstName: 'Aged',
+      lastName: 'Parent',
+      dateOfBirth,
+    });
+    const linked = await controller.createAccount(reqFor(parentPersonId, parentAccountId), c.id, {
+      gender: 'F',
+    });
+    createdPersonIds.add(linked.personId!);
+    const person = await prisma.iamPerson.findUnique({
+      where: { id: linked.personId! },
+      select: { personType: true },
+    });
+    return person?.personType ?? null;
+  }
+
+  it('age 12 → STUDENT person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 12);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('STUDENT');
+  });
+
+  it('age exactly 18 → STUDENT person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 18);
+    // Pull a day earlier so the 18th birthday has definitely passed.
+    dob.setUTCDate(dob.getUTCDate() - 1);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('STUDENT');
+  });
+
+  it('age 19 → GUARDIAN person_type', async () => {
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 19);
+    dob.setUTCDate(dob.getUTCDate() - 1);
+    expect(await personTypeAfterCreate(dob.toISOString().slice(0, 10))).toBe('GUARDIAN');
   });
 
   // ─── send-link ─────────────────────────────────────────────
@@ -322,7 +408,7 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.createAccount(
       reqFor(parentPersonId, parentAccountId),
       c.id,
-      {},
+      { dateOfBirth: '2015-04-02', gender: 'F' },
     );
     createdPersonIds.add(linked.personId!);
     await expect(
@@ -345,8 +431,11 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.accept(reqFor(childPersonId, childAccountId), {
       code: sent.inviteCode!,
     });
-    expect(linked.status).toBe('LINKED');
-    expect(linked.personId).toBe(childPersonId);
+    // /family/link returns the discriminated FamilyLinkResultDto; a
+    // CHILD_LINK accept resolves to { kind: 'CHILD', child }.
+    if (linked.kind !== 'CHILD') throw new Error('expected CHILD result');
+    expect(linked.child.status).toBe('LINKED');
+    expect(linked.child.personId).toBe(childPersonId);
 
     const inv = await prisma.platformInvitation.findUnique({
       where: { token: sent.inviteCode! },
@@ -400,8 +489,9 @@ describe('integration:m00-platform/child-linking', () => {
     const linked = await controller.accept(reqFor(parentBPersonId, parentBAccountId), {
       code: sent.inviteCode!,
     });
-    expect(linked.familyId).toBe(c.familyId);
-    expect(linked.personId).toBe(parentBPersonId);
+    if (linked.kind !== 'CHILD') throw new Error('expected CHILD result');
+    expect(linked.child.familyId).toBe(c.familyId);
+    expect(linked.child.personId).toBe(parentBPersonId);
   });
 
   it('rate limit: 6th attempt within 15 min → 429', async () => {

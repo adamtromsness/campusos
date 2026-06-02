@@ -14,16 +14,14 @@ import type {
 export type FamilyChildStatus = 'PLACEHOLDER' | 'PENDING_LINK' | 'LINKED';
 
 /**
- * accessLevel is the caller-relative authority on a family row.
- * Server derives it from platform_users.managed_by_person_id:
+ * accessLevel is now DESCRIPTIVE ONLY — a self-login indicator, not an edit
+ * gate. Use `FamilyChildDto.canEdit` (the server's age + consent decision) for
+ * whether the caller may edit. accessLevel meanings:
  *
- *   PLACEHOLDER — pre-link state, no iam_person yet. Edits go to
- *                 the family row directly.
- *   MANAGED     — the linked account's managed_by_person_id is the
- *                 caller. The caller is the custodian and PATCH
- *                 endpoints accept full identity edits.
- *   INDEPENDENT — the linked account is unmanaged or managed by
- *                 someone else. PATCH endpoints return 403.
+ *   PLACEHOLDER — pre-link state, no iam_person yet.
+ *   MANAGED     — the linked account is managed by a family guardian.
+ *   INDEPENDENT — the linked account has its own login (the child logs in
+ *                 themselves). This NO LONGER blocks guardian editing.
  */
 export type FamilyAccessLevel = 'PLACEHOLDER' | 'MANAGED' | 'INDEPENDENT';
 
@@ -46,6 +44,9 @@ export interface FamilyChildDto {
   notes: string | null;
   status: FamilyChildStatus;
   accessLevel: FamilyAccessLevel;
+  // Server-computed, caller-relative edit authority (age + consent model).
+  // The UI gates ALL edit affordances on this — never on accessLevel.
+  canEdit: boolean;
   // FAMILY (default) → inherit emergency contacts from
   // /family/settings/emergency-contacts, with per-child rows acting
   // as additive "additional contacts for this child only".
@@ -61,6 +62,7 @@ export interface FamilyChildDto {
   customState: string | null;
   customPostalCode: string | null;
   customCountry: string | null;
+  mailingAddressSource: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent: boolean;
   mailingLine1: string | null;
   mailingLine2: string | null;
@@ -104,6 +106,7 @@ export interface UpdateFamilyChildPayload {
   customState?: string | null;
   customPostalCode?: string | null;
   customCountry?: string | null;
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   mailingAddressDifferent?: boolean;
   mailingLine1?: string | null;
   mailingLine2?: string | null;
@@ -115,6 +118,11 @@ export interface UpdateFamilyChildPayload {
 
 export interface CreateChildAccountPayload {
   email?: string;
+  // DOB + gender are required server-side to provision the account
+  // (Account Creation spec, Step 2). DOB may already be on the
+  // placeholder row; gender is collected at account creation.
+  dateOfBirth?: string;
+  gender?: string;
 }
 
 export interface SendChildLinkPayload {
@@ -440,6 +448,26 @@ export function useDeleteFamilyMember(id: string) {
   });
 }
 
+/**
+ * PATCH /families/:familyId/primary-guardian — reassign the family's
+ * primary contact to another ACTIVE guardian. "Primary" is a contact
+ * label only and does not change edit rights / guardianship. Invalidates
+ * the whole family space so the star + completion %/checklist re-derive.
+ */
+export function useSetPrimaryGuardian(familyId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (guardianPersonId: string) =>
+      apiFetch<FamilyViewDto>('/api/v1/families/' + familyId + '/primary-guardian', {
+        method: 'PATCH',
+        body: JSON.stringify({ guardianPersonId }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVALIDATE });
+    },
+  });
+}
+
 export function useCreateMemberAccount(id: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -526,6 +554,12 @@ export interface ChildMedicalInfoDto {
   insuranceGroup: string | null;
   bloodType: string | null;
   medicalNotes: string | null;
+  // Family's explicit three-state flags, set only in FAMILY (inherited)
+  // mode: true = family has one, false = family explicitly has none,
+  // null = unanswered. Lets the Use-family view show "No family doctor on
+  // file" for false instead of empty dashes. null in CUSTOM mode.
+  hasFamilyDoctor: boolean | null;
+  hasInsurance: boolean | null;
 }
 export interface UpdateChildMedicalInfoPayload {
   allergies?: ChildAllergyEntry[];
@@ -876,17 +910,60 @@ export interface PeopleSearchResult {
  * Hits GET /api/v1/people/search?q=…. Returns up to 10 results.
  * Pass `enabled` to short-circuit when the input is below the
  * 2-character minimum; an enabled-false query won't fire.
+ *
+ * `includeSelf` keeps the current user in the results (default: excluded).
+ * The family-structure Set Father/Mother modal opts in so a parent can
+ * find + select themselves as the child's parent.
  */
-export function usePeopleSearch(query: string, enabled = true) {
+export function usePeopleSearch(query: string, enabled = true, includeSelf = false) {
   const trimmed = query.trim();
   return useQuery({
-    queryKey: ['people', 'search', trimmed] as const,
+    queryKey: ['people', 'search', trimmed, includeSelf] as const,
     queryFn: () =>
       apiFetch<PeopleSearchResult[]>(
-        '/api/v1/people/search?q=' + encodeURIComponent(trimmed),
+        '/api/v1/people/search?q=' +
+          encodeURIComponent(trimmed) +
+          (includeSelf ? '&includeSelf=true' : ''),
       ),
     enabled: enabled && trimmed.length >= 2,
     staleTime: 30_000,
+  });
+}
+
+// ─── Duplicate detection (account-creation safety) ─────────
+
+export interface CheckDuplicatePayload {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+}
+
+export interface CheckDuplicateResult {
+  exists: boolean;
+  // Present only when exists. Given name + last initial ("Alivia T.").
+  displayName?: string;
+  // Coarse role label only ("Parent", "Student", …) — never PII.
+  context?: string;
+  // True when the matched account is already managed by the caller, so
+  // the UI may offer a direct link; otherwise a claim request is needed.
+  alreadyManagedByCurrentUser?: boolean;
+}
+
+/**
+ * POST /api/v1/people/check-duplicate — Account Creation spec, Step 3.
+ * A mutation (not a query) so the form can fire it imperatively on
+ * email-blur or after the name+DOB triple is complete. The server only
+ * returns a strong match (exact email OR name+DOB) and a minimal
+ * descriptor; partial-name probes never match.
+ */
+export function useCheckDuplicate() {
+  return useMutation({
+    mutationFn: (payload: CheckDuplicatePayload) =>
+      apiFetch<CheckDuplicateResult>('/api/v1/people/check-duplicate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
   });
 }
 

@@ -493,3 +493,68 @@ pnpm --filter @campusos/api exec vitest run \
 
 Deferred (per design §12): graphical SVG tree, school-admin student
 family tab, custody calendar, court-order document upload.
+
+### Family Structure on Profiles — 2026-05-30 (edit-permission tighten)
+
+Follow-up to the family-structure feature. No schema migration.
+
+- **Edit is parent/guardian-only.** New `relationship.auth.ts` exports
+  `canEditFamilyStructure(actor, profilePersonId, isActiveGuardianOf)`:
+  true only when `actor.personType === 'GUARDIAN'` AND (caller is the
+  profile owner OR an active guardian of the person). Students (even
+  adult / editing self), staff, and school admins are never editors.
+  Replaces the prior "parent/guardian or self-if-adult, admin on PATCH"
+  rule — the adult-age path and the admin-PATCH path are gone.
+- **`isActiveGuardianOf`** (RelationshipService) = the existing
+  household link (`isGuardianOf`) ∪ a current parent/guardian
+  relationship in the graph (`PARENT_TYPES`, end_date IS NULL). The
+  household path preserves bootstrapping (recording a child's first
+  relationship before any graph edge exists).
+- **`canEdit` flag.** `GET /relationships` and `GET /family-tree`
+  return a top-level `canEdit` (same predicate), computed by the
+  controller. Rendering hint only — every mutation re-checks server-side.
+- **Web.** `FamilyStructureSection` reads `canEdit` from the API instead
+  of a `canManage` prop; edit affordances render only when true. New
+  read-only `/family/[personId]/structure` page (shared `FamilyTreeView`,
+  also used by `/family/tree`), linked from both profiles via "View
+  family structure".
+- **Tests.** +8 edit-permission cases in `relationships.spec.ts`
+  (guardian edits child/own → ok; adult student self → 403; student
+  edits other → 403; admin mutate → 403; admin verify → 200; canEdit
+  true/false by role on both GETs; cross-family isolation). 23/23 pass.
+
+Verification:
+
+```
+pnpm --filter @campusos/api build                               # ✓ 0 errors
+pnpm --filter @campusos/api exec tsc --noEmit                   # ✓ 0 errors
+pnpm --filter @campusos/web exec tsc --noEmit                   # ✓ 0 errors
+pnpm --filter @campusos/api exec vitest run \
+  test/integration/m00-platform/relationships.spec.ts \
+  --config vitest.integration.config.ts                         # 23/23 pass
+```
+
+#### Edit-permission bugfix — 2026-05-30 (persona-based gate)
+
+The edit gate keyed off `iam_person.person_type === 'GUARDIAN'`, but a
+self-registered parent (personas `Parent · Substitute`, person_type not
+`GUARDIAN`) got `canEdit:false` on their own profile and their children.
+
+- `canEditFamilyStructure` now keys off the caller's **derived personas**:
+  edit-eligible if any active persona ∈ `EDIT_ELIGIBLE_PERSONAS` (`PARENT`).
+  `Substitute`/`Student`/`Staff`-only never qualify. The controller fetches
+  personas via `PersonaResolutionService.getActivePersonas`; the
+  self-or-active-guardian condition is unchanged.
+- `isGuardianOf`'s household path now requires a **guardian-role** member
+  (`PARENT`/`GUARDIAN`/`HEAD_OF_HOUSEHOLD`/`SPOUSE`) so a co-resident
+  student can't edit a sibling's structure.
+- **Bootstrap:** no explicit relationship row is created on child
+  creation — the creating parent is already the family's
+  `HEAD_OF_HOUSEHOLD` over the LINKED child, which `isActiveGuardianOf`'s
+  household path recognises, so they can edit immediately. No backfill
+  needed for already-created children (their household membership
+  predates this fix). Considered creating a `LEGAL_GUARDIAN` row at
+  creation but rejected it: it FKs `iam_person` and would break the
+  `iam_person` teardown in several existing specs.
+- Tests: 8 reworked persona/bootstrap cases (still 23/23).
+

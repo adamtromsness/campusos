@@ -10,7 +10,10 @@ import {
   CreateRelationshipDto,
   CREATABLE_RELATIONSHIP_TYPES,
   DerivedSiblingDto,
+  FamilyTreeChildDto,
   FamilyTreeDto,
+  FamilyTreeParentDto,
+  FamilyTreeParentLinkDto,
   GetRelationshipsResponseDto,
   PersonSummaryDto,
   RelationshipDto,
@@ -128,17 +131,182 @@ export class RelationshipService {
    * Mirrors the household ownership model used by FamilyChildrenService.
    */
   async isGuardianOf(callerPersonId: string, personId: string): Promise<boolean> {
+    // The caller must be an ACTIVE member in a *guardian* role — not a
+    // mere co-resident. Otherwise a sibling/child member of the same
+    // household could edit another child's family structure. STUDENT /
+    // CHILD / SIBLING / OTHER roles are excluded.
     const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: number }>>(
       `SELECT 1 AS ok
          FROM platform.platform_family_members m
          JOIN platform.platform_family_children c ON c.family_id = m.family_id
         WHERE m.person_id = $1::uuid AND m.status = 'ACTIVE'
+          AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
           AND c.person_id = $2::uuid AND c.status = 'LINKED'
         LIMIT 1`,
       callerPersonId,
       personId,
     );
     return rows.length > 0;
+  }
+
+  /**
+   * True when `callerPersonId` is an active guardian of `personId` — the
+   * union of two signals (the edit-permission predicate, Family Structure
+   * on Profiles spec Step 1):
+   *
+   *   1. Household link — caller is an ACTIVE family member and `personId`
+   *      is a LINKED child of that family (isGuardianOf above). This is the
+   *      bootstrapping path: it lets a parent record the child's FIRST
+   *      relationship before any graph edge exists.
+   *   2. Relationship graph — a current parent/guardian relationship FROM
+   *      `personId` TO the caller (the caller is recorded as the person's
+   *      LEGAL_GUARDIAN / BIOLOGICAL_* / ADOPTIVE_* / STEP_* parent), with
+   *      end_date IS NULL.
+   *
+   * PARENT_TYPES spans LEGAL_GUARDIAN *and* every parentage type, so an
+   * upgrade-in-place (LEGAL_GUARDIAN → BIOLOGICAL_FATHER, custody on) keeps
+   * satisfying signal (2) — the editor never loses their own edit rights
+   * mid-flow. Membership here is type-based, not custody-flag-based.
+   */
+  async isActiveGuardianOf(callerPersonId: string, personId: string): Promise<boolean> {
+    if (await this.isGuardianOf(callerPersonId, personId)) return true;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: number }>>(
+      `SELECT 1 AS ok
+         FROM platform.platform_person_relationships
+        WHERE person_id = $1::uuid
+          AND related_person_id = $2::uuid
+          AND relationship_type = ANY($3::text[])
+          AND end_date IS NULL
+        LIMIT 1`,
+      personId,
+      callerPersonId,
+      PARENT_TYPES,
+    );
+    return rows.length > 0;
+  }
+
+  // ─── Guardian edit access: age + consent model ────────────────
+  //
+  // ONE predicate for "may this guardian edit this person's account",
+  // used by every section (identity / medical / emergency / dietary /
+  // family structure). Under 18 a guardian edits unconditionally — the
+  // "Independent" flag is descriptive only and no longer gates anything.
+  // At 18+ the (now-adult) subject controls access: edit is allowed only
+  // while consent is not REVOKED (absent ⇒ GRANTED carryover).
+
+  /** Adulthood begins at the 18th birthday — exactly-18 is an adult. */
+  private static readonly ADULT_AGE = 18;
+
+  /** Subject age in whole years from iam_person.date_of_birth; null if unknown. */
+  async ageOfPerson(personId: string): Promise<number | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ dob: string | null }>>(
+      `SELECT date_of_birth::text AS dob FROM platform.iam_person WHERE id = $1::uuid LIMIT 1`,
+      personId,
+    );
+    const dob = rows[0]?.dob;
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let age = now.getUTCFullYear() - d.getUTCFullYear();
+    const m = now.getUTCMonth() - d.getUTCMonth();
+    if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) age--;
+    return age;
+  }
+
+  /** Stored consent state for a (guardian, subject) pair, or null if none. */
+  async getGuardianConsentState(
+    guardianPersonId: string,
+    subjectPersonId: string,
+  ): Promise<'GRANTED' | 'REVOKED' | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ state: string }>>(
+      `SELECT state FROM platform.platform_guardian_edit_consent
+        WHERE guardian_person_id = $1::uuid AND subject_person_id = $2::uuid
+        LIMIT 1`,
+      guardianPersonId,
+      subjectPersonId,
+    );
+    return (rows[0]?.state as 'GRANTED' | 'REVOKED' | undefined) ?? null;
+  }
+
+  /** Upsert the adult's grant/revoke decision for a guardian. */
+  async setGuardianConsent(
+    guardianPersonId: string,
+    subjectPersonId: string,
+    state: 'GRANTED' | 'REVOKED',
+  ): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO platform.platform_guardian_edit_consent
+         (id, guardian_person_id, subject_person_id, state, created_at, updated_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now(), now())
+       ON CONFLICT (guardian_person_id, subject_person_id)
+       DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
+      generateId(),
+      guardianPersonId,
+      subjectPersonId,
+      state,
+    );
+  }
+
+  /**
+   * The single edit-authorisation predicate. True iff the caller is an
+   * active guardian of the subject AND (subject is under 18 OR the subject
+   * has not revoked the caller's access). Unknown DOB is treated as a minor
+   * (the conservative default — never lock a guardian out of a managed
+   * child whose DOB simply hasn't been captured).
+   */
+  async canGuardianEdit(guardianPersonId: string, subjectPersonId: string): Promise<boolean> {
+    if (!(await this.isActiveGuardianOf(guardianPersonId, subjectPersonId))) return false;
+    const age = await this.ageOfPerson(subjectPersonId);
+    if (age === null || age < RelationshipService.ADULT_AGE) return true;
+    return (await this.getGuardianConsentState(guardianPersonId, subjectPersonId)) !== 'REVOKED';
+  }
+
+  /**
+   * Every active guardian of a subject (household guardian-role members ∪
+   * graph parent/guardian edges), deduped, with the current consent state
+   * (absent ⇒ GRANTED carryover). Powers the adult's "people who can edit
+   * my account" control.
+   */
+  async listGuardiansWithConsent(
+    subjectPersonId: string,
+  ): Promise<Array<{ personId: string; displayName: string; state: 'GRANTED' | 'REVOKED' }>> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{ person_id: string; first_name: string; last_name: string; preferred_name: string | null }>
+    >(
+      `SELECT DISTINCT g.id::text AS person_id, g.first_name, g.last_name, g.preferred_name
+         FROM platform.iam_person g
+        WHERE g.id <> $1::uuid AND (
+          -- household: a guardian-role ACTIVE member of a family where the
+          -- subject is a LINKED child.
+          EXISTS (
+            SELECT 1
+              FROM platform.platform_family_members m
+              JOIN platform.platform_family_children c ON c.family_id = m.family_id
+             WHERE m.person_id = g.id AND m.status = 'ACTIVE'
+               AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
+               AND c.person_id = $1::uuid AND c.status = 'LINKED'
+          )
+          OR
+          -- graph: a current parent/guardian edge subject → guardian.
+          EXISTS (
+            SELECT 1
+              FROM platform.platform_person_relationships r
+             WHERE r.person_id = $1::uuid AND r.related_person_id = g.id
+               AND r.relationship_type = ANY($2::text[]) AND r.end_date IS NULL
+          )
+        )`,
+      subjectPersonId,
+      PARENT_TYPES,
+    );
+    const out: Array<{ personId: string; displayName: string; state: 'GRANTED' | 'REVOKED' }> = [];
+    for (const r of rows) {
+      const state = (await this.getGuardianConsentState(r.person_id, subjectPersonId)) ?? 'GRANTED';
+      const displayName =
+        r.preferred_name?.trim() || `${r.first_name} ${r.last_name}`.trim() || 'Guardian';
+      out.push({ personId: r.person_id, displayName, state });
+    }
+    return out;
   }
 
   // ─── A) addRelationship ───────────────────────────────────────
@@ -177,6 +345,28 @@ export class RelationshipService {
     const custodyNotes = dto.custodyNotes?.trim() || null;
     const isPrimaryResidence = dto.isPrimaryResidence ?? false;
     const startDate = dto.startDate ?? null;
+
+    // Upgrade-in-place: if the selected CampusOS person already has an
+    // active relationship to this person of a DIFFERENT type — e.g. the
+    // LEGAL_GUARDIAN edge a parent picks up when they create + manage a
+    // child account — don't insert a second row and don't 409. Reconcile
+    // by upgrading the existing row to the chosen parentage type, carrying
+    // the guardian fact forward as a legal-custody flag. Net effect: the
+    // parent shows once (e.g. "Biological father" with custody on), never
+    // twice. Re-adding the SAME type is a genuine duplicate — fall through
+    // to the INSERT, which hits the partial-unique and 409s as before.
+    if (relatedPersonId) {
+      const existing = await this.findActiveForwardRow(personId, relatedPersonId);
+      if (existing && existing.relationship_type !== type) {
+        return this.upgradeRelationship(existing, type, reciprocalType, {
+          isLegalCustody,
+          custodyArrangement,
+          custodyNotes,
+          isPrimaryResidence,
+          startDate,
+        });
+      }
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -226,6 +416,27 @@ export class RelationshipService {
         throw new ConflictException('That relationship already exists.');
       }
       throw err;
+    }
+
+    // New-guardian-after-18: a creatable PARENT_TYPE makes relatedPersonId a
+    // guardian of personId (the subject). If the subject is ALREADY an adult
+    // when this link forms, the guardian's edit access defaults to REVOKED — a
+    // new guardian does not get silent edit access to an adult; the adult can
+    // grant it. (Pre-adulthood links leave no row and carry over as GRANTED.)
+    // DO NOTHING so an explicit prior grant/revoke is never clobbered.
+    if (relatedPersonId && (PARENT_TYPES as readonly string[]).includes(type)) {
+      const age = await this.ageOfPerson(personId);
+      if (age !== null && age >= RelationshipService.ADULT_AGE) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO platform.platform_guardian_edit_consent
+             (id, guardian_person_id, subject_person_id, state, created_at, updated_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'REVOKED', now(), now())
+           ON CONFLICT (guardian_person_id, subject_person_id) DO NOTHING`,
+          generateId(),
+          relatedPersonId,
+          personId,
+        );
+      }
     }
 
     return this.getRelationshipById(forwardId);
@@ -438,30 +649,181 @@ export class RelationshipService {
 
   // ─── E) getFamilyTree ─────────────────────────────────────────
 
+  /**
+   * Blended-family graph for the single-generation tree diagram: a parent
+   * row + a child row + per-child parent links. NOT a nested tree —
+   * parents differ per child in a blended family, so each child carries
+   * its own links and `parents` is the deduped union across them.
+   *
+   * Root selection: if the root has children of their own, those are the
+   * child row. If not, the root appears as its OWN child (a single-
+   * generation view of the subject + their parents) — so a student's
+   * structure page still renders rather than showing empty.
+   */
   async getFamilyTree(personId: string): Promise<FamilyTreeDto> {
-    const person = await this.loadPersonSummary(personId);
-    if (!person) throw new NotFoundException('Person not found');
-    const { relationships, derivedSiblings } = await this.getRelationships(personId);
+    const rootSummary = await this.loadPersonSummary(personId);
+    if (!rootSummary) throw new NotFoundException('Person not found');
 
-    const inGroup = (types: string[]) => relationships.filter((r) => types.includes(r.type));
-    const grouped = new Set([
-      ...PARENT_TYPES,
-      ...CHILD_TYPES,
-      ...SPOUSE_TYPES,
-      'GRANDPARENT',
-      'GRANDCHILD',
-    ]);
+    // Root's children: the related people on root's CHILD_TYPES rows.
+    // Oldest first (age desc → DOB asc); unknown DOB sorts last.
+    const childRows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+      this.selectSql() +
+        ` WHERE r.person_id = $1::uuid AND r.relationship_type = ANY($2::text[])
+            AND r.related_person_id IS NOT NULL AND r.end_date IS NULL
+          ORDER BY rp.date_of_birth ASC NULLS LAST, r.created_at ASC`,
+      personId,
+      CHILD_TYPES,
+    );
+
+    // De-dupe children (a child reached via two relationship types — e.g.
+    // adoptive + legal — appears once). Falls back to root-as-child.
+    const childSubjects: Array<{ id: string; summary: PersonSummaryDto }> = [];
+    const seenChild = new Set<string>();
+    for (const r of childRows) {
+      const id = r.related_person_id!;
+      if (seenChild.has(id)) continue;
+      seenChild.add(id);
+      childSubjects.push({ id, summary: this.toDto(r).relatedPerson! });
+    }
+    if (childSubjects.length === 0) {
+      childSubjects.push({ id: personId, summary: rootSummary });
+    }
+
+    const parentUnion = new Map<string, FamilyTreeParentDto>();
+    const children: FamilyTreeChildDto[] = [];
+
+    for (const cs of childSubjects) {
+      const parentRows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+        this.selectSql() +
+          ` WHERE r.person_id = $1::uuid AND r.relationship_type = ANY($2::text[])
+              AND r.end_date IS NULL
+            ORDER BY r.created_at ASC`,
+        cs.id,
+        PARENT_TYPES,
+      );
+
+      const links: FamilyTreeParentLinkDto[] = parentRows.map((p) => {
+        const linkBase = {
+          relationshipType: p.relationship_type as RelationshipType,
+          legalCustody: p.is_legal_custody,
+          custodyArrangement:
+            (p.custody_arrangement as FamilyTreeParentLinkDto['custodyArrangement']) ?? null,
+          primaryResidence: p.is_primary_residence,
+        };
+        if (p.related_person_id) {
+          if (!parentUnion.has(p.related_person_id)) {
+            parentUnion.set(p.related_person_id, {
+              personId: p.related_person_id,
+              displayName: summaryDisplayName(this.toDto(p).relatedPerson!),
+              isSelf: p.related_person_id === personId,
+              isPlaceholder: false,
+              // Decorated by the controller with the viewer's accessible route.
+              profileUrl: null,
+            });
+          }
+          return { parentPersonId: p.related_person_id, parentName: null, ...linkBase };
+        }
+        // Name-only (non-CampusOS) parent: still a distinct parent box,
+        // keyed by name so multiple children sharing it collapse to one.
+        const name = p.related_person_name ?? 'Unknown';
+        const key = `name:${name}`;
+        if (!parentUnion.has(key)) {
+          parentUnion.set(key, {
+            personId: null,
+            displayName: name,
+            isSelf: false,
+            isPlaceholder: false,
+            // Name-only parents have no account → never clickable.
+            profileUrl: null,
+          });
+        }
+        return { parentPersonId: null, parentName: name, ...linkBase };
+      });
+
+      // Pad to two slots so a missing co-parent always renders a dashed
+      // "Other parent" placeholder (parentPersonId AND parentName null).
+      while (links.length < 2) {
+        links.push({
+          parentPersonId: null,
+          parentName: null,
+          relationshipType: null,
+          legalCustody: false,
+          custodyArrangement: null,
+          primaryResidence: false,
+        });
+      }
+
+      children.push({
+        personId: cs.id,
+        displayName: summaryDisplayName(cs.summary),
+        age: cs.summary.age,
+        parentLinks: links,
+        // Decorated by the controller with the viewer's accessible route.
+        profileUrl: null,
+      });
+    }
 
     return {
-      person,
-      parents: inGroup(PARENT_TYPES),
-      children: inGroup(CHILD_TYPES),
-      grandparents: inGroup(['GRANDPARENT']),
-      grandchildren: inGroup(['GRANDCHILD']),
-      spouses: inGroup(SPOUSE_TYPES),
-      other: relationships.filter((r) => !grouped.has(r.type)),
-      siblings: derivedSiblings,
+      rootPersonId: personId,
+      parents: Array.from(parentUnion.values()),
+      children,
     };
+  }
+
+  /**
+   * Resolve a per-person, viewer-specific PROFILE URL for the clickable
+   * family-tree nodes. The server owns route + permission resolution so the
+   * client is clickable iff a URL is present — it never re-implements either.
+   *
+   * Rules (first match wins), keyed off what route the viewer can actually
+   * reach (avoids dead-end 403s):
+   *   - the viewer's own node            → /profile (always accessible)
+   *   - school admin viewer              → /profile/:personId (holds usr-001:admin)
+   *   - guardian of a LINKED family child → /family/children/:familyChildId
+   *   - otherwise                         → null (inert)
+   *
+   * Name-only / placeholder nodes never reach here (null personId). A real
+   * co-parent a non-admin viewer can't view resolves to null because they
+   * are neither self, admin, nor a guardian with a managed-child route.
+   */
+  async resolveProfileUrls(
+    personIds: Array<string | null>,
+    viewerPersonId: string,
+    isSchoolAdmin: boolean,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ids = personIds.filter((id): id is string => !!id);
+    const others = Array.from(new Set(ids.filter((id) => id !== viewerPersonId)));
+
+    // Batch-resolve the family-child route for the viewer's LINKED managed
+    // children (co-guardians share management — any active guardian-role
+    // member of the child's family qualifies).
+    const famChildByPerson = new Map<string, string>();
+    if (!isSchoolAdmin && others.length > 0) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ person_id: string; id: string }>>(
+        `SELECT c.person_id::text AS person_id, c.id::text AS id
+           FROM platform.platform_family_members m
+           JOIN platform.platform_family_children c ON c.family_id = m.family_id
+          WHERE m.person_id = $1::uuid AND m.status = 'ACTIVE'
+            AND m.member_role IN ('PARENT', 'GUARDIAN', 'HEAD_OF_HOUSEHOLD', 'SPOUSE')
+            AND c.person_id = ANY($2::uuid[]) AND c.status = 'LINKED'`,
+        viewerPersonId,
+        others,
+      );
+      for (const r of rows) if (!famChildByPerson.has(r.person_id)) famChildByPerson.set(r.person_id, r.id);
+    }
+
+    for (const id of new Set(ids)) {
+      if (id === viewerPersonId) {
+        out.set(id, '/profile');
+      } else if (isSchoolAdmin) {
+        out.set(id, `/profile/${id}`);
+      } else {
+        const fc = famChildByPerson.get(id);
+        if (fc) out.set(id, `/family/children/${fc}`);
+      }
+    }
+    return out;
   }
 
   // ─── Internal helpers ─────────────────────────────────────────
@@ -510,6 +872,93 @@ export class RelationshipService {
       candidates,
     );
     return rows[0]?.id ?? null;
+  }
+
+  /**
+   * The single active relationship row pointing FROM `personId` TO
+   * `relatedPersonId` (end_date IS NULL), if any. Powers upgrade-in-place
+   * so a parentage save reconciles with an existing guardian edge rather
+   * than duplicating it. Oldest row wins if (improbably) more than one is
+   * active for the pair.
+   */
+  private async findActiveForwardRow(
+    personId: string,
+    relatedPersonId: string,
+  ): Promise<RelationshipRow | null> {
+    const rows = await this.prisma.$queryRawUnsafe<RelationshipRow[]>(
+      this.selectSql() +
+        ` WHERE r.person_id = $1::uuid AND r.related_person_id = $2::uuid
+            AND r.end_date IS NULL
+          ORDER BY r.created_at ASC
+          LIMIT 1`,
+      personId,
+      relatedPersonId,
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Reconcile an existing active relationship into the chosen type
+   * (upgrade-in-place). Updates the forward row + its reciprocal in one
+   * tx, carrying the guardian fact onto a parentage row by forcing legal
+   * custody on (the bootstrap guardian edge becomes e.g. "Biological
+   * father" WITH custody, not a separate guardian entry). created_by is
+   * left untouched — there is no updated_by column on this table.
+   */
+  private async upgradeRelationship(
+    existing: RelationshipRow,
+    newType: RelationshipType,
+    newReciprocalType: RelationshipType,
+    custody: {
+      isLegalCustody: boolean;
+      custodyArrangement: string | null;
+      custodyNotes: string | null;
+      isPrimaryResidence: boolean;
+      startDate: string | null;
+    },
+  ): Promise<RelationshipDto> {
+    // Legal custody is meaningful only for parent/guardian types. Upgrading
+    // TO a parentage type carries the guardian fact forward (forces it on);
+    // a spouse/grandparent upgrade uses the supplied flag (default off).
+    const isParentType = (PARENT_TYPES as readonly string[]).includes(newType);
+    const isLegalCustody = isParentType ? true : custody.isLegalCustody;
+    const cols = (type: RelationshipType) => ({
+      set: [
+        'relationship_type = $1',
+        'is_legal_custody = $2',
+        'custody_arrangement = $3',
+        'custody_notes = $4',
+        'is_primary_residence = $5',
+        'start_date = $6::date',
+      ],
+      args: [
+        type,
+        isLegalCustody,
+        custody.custodyArrangement,
+        custody.custodyNotes,
+        custody.isPrimaryResidence,
+        custody.startDate,
+      ] as unknown[],
+    });
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const fwd = cols(newType);
+        await this.applyUpdate(tx, existing.id, fwd.set, fwd.args);
+        const reciprocalId = await this.findReciprocalId(tx, existing);
+        if (reciprocalId) {
+          const rec = cols(newReciprocalType);
+          await this.applyUpdate(tx, reciprocalId, rec.set, rec.args);
+        }
+      });
+    } catch (err: unknown) {
+      if (this.isUniqueViolation(err)) {
+        throw new ConflictException('That relationship already exists.');
+      }
+      throw err;
+    }
+
+    return this.getRelationshipById(existing.id);
   }
 
   private async applyUpdate(
@@ -627,6 +1076,11 @@ export class RelationshipService {
     const sqlState = (err as { meta?: { code?: string } }).meta?.code;
     return code === 'P2002' || sqlState === '23505';
   }
+}
+
+/** Preferred name when set, else "First Last" — matches the web's personDisplayName. */
+function summaryDisplayName(p: PersonSummaryDto): string {
+  return p.preferredName?.trim() || `${p.firstName} ${p.lastName}`.trim();
 }
 
 /** Whole years between a YYYY-MM-DD date and today; null when unknown. */

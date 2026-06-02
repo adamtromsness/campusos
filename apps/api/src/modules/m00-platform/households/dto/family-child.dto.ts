@@ -55,7 +55,14 @@ export class FamilyChildDto {
   @ApiPropertyOptional() primaryPhone!: string | null;
   @ApiPropertyOptional() notes!: string | null;
   @ApiProperty({ enum: FAMILY_CHILD_STATUSES }) status!: FamilyChildStatus;
+  // DESCRIPTIVE ONLY (self-login indicator). accessLevel no longer gates
+  // editing — INDEPENDENT just means the child has their own login. Use
+  // canEdit for whether the current caller may edit this account.
   @ApiProperty({ enum: FAMILY_ACCESS_LEVELS }) accessLevel!: FamilyAccessLevel;
+  // Server-computed, caller-relative edit authority (the age + consent model:
+  // guardian AND (under 18 → unconditional; 18+ → not revoked)). The UI gates
+  // edit affordances on this; the server re-checks on every mutation.
+  @ApiProperty() canEdit!: boolean;
   // Per-child preference: 'FAMILY' (default) inherits emergency
   // contacts from platform_families; 'CUSTOM' uses only per-child
   // contacts. See the per-tab UI for the semantics.
@@ -73,6 +80,10 @@ export class FamilyChildDto {
   @ApiPropertyOptional() customState!: string | null;
   @ApiPropertyOptional() customPostalCode!: string | null;
   @ApiPropertyOptional() customCountry!: string | null;
+  // Mailing source mirrors addressSource: 'FAMILY' inherits the family
+  // mailing address; 'CUSTOM' uses mailingAddressDifferent (false =
+  // same-as-physical, true = the mailing* fields).
+  @ApiProperty({ enum: ['FAMILY', 'CUSTOM'] }) mailingAddressSource!: 'FAMILY' | 'CUSTOM';
   @ApiProperty() mailingAddressDifferent!: boolean;
   @ApiPropertyOptional() mailingLine1!: string | null;
   @ApiPropertyOptional() mailingLine2!: string | null;
@@ -131,6 +142,10 @@ export class UpdateFamilyChildDto {
   @IsOptional()
   @IsIn(['FAMILY', 'CUSTOM'])
   addressSource?: 'FAMILY' | 'CUSTOM';
+  @ApiPropertyOptional({ enum: ['FAMILY', 'CUSTOM'] })
+  @IsOptional()
+  @IsIn(['FAMILY', 'CUSTOM'])
+  mailingAddressSource?: 'FAMILY' | 'CUSTOM';
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine1?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) customAddressLine2?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) customCity?: string | null;
@@ -150,6 +165,15 @@ export class CreateChildAccountDto {
   // Optional — under-13 accounts are parent-managed and don't need
   // their own email. Older minors get a Keycloak account stub.
   @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
+  // DOB + gender are REQUIRED to provision a real account (Account
+  // Creation spec, Step 2), but the PLACEHOLDER child row may already
+  // carry them. These optional fields let the create-account call fill
+  // gaps; the service computes the effective value (dto ?? row) and
+  // 400s if either is still missing. Validated as a non-future date /
+  // non-empty gender at the service layer so existing 'F'/'M' data on
+  // other surfaces stays compatible.
+  @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfBirth?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
 }
 
 export class SendChildLinkDto {
@@ -321,6 +345,20 @@ export class UpdateFamilyMemberDto {
  */
 export class CreateMemberAccountDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+  // DOB + gender are REQUIRED to provision an adult account (Account
+  // Creation spec, Step 2). Unlike the child path, platform_family_members
+  // has no DOB/gender columns, so these MUST be supplied here; the
+  // service 400s if either is missing and writes them onto the new
+  // iam_person. Optional at the DTO layer (so the 400 carries a precise
+  // field-level message rather than a generic class-validator one).
+  //
+  // NOTE on Step 4 "also a student": person_type stays GUARDIAN (personas
+  // are derived, never assigned — there's no STUDENT projection here), so
+  // the student-variant choice has no durable backend representation. It
+  // drives only the immediate post-create redirect, which the client
+  // already knows from the DOB it submitted — the server needs no flag.
+  @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfBirth?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) gender?: string;
 }
 
 /**
@@ -401,6 +439,13 @@ export class ChildMedicalInfoDto {
   @ApiPropertyOptional() insuranceGroup?: string | null;
   @ApiPropertyOptional() bloodType?: string | null;
   @ApiPropertyOptional() medicalNotes?: string | null;
+  // Family's explicit three-state doctor/insurance flags, surfaced ONLY
+  // in FAMILY (inherited) mode so the child view can distinguish a
+  // definitive "the family has no doctor/insurer" (flag === false) from
+  // "nobody filled it in yet" (flag === null) — otherwise both render as
+  // empty dashes. null in CUSTOM mode (the child's own record governs).
+  @ApiPropertyOptional() hasFamilyDoctor?: boolean | null;
+  @ApiPropertyOptional() hasInsurance?: boolean | null;
 }
 
 export class UpdateChildMedicalInfoDto {
@@ -615,6 +660,16 @@ export class ReorderFamilyEmergencyContactsDto {
   @ApiProperty({ type: [String] })
   @IsString({ each: true })
   orderedIds!: string[];
+}
+
+/**
+ * PATCH /families/:familyId/primary-guardian — reassign which active
+ * guardian is the family's primary contact. "Primary" is a contact /
+ * label designation only; it does NOT change guardianship or edit
+ * rights (decoupled from canEditFamilyStructure / isActiveGuardianOf).
+ */
+export class SetPrimaryGuardianDto {
+  @ApiProperty() @IsString() guardianPersonId!: string;
 }
 
 // ─── /family/settings — family-level shared attributes ─────

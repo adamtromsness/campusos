@@ -12,6 +12,8 @@ import { InvitationService } from './invitation.service';
 import { InvitationController } from './invitation.controller';
 import { PeopleSearchService } from './people-search.service';
 import { PeopleSearchController } from './people-search.controller';
+import { DuplicateCheckService } from './duplicate-check.service';
+import { DuplicateCheckController } from './duplicate-check.controller';
 import { RelationshipService } from './relationship.service';
 import { RelationshipController } from './relationship.controller';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
@@ -56,9 +58,15 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     PersonaResolutionService,
     InvitationService,
     PeopleSearchService,
+    DuplicateCheckService,
     RelationshipService,
   ],
-  controllers: [InvitationController, PeopleSearchController, RelationshipController],
+  controllers: [
+    InvitationController,
+    PeopleSearchController,
+    DuplicateCheckController,
+    RelationshipController,
+  ],
   exports: [
     PermissionCheckService,
     EffectiveAccessCacheService,
@@ -70,6 +78,7 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
     PersonaResolutionService,
     InvitationService,
     PeopleSearchService,
+    DuplicateCheckService,
     RelationshipService,
   ],
 })

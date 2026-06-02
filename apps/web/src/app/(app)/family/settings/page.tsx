@@ -28,6 +28,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useBeforeUnloadOnDirty, useFormDirty } from '@/hooks/use-form-dirty';
 import { cn } from '@/components/ui/cn';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { StickySaveBar } from '@/components/ui/StickySaveBar';
 import { CountryField, formatAddressOneLine } from '@/components/ui/CountryField';
 import { formatPhone } from '@/lib/phone-format';
 
@@ -186,7 +187,9 @@ function Tabs({
         </ul>
       </nav>
 
-      <div className="mt-6">
+      {/* pb-24 reserves clearance so the viewport-fixed StickySaveBar each
+          tab renders never covers the tab's last field. */}
+      <div className="mt-6 pb-24">
         {active === 'family' && (
           <FamilyTab settings={settings} members={members} onNavigate={select} />
         )}
@@ -317,8 +320,7 @@ function FamilyTab({
   const categoriesDirty = dirtyCategories.length > 0;
   const busy = updateSettings.isPending || updatePrefs.isPending;
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function doSave() {
     if (!editable || !isDirty || busy) return;
     const tasks: Promise<unknown>[] = [];
     if (nameDirty) {
@@ -339,6 +341,11 @@ function FamilyTab({
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
   }
 
   return (
@@ -391,17 +398,17 @@ function FamilyTab({
         )}
       </Card>
 
+      {/* Hidden submit keeps Enter-to-save working; the visible save
+          action is the viewport-fixed StickySaveBar below, matching the
+          parent /profile pattern. */}
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       {editable && (
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || busy}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {busy && <LoadingSpinner size="sm" />}
-            <span>{busy ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        <StickySaveBar
+          isDirty={isDirty}
+          onSave={() => void doSave()}
+          onDiscard={() => setForm(initial)}
+          saving={busy}
+        />
       )}
     </form>
   );
@@ -475,7 +482,6 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
   const prefs = prefsData ?? null;
 
   const items = useMemo<CompletionItem[]>(() => {
-    const hasName = Boolean(settings.displayName?.trim());
     const hasGeneralPrimary = (prefs ?? []).some(
       (p) => p.category === 'GENERAL' && p.primaryPersonId,
     );
@@ -510,11 +516,6 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
       activeGuardians.every(
         (m) => (m.primaryPhone ?? '').trim() && (m.email ?? '').trim(),
       );
-    const generalPersonId = (prefs ?? []).find((p) => p.category === 'GENERAL')?.primaryPersonId;
-    const customisedPrefs = (prefs ?? []).some(
-      (p) =>
-        p.category !== 'GENERAL' && p.primaryPersonId && p.primaryPersonId !== generalPersonId,
-    );
     // Mailing address is satisfied when it's the same as home, or
     // (when separate) every required mailing field is filled — same
     // required set as the home address.
@@ -528,27 +529,19 @@ function useCompletionState(settings: FamilySettingsDto): CompletionState {
             settings.mailingCountry,
         );
 
+    // NOTE: "Family name set" and "Communication preferences customised"
+    // were removed from the completion criteria (spec STEPs 3-4). The
+    // display name is optional (blank is valid), and communication
+    // preferences are seeded to operational defaults on family creation,
+    // so neither blocks completion. The Family-name field stays editable
+    // on the Family tab and prefs stay editable on the categories card —
+    // they're just no longer scored here. "Primary contact assigned
+    // (General)" stays: it's satisfied by the seeded default primary.
     return [
-      {
-        key: 'family-name',
-        label: 'Family name set',
-        complete: hasName,
-        weight: 5,
-        section: 'family',
-        scrollTargetId: 'family-name',
-      },
       {
         key: 'primary-contact',
         label: 'Primary contact assigned (General)',
         complete: hasGeneralPrimary,
-        weight: 5,
-        section: 'family',
-        scrollTargetId: 'family-categories',
-      },
-      {
-        key: 'communication-prefs',
-        label: 'Communication preferences customised',
-        complete: customisedPrefs,
         weight: 5,
         section: 'family',
         scrollTargetId: 'family-categories',
@@ -1111,9 +1104,8 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
     }
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!editable || !isDirty) return;
+  async function doSave() {
+    if (!editable || !isDirty || update.isPending) return;
     const missing = validate();
     if (missing.size > 0) {
       setErrors(missing);
@@ -1133,6 +1125,16 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
     ];
     for (const k of homeKeys) {
       if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
+    }
+    // Country defaults to "United States" in the form but, being unchanged
+    // from that default, the dirty-diff above would skip it — leaving the
+    // saved value NULL and the "Home address on file" completion item
+    // stuck incomplete unless the user pointlessly toggles the dropdown.
+    // Whenever any home-address field is being written, persist the shown
+    // country too so the stored value always matches what's displayed.
+    const writingHomeAddress = homeKeys.some((k) => k in payload);
+    if (writingHomeAddress && form.country && payload.country === undefined) {
+      payload.country = form.country;
     }
     if (form.mailingAddressDifferent !== initial.mailingAddressDifferent) {
       payload.mailingAddressDifferent = form.mailingAddressDifferent;
@@ -1167,6 +1169,11 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
       for (const k of mailingKeys) {
         if (form[k] !== initial[k]) (payload as Record<string, unknown>)[k] = form[k];
       }
+      // Same country-default reasoning as the home address above.
+      const writingMailingAddress = mailingKeys.some((k) => k in payload);
+      if (writingMailingAddress && form.mailingCountry && payload.mailingCountry === undefined) {
+        payload.mailingCountry = form.mailingCountry;
+      }
     }
 
     try {
@@ -1175,6 +1182,16 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
+  }
+
+  function onDiscard() {
+    setForm(initial);
+    setErrors(new Set());
   }
 
   return (
@@ -1346,17 +1363,16 @@ function AddressesTab({ settings }: { settings: FamilySettingsDto }) {
         )}
       </Card>
 
+      {/* Hidden submit keeps Enter-to-save working; the visible save
+          action is the viewport-fixed StickySaveBar below. */}
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       {editable && (
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        <StickySaveBar
+          isDirty={isDirty}
+          onSave={() => void doSave()}
+          onDiscard={onDiscard}
+          saving={update.isPending}
+        />
       )}
     </form>
   );
@@ -2056,9 +2072,8 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
 
   const editable = settings.canEdit;
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!editable || !isDirty) return;
+  async function doSave() {
+    if (!editable || !isDirty || update.isPending) return;
     const payload: UpdateFamilySettingsPayload = {};
     for (const k of Object.keys(form) as Array<keyof typeof form>) {
       if (k === 'noDoctor' || k === 'noInsurance') continue;
@@ -2109,6 +2124,11 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not save.', 'error');
     }
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void doSave();
   }
 
   return (
@@ -2244,17 +2264,16 @@ function HealthTab({ settings }: { settings: FamilySettingsDto }) {
         />
       </Card>
 
+      {/* Hidden submit keeps Enter-to-save working; the visible save
+          action is the viewport-fixed StickySaveBar below. */}
+      <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       {editable && (
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!isDirty || update.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-campus-600 disabled:opacity-60"
-          >
-            {update.isPending && <LoadingSpinner size="sm" />}
-            <span>{update.isPending ? 'Saving…' : 'Save Changes'}</span>
-          </button>
-        </div>
+        <StickySaveBar
+          isDirty={isDirty}
+          onSave={() => void doSave()}
+          onDiscard={() => setForm(initial)}
+          saving={update.isPending}
+        />
       )}
     </form>
   );
