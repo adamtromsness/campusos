@@ -304,7 +304,7 @@ function AccessLevelInfo({ child }: { child: FamilyChildDto }) {
       <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">
         <p className="font-semibold">You manage this account.</p>
         <p className="mt-0.5">
-          You can edit {child.firstName}&rsquo;s identity, medical, emergency, and dietary info.
+          You can edit {child.firstName}&rsquo;s identity, medical, emergency, and dietary info.{' '}
           {child.firstName} doesn&rsquo;t log in separately — their CampusOS access is through you.
         </p>
       </div>
